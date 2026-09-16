@@ -33,10 +33,71 @@
       <optional>true</optional>
     </dependency>
 
+    <!--
+      Optional: this module's own PostgresObjectStore/PostgresOntologyDocumentStore classes depend
+      on JdbcClient/TransactionTemplate, but a caller that only wants those plain classes against a
+      hand-built DataSource must not be forced to pull Spring Boot's autoconfigure machinery.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+
+    <!--
+      This is a Jackson-3 codebase (tools.jackson, not com.fasterxml.jackson): Boot 4.1.1's own
+      spring-boot-starter-web pulls tools.jackson.core:jackson-databind 3.x. This module does not
+      depend on spring-boot-starter-web, so it declares jackson-databind directly; ValueJsonCodec
+      must only ever import tools.jackson.databind.*, never com.fasterxml.jackson.databind.*.
+    -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <!--
+      Kept as a normal (non-optional) compile dependency: this adapter's own Flyway.configure()
+      call needs the driver on its classpath at runtime regardless of who assembles the app, and
+      spring-boot-starter-jdbc does not itself pull a driver.
+    -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

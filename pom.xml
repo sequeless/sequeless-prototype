@@ -75,6 +75,17 @@
       </dependency>
 
       <!--
+        jena-shacl backs the SHACL ValidationPort adapter (Phase 2, T8). Declared here alongside
+        jena-ontapi even though T5 does not use it yet, so both Jena artifacts are pinned to the
+        same ${jena.version} from one place.
+      -->
+      <dependency>
+        <groupId>org.apache.jena</groupId>
+        <artifactId>jena-shacl</artifactId>
+        <version>${jena.version}</version>
+      </dependency>
+
+      <!--
         springdoc 3.x is the Spring Boot 4 line (3.1.1 builds against spring-boot-starter-parent
         4.1.0); the 2.x line targets Boot 3 and will not bind here.
       -->
@@ -191,6 +202,25 @@
                 </requireJavaVersion>
               </rules>
             </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!--
+        Executions declared here (not in pluginManagement, which only pins the version) so every
+        reactor module inherits them: any module with a class matching Failsafe's default
+        **/*IT.java pattern automatically runs it during mvn verify. Surefire's own default
+        excludes already skip **/*IT.java, so there is no double-run risk.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

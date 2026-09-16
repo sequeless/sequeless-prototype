@@ -57,6 +57,9 @@ import org.sequeless.spi.Scope;
  *       every {@link Create}, {@code expectedVersion + 1} for every {@link Update} or {@link
  *       Delete}), and {@link CommitResult#outboxIds()} is exactly the ids of the persisted outbox
  *       rows, in the same order as {@link ChangeSet#outbox()}.
+ *   <li><b>{@code Instant} precision.</b> Implementations may store {@link java.time.Instant}
+ *       values at microsecond precision; conforming code must not depend on sub-microsecond
+ *       precision surviving a round trip through {@link #commit} and {@link #find}.
  * </ul>
  */
 public interface ObjectStorePort {

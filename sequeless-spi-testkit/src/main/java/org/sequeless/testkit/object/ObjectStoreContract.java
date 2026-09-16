@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -80,6 +81,18 @@ import org.sequeless.testkit.Fixtures;
  * outbox-row-count assertions in {@link #outboxIdsInCommitResultMatchPersistedRows()} and {@link
  * #staleUpdateThrowsAndWritesNothing()} to run against its own real persisted rows must override
  * it; skipping the override silently skips those specific assertions rather than failing them.
+ *
+ * <p><b>Timestamp precision.</b> Every fixture {@link Instant} this contract builds is truncated
+ * to microseconds ({@link ChronoUnit#MICROS}) before use, because SQL adapters backed by a {@code
+ * timestamptz} column cannot exceed microsecond resolution. {@link
+ * #createThenFindRoundTripsEveryValueVariantAndAudit()} asserts that {@link
+ * ObjectStorePort#find} returns an {@link Audit} equal to the one it built with {@code
+ * Instant.now()}; without this truncation, a nanosecond-precision {@code Instant.now()} on Linux
+ * would never round-trip through such a column, penalizing every SQL-backed implementation
+ * regardless of how faithfully its codec preserves precision. Implementations may store {@code
+ * Instant} values at microsecond precision; conforming code must not depend on sub-microsecond
+ * precision surviving a round trip through {@link ObjectStorePort#commit}/{@link
+ * ObjectStorePort#find}.
  */
 public abstract class ObjectStoreContract {
 
@@ -288,7 +301,7 @@ public abstract class ObjectStoreContract {
         ObjectStorePort store = freshStore();
         Scope scope = Fixtures.defaultScope();
         ObjectId missing = ObjectId.random();
-        Mutation delete = new Delete(missing, 1, Instant.now(), "tester");
+        Mutation delete = new Delete(missing, 1, Instant.now().truncatedTo(ChronoUnit.MICROS), "tester");
 
         assertThatThrownBy(
                 () -> store.commit(scope, new ChangeSet(List.of(delete), List.of())))
@@ -305,7 +318,7 @@ public abstract class ObjectStoreContract {
             scope, new ChangeSet(List.of(new Create(newObject(scope, id, TYPE_A, Map.of()))), List.of()));
         store.commit(
             scope,
-            new ChangeSet(List.of(new Delete(id, 1, Instant.now(), "tester")), List.of()));
+            new ChangeSet(List.of(new Delete(id, 1, Instant.now().truncatedTo(ChronoUnit.MICROS), "tester")), List.of()));
 
         assertThat(store.find(scope, id)).isEmpty();
         PageResult<BusinessObject> page = store.browse(scope, Set.of(TYPE_A), new Page(0, 20));
@@ -438,7 +451,7 @@ public abstract class ObjectStoreContract {
 
     private static BusinessObject newObject(
         Scope scope, ObjectId id, TypeRef type, Map<PropertyRef, Value> properties) {
-        return objectAt(scope, id, type, properties, Instant.now());
+        return objectAt(scope, id, type, properties, Instant.now().truncatedTo(ChronoUnit.MICROS));
     }
 
     private static BusinessObject objectAt(
@@ -463,6 +476,6 @@ public abstract class ObjectStoreContract {
             UUID.randomUUID(),
             OutboxEntry.KIND_OBJECT_CREATED,
             Map.of("objectId", subject.value().toString()),
-            Instant.now());
+            Instant.now().truncatedTo(ChronoUnit.MICROS));
     }
 }
