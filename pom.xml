@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.sequeless</groupId>
+  <artifactId>sequeless-parent</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>sequeless-parent</name>
+  <description>
+    Root reactor POM for Sequeless. Deliberately has no Maven parent: it imports the Spring Boot
+    dependencies BOM and pins its own plugin versions, so sequeless-spi does not inherit Spring
+    Boot's build conventions (Lombok/Spring must stay out of the SPI and core modules).
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>25</maven.compiler.release>
+
+    <spring-boot.version>4.1.1</spring-boot.version>
+    <archunit.version>1.5.0</archunit.version>
+    <japicmp.version>0.26.2</japicmp.version>
+    <lombok.version>1.18.48</lombok.version>
+
+    <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+    <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+    <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
+    <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!--
+        junit-jupiter, assertj-core, mockito and testcontainers versions come from the Spring Boot
+        BOM above (imported as spring-boot-dependencies) and must NOT be repinned here.
+      -->
+
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit-junit5</artifactId>
+        <version>${archunit.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>${lombok.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven-compiler-plugin.version}</version>
+          <configuration>
+            <release>25</release>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${maven-surefire-plugin.version}</version>
+        </plugin>
+
+        <!--
+          Version only, no executions here: Failsafe is reserved for the Testcontainers
+          integration tests introduced in Phase 2.
+        -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>${maven-failsafe-plugin.version}</version>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <version>${maven-enforcer-plugin.version}</version>
+        </plugin>
+
+        <!--
+          Full japicmp configuration lives here so a bare <plugin> declaration in a module's own
+          <build><plugins> (e.g. sequeless-spi) inherits both this configuration and the
+          japicmp-verify execution bound to the verify phase. No sequeless-spi artifact has ever
+          been published, so oldVersion RELEASE fails to resolve; ignoreMissingOldVersion makes
+          that a skipped no-op today. This becomes a real compatibility gate once an SPI GA is
+          published.
+        -->
+        <plugin>
+          <groupId>com.github.siom79.japicmp</groupId>
+          <artifactId>japicmp-maven-plugin</artifactId>
+          <version>${japicmp.version}</version>
+          <configuration>
+            <oldVersion>
+              <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>${project.artifactId}</artifactId>
+                <version>RELEASE</version>
+                <type>jar</type>
+              </dependency>
+            </oldVersion>
+            <newVersion>
+              <file>
+                <path>${project.build.directory}/${project.build.finalName}.${project.packaging}</path>
+              </file>
+            </newVersion>
+            <parameter>
+              <ignoreMissingOldVersion>true</ignoreMissingOldVersion>
+              <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+              <onlyBinaryIncompatible>true</onlyBinaryIncompatible>
+            </parameter>
+          </configuration>
+          <executions>
+            <execution>
+              <id>japicmp-verify</id>
+              <phase>verify</phase>
+              <goals>
+                <goal>cmp</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <!--
+      Inherited by every module. japicmp and the bannedDependencies enforcer execution are
+      deliberately NOT declared here - they are activated per-module (sequeless-spi and
+      sequeless-core) once those modules exist.
+    -->
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-versions</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>[3.9,)</version>
+                </requireMavenVersion>
+                <requireJavaVersion>
+                  <version>[25,)</version>
+                </requireJavaVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!--
+    T2 uncomments this block once the module directories exist. Until then the module list is
+    commented out so `mvn -B -ntp validate` passes at the end of T1 with an empty reactor.
+
+  <modules>
+    <module>sequeless-spi</module>
+    <module>sequeless-spi-testkit</module>
+    <module>sequeless-core</module>
+    <module>sequeless-adapter-authz-permitall</module>
+    <module>sequeless-adapter-ontology-jena</module>
+    <module>sequeless-adapter-persistence-postgres</module>
+    <module>sequeless-adapter-expression-jexl</module>
+    <module>sequeless-adapter-automation-temporal</module>
+    <module>sequeless-adapter-automation-inprocess</module>
+    <module>sequeless-app</module>
+  </modules>
+  -->
+
+</project>
