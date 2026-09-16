@@ -1,0 +1,114 @@
+@prefix ex:   <https://sequeless.dev/ns/ref#> .
+@prefix sq:   <https://sequeless.dev/ns/meta#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#
+# Reference-domain ontology used across the contract testkit and the Jena adapter's own tests.
+# Deliverable is abstract and superclasses WorkItem, which is itself abstract and superclasses the
+# concrete Task and Project types. Person stands alone. The three-level hierarchy is intentional:
+# it is what makes the reasoner=none / rdfs / owl distinction on superTypes() observable.
+#
+
+<https://sequeless.dev/ns/ref>
+    a owl:Ontology ;
+    owl:imports <https://sequeless.dev/ns/meta> .
+
+#
+# Classes
+#
+
+ex:Deliverable
+    a owl:Class ;
+    sq:label "Deliverable" ;
+    sq:abstract "true"^^xsd:boolean .
+
+ex:WorkItem
+    a owl:Class ;
+    rdfs:subClassOf ex:Deliverable ;
+    sq:label "Work Item" ;
+    sq:abstract "true"^^xsd:boolean .
+
+ex:Task
+    a owl:Class ;
+    rdfs:subClassOf ex:WorkItem ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:title ;
+          owl:minCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:assignedTo ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
+    sq:label "Task" .
+
+ex:Project
+    a owl:Class ;
+    rdfs:subClassOf ex:WorkItem ;
+    sq:label "Project" .
+
+ex:Person
+    a owl:Class ;
+    sq:label "Person" .
+
+#
+# Properties
+#
+
+ex:title
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Deliverable ;
+    rdfs:range xsd:string ;
+    sq:label "Title" ;
+    sq:searchable "true"^^xsd:boolean ;
+    sq:displayGroup "General" ;
+    sq:displayOrder "1"^^xsd:integer .
+
+ex:status
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:WorkItem ;
+    rdfs:range xsd:string ;
+    sq:label "Status" ;
+    sq:facet "true"^^xsd:boolean ;
+    sq:indexed "true"^^xsd:boolean ;
+    sq:displayOrder "2"^^xsd:integer .
+
+ex:priority
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Task ;
+    rdfs:range xsd:integer ;
+    sq:label "Priority" ;
+    sq:displayGroup "Planning" ;
+    sq:displayOrder "3"^^xsd:integer .
+
+ex:createdAt
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Deliverable ;
+    rdfs:range xsd:dateTime ;
+    sq:label "Created At" ;
+    sq:hidden "true"^^xsd:boolean ;
+    sq:readOnly "true"^^xsd:boolean ;
+    sq:displayOrder "6"^^xsd:integer .
+
+ex:assignedTo
+    a owl:ObjectProperty ;
+    rdfs:domain ex:Task ;
+    rdfs:range ex:Person ;
+    sq:label "Assigned To" ;
+    sq:facet "true"^^xsd:boolean ;
+    sq:displayOrder "4"^^xsd:integer .
+
+ex:belongsToProject
+    a owl:ObjectProperty ,
+        owl:FunctionalProperty ;
+    rdfs:domain ex:Task ;
+    rdfs:range ex:Project ;
+    owl:inverseOf ex:hasTask ;
+    sq:label "Belongs To Project" ;
+    sq:displayOrder "5"^^xsd:integer .
+
+ex:hasTask
+    a owl:ObjectProperty ;
+    rdfs:domain ex:Project ;
+    rdfs:range ex:Task ;
+    sq:label "Has Task" ;
+    sq:displayOrder "2"^^xsd:integer .

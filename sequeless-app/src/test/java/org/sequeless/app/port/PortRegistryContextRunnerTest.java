@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.sequeless.adapter.authz.permitall.PermitAllAuthorizationAutoConfiguration;
+import org.sequeless.adapter.ontology.jena.JenaOntologyAutoConfiguration;
 import org.sequeless.app.config.PortRegistryConfiguration;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
@@ -88,10 +89,24 @@ class PortRegistryContextRunnerTest {
             });
     }
 
+    /**
+     * The only test here that has to satisfy <em>every</em> port slot at once. Each test above
+     * deliberately configures the authz slot alone, because each is probing one specific failure
+     * mode of that slot and {@link PortRegistry} fails on the first slot it finds wanting — leaving
+     * the ontology slot unconfigured there is harmless, since those contexts are asserted to fail
+     * anyway. A context that must actually <em>succeed</em> has no such luxury: it needs a valid
+     * adapter and exactly one bean for the authz slot and for the ontology slot alike, which is why
+     * this is the one place the real {@link JenaOntologyAutoConfiguration} is imported and pointed
+     * at the reference ontology.
+     */
     @Test
     void happyPathSucceeds() {
         runnerWithPermitAllAdapter
-            .withPropertyValues("sequeless.authz.adapter=permit-all")
+            .withConfiguration(AutoConfigurations.of(JenaOntologyAutoConfiguration.class))
+            .withPropertyValues(
+                "sequeless.authz.adapter=permit-all",
+                "sequeless.ontology.adapter=jena",
+                "sequeless.ontology.source=classpath:ontology/reference.ttl")
             .run(context -> assertThat(context).hasNotFailed());
     }
 

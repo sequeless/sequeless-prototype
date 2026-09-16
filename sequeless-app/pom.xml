@@ -87,6 +87,16 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
 
+    <!--
+      No version here: the root dependencyManagement pins 3.1.1. The major version matters — the
+      springdoc 3.x line is the Spring Boot 4 line, while 2.x targets Boot 3 and will not bind
+      against the Boot 4.1 context this module runs in.
+    -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
