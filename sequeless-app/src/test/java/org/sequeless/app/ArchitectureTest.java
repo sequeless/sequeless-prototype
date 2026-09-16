@@ -166,6 +166,24 @@ class ArchitectureTest {
                     + "runtime; referencing Jena, JDBC or Temporal types directly would leak adapter "
                     + "implementation details into the use cases the ports exist to hide.");
 
+    @ArchTest
+    static final ArchRule noJenaInSpiOrCore =
+        noClasses()
+            .that()
+            .resideInAnyPackage(SPI_PACKAGE, CORE_PACKAGE)
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("org.apache.jena..")
+            .because(
+                "org.apache.jena is sequeless-adapter-ontology-jena's own implementation library, "
+                    + "not part of the framework-agnostic hexagon. The meta-model the core consumes "
+                    + "is deliberately a set of plain SPI records reached through OntologyPort, so "
+                    + "that replacing Jena with another RDF toolkit, or with a static test double, "
+                    + "stays an adapter-level decision. This is stated separately from the broader "
+                    + "coreDoesNotDependOnAdapterSpecificLibraries rule above because it also "
+                    + "covers sequeless-spi, where a leaked Jena type would be worse still: it "
+                    + "would force every adapter of every port to drag Jena onto its classpath.");
+
     /**
      * Proves this suite is analyzing real classes from every module rather than passing
      * vacuously. If a future classpath or packaging change ever hollowed out the import (for
@@ -186,5 +204,8 @@ class ArchitectureTest {
                     .get("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort")
                     .getFullName())
             .isEqualTo("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort");
+        assertThat(
+                classes.get("org.sequeless.adapter.ontology.jena.JenaOntologyPort").getFullName())
+            .isEqualTo("org.sequeless.adapter.ontology.jena.JenaOntologyPort");
     }
 }
