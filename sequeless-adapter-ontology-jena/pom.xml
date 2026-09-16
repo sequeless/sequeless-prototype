@@ -15,9 +15,10 @@
 
   <name>sequeless-adapter-ontology-jena</name>
   <description>
-    Shell module for the default OntologyPort and ValidationPort adapter: Jena ontapi, the built-in
-    OWL reasoner, jena-shacl, and Turtle import/export. Jena dependencies arrive in Phase 1; for now
-    this module only proves the reactor wiring and toolchain.
+    The default OntologyPort adapter: Jena 6 ontapi, the built-in OWL/RDFS reasoners selected by
+    sequeless.ontology.reasoner, owl:imports resolution against a bundled copy of the sq: vocabulary,
+    sq: annotation mapping into the SPI's MetaModelSnapshot records, a consistency check producing an
+    OntologyReport, and Turtle import/export. jena-shacl and ValidationPort arrive in Phase 2.
   </description>
 
   <dependencies>
@@ -25,6 +26,24 @@
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
+    </dependency>
+
+    <!--
+      Version comes from the root dependencyManagement. jcl-over-slf4j is excluded because it ships
+      the org.apache.commons.logging classes that Spring Boot's own spring-jcl provides: with both on
+      the classpath the winner is classpath-order-dependent, which is exactly the kind of failure that
+      only shows up in the packaged app. Jena only needs commons-logging for third-party code paths
+      this adapter never exercises.
+    -->
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-ontapi</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>jcl-over-slf4j</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>
@@ -37,6 +56,17 @@
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <optional>true</optional>
+    </dependency>
+
+    <!--
+      Brings OntologyContract, the reference-domain Turtle fixtures, and (transitively, at compile
+      scope there by design) JUnit Jupiter and AssertJ.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

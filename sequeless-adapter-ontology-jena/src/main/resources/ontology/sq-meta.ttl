@@ -1,0 +1,59 @@
+@prefix sq:   <https://sequeless.dev/ns/meta#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+#
+# Canonical Turtle declaration of the sq: vocabulary (see docs/architecture/sq-vocabulary.md, T1).
+# Any ontology document that uses sq: terms imports this document via
+# owl:imports <https://sequeless.dev/ns/meta>.
+#
+
+<https://sequeless.dev/ns/meta>
+    a owl:Ontology .
+
+sq:label
+    a owl:AnnotationProperty ;
+    rdfs:range rdfs:Literal ;
+    rdfs:comment "Domain is the union of owl:Class and rdf:Property (both TypeDefinition and PropertyDefinition carry a label); OWL2 cannot express a class/property union domain on an annotation property, so it is recorded here rather than as an rdfs:domain axiom. Overrides rdfs:label where both are present on the same subject." .
+
+sq:displayOrder
+    a owl:AnnotationProperty ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Domain is the union of owl:Class and rdf:Property, for the same reason as sq:label; see that term's comment." .
+
+sq:displayGroup
+    a owl:AnnotationProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Domain is the union of owl:Class and rdf:Property, for the same reason as sq:label; see that term's comment." .
+
+sq:hidden
+    a owl:AnnotationProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Domain is the union of owl:Class and rdf:Property, for the same reason as sq:label; see that term's comment." .
+
+sq:facet
+    a owl:AnnotationProperty ;
+    rdfs:domain rdf:Property ;
+    rdfs:range xsd:boolean .
+
+sq:indexed
+    a owl:AnnotationProperty ;
+    rdfs:domain rdf:Property ;
+    rdfs:range xsd:boolean .
+
+sq:searchable
+    a owl:AnnotationProperty ;
+    rdfs:domain rdf:Property ;
+    rdfs:range xsd:boolean .
+
+sq:readOnly
+    a owl:AnnotationProperty ;
+    rdfs:domain rdf:Property ;
+    rdfs:range xsd:boolean .
+
+sq:abstract
+    a owl:AnnotationProperty ;
+    rdfs:domain owl:Class ;
+    rdfs:range xsd:boolean .

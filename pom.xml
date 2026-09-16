@@ -24,6 +24,8 @@
     <archunit.version>1.5.0</archunit.version>
     <japicmp.version>0.26.2</japicmp.version>
     <lombok.version>1.18.48</lombok.version>
+    <jena.version>6.1.0</jena.version>
+    <springdoc.version>3.1.1</springdoc.version>
 
     <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
     <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
@@ -56,6 +58,30 @@
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
         <version>${lombok.version}</version>
+      </dependency>
+
+      <!--
+        Jena 6 for the default OntologyPort adapter. jena-ontapi transitively brings jena-arq,
+        jena-core and jena-base; it does NOT bring Jackson (Jena 6 uses gson and titanium-json-ld),
+        so nothing here contends with the Spring Boot BOM. The one genuine clash is
+        org.slf4j:jcl-over-slf4j, which ships the same org.apache.commons.logging classes as Boot's
+        spring-jcl; it is excluded at the point of use in the adapter module rather than banned
+        here, because only that module pulls it in.
+      -->
+      <dependency>
+        <groupId>org.apache.jena</groupId>
+        <artifactId>jena-ontapi</artifactId>
+        <version>${jena.version}</version>
+      </dependency>
+
+      <!--
+        springdoc 3.x is the Spring Boot 4 line (3.1.1 builds against spring-boot-starter-parent
+        4.1.0); the 2.x line targets Boot 3 and will not bind here.
+      -->
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>${springdoc.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
