@@ -55,7 +55,9 @@ class SnapshotMapperTest {
                 Fixtures.PRIORITY_IRI,
                 Fixtures.ASSIGNED_TO_IRI,
                 Fixtures.BELONGS_TO_PROJECT_IRI,
-                Fixtures.CREATED_AT_IRI);
+                Fixtures.CREATED_AT_IRI,
+                Fixtures.ESTIMATED_HOURS_IRI,
+                Fixtures.DUE_DATE_IRI);
         assertThat(taskUnderNone.properties().stream().map(PropertyDefinition::iri))
             .containsExactlyElementsOf(ownPropertyIris);
 
@@ -109,6 +111,16 @@ class SnapshotMapperTest {
 
         assertThat(message)
             .contains("sq:derivedBy is reserved for Phase 4 (derived properties) and is not supported yet.");
+    }
+
+    @Test
+    void shaclShapesDoNotAppearAsTypesOrProperties() {
+        MappingResult owl = mapReferenceOntology(ReasonerSetting.OWL);
+
+        assertThat(owl.types().stream().map(TypeDefinition::iri))
+            .doesNotContain(
+                Fixtures.REFERENCE_ONTOLOGY_IRI + "#TaskShape", Fixtures.REFERENCE_ONTOLOGY_IRI + "#PersonShape");
+        assertThat(owl.warnings()).isEmpty();
     }
 
     private static MappingResult mapReferenceOntology(ReasonerSetting reasoner) {

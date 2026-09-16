@@ -3,6 +3,7 @@
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
 
 #
 # Reference-domain ontology used across the contract testkit and the Jena adapter's own tests.
@@ -48,6 +49,10 @@ ex:Project
 
 ex:Person
     a owl:Class ;
+    rdfs:subClassOf
+        [ a owl:Restriction ;
+          owl:onProperty ex:name ;
+          owl:minCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Person" .
 
 #
@@ -89,6 +94,20 @@ ex:createdAt
     sq:readOnly "true"^^xsd:boolean ;
     sq:displayOrder "6"^^xsd:integer .
 
+ex:estimatedHours
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Task ;
+    rdfs:range xsd:decimal ;
+    sq:label "Estimated Hours" ;
+    sq:displayOrder "7"^^xsd:integer .
+
+ex:dueDate
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Task ;
+    rdfs:range xsd:date ;
+    sq:label "Due Date" ;
+    sq:displayOrder "8"^^xsd:integer .
+
 ex:assignedTo
     a owl:ObjectProperty ;
     rdfs:domain ex:Task ;
@@ -112,3 +131,38 @@ ex:hasTask
     rdfs:range ex:Task ;
     sq:label "Has Task" ;
     sq:displayOrder "2"^^xsd:integer .
+
+ex:name
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Person ;
+    rdfs:range xsd:string ;
+    sq:label "Name" ;
+    sq:displayOrder "1"^^xsd:integer .
+
+ex:email
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Person ;
+    rdfs:range xsd:string ;
+    sq:label "Email" ;
+    sq:displayOrder "2"^^xsd:integer .
+
+#
+# SHACL shapes
+#
+
+ex:TaskShape
+    a sh:NodeShape ;
+    sh:targetClass ex:Task ;
+    sh:property [
+        sh:path ex:estimatedHours ;
+        sh:minInclusive 0 ;
+        sh:maxInclusive 1000 ;
+    ] .
+
+ex:PersonShape
+    a sh:NodeShape ;
+    sh:targetClass ex:Person ;
+    sh:property [
+        sh:path ex:email ;
+        sh:pattern "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" ;
+    ] .

@@ -88,6 +88,18 @@ public final class Fixtures {
      */
     public static final String HAS_TASK_IRI = REF + "hasTask";
 
+    /** {@code ex:estimatedHours} — {@code xsd:decimal}, declared on {@link #TASK_IRI}. */
+    public static final String ESTIMATED_HOURS_IRI = REF + "estimatedHours";
+
+    /** {@code ex:dueDate} — {@code xsd:date}, declared on {@link #TASK_IRI}. */
+    public static final String DUE_DATE_IRI = REF + "dueDate";
+
+    /** {@code ex:name} — {@code xsd:string}, declared on {@link #PERSON_IRI}, min cardinality 1. */
+    public static final String NAME_IRI = REF + "name";
+
+    /** {@code ex:email} — {@code xsd:string}, declared on {@link #PERSON_IRI}. */
+    public static final String EMAIL_IRI = REF + "email";
+
     private static final String REFERENCE_TURTLE = readClasspathResource("/ontology/reference.ttl");
     private static final String INCONSISTENT_TURTLE =
         readClasspathResource("/ontology/inconsistent.ttl");

@@ -76,7 +76,7 @@ class TypesEndToEndTest {
         assertThat(toList(task.get("superTypes"))).containsExactlyInAnyOrder("Deliverable", "WorkItem");
 
         JsonNode properties = task.get("properties");
-        assertThat(properties).hasSize(6);
+        assertThat(properties).hasSize(8);
 
         assertProperty(properties.get(0), "attribute", "title", 1, false, false, true, false, false);
         assertProperty(properties.get(1), "attribute", "status", 2, true, true, false, false, false);
@@ -88,6 +88,10 @@ class TypesEndToEndTest {
                 false);
         assertProperty(
                 properties.get(5), "attribute", "createdAt", 6, false, false, false, true, true);
+        assertProperty(
+                properties.get(6), "attribute", "estimatedHours", 7, false, false, false, false, false);
+        assertProperty(
+                properties.get(7), "attribute", "dueDate", 8, false, false, false, false, false);
     }
 
     @Test
