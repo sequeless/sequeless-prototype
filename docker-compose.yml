@@ -1,0 +1,43 @@
+# Local infrastructure for Sequeless phase 0 and beyond.
+#
+# Nothing in the application talks to either of these services today. They exist so the
+# infrastructure Phases 2 (PostgreSQL persistence) and 5 (Temporal automation) will need is
+# already in place and verified working; sequeless-app has no wiring to either yet.
+#
+# Notes verified empirically against the actual images (do not "fix" these without re-checking):
+#   - PostgreSQL 18 moved its data directory. The image declares VOLUME /var/lib/postgresql (not
+#     the historical /var/lib/postgresql/data), with PGDATA=/var/lib/postgresql/18/docker inside
+#     it. We mount the named volume at the image's own declared path so PGDATA lands inside it.
+#   - The temporalio/temporal image runs as a non-root user (`temporal`, uid 1000) whose only
+#     image-owned writable directory is its home, /home/temporal. We mount the named volume there
+#     and point --db-filename at a file inside it, so Temporal's dev-server sqlite state survives
+#     `docker compose down` (but not `docker compose down -v`).
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: sequeless
+      POSTGRES_PASSWORD: sequeless
+      POSTGRES_DB: sequeless
+    ports: ["5432:5432"]
+    volumes: ["sequeless-pgdata:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sequeless -d sequeless"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  temporal:
+    image: temporalio/temporal:1.9.1
+    command: server start-dev --ip 0.0.0.0 --ui-port 8233 --db-filename /home/temporal/temporal.db
+    ports: ["7233:7233", "8233:8233"]
+    volumes: ["sequeless-temporal:/home/temporal"]
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sequeless-pgdata:
+  sequeless-temporal:
