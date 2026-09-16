@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.sequeless</groupId>
+    <artifactId>sequeless-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>sequeless-spi-testkit</artifactId>
+
+  <name>sequeless-spi-testkit</name>
+  <description>
+    Abstract JUnit 5 contract tests per port (for example AuthorizationContract), plus the
+    reference-domain ontology fixture. JUnit Jupiter and AssertJ are declared at compile scope
+    (not test) because these contract classes live in src/main/java and adapter modules extend
+    them from their own test code, so the dependency must propagate.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+    </dependency>
+  </dependencies>
+
+</project>

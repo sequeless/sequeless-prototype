@@ -171,10 +171,6 @@
     </plugins>
   </build>
 
-  <!--
-    T2 uncomments this block once the module directories exist. Until then the module list is
-    commented out so `mvn -B -ntp validate` passes at the end of T1 with an empty reactor.
-
   <modules>
     <module>sequeless-spi</module>
     <module>sequeless-spi-testkit</module>
@@ -187,6 +183,5 @@
     <module>sequeless-adapter-automation-inprocess</module>
     <module>sequeless-app</module>
   </modules>
-  -->
 
 </project>
