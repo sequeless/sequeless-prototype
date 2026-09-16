@@ -32,6 +32,13 @@
       <artifactId>spring-boot-autoconfigure</artifactId>
       <optional>true</optional>
     </dependency>
+
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
 </project>
