@@ -1,0 +1,33 @@
+@prefix ex:  <https://sequeless.dev/ns/ref#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#
+# Exercises owl:TransitiveProperty and a second owl:inverseOf pair asserted in the opposite
+# direction from reference.ttl: there, the inverseOf assertion sits on the "many"-side property
+# (ex:belongsToProject, on ex:Task); here it sits on ex:parentOf, with ex:childOf carrying no
+# inverse of its own.
+#
+
+<https://sequeless.dev/ns/ref-inverse-transitive>
+    a owl:Ontology .
+
+ex:Component
+    a owl:Class .
+
+ex:partOf
+    a owl:ObjectProperty ,
+        owl:TransitiveProperty ;
+    rdfs:domain ex:Component ;
+    rdfs:range ex:Component .
+
+ex:parentOf
+    a owl:ObjectProperty ;
+    rdfs:domain ex:Component ;
+    rdfs:range ex:Component ;
+    owl:inverseOf ex:childOf .
+
+ex:childOf
+    a owl:ObjectProperty ;
+    rdfs:domain ex:Component ;
+    rdfs:range ex:Component .

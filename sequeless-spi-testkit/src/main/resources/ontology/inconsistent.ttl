@@ -1,0 +1,28 @@
+@prefix ex:  <https://sequeless.dev/ns/ref#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+#
+# Deliberately inconsistent fixture: ex:Cyborg is asserted a subclass of two classes that are
+# themselves asserted disjoint, and ex:c1 is asserted an instance of ex:Cyborg. A reasoner-backed
+# OntologyPort must throw OntologyException with an OntologyReport naming ex:Cyborg for this
+# document. No owl:imports here — consistency checking needs no sq: terms.
+#
+
+<https://sequeless.dev/ns/ref-inconsistent>
+    a owl:Ontology .
+
+ex:Machine
+    a owl:Class ;
+    owl:disjointWith ex:Person .
+
+ex:Person
+    a owl:Class .
+
+ex:Cyborg
+    a owl:Class ;
+    rdfs:subClassOf ex:Machine ,
+        ex:Person .
+
+ex:c1
+    a ex:Cyborg .
