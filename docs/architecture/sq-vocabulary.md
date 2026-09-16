@@ -1,0 +1,134 @@
+# The `sq:` vocabulary
+
+
+Namespace: `https://sequeless.dev/ns/meta#`. Document (ontology) IRI: `https://sequeless.dev/ns/meta`
+(no trailing `#` — the `#` is the fragment separator used by every term IRI). Conventional prefix:
+`sq:`. The canonical Turtle declaration of every term below lives in
+`sequeless-spi-testkit/src/main/resources/ontology/sq-meta.ttl` (T4); any ontology document that uses
+`sq:` terms imports this document via `owl:imports <https://sequeless.dev/ns/meta>`.
+
+`sq:` is a small annotation vocabulary layered on top of standard OWL. OWL describes what a type
+*is* (classes, subclass relationships, properties, domains, ranges, cardinality restrictions,
+consistency); `sq:` describes what the application needs to *display and enforce* that OWL has no
+term for — labels, ordering, grouping, facets, indexing hints, and two structural flags OWL itself
+cannot express (see "Two terms beyond OWL" below). Every `sq:` term maps to exactly one field on a
+`org.sequeless.spi.meta` snapshot record (T2); this document is the single source of truth for that
+mapping, and the Jena adapter's `SqVocabulary` (T7) is a direct transcription of it.
+
+## Terms in use (phase 1)
+
+| IRI | RDF type | Domain | Range | Default | Snapshot field |
+|---|---|---|---|---|---|
+| `sq:label` | `owl:AnnotationProperty` | `owl:Class` ∪ `rdf:Property` | `rdfs:Literal` | falls back to `rdfs:label`, then the IRI's local name | `TypeDefinition.label()` / `PropertyDefinition.label()` |
+| `sq:displayOrder` | `owl:AnnotationProperty` | `owl:Class` ∪ `rdf:Property` | `xsd:integer` | `Integer.MAX_VALUE` (unordered properties sort last) | `DisplayHints.order()` |
+| `sq:displayGroup` | `owl:AnnotationProperty` | `owl:Class` ∪ `rdf:Property` | `xsd:string` | absent (`Optional.empty()`) | `DisplayHints.group()` |
+| `sq:hidden` | `owl:AnnotationProperty` | `owl:Class` ∪ `rdf:Property` | `xsd:boolean` | `false` | `DisplayHints.hidden()` |
+| `sq:facet` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.facet()` |
+| `sq:indexed` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.indexed()` |
+| `sq:searchable` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.searchable()` |
+| `sq:readOnly` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.readOnly()` |
+| `sq:abstract` | `owl:AnnotationProperty` | `owl:Class` | `xsd:boolean` | `false` | `TypeDefinition.isAbstract()` |
+
+Notes:
+- `sq:label` **overrides** `rdfs:label` where both are present on the same subject; it exists
+  because `rdfs:label` is frequently reused by imported vocabularies for a purpose an application
+  cannot rely on, while `sq:label` is unambiguously "the label this application shows."
+- `sq:displayOrder`, `sq:displayGroup` and `sq:hidden` share one domain (class *and* property)
+  because both `TypeDefinition` and `PropertyDefinition` carry a `DisplayHints` — a type's display
+  hints govern its presentation as a whole (e.g. ordering in a type picker), a property's govern its
+  presentation within a type's detail view.
+- `sq:facet`, `sq:indexed`, `sq:searchable` and `sq:readOnly` are property-only: they describe how a
+  *value* of the property behaves in storage and query, which has no meaning at the class level.
+- `sq:abstract` is class-only: it marks a type that exists purely for other types to specialise
+  (`WorkItem`, `Deliverable` in the reference ontology) and that the application should not offer as
+  a directly instantiable type.
+
+## Two terms added beyond the brief
+
+The phase-1 brief lists `sq:label`, `sq:displayOrder`, `sq:displayGroup`, `sq:facet`, `sq:indexed`,
+`sq:searchable` and `sq:hidden`. Two more are needed and are declared here for the same reason as the
+rest: OWL has no native way to express them.
+
+- **`sq:abstract`** — OWL's `owl:Class` has no notion of "not directly instantiable"; every class is
+  instantiable unless something external says otherwise. `TypeDefinition.isAbstract()` needs a
+  source, so `sq:abstract` supplies it.
+- **`sq:readOnly`** — OWL's `rdf:Property` has no notion of "computed, not writable through the
+  generic API"; that is an application-level access concern, not an ontological one.
+  `PropertyDefinition.readOnly()` needs a source, so `sq:readOnly` supplies it.
+
+## Reserved terms (rejected if used now)
+
+These terms are named and scoped so that using them early fails loudly and clearly rather than being
+silently ignored. Each is implemented by a later phase; the Jena adapter's `SqVocabulary` (T7)
+rejects any ontology document that declares or uses one of these terms with a message following the
+pattern below, naming the term and the phase that will support it:
+
+> `sq:<term> is reserved for Phase <N> (<topic>) and is not supported yet.`
+
+| Term | RDF type (planned) | Reserved for |
+|---|---|---|
+| `sq:derivedBy` | `owl:AnnotationProperty` | Phase 4, derived properties (DR-08): attaches a `sq:Rollup` or `sq:Plugin` derivation rule to a property. |
+| `sq:StateMachine` | `owl:Class` | Phase 5, state machines and automation (DR-09): declares states, transitions, guards and actions for a type. |
+| `sq:permission` | `owl:AnnotationProperty` | Phase 8, authorisation (DR-11): attaches a permission requirement to a type, property or transition, evaluated by `AuthorizationPort` once Spring Security/OIDC replaces permit-all. |
+| `sq:materialised` | `owl:AnnotationProperty` | Phase 4, derived properties (DR-08): switches a `sq:derivedBy` rollup from on-read evaluation to event-driven materialisation. |
+
+## OWL → snapshot mapping table
+
+This table is the contract the Jena adapter's `SnapshotMapper` (T7) implements: for each OWL/`sq:`
+construct on the left, the snapshot field it produces on the right.
+
+| OWL / `sq:` construct | Snapshot field |
+|---|---|
+| `rdfs:subClassOf` (named superclass) | `TypeDefinition.superTypes()` |
+| Most-specific named `rdfs:domain` of a property | the owning `TypeDefinition`'s `properties()` list (property attributed to its most specific declared domain; inherited by subtypes) |
+| Most-specific named `rdfs:range` of a datatype property | `AttributeDefinition.datatype()` |
+| Most-specific named `rdfs:range` of an object property | `RelationshipDefinition.targetTypeIri()` |
+| Cardinality restriction (`owl:cardinality`, `owl:minCardinality`, `owl:maxCardinality`, and their qualified variants) on the type's `rdfs:subClassOf` axioms | `PropertyDefinition.cardinality()` |
+| `owl:someValuesFrom` restriction (no explicit min) | treated as `min 1` for `Cardinality` purposes |
+| `owl:FunctionalProperty` | `Cardinality` `max 1` (combined with any explicit min from a restriction; absent a restriction, `min 0, max 1`) |
+| No restriction and not functional | default `Cardinality` — `min 0, max unbounded` (`Cardinality.optional()` with `max` empty) |
+| `owl:inverseOf` | `RelationshipDefinition.inverseIri()` |
+| `owl:TransitiveProperty` | `RelationshipDefinition.transitive()` |
+| `sq:label` / `rdfs:label` / IRI local name (in that priority order) | `label()` |
+| `sq:displayOrder` / `sq:displayGroup` / `sq:hidden` | `DisplayHints` |
+| `sq:facet` / `sq:indexed` / `sq:searchable` / `sq:readOnly` | matching `PropertyDefinition` boolean flags |
+| `sq:abstract` | `TypeDefinition.isAbstract()` |
+| Ontology IRI (`owl:Ontology` subject) | `MetaModelSnapshot.ontologyIri()` |
+| `owl:versionIRI` | `MetaModelSnapshot.versionIri()` |
+| Declared namespace prefixes | `MetaModelSnapshot.prefixes()` (export/display only — never used to derive a short name; see `MetaModelSnapshot`'s short-name rule) |
+| Unmapped/unrecognised XSD datatype in `rdfs:range` | falls back to `Datatype.STRING`, plus a `WARNING` `OntologyIssue` naming the property and the unrecognised IRI |
+
+## What the reasoner setting changes
+
+`sequeless.ontology.reasoner` selects one of three Jena `OntSpecification`s (`owl`, `rdfs`, `none`,
+mapped by the adapter's `ReasonerSetting`). Reasoning applies only to the ontology (type level), never
+to business object instances. Verified empirically against `jena-ontapi:6.1.0` against the reference
+ontology's three-level hierarchy (`Deliverable ⊐ WorkItem ⊐ {Task, Project}`), exactly three effects
+are in scope for phase 1:
+
+1. **Superclass-closure depth.** Under `none`, a type's `superClasses(false)` includes only its
+   directly asserted `rdfs:subClassOf` targets — for `Task`, just `WorkItem`. Under `rdfs` and `owl`,
+   the closure is transitive — `Task` also picks up `Deliverable`. This is the basis of the
+   `sequeless.ontology.reasoner=none` acceptance criterion: with reasoning off, `Task.superTypes()`
+   omits `Deliverable`.
+2. **Inverse-property visibility.** Under `owl`, `inverseProperties()` returns the asserted
+   `owl:inverseOf` partner in both directions even when only one direction is asserted in the
+   source document (e.g. `hasTask` becomes visibly the inverse of `belongsToProject`, and vice
+   versa). Under `rdfs` and `none`, only the explicitly asserted direction resolves; the inferred
+   reverse direction is empty.
+3. **`owl:Thing` / `rdfs:Resource` leakage.** Under `owl`, `superClasses()` also yields `owl:Thing`
+   and `rdfs:Resource` at the root of every hierarchy, and `domains()`/`ranges()` return the full
+   superclass closure rather than just the most specific declared class. The `SnapshotMapper` (T7)
+   is required to filter out the builtin `rdf:`/`rdfs:`/`owl:`/`xsd:` namespaces when computing
+   `superTypes()`, and to compute domain/range ownership itself from most-specific declared
+   `rdfs:domain`/`rdfs:range` rather than from Jena's closure-inclusive accessors — so that
+   **property attribution (which type owns which property) is identical under all three reasoner
+   settings, and only `superTypes()` and inverse/transitive visibility vary.** This is why the
+   phase-1 decision record separates "type → properties" (computed by the adapter, reasoner-
+   independent) from "type → superTypes" (delegated to Jena, reasoner-dependent).
+
+Consistency checking (`asInferenceModel().validate()`) is available under all three settings but is
+only meaningful for `owl`/`rdfs`; an inconsistent ontology causes `OntologyPort.snapshot()` and
+`reload()` to throw `OntologyException` carrying an `OntologyReport` that names the offending
+resource (for example `ex:Cyborg` in the `inconsistent.ttl` fixture), regardless of which reasoner
+setting is active.
