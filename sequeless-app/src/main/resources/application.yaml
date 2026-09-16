@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: sequeless-app
+sequeless:
+  authz:
+    adapter: permit-all
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
