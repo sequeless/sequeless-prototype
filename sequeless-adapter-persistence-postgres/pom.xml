@@ -88,6 +88,18 @@
       <scope>test</scope>
     </dependency>
 
+    <!--
+      Unlike sequeless-adapter-ontology-jena/sequeless-adapter-authz-permitall's reflection-only
+      auto-configuration tests, PostgresPersistenceAutoConfigurationTest exercises a real Spring
+      context via ApplicationContextRunner (see plan.md/steps-phase-2.md T6), so this module needs
+      spring-boot-test on its test classpath.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers-postgresql</artifactId>
