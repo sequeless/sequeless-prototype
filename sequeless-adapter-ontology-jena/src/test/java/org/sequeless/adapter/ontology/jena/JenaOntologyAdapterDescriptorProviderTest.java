@@ -16,6 +16,11 @@ import org.sequeless.spi.ontology.OntologyPort;
  * exactly as the application does, rather than constructing {@link
  * JenaOntologyAdapterDescriptorProvider} directly. Instantiating it directly would prove nothing
  * about whether the service file actually wires the provider up for discovery.
+ *
+ * <p>Since T8, this module also registers {@link ShaclValidationAdapterDescriptorProvider} in the
+ * same service file — see {@code ShaclValidationAdapterDescriptorProviderTest} for that one's own
+ * proof; this test asserts on the {@code "jena"} descriptor specifically, tolerating the second
+ * provider rather than asserting an exact list size of one.
  */
 class JenaOntologyAdapterDescriptorProviderTest {
 
@@ -26,9 +31,12 @@ class JenaOntologyAdapterDescriptorProviderTest {
                 .map(ServiceLoader.Provider::get)
                 .toList();
 
-        assertThat(providers).hasSize(1);
+        AdapterDescriptor descriptor = providers.stream()
+            .map(AdapterDescriptorProvider::descriptor)
+            .filter(d -> d.name().equals("jena"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No 'jena' AdapterDescriptorProvider registered"));
 
-        AdapterDescriptor descriptor = providers.get(0).descriptor();
         assertThat(descriptor.name()).isEqualTo("jena");
         assertThat(descriptor.port()).isEqualTo(OntologyPort.class);
         assertThat(descriptor.property()).isEqualTo("sequeless.ontology.adapter");

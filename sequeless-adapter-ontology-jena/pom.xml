@@ -46,6 +46,16 @@
       </exclusions>
     </dependency>
 
+    <!--
+      Backs ShaclValidationPort (T8). jena-shacl depends on jena-arq/jena-core, already pulled in by
+      jena-ontapi above, so no new jcl-over-slf4j-style clash is expected; verified with
+      `mvn dependency:tree` during T8 implementation.
+    -->
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-shacl</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-autoconfigure</artifactId>
@@ -66,6 +76,19 @@
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi-testkit</artifactId>
       <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      ShaclValidationAutoConfigurationTest exercises both JenaOntologyAutoConfiguration and
+      ShaclValidationAutoConfiguration together via ApplicationContextRunner (see
+      sequeless-adapter-persistence-postgres's PostgresPersistenceAutoConfigurationTest for the same
+      pattern in this codebase), so this module needs spring-boot-test on its test classpath in
+      addition to the reflection-only JenaOntologyAutoConfigurationTest style used elsewhere here.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

@@ -21,6 +21,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * deliberately minimal (mirroring {@code sequeless-adapter-authz-permitall}'s {@code
  * PermitAllAuthorizationAutoConfigurationTest}); that end-to-end proof belongs to the application
  * module that assembles adapters together.
+ *
+ * <p>Since T8, this file names two auto-configurations ({@link JenaOntologyAutoConfiguration} and
+ * {@link ShaclValidationAutoConfiguration}); this test asserts against exactly two entries and
+ * checks both by name (order-independent) rather than {@code get(0)}, so a future third entry
+ * fails loudly here instead of silently going unchecked.
  */
 class JenaOntologyAutoConfigurationTest {
 
@@ -28,12 +33,14 @@ class JenaOntologyAutoConfigurationTest {
         "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
     @Test
-    void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException, ClassNotFoundException {
+    void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException {
         List<String> classNames = readNonBlankLines(IMPORTS_RESOURCE);
-        assertThat(classNames).hasSize(1);
+        assertThat(classNames)
+            .containsExactlyInAnyOrder(
+                JenaOntologyAutoConfiguration.class.getName(),
+                ShaclValidationAutoConfiguration.class.getName());
 
-        Class<?> autoConfigurationClass = Class.forName(classNames.get(0));
-        assertThat(autoConfigurationClass).isEqualTo(JenaOntologyAutoConfiguration.class);
+        Class<?> autoConfigurationClass = JenaOntologyAutoConfiguration.class;
 
         ConditionalOnProperty condition = autoConfigurationClass.getAnnotation(ConditionalOnProperty.class);
         assertThat(condition).isNotNull();
