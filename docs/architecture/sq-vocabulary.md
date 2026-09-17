@@ -27,6 +27,7 @@ mapping, and the Jena adapter's `SqVocabulary` (T7) is a direct transcription of
 | `sq:indexed` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.indexed()` |
 | `sq:searchable` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.searchable()` |
 | `sq:readOnly` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.readOnly()` |
+| `sq:displayLabel` | `owl:AnnotationProperty` | `rdf:Property` | `xsd:boolean` | `false` | `PropertyDefinition.displayLabel()` |
 | `sq:abstract` | `owl:AnnotationProperty` | `owl:Class` | `xsd:boolean` | `false` | `TypeDefinition.isAbstract()` |
 
 Notes:
@@ -39,6 +40,8 @@ Notes:
   presentation within a type's detail view.
 - `sq:facet`, `sq:indexed`, `sq:searchable` and `sq:readOnly` are property-only: they describe how a
   *value* of the property behaves in storage and query, which has no meaning at the class level.
+- `sq:displayLabel` marks a datatype property as its owning type's display label, used to render a
+  reference to an instance of that type as text (e.g. a facet bucket) instead of a raw id.
 - `sq:abstract` is class-only: it marks a type that exists purely for other types to specialise
   (`WorkItem`, `Deliverable` in the reference ontology) and that the application should not offer as
   a directly instantiable type.
@@ -91,7 +94,7 @@ construct on the left, the snapshot field it produces on the right.
 | `owl:TransitiveProperty` | `RelationshipDefinition.transitive()` |
 | `sq:label` / `rdfs:label` / IRI local name (in that priority order) | `label()` |
 | `sq:displayOrder` / `sq:displayGroup` / `sq:hidden` | `DisplayHints` |
-| `sq:facet` / `sq:indexed` / `sq:searchable` / `sq:readOnly` | matching `PropertyDefinition` boolean flags |
+| `sq:facet` / `sq:indexed` / `sq:searchable` / `sq:readOnly` / `sq:displayLabel` | matching `PropertyDefinition` boolean flags |
 | `sq:abstract` | `TypeDefinition.isAbstract()` |
 | Ontology IRI (`owl:Ontology` subject) | `MetaModelSnapshot.ontologyIri()` |
 | `owl:versionIRI` | `MetaModelSnapshot.versionIri()` |

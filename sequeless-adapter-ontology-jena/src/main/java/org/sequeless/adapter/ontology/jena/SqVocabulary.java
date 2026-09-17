@@ -46,6 +46,9 @@ final class SqVocabulary {
     /** {@code sq:readOnly} — feeds {@code PropertyDefinition.readOnly()}. */
     static final Property READ_ONLY = property("readOnly");
 
+    /** {@code sq:displayLabel} — feeds {@code PropertyDefinition.displayLabel()}. */
+    static final Property DISPLAY_LABEL = property("displayLabel");
+
     /** {@code sq:abstract} — feeds {@code TypeDefinition.isAbstract()}. */
     static final Property ABSTRACT = property("abstract");
 

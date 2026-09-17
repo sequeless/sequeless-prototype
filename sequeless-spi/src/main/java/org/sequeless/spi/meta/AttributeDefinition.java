@@ -15,6 +15,8 @@ import java.util.Optional;
  * @param indexed whether this property's values are indexed
  * @param searchable whether this property's values are full-text searchable
  * @param readOnly whether this property is computed and not writable through the generic API
+ * @param displayLabel whether this property's value is used as its type's display label when
+ *     rendering a reference to an instance of that type
  * @param displayHints this property's ordering, grouping, and visibility hints; must not be
  *     {@code null}
  * @param derivation the rule that derives this property's value, if any; must not be {@code null}
@@ -29,6 +31,7 @@ public record AttributeDefinition(
     boolean indexed,
     boolean searchable,
     boolean readOnly,
+    boolean displayLabel,
     DisplayHints displayHints,
     Optional<DerivationRule> derivation,
     Datatype datatype)

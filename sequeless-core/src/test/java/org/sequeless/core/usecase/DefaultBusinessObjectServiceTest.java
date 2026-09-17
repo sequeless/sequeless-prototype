@@ -86,15 +86,15 @@ class DefaultBusinessObjectServiceTest {
 
     private static final AttributeDefinition TITLE =
         new AttributeDefinition(
-            TITLE_IRI, "title", Cardinality.range(1, 1), false, false, false, false,
+            TITLE_IRI, "title", Cardinality.range(1, 1), false, false, false, false, false,
             DisplayHints.none(), Optional.empty(), Datatype.STRING);
     private static final AttributeDefinition HOURS =
         new AttributeDefinition(
-            HOURS_IRI, "estimatedHours", Cardinality.atMost(1), false, false, false, false,
+            HOURS_IRI, "estimatedHours", Cardinality.atMost(1), false, false, false, false, false,
             DisplayHints.none(), Optional.empty(), Datatype.DECIMAL);
     private static final RelationshipDefinition ASSIGNED_TO =
         new RelationshipDefinition(
-            ASSIGNED_TO_IRI, "assignedTo", Cardinality.atMost(1), false, false, false, false,
+            ASSIGNED_TO_IRI, "assignedTo", Cardinality.atMost(1), false, false, false, false, false,
             DisplayHints.none(), Optional.empty(), PERSON_IRI, Optional.empty(), false);
 
     private static final TypeDefinition WORK_ITEM =

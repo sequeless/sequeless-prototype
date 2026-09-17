@@ -18,6 +18,7 @@ class RelationshipDefinitionTest {
             false,
             false,
             false,
+            false,
             displayHints,
             Optional.empty(),
             "https://example.org/ns#Task",
@@ -45,7 +46,7 @@ class RelationshipDefinitionTest {
     void rejectsNullOrBlankIri() {
         assertThatIllegalArgumentException()
             .isThrownBy(() -> new RelationshipDefinition(
-                null, "Has task", Cardinality.optional(), false, false, false, false,
+                null, "Has task", Cardinality.optional(), false, false, false, false, false,
                 DisplayHints.none(), Optional.empty(), "https://example.org/ns#Task", Optional.empty(), false));
     }
 
@@ -54,7 +55,7 @@ class RelationshipDefinitionTest {
         assertThatIllegalArgumentException()
             .isThrownBy(() -> new RelationshipDefinition(
                 "https://example.org/ns#hasTask", "  ", Cardinality.optional(), false, false, false,
-                false, DisplayHints.none(), Optional.empty(), "https://example.org/ns#Task",
+                false, false, DisplayHints.none(), Optional.empty(), "https://example.org/ns#Task",
                 Optional.empty(), false));
     }
 
@@ -62,7 +63,7 @@ class RelationshipDefinitionTest {
     void rejectsNullCardinality() {
         assertThatNullPointerException()
             .isThrownBy(() -> new RelationshipDefinition(
-                "https://example.org/ns#hasTask", "Has task", null, false, false, false, false,
+                "https://example.org/ns#hasTask", "Has task", null, false, false, false, false, false,
                 DisplayHints.none(), Optional.empty(), "https://example.org/ns#Task", Optional.empty(),
                 false));
     }
@@ -72,7 +73,7 @@ class RelationshipDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new RelationshipDefinition(
                 "https://example.org/ns#hasTask", "Has task", Cardinality.optional(), false, false,
-                false, false, null, Optional.empty(), "https://example.org/ns#Task", Optional.empty(),
+                false, false, false, null, Optional.empty(), "https://example.org/ns#Task", Optional.empty(),
                 false));
     }
 
@@ -81,7 +82,7 @@ class RelationshipDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new RelationshipDefinition(
                 "https://example.org/ns#hasTask", "Has task", Cardinality.optional(), false, false,
-                false, false, DisplayHints.none(), null, "https://example.org/ns#Task", Optional.empty(),
+                false, false, false, DisplayHints.none(), null, "https://example.org/ns#Task", Optional.empty(),
                 false));
     }
 
@@ -90,7 +91,7 @@ class RelationshipDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new RelationshipDefinition(
                 "https://example.org/ns#hasTask", "Has task", Cardinality.optional(), false, false,
-                false, false, DisplayHints.none(), Optional.empty(), null, Optional.empty(), false));
+                false, false, false, DisplayHints.none(), Optional.empty(), null, Optional.empty(), false));
     }
 
     @Test
@@ -98,7 +99,7 @@ class RelationshipDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new RelationshipDefinition(
                 "https://example.org/ns#hasTask", "Has task", Cardinality.optional(), false, false,
-                false, false, DisplayHints.none(), Optional.empty(), "https://example.org/ns#Task", null,
+                false, false, false, DisplayHints.none(), Optional.empty(), "https://example.org/ns#Task", null,
                 false));
     }
 

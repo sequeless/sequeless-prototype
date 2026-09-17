@@ -18,6 +18,7 @@ class AttributeDefinitionTest {
             false,
             false,
             false,
+            false,
             DisplayHints.none(),
             Optional.empty(),
             Datatype.STRING);
@@ -33,6 +34,7 @@ class AttributeDefinitionTest {
             false,
             false,
             false,
+            false,
             new DisplayHints(2, Optional.empty(), false),
             Optional.empty(),
             Datatype.STRING);
@@ -44,11 +46,11 @@ class AttributeDefinitionTest {
     void rejectsNullOrBlankIri() {
         assertThatIllegalArgumentException()
             .isThrownBy(() -> new AttributeDefinition(
-                null, "Title", Cardinality.optional(), false, false, false, false,
+                null, "Title", Cardinality.optional(), false, false, false, false, false,
                 DisplayHints.none(), Optional.empty(), Datatype.STRING));
         assertThatIllegalArgumentException()
             .isThrownBy(() -> new AttributeDefinition(
-                "  ", "Title", Cardinality.optional(), false, false, false, false,
+                "  ", "Title", Cardinality.optional(), false, false, false, false, false,
                 DisplayHints.none(), Optional.empty(), Datatype.STRING));
     }
 
@@ -57,14 +59,14 @@ class AttributeDefinitionTest {
         assertThatIllegalArgumentException()
             .isThrownBy(() -> new AttributeDefinition(
                 "https://example.org/ns#title", null, Cardinality.optional(), false, false, false,
-                false, DisplayHints.none(), Optional.empty(), Datatype.STRING));
+                false, false, DisplayHints.none(), Optional.empty(), Datatype.STRING));
     }
 
     @Test
     void rejectsNullCardinality() {
         assertThatNullPointerException()
             .isThrownBy(() -> new AttributeDefinition(
-                "https://example.org/ns#title", "Title", null, false, false, false, false,
+                "https://example.org/ns#title", "Title", null, false, false, false, false, false,
                 DisplayHints.none(), Optional.empty(), Datatype.STRING));
     }
 
@@ -73,7 +75,7 @@ class AttributeDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new AttributeDefinition(
                 "https://example.org/ns#title", "Title", Cardinality.optional(), false, false,
-                false, false, null, Optional.empty(), Datatype.STRING));
+                false, false, false, null, Optional.empty(), Datatype.STRING));
     }
 
     @Test
@@ -81,7 +83,7 @@ class AttributeDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new AttributeDefinition(
                 "https://example.org/ns#title", "Title", Cardinality.optional(), false, false,
-                false, false, DisplayHints.none(), null, Datatype.STRING));
+                false, false, false, DisplayHints.none(), null, Datatype.STRING));
     }
 
     @Test
@@ -89,7 +91,7 @@ class AttributeDefinitionTest {
         assertThatNullPointerException()
             .isThrownBy(() -> new AttributeDefinition(
                 "https://example.org/ns#title", "Title", Cardinality.optional(), false, false,
-                false, false, DisplayHints.none(), Optional.empty(), null));
+                false, false, false, DisplayHints.none(), Optional.empty(), null));
     }
 
     @Test

@@ -113,14 +113,14 @@ class StructuralValidatorTest {
 
     private static AttributeDefinition attribute(String iri, Cardinality cardinality) {
         return new AttributeDefinition(
-            iri, iri, cardinality, false, false, false, false, DisplayHints.none(),
+            iri, iri, cardinality, false, false, false, false, false, DisplayHints.none(),
             Optional.empty(), Datatype.STRING);
     }
 
     private static RelationshipDefinition relationship(
         String iri, Cardinality cardinality, String targetTypeIri) {
         return new RelationshipDefinition(
-            iri, iri, cardinality, false, false, false, false, DisplayHints.none(),
+            iri, iri, cardinality, false, false, false, false, false, DisplayHints.none(),
             Optional.empty(), targetTypeIri, Optional.empty(), false);
     }
 

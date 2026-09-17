@@ -54,6 +54,12 @@ public sealed interface PropertyDefinition permits AttributeDefinition, Relation
     boolean readOnly();
 
     /**
+     * @return whether this property's value is used as its type's display label when rendering a
+     *     reference to an instance of that type (e.g. a facet bucket, a related-object picker)
+     */
+    boolean displayLabel();
+
+    /**
      * @return this property's ordering, grouping, and visibility hints
      */
     DisplayHints displayHints();

@@ -64,6 +64,7 @@ class ValueCoercerTest {
             false,
             false,
             false,
+            false,
             DisplayHints.none(),
             Optional.empty(),
             PERSON_IRI,
@@ -92,6 +93,7 @@ class ValueCoercerTest {
             false,
             false,
             readOnly,
+            false,
             DisplayHints.none(),
             Optional.empty(),
             datatype);

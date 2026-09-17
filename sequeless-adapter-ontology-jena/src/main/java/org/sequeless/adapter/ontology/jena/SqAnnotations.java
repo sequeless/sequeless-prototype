@@ -8,7 +8,7 @@ import org.apache.jena.rdf.model.Statement;
 /**
  * The single lookup pattern behind every {@code sq:} annotation read in this adapter: get the
  * (at most one) statement for a given subject and property, and fall back to a default when it is
- * absent. Every one of the nine {@code sq:} terms in {@link SqVocabulary}, plus {@code rdfs:label}
+ * absent. Every one of the ten {@code sq:} terms in {@link SqVocabulary}, plus {@code rdfs:label}
  * resolution in {@link SnapshotMapper}, goes through one of these three methods rather than
  * repeating {@code subject.getProperty(...)} ad hoc at each call site.
  *

@@ -65,6 +65,7 @@ ex:title
     rdfs:range xsd:string ;
     sq:label "Title" ;
     sq:searchable "true"^^xsd:boolean ;
+    sq:displayLabel "true"^^xsd:boolean ;
     sq:displayGroup "General" ;
     sq:displayOrder "1"^^xsd:integer .
 
@@ -108,6 +109,15 @@ ex:dueDate
     sq:label "Due Date" ;
     sq:displayOrder "8"^^xsd:integer .
 
+ex:description
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:WorkItem ;
+    rdfs:range xsd:string ;
+    sq:label "Description" ;
+    sq:searchable "true"^^xsd:boolean ;
+    sq:displayGroup "General" ;
+    sq:displayOrder "9"^^xsd:integer .
+
 ex:assignedTo
     a owl:ObjectProperty ;
     rdfs:domain ex:Task ;
@@ -137,6 +147,7 @@ ex:name
     rdfs:domain ex:Person ;
     rdfs:range xsd:string ;
     sq:label "Name" ;
+    sq:displayLabel "true"^^xsd:boolean ;
     sq:displayOrder "1"^^xsd:integer .
 
 ex:email

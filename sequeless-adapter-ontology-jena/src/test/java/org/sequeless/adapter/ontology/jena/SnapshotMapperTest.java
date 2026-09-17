@@ -57,7 +57,8 @@ class SnapshotMapperTest {
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Fixtures.CREATED_AT_IRI,
                 Fixtures.ESTIMATED_HOURS_IRI,
-                Fixtures.DUE_DATE_IRI);
+                Fixtures.DUE_DATE_IRI,
+                Fixtures.DESCRIPTION_IRI);
         assertThat(taskUnderNone.properties().stream().map(PropertyDefinition::iri))
             .containsExactlyElementsOf(ownPropertyIris);
 

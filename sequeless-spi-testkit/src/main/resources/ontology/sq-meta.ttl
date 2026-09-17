@@ -53,6 +53,11 @@ sq:readOnly
     rdfs:domain rdf:Property ;
     rdfs:range xsd:boolean .
 
+sq:displayLabel
+    a owl:AnnotationProperty ;
+    rdfs:domain rdf:Property ;
+    rdfs:range xsd:boolean .
+
 sq:abstract
     a owl:AnnotationProperty ;
     rdfs:domain owl:Class ;

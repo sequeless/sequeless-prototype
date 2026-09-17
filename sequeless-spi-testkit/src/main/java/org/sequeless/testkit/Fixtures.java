@@ -94,6 +94,9 @@ public final class Fixtures {
     /** {@code ex:dueDate} — {@code xsd:date}, declared on {@link #TASK_IRI}. */
     public static final String DUE_DATE_IRI = REF + "dueDate";
 
+    /** {@code ex:description} — {@code xsd:string}, searchable, declared on {@link #WORK_ITEM_IRI}. */
+    public static final String DESCRIPTION_IRI = REF + "description";
+
     /** {@code ex:name} — {@code xsd:string}, declared on {@link #PERSON_IRI}, min cardinality 1. */
     public static final String NAME_IRI = REF + "name";
 
