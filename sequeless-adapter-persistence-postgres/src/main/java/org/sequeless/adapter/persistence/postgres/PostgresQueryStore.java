@@ -1,8 +1,13 @@
 package org.sequeless.adapter.persistence.postgres;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +23,7 @@ import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.DateTimeValue;
@@ -44,9 +50,6 @@ import org.sequeless.spi.query.Sort;
  * for the tagged-JSONB extraction/cast table this class implements, and {@link QueryPort}'s
  * interface-level javadoc for the full behavioural contract ({@code QueryContract} asserts every
  * clause of it mechanically).
- *
- * <p>{@link #ensureIndexes} is implemented by a later task ([T6]); this class is not yet a
- * complete {@link QueryPort} adapter until that lands.
  */
 public final class PostgresQueryStore implements QueryPort {
 
@@ -115,16 +118,142 @@ public final class PostgresQueryStore implements QueryPort {
         return new QueryResult(items, total, facets);
     }
 
+    /**
+     * Registers every {@code sq:indexed} property's expression index in {@code sq_index_registry}
+     * (creating the index itself if not already present) and every {@code sq:searchable}
+     * property in {@code sq_searchable_property}, backfilling {@code search_vector} for the
+     * tenant's existing rows when a new searchable property is registered. Idempotent: a property
+     * already present in either registry table is left untouched, so calling this repeatedly for
+     * the same {@link MetaModelSnapshot} is cheap.
+     *
+     * <p>Runs inside {@link #transactionTemplate} so a concurrent {@code ensureIndexes} call for
+     * the same tenant cannot interleave a registry insert with another's backfill, matching
+     * {@link PostgresOntologyDocumentStore#activate}'s use of the same transactional-wrapping
+     * pattern for multi-statement atomicity.
+     */
     @Override
     public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(snapshot, "snapshot must not be null");
-        // Implemented by a later task ([T6]): registers sq:indexed properties in
-        // sq_index_registry and creates their expression indexes, and registers sq:searchable
-        // properties in sq_searchable_property with a search_vector backfill. Left unimplemented
-        // here so this class compiles as a complete QueryPort while T5 scopes only #query.
-        throw new UnsupportedOperationException(
-            "PostgresQueryStore.ensureIndexes is not yet implemented; see [T6]");
+        String tenantId = scope.tenantId().value();
+        Map<String, PropertyDefinition> allProperties = indexAllProperties(snapshot);
+
+        transactionTemplate.executeWithoutResult(status -> {
+            boolean backfillNeeded = false;
+            for (PropertyDefinition property : allProperties.values()) {
+                if (property.indexed()) {
+                    ensureIndex(tenantId, property);
+                }
+                if (property.searchable()) {
+                    backfillNeeded |= registerSearchable(tenantId, property);
+                }
+            }
+            if (backfillNeeded) {
+                backfillSearchVector(tenantId);
+            }
+        });
+    }
+
+    private static Map<String, PropertyDefinition> indexAllProperties(MetaModelSnapshot snapshot) {
+        Map<String, PropertyDefinition> result = new LinkedHashMap<>();
+        for (TypeDefinition type : snapshot.types()) {
+            type.properties().forEach(p -> result.putIfAbsent(p.iri(), p));
+        }
+        return result;
+    }
+
+    private void ensureIndex(String tenantId, PropertyDefinition property) {
+        boolean alreadyRegistered =
+            jdbcClient
+                .sql(
+                    "SELECT 1 FROM sq_index_registry WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
+                .param("tenantId", tenantId)
+                .param("propertyIri", property.iri())
+                .query()
+                .listOfRows()
+                .stream()
+                .findFirst()
+                .isPresent();
+        if (alreadyRegistered) {
+            return;
+        }
+        String indexName = indexNameFor(tenantId, property.iri());
+        jdbcClient
+            .sql(
+                "CREATE INDEX IF NOT EXISTS " + indexName + " ON sq_object (("
+                    + castExpressionLiteral(property) + "))")
+            .update();
+        jdbcClient
+            .sql(
+                "INSERT INTO sq_index_registry (tenant_id, property_iri, index_name, created_at) "
+                    + "VALUES (:tenantId, :propertyIri, :indexName, :createdAt)")
+            .param("tenantId", tenantId)
+            .param("propertyIri", property.iri())
+            .param("indexName", indexName)
+            .param("createdAt", Timestamp.from(Instant.now()))
+            .update();
+    }
+
+    /**
+     * Deterministically derives a {@code CREATE INDEX} identifier from {@code tenantId} and {@code
+     * propertyIri} via an MD5 digest: {@code "sq_idx_"} (7 chars) plus 16 hex characters, 23 total,
+     * well under PostgreSQL's 63-byte identifier limit. Package-private so a later contract test
+     * can reference it directly rather than recomputing the scheme by hand, though reading the
+     * name back from {@code sq_index_registry} is preferred where possible.
+     */
+    static String indexNameFor(String tenantId, String propertyIri) {
+        try {
+            byte[] digest =
+                MessageDigest.getInstance("MD5")
+                    .digest((tenantId + "|" + propertyIri).getBytes(StandardCharsets.UTF_8));
+            return "sq_idx_" + HexFormat.of().formatHex(digest).substring(0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("MD5 must be available", e);
+        }
+    }
+
+    private boolean registerSearchable(String tenantId, PropertyDefinition property) {
+        boolean alreadyRegistered =
+            jdbcClient
+                .sql(
+                    "SELECT 1 FROM sq_searchable_property WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
+                .param("tenantId", tenantId)
+                .param("propertyIri", property.iri())
+                .query()
+                .listOfRows()
+                .stream()
+                .findFirst()
+                .isPresent();
+        if (alreadyRegistered) {
+            return false;
+        }
+        jdbcClient
+            .sql(
+                "INSERT INTO sq_searchable_property (tenant_id, property_iri) VALUES (:tenantId, :propertyIri)")
+            .param("tenantId", tenantId)
+            .param("propertyIri", property.iri())
+            .update();
+        return true;
+    }
+
+    /**
+     * Recomputes {@code search_vector} for every existing row of {@code tenantId} from the
+     * tenant's current {@code sq_searchable_property} registry. Must stay textually consistent
+     * with {@code sq_object_update_search_vector()} in {@code
+     * V2__query_indexes_and_search.sql} — same {@code 'simple'} text search configuration, same
+     * {@code string_agg} pattern over each searchable property's {@code 'text'}-tagged value — so
+     * a newly backfilled row and a freshly trigger-computed row rank identically for the same
+     * content.
+     */
+    private void backfillSearchVector(String tenantId) {
+        jdbcClient
+            .sql(
+                "UPDATE sq_object o SET search_vector = ("
+                    + "SELECT to_tsvector('simple', COALESCE(string_agg(o.props -> sp.property_iri ->> 'text', ' '), '')) "
+                    + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
+                    + "WHERE o.tenant_id = :tenantId")
+            .param("tenantId", tenantId)
+            .update();
     }
 
     // -- Property resolution -----------------------------------------------------------------

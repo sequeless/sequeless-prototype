@@ -3,6 +3,7 @@ package org.sequeless.adapter.persistence.postgres;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
 import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.query.QueryPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -84,5 +85,33 @@ public class PostgresPersistenceAutoConfiguration {
         PlatformTransactionManager transactionManager =
             new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresObjectStore(jdbcClient, transactionManager);
+    }
+
+    /**
+     * @param sequelessPersistenceDataSource this adapter's own {@link DataSource}, built by {@link
+     *     #sequelessPersistenceDataSource(PostgresPersistenceProperties)}
+     * @return a new {@link PostgresQueryStore} over that {@link DataSource}
+     */
+    /*
+     * Unlike objectStorePort above, this bean method DOES set matchIfMissing = true. That is a
+     * deliberate difference in kind, not an inconsistency: objectStorePort has no matchIfMissing
+     * because ObjectStorePort is a port other adapters can also compete to provide, so an unset
+     * property must yield no bean at all here, leaving the application's port registry free to
+     * detect that absent-property ambiguity itself. QueryPort has no such competing adapter
+     * anywhere in this system today -- PostgresQueryStore is currently the only QueryPort
+     * implementation that exists -- so there is no ambiguity for a port registry to detect, and
+     * defaulting to postgres when the property is unset is simply the least-surprising behaviour.
+     * If a second QueryPort adapter is ever added, this matchIfMissing should be revisited (and
+     * likely dropped) at that time. Note also that the class-level @ConditionalOnProperty above
+     * still gates this whole class on sequeless.persistence.adapter=postgres, so this bean can
+     * only ever be registered when postgres persistence has already been explicitly selected.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "sequeless.query.adapter", havingValue = "postgres", matchIfMissing = true)
+    public QueryPort queryPort(DataSource sequelessPersistenceDataSource) {
+        JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
+        PlatformTransactionManager transactionManager =
+            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+        return new PostgresQueryStore(jdbcClient, transactionManager);
     }
 }
