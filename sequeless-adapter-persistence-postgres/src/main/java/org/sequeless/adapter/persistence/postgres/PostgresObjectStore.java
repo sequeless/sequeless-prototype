@@ -317,7 +317,7 @@ public final class PostgresObjectStore implements ObjectStorePort {
             .update();
     }
 
-    private static BusinessObject mapRow(ResultSet rs, int rowNum) throws SQLException {
+    static BusinessObject mapRow(ResultSet rs, int rowNum) throws SQLException {
         ObjectId id = new ObjectId((UUID) rs.getObject("id"));
         TenantId tenant = new TenantId(rs.getString("tenant_id"));
         TypeRef type = new TypeRef(rs.getString("type_iri"));
