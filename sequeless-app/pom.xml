@@ -156,6 +156,20 @@
         <executions>
           <execution>
             <goals><goal>repackage</goal></goals>
+            <configuration>
+              <!--
+                Without a classifier, repackage replaces this module's main artifact (the plain
+                jar with classes at its root) with the executable fat jar (classes nested under
+                BOOT-INF/classes/) in place, during the package phase. T14 introduced this
+                module's first *IT classes: Failsafe's integration-test phase runs after package
+                and puts the project's main artifact — by then the repackaged fat jar — on the
+                test classpath instead of target/classes, so every class under
+                org.sequeless.app.rest.* (nested under BOOT-INF/classes/ in that jar) becomes a
+                NoClassDefFoundError. Giving the executable jar its own classifier leaves the
+                plain jar as the main artifact, so Failsafe's classpath is unaffected.
+              -->
+              <classifier>exec</classifier>
+            </configuration>
           </execution>
         </executions>
       </plugin>
