@@ -1,9 +1,15 @@
 package org.sequeless.app.rest;
 
+import java.net.URI;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.validation.ValidationException;
+import org.sequeless.spi.object.ObjectNotFoundException;
+import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.ontology.OntologyException;
+import org.sequeless.spi.validation.Violation;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -26,6 +32,22 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *       own pre-formatted message
  *   <li>{@link AuthorizationException} → 403, body {@link ErrorResponse} carrying {@link
  *       AuthorizationException#decision()}'s {@code reason()}
+ * </ul>
+ *
+ * <p>The five handlers below are {@link ObjectsController}'s, added alongside the three above
+ * without touching them — {@link TypesController}'s error shapes ({@link ErrorResponse}, the raw
+ * {@link OntologyReportResponse}) stay exactly as they were. These five all render {@link
+ * ProblemDetail} ({@code application/problem+json}), per plan.md §8's error table:
+ *
+ * <ul>
+ *   <li>{@link ValidationException} → 400, {@code type} suffix {@code validation}, plus {@code
+ *       source} and a {@code violations} array (see {@link #toViolationBody})
+ *   <li>{@link ObjectNotFoundException} → 404, {@code type} suffix {@code object-not-found}
+ *   <li>{@link StaleObjectException} → 409, {@code type} suffix {@code stale-object}, plus {@code
+ *       expectedVersion}
+ *   <li>{@link PreconditionRequiredException} → 428, {@code type} suffix {@code
+ *       precondition-required}
+ *   <li>{@link PreconditionMismatchException} → 400, {@code type} suffix {@code bad-request}
  * </ul>
  */
 @RestControllerAdvice
@@ -59,5 +81,111 @@ public class ApiExceptionAdvice {
     public ResponseEntity<ErrorResponse> handleAuthorizationException(AuthorizationException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new ErrorResponse(exception.decision().reason()));
+    }
+
+    /**
+     * @param exception the validation failure escaping from {@link
+     *     org.sequeless.core.api.BusinessObjectService#add}/{@link
+     *     org.sequeless.core.api.BusinessObjectService#edit}; must not be {@code null}
+     * @return 400 with a {@link ProblemDetail} carrying {@code source} ({@code "structural"} or
+     *     {@code "shacl"}) and a {@code violations} array
+     */
+    @ExceptionHandler(ValidationException.class)
+    public ProblemDetail handleValidation(ValidationException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/validation"));
+        detail.setTitle("Validation failed");
+        detail.setProperty(
+                "source",
+                exception.source() == ValidationException.Source.STRUCTURAL ? "structural" : "shacl");
+        detail.setProperty(
+                "violations", exception.violations().stream().map(ApiExceptionAdvice::toViolationBody).toList());
+        return detail;
+    }
+
+    /**
+     * @param exception the missing/deleted/mismatched-type object escaping from {@link
+     *     org.sequeless.core.api.BusinessObjectService}; must not be {@code null}
+     * @return 404 with a {@link ProblemDetail} carrying the exception's own pre-formatted message
+     */
+    @ExceptionHandler(ObjectNotFoundException.class)
+    public ProblemDetail handleObjectNotFound(ObjectNotFoundException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/object-not-found"));
+        detail.setTitle("Object not found");
+        return detail;
+    }
+
+    /**
+     * @param exception the optimistic-locking failure escaping from {@link
+     *     org.sequeless.core.api.BusinessObjectService#edit}/{@link
+     *     org.sequeless.core.api.BusinessObjectService#delete}; must not be {@code null}
+     * @return 409 with a {@link ProblemDetail} carrying {@link StaleObjectException#expectedVersion()}
+     */
+    @ExceptionHandler(StaleObjectException.class)
+    public ProblemDetail handleStaleObject(StaleObjectException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/stale-object"));
+        detail.setTitle("Stale object version");
+        detail.setProperty("expectedVersion", exception.expectedVersion());
+        return detail;
+    }
+
+    /**
+     * @param exception the missing-precondition failure {@link ObjectsController#edit} throws;
+     *     must not be {@code null}
+     * @return 428 (Precondition Required) with a {@link ProblemDetail}
+     */
+    @ExceptionHandler(PreconditionRequiredException.class)
+    public ProblemDetail handlePreconditionRequired(PreconditionRequiredException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.PRECONDITION_REQUIRED, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/precondition-required"));
+        detail.setTitle("Precondition required");
+        return detail;
+    }
+
+    /**
+     * @param exception the disagreeing-versions failure {@link ObjectsController#edit} throws;
+     *     must not be {@code null}
+     * @return 400 (Bad Request) with a {@link ProblemDetail}
+     */
+    @ExceptionHandler(PreconditionMismatchException.class)
+    public ProblemDetail handlePreconditionMismatch(PreconditionMismatchException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/bad-request"));
+        detail.setTitle("Conflicting version");
+        return detail;
+    }
+
+    /**
+     * @param violation the violation to render; must not be {@code null}
+     * @return a {@link ViolationResponse} with {@code property}/{@code propertyIri} both {@code
+     *     null} when {@link Violation#path()} is blank (object-level, per that record's javadoc),
+     *     or resolved from the property IRI's own local name otherwise
+     */
+    private static ViolationResponse toViolationBody(Violation violation) {
+        if (violation.path().isBlank()) {
+            return new ViolationResponse(null, null, violation.message());
+        }
+        return new ViolationResponse(shortName(violation.path()), violation.path(), violation.message());
+    }
+
+    /**
+     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * TypeResponseMapper#shortName} and {@link ObjectPropertyMapper#shortName} do.
+     */
+    private static String shortName(String iri) {
+        int hash = iri.lastIndexOf('#');
+        if (hash >= 0) {
+            return iri.substring(hash + 1);
+        }
+        int slash = iri.lastIndexOf('/');
+        return slash >= 0 ? iri.substring(slash + 1) : iri;
     }
 }
