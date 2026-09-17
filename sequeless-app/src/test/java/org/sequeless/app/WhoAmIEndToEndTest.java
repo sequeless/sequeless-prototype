@@ -6,6 +6,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.WhoAmIResponse;
+import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -24,9 +25,13 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * than {@code TestRestTemplate}: this Spring Boot 4 / Spring Framework 7 stack no longer ships
  * {@code TestRestTemplate} at all, and {@code RestTestClient} is its {@code WebTestClient}-style
  * replacement.
+ *
+ * <p>Extends {@link PostgresTestcontainersSupport}: {@code sequeless.persistence.adapter=postgres}
+ * is baked into {@code application.yaml}, so every context this module boots needs a reachable
+ * Postgres, even a context that never touches {@code /objects}. See that class's javadoc.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.authz.adapter=permit-all")
-class WhoAmIEndToEndTest {
+class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
 
     @LocalServerPort private int port;
 

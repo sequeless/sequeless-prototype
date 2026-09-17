@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.web.servlet.client.RestTestClient;
@@ -26,9 +27,13 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * list with no {@code @JsonTypeInfo}. This test only needs {@code superTypes}, a plain {@code
  * List<String>}, so it walks the raw body as a {@link JsonNode} rather than pull in that whole
  * machinery.
+ *
+ * <p>Extends {@link PostgresTestcontainersSupport}: {@code sequeless.persistence.adapter=postgres}
+ * is baked into {@code application.yaml}, so every context this module boots needs a reachable
+ * Postgres, even a context that never touches {@code /objects}. See that class's javadoc.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.ontology.reasoner=none")
-class ReasonerSwitchEndToEndTest {
+class ReasonerSwitchEndToEndTest extends PostgresTestcontainersSupport {
 
     @LocalServerPort private int port;
 

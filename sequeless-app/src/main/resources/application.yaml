@@ -10,6 +10,16 @@ sequeless:
     # owl:disjointWith, and none attaches no reasoner at all. See JenaOntologyProperties.
     reasoner: owl
     source: classpath:ontology/reference.ttl
+  persistence:
+    adapter: postgres
+    # Matches docker-compose.yml's postgres service (POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD).
+    # Only used by the manual smoke test (docker compose up -d postgres + spring-boot:run): every
+    # automated test overrides these via PostgresTestcontainersSupport's @DynamicPropertySource.
+    url: jdbc:postgresql://localhost:5432/sequeless
+    username: sequeless
+    password: sequeless
+  validation:
+    adapter: shacl
 management:
   endpoints:
     web:

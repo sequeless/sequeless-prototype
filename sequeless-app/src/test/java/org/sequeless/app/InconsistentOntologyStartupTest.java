@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
+import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.sequeless.spi.ontology.OntologyException;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -39,8 +40,16 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * default deliberately: {@code owl} is the only reasoner setting that detects this fixture's
  * inconsistency at all (see {@code JenaOntologyProperties}'s javadoc), so overriding it here would
  * defeat the point of the test.
+ *
+ * <p>Extends {@link PostgresTestcontainersSupport} and passes its container's connection details
+ * as command-line arguments, exactly like {@code sequeless.ontology.source} above: {@code
+ * sequeless.persistence.adapter=postgres} is baked into {@code application.yaml}, so this manually
+ * built {@link SpringApplicationBuilder} also needs a reachable Postgres before it can even get to
+ * the ontology load this test cares about, and {@code @DynamicPropertySource} does not apply here —
+ * it only works with the Spring test context framework's own context caching, not a manually-driven
+ * {@code SpringApplication.run}.
  */
-class InconsistentOntologyStartupTest {
+class InconsistentOntologyStartupTest extends PostgresTestcontainersSupport {
 
     @Test
     void inconsistentOntologySourceFailsStartupNamingTheCulprit() {
@@ -49,7 +58,10 @@ class InconsistentOntologyStartupTest {
                                 new SpringApplicationBuilder(SequelessApplication.class)
                                         .web(WebApplicationType.NONE)
                                         .run(
-                                                "--sequeless.ontology.source=classpath:ontology/inconsistent.ttl"))
+                                                "--sequeless.ontology.source=classpath:ontology/inconsistent.ttl",
+                                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
                 .satisfies(
                         thrown -> {
                             OntologyException cause = findCause(thrown, OntologyException.class);

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.ErrorResponse;
 import org.sequeless.app.rest.OntologyReportResponse;
 import org.sequeless.app.rest.TypeSummaryResponse;
+import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.sequeless.testkit.Fixtures;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -36,9 +37,13 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * {@code AttributePropertyResponse} / {@code RelationshipPropertyResponse} to construct for each
  * element. Tests that need to inspect a type's properties therefore fetch the raw body and walk it
  * as a {@link JsonNode} tree instead of deserializing into {@code TypeDetailResponse}.
+ *
+ * <p>Extends {@link PostgresTestcontainersSupport}: {@code sequeless.persistence.adapter=postgres}
+ * is baked into {@code application.yaml}, so every context this module boots needs a reachable
+ * Postgres, even a context that never touches {@code /objects}. See that class's javadoc.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT)
-class TypesEndToEndTest {
+class TypesEndToEndTest extends PostgresTestcontainersSupport {
 
     @LocalServerPort private int port;
 

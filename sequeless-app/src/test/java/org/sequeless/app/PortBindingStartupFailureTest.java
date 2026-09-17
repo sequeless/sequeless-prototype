@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.port.PortBindingException;
+import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 
@@ -31,8 +32,18 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * environment, so it would be silently overridden by {@code application.yaml}'s own {@code
  * sequeless.authz.adapter=permit-all} default and the application would start successfully instead
  * of failing. Command-line arguments are the highest-precedence source, so they genuinely win.
+ *
+ * <p>Extends {@link PostgresTestcontainersSupport} and passes its container's connection details
+ * as command-line arguments alongside the {@code sequeless.authz.adapter} override: {@code
+ * sequeless.persistence.adapter=postgres} is baked into {@code application.yaml}, and the Jena
+ * {@code OntologyPort} bean eagerly loads its active document from that store during bean
+ * construction — in the singleton-creation pass that runs <em>before</em> {@code PortRegistry}'s own
+ * checks. Without a reachable Postgres, that eager load would fail first and this test would never
+ * reach the {@link PortBindingException} it means to assert on. {@code @DynamicPropertySource} does
+ * not apply here — it only works with the Spring test context framework's own context caching, not
+ * a manually-driven {@code SpringApplication.run}.
  */
-class PortBindingStartupFailureTest {
+class PortBindingStartupFailureTest extends PostgresTestcontainersSupport {
 
     @Test
     void unknownAdapterNameFailsFastNamingThePropertyAndAvailableAdapters() {
@@ -40,7 +51,11 @@ class PortBindingStartupFailureTest {
                 () ->
                     new SpringApplicationBuilder(SequelessApplication.class)
                         .web(WebApplicationType.NONE)
-                        .run("--sequeless.authz.adapter=missing"))
+                        .run(
+                            "--sequeless.authz.adapter=missing",
+                            "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                            "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                            "--sequeless.persistence.password=" + POSTGRES.getPassword()))
             .satisfies(
                 thrown -> {
                     PortBindingException cause = findCause(thrown, PortBindingException.class);

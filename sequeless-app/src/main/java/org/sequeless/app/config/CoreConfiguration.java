@@ -1,11 +1,18 @@
 package org.sequeless.app.config;
 
+import java.time.Clock;
+import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
+import org.sequeless.core.api.OntologyAdministration;
 import org.sequeless.core.api.WhoAmI;
+import org.sequeless.core.usecase.DefaultBusinessObjectService;
 import org.sequeless.core.usecase.DefaultMetaModelService;
+import org.sequeless.core.usecase.DefaultOntologyAdministration;
 import org.sequeless.core.usecase.DefaultWhoAmI;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -82,5 +89,51 @@ public class CoreConfiguration {
     public MetaModelService metaModelService(
             @Lazy OntologyPort ontologyPort, @Lazy AuthorizationPort authorizationPort) {
         return new DefaultMetaModelService(ontologyPort, authorizationPort);
+    }
+
+    /**
+     * Builds the {@link BusinessObjectService} use case around whichever {@link OntologyPort},
+     * {@link ObjectStorePort}, {@link ValidationPort} and {@link AuthorizationPort} adapters are
+     * configured.
+     *
+     * <p><b>All four port-typed parameters are {@code @Lazy} for exactly the reason spelled out on
+     * {@link #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code
+     * PortRegistry} now validates four port slots, including {@code sequeless.persistence.adapter}
+     * and {@code sequeless.validation.adapter}, but it still does so in {@code
+     * afterSingletonsInstantiated()}, the second singleton pass. An eager parameter here would force
+     * Spring to resolve that port during {@code preInstantiateSingletons()}, the first pass, before
+     * {@code PortRegistry} ever ran.
+     *
+     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param objectStorePort the lazily-resolved object store port adapter
+     * @param validationPort the lazily-resolved validation port adapter
+     * @param authorizationPort the lazily-resolved authorization port adapter
+     * @return a {@link DefaultBusinessObjectService} consulting all four ports on every call, with
+     *     its clock drawn from {@link Clock#systemUTC()}
+     */
+    @Bean
+    public BusinessObjectService businessObjectService(
+            @Lazy OntologyPort ontologyPort,
+            @Lazy ObjectStorePort objectStorePort,
+            @Lazy ValidationPort validationPort,
+            @Lazy AuthorizationPort authorizationPort) {
+        return new DefaultBusinessObjectService(
+            ontologyPort, objectStorePort, validationPort, authorizationPort, Clock.systemUTC());
+    }
+
+    /**
+     * Builds the {@link OntologyAdministration} use case around whichever {@link OntologyPort} and
+     * {@link AuthorizationPort} adapters are configured.
+     *
+     * <p>Both parameters are {@code @Lazy} for the same reason as {@link #metaModelService}.
+     *
+     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param authorizationPort the lazily-resolved authorization port adapter
+     * @return a {@link DefaultOntologyAdministration} consulting both ports on every call
+     */
+    @Bean
+    public OntologyAdministration ontologyAdministration(
+            @Lazy OntologyPort ontologyPort, @Lazy AuthorizationPort authorizationPort) {
+        return new DefaultOntologyAdministration(ontologyPort, authorizationPort);
     }
 }

@@ -88,6 +88,18 @@
     </dependency>
 
     <!--
+      Not transitive from sequeless-adapter-persistence-postgres: that module declares this
+      dependency <optional>true</optional>, so the application assembling the adapter must bring
+      its own copy for PostgresPersistenceAutoConfiguration's JdbcClient/DataSourceTransactionManager
+      and the HikariCP connection pool bits it transitively pulls in. No version here: inherited
+      from the Spring Boot BOM.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+
+    <!--
       No version here: the root dependencyManagement pins 3.1.1. The major version matters — the
       springdoc 3.x line is the Spring Boot 4 line, while 2.x targets Boot 3 and will not bind
       against the Boot 4.1 context this module runs in.
@@ -106,6 +118,25 @@
     <dependency>
       <groupId>com.tngtech.archunit</groupId>
       <artifactId>archunit-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      Not transitive from sequeless-adapter-persistence-postgres: that module declares both of
+      these <scope>test</scope>, so they never leave its own jar. This module's own tests need a
+      real Testcontainers Postgres now that sequeless.persistence.adapter=postgres is baked into
+      application.yaml (see PostgresTestcontainersSupport). No version here: inherited from the
+      Spring Boot BOM, per the root pom's comment on junit-jupiter/assertj/mockito/testcontainers.
+    -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
 
