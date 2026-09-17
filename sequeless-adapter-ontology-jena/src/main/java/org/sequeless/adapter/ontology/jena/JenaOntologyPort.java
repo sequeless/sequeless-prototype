@@ -14,6 +14,8 @@ import java.util.function.Supplier;
 import org.apache.jena.ontapi.model.OntModel;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.object.OntologyDocumentStore;
+import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.ontology.ImportMode;
 import org.sequeless.spi.ontology.ImportReport;
 import org.sequeless.spi.ontology.OntologyDocument;
@@ -74,14 +76,21 @@ import org.sequeless.spi.ontology.Severity;
  *
  * <h2>What "fresh" means for {@link #reload(Scope)}</h2>
  *
- * <p>{@link #reload(Scope)} always re-runs the pipeline against {@link #sourceLoader} — the same
- * classpath/file location or in-memory bytes this port was originally constructed with. A prior
- * successful {@link #importDocument(Scope, OntologyDocument, ImportMode)} changes only {@link
+ * <p>Without a {@link #documentStore} — the {@code fromDocument}/{@code fromSource} construction
+ * paths — {@link #reload(Scope)} always re-runs the pipeline against {@link #sourceLoader}, the
+ * same classpath/file location or in-memory bytes this port was originally constructed with. A
+ * prior successful {@link #importDocument(Scope, OntologyDocument, ImportMode)} changes only {@link
  * #current}, never {@link #sourceLoader}: importing a document is a live, in-memory override, not a
  * change to this adapter's configured backing source, so a subsequent {@link #reload(Scope)}
  * deliberately reverts to whatever the original source currently contains. Nothing in {@code
  * OntologyPort}'s contract or {@code OntologyContract} exercises this interaction, but it is worth
  * a future test knowing about explicitly rather than discovering by surprise.
+ *
+ * <p>With a {@link #documentStore} — the {@link #fromStore} construction path — {@link
+ * #reload(Scope)} instead re-reads whatever document is currently active in the store for the
+ * given {@code scope}, which may differ from both {@link #sourceLoader} and this port's own
+ * in-memory copy if something changed the store out-of-band (another instance's {@link
+ * #importDocument}, or a direct write to the store).
  *
  * <h2>Merging the three sources of an {@link OntologyReport}</h2>
  *
@@ -108,11 +117,14 @@ public final class JenaOntologyPort implements OntologyPort {
 
     private final Supplier<InputStream> sourceLoader;
     private final ReasonerSetting reasoner;
+    private final Optional<OntologyDocumentStore> documentStore;
     private volatile PortState current;
 
-    private JenaOntologyPort(Supplier<InputStream> sourceLoader, ReasonerSetting reasoner) {
+    private JenaOntologyPort(
+            Supplier<InputStream> sourceLoader, ReasonerSetting reasoner, Optional<OntologyDocumentStore> documentStore) {
         this.sourceLoader = sourceLoader;
         this.reasoner = reasoner;
+        this.documentStore = documentStore;
         this.current = buildState(sourceLoader);
     }
 
@@ -127,7 +139,7 @@ public final class JenaOntologyPort implements OntologyPort {
         Objects.requireNonNull(document, "document must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
         byte[] content = document.content().getBytes(StandardCharsets.UTF_8);
-        return new JenaOntologyPort(() -> new ByteArrayInputStream(content), reasoner);
+        return new JenaOntologyPort(() -> new ByteArrayInputStream(content), reasoner, Optional.empty());
     }
 
     /**
@@ -146,7 +158,60 @@ public final class JenaOntologyPort implements OntologyPort {
         Objects.requireNonNull(propertyName, "propertyName must not be null");
         Objects.requireNonNull(location, "location must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
-        return new JenaOntologyPort(() -> OntologySource.open(propertyName, location), reasoner);
+        return new JenaOntologyPort(() -> OntologySource.open(propertyName, location), reasoner, Optional.empty());
+    }
+
+    /**
+     * @param documents the ontology document store to load the active document from, and to activate
+     *     newly imported documents into; must not be {@code null}
+     * @param scope the tenant to load/seed the active document for at startup; must not be {@code
+     *     null}
+     * @param sourcePropertyName the configuration property {@code source} came from, used only for
+     *     error messages; must not be {@code null}
+     * @param source the {@code classpath:}/{@code file:} location to seed from if {@code documents}
+     *     has no active document yet for {@code scope.tenantId()}; may be {@code null} or blank only
+     *     if {@code documents} already has an active document
+     * @param reasoner which reasoning level to build the model under; must not be {@code null}
+     * @return a new port backed by {@code documents}: {@link #reload} and {@link #importDocument}
+     *     read and write through it from now on, using whatever {@code Scope} each call is made with
+     * @throws IllegalStateException if {@code documents} has no active document for {@code
+     *     scope.tenantId()} and {@code source} is blank
+     * @throws org.sequeless.spi.ontology.OntologyException if a freshly seeded document from {@code
+     *     source} is inconsistent — a broken seed is never activated
+     */
+    public static JenaOntologyPort fromStore(
+            OntologyDocumentStore documents, Scope scope, String sourcePropertyName, String source,
+            ReasonerSetting reasoner) {
+        Objects.requireNonNull(documents, "documents must not be null");
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(reasoner, "reasoner must not be null");
+
+        Optional<StoredOntologyDocument> active = documents.active(scope);
+        OntologyDocument initial;
+        if (active.isPresent()) {
+            initial = active.get().document();
+        } else {
+            if (source == null || source.isBlank()) {
+                throw new IllegalStateException(
+                    "No ontology document stored for tenant '" + scope.tenantId().value()
+                        + "' and no '" + sourcePropertyName + "' configured to seed one");
+            }
+            Objects.requireNonNull(sourcePropertyName, "sourcePropertyName must not be null");
+            String turtle;
+            try (InputStream in = OntologySource.open(sourcePropertyName, source)) {
+                turtle = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read the ontology source to seed the store", e);
+            }
+            initial = new OntologyDocument(turtle, OntologyFormat.TURTLE);
+            JenaOntologyPort probe = fromDocument(initial, reasoner);
+            requireConsistent(probe.current); // throws OntologyException; never activates a broken seed
+            documents.activate(scope, initial);
+        }
+
+        byte[] content = initial.content().getBytes(StandardCharsets.UTF_8);
+        return new JenaOntologyPort(
+            () -> new ByteArrayInputStream(content), reasoner, Optional.of(documents));
     }
 
     @Override
@@ -158,7 +223,18 @@ public final class JenaOntologyPort implements OntologyPort {
     @Override
     public MetaModelSnapshot reload(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
-        return swapOnSuccess(buildState(sourceLoader)).snapshot();
+        Supplier<InputStream> loader =
+            documentStore.<Supplier<InputStream>>map(store -> () -> activeDocumentStream(store, scope))
+                .orElse(sourceLoader);
+        return swapOnSuccess(buildState(loader)).snapshot();
+    }
+
+    private static InputStream activeDocumentStream(OntologyDocumentStore store, Scope scope) {
+        StoredOntologyDocument active = store.active(scope)
+            .orElseThrow(() -> new IllegalStateException(
+                "No active ontology document stored for tenant '" + scope.tenantId().value() + "'"));
+        byte[] bytes = active.document().content().getBytes(StandardCharsets.UTF_8);
+        return new ByteArrayInputStream(bytes);
     }
 
     @Override
@@ -179,8 +255,20 @@ public final class JenaOntologyPort implements OntologyPort {
         }
 
         byte[] content = document.content().getBytes(StandardCharsets.UTF_8);
-        PortState applied = swapOnSuccess(buildState(() -> new ByteArrayInputStream(content)));
-        return new ImportReport(true, applied.snapshot().report(), applied.snapshot().types().size());
+        PortState fresh = buildState(() -> new ByteArrayInputStream(content));
+        requireConsistent(fresh);
+        documentStore.ifPresent(store -> store.activate(scope, document));
+        current = fresh;
+        return new ImportReport(true, fresh.snapshot().report(), fresh.snapshot().types().size());
+    }
+
+    /**
+     * Package-private: only {@link ShaclValidationPort}, in the same adapter module, needs the live
+     * Jena model to read {@code sh:} shapes from — see plan §4 and §6.
+     */
+    OntModel currentModel(Scope scope) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        return requireConsistent(current).model();
     }
 
     /**
