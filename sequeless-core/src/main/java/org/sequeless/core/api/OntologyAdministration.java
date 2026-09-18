@@ -44,7 +44,9 @@ public interface OntologyAdministration {
      * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING}, wraps
      * {@code content} in an {@link OntologyDocument} tagged {@link OntologyFormat#TURTLE}, and
      * delegates to {@link OntologyPort#importDocument(Scope, OntologyDocument, ImportMode)} with
-     * {@link ImportMode#REPLACE}.
+     * {@link ImportMode#REPLACE}. On a successful import, also prepares whatever index structures
+     * the configured {@link org.sequeless.spi.query.QueryPort} needs for the resulting type system
+     * ({@link org.sequeless.spi.query.QueryPort#ensureIndexes}), using the freshly-loaded snapshot.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}

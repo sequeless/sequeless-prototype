@@ -11,9 +11,8 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.spi.query.QueryResult;
 
 /**
  * The BREAD (browse/read/edit/add/delete) use case over ontology-typed business objects. Every
@@ -32,21 +31,33 @@ import org.sequeless.spi.object.StaleObjectException;
 public interface BusinessObjectService {
 
     /**
-     * Lists non-deleted objects of {@code type} and its subtypes, one page at a time.
+     * Lists non-deleted objects of {@code type} and its subtypes, one page at a time, with
+     * filtering, free-text search, sorting, and facet counts.
      *
-     * <p>Authorizes {@link Operation#BROWSE} against the resolved type's IRI, then delegates to
-     * {@link ObjectStorePort#browse} with the resolved type plus every transitive subtype.
+     * <p>Authorizes {@link Operation#BROWSE} against the resolved type's IRI, then resolves {@code
+     * type} to its concrete subtype IRIs against the current {@link
+     * org.sequeless.spi.meta.MetaModelSnapshot} — the set a {@link
+     * org.sequeless.spi.query.Query#types()} is built from, since a query port never sees an
+     * abstract type IRI — validates {@code query}'s filter, sort, and facet property names (each
+     * given as a property short name or full IRI) and operator applicability against that
+     * snapshot, coerces raw filter values to the properties' declared datatypes, and delegates to
+     * {@link org.sequeless.spi.query.QueryPort#query}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
      * @param type the type's short name or full IRI; must not be {@code null}
-     * @param page the page to return; must not be {@code null}
-     * @return a non-null page of matching objects
+     * @param query the filter, free-text, sort, paging, and facet request to run; must not be
+     *     {@code null}
+     * @return a non-null result containing the matching page of objects, the total match count, and
+     *     the computed facet buckets
      * @throws NullPointerException if any argument is {@code null}
      * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
+     * @throws InvalidQueryException if a filter, sort, or facet property name does not resolve, an
+     *     operator is not applicable to its property, or a multi-valued property is used somewhere
+     *     only a scalar is supported
      */
-    PageResult<BusinessObject> browse(Scope scope, String type, Page page);
+    QueryResult browse(Scope scope, String type, BrowseQuery query);
 
     /**
      * Reads a single object of {@code type} (or a subtype of it) by id.

@@ -101,6 +101,43 @@ class TypeHierarchyTest {
     }
 
     @Test
+    void concreteTypeAndSubtypesOfConcreteLeafResolvesToItselfOnly() {
+        assertThat(TypeHierarchy.concreteTypeAndSubtypes(SNAPSHOT, TASK_IRI))
+            .containsExactly(TASK_IRI);
+    }
+
+    @Test
+    void concreteTypeAndSubtypesOfAbstractTypeExcludesAbstractAncestorsAndSelf() {
+        MetaModelSnapshot snapshotWithAbstractWorkItem =
+            new MetaModelSnapshot(
+                SNAPSHOT.ontologyIri(),
+                SNAPSHOT.versionIri(),
+                SNAPSHOT.prefixes(),
+                List.of(
+                    DELIVERABLE,
+                    new TypeDefinition(
+                        WORK_ITEM_IRI, WORK_ITEM_IRI, List.of(DELIVERABLE_IRI), List.of(),
+                        DisplayHints.none(), true, Optional.empty()),
+                    TASK,
+                    PROJECT,
+                    PERSON),
+                SNAPSHOT.report());
+
+        assertThat(
+                TypeHierarchy.concreteTypeAndSubtypes(
+                    snapshotWithAbstractWorkItem, WORK_ITEM_IRI))
+            .containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
+    }
+
+    @Test
+    void concreteTypeAndSubtypesRejectsNullArguments() {
+        assertThatNullPointerException()
+            .isThrownBy(() -> TypeHierarchy.concreteTypeAndSubtypes(null, WORK_ITEM_IRI));
+        assertThatNullPointerException()
+            .isThrownBy(() -> TypeHierarchy.concreteTypeAndSubtypes(SNAPSHOT, null));
+    }
+
+    @Test
     void isSubtypeOfRejectsNullArguments() {
         assertThatNullPointerException()
             .isThrownBy(() -> TypeHierarchy.isSubtypeOf(null, TASK_IRI, WORK_ITEM_IRI));

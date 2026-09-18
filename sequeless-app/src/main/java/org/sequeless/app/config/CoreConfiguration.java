@@ -12,6 +12,7 @@ import org.sequeless.core.usecase.DefaultWhoAmI;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -93,22 +94,23 @@ public class CoreConfiguration {
 
     /**
      * Builds the {@link BusinessObjectService} use case around whichever {@link OntologyPort},
-     * {@link ObjectStorePort}, {@link ValidationPort} and {@link AuthorizationPort} adapters are
-     * configured.
+     * {@link ObjectStorePort}, {@link ValidationPort}, {@link AuthorizationPort}, and {@link
+     * QueryPort} adapters are configured.
      *
-     * <p><b>All four port-typed parameters are {@code @Lazy} for exactly the reason spelled out on
+     * <p><b>All five port-typed parameters are {@code @Lazy} for exactly the reason spelled out on
      * {@link #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code
-     * PortRegistry} now validates four port slots, including {@code sequeless.persistence.adapter}
-     * and {@code sequeless.validation.adapter}, but it still does so in {@code
-     * afterSingletonsInstantiated()}, the second singleton pass. An eager parameter here would force
-     * Spring to resolve that port during {@code preInstantiateSingletons()}, the first pass, before
-     * {@code PortRegistry} ever ran.
+     * PortRegistry} now validates five port slots, including {@code sequeless.persistence.adapter},
+     * {@code sequeless.validation.adapter}, and {@code sequeless.query.adapter}, but it still does
+     * so in {@code afterSingletonsInstantiated()}, the second singleton pass. An eager parameter
+     * here would force Spring to resolve that port during {@code preInstantiateSingletons()}, the
+     * first pass, before {@code PortRegistry} ever ran.
      *
      * @param ontologyPort the lazily-resolved ontology port adapter
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @return a {@link DefaultBusinessObjectService} consulting all four ports on every call, with
+     * @param queryPort the lazily-resolved query port adapter
+     * @return a {@link DefaultBusinessObjectService} consulting all five ports on every call, with
      *     its clock drawn from {@link Clock#systemUTC()}
      */
     @Bean
@@ -116,24 +118,30 @@ public class CoreConfiguration {
             @Lazy OntologyPort ontologyPort,
             @Lazy ObjectStorePort objectStorePort,
             @Lazy ValidationPort validationPort,
-            @Lazy AuthorizationPort authorizationPort) {
+            @Lazy AuthorizationPort authorizationPort,
+            @Lazy QueryPort queryPort) {
         return new DefaultBusinessObjectService(
-            ontologyPort, objectStorePort, validationPort, authorizationPort, Clock.systemUTC());
+            ontologyPort, objectStorePort, validationPort, authorizationPort, queryPort,
+            Clock.systemUTC());
     }
 
     /**
-     * Builds the {@link OntologyAdministration} use case around whichever {@link OntologyPort} and
-     * {@link AuthorizationPort} adapters are configured.
+     * Builds the {@link OntologyAdministration} use case around whichever {@link OntologyPort},
+     * {@link AuthorizationPort}, and {@link QueryPort} adapters are configured.
      *
-     * <p>Both parameters are {@code @Lazy} for the same reason as {@link #metaModelService}.
+     * <p>All three parameters are {@code @Lazy} for the same reason as {@link #metaModelService}.
      *
      * @param ontologyPort the lazily-resolved ontology port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @return a {@link DefaultOntologyAdministration} consulting both ports on every call
+     * @param queryPort the lazily-resolved query port adapter, primed with fresh indexes by {@link
+     *     DefaultOntologyAdministration#importTurtle} after a successful import
+     * @return a {@link DefaultOntologyAdministration} consulting all three ports on every call
      */
     @Bean
     public OntologyAdministration ontologyAdministration(
-            @Lazy OntologyPort ontologyPort, @Lazy AuthorizationPort authorizationPort) {
-        return new DefaultOntologyAdministration(ontologyPort, authorizationPort);
+            @Lazy OntologyPort ontologyPort,
+            @Lazy AuthorizationPort authorizationPort,
+            @Lazy QueryPort queryPort) {
+        return new DefaultOntologyAdministration(ontologyPort, authorizationPort, queryPort);
     }
 }

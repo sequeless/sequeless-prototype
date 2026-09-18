@@ -88,4 +88,32 @@ public final class TypeHierarchy {
         }
         return result;
     }
+
+    /**
+     * The narrower, concrete-only counterpart to {@link #typeAndSubtypes}: a {@link
+     * org.sequeless.spi.query.Query#types()} must never contain an abstract type IRI (the query
+     * port never does hierarchy reasoning and never sees one), so {@code
+     * DefaultBusinessObjectService#browse} resolves against this set rather than {@link
+     * #typeAndSubtypes} when building a {@code Query}.
+     *
+     * @param snapshot the snapshot to search; must not be {@code null}
+     * @param targetIri the IRI whose concrete-type-and-subtypes set is wanted; must not be {@code
+     *     null}
+     * @return every type IRI in {@link #typeAndSubtypes}'s result for {@code targetIri} whose
+     *     {@link TypeDefinition#isAbstract()} is {@code false} — possibly empty, when {@code
+     *     targetIri} and every one of its subtypes is abstract
+     * @throws NullPointerException if either argument is {@code null}
+     */
+    public static Set<String> concreteTypeAndSubtypes(MetaModelSnapshot snapshot, String targetIri) {
+        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(targetIri, "targetIri must not be null");
+
+        Set<String> result = new LinkedHashSet<>();
+        for (TypeRef ref : typeAndSubtypes(snapshot, targetIri)) {
+            if (!snapshot.type(ref.iri()).orElseThrow().isAbstract()) {
+                result.add(ref.iri());
+            }
+        }
+        return result;
+    }
 }

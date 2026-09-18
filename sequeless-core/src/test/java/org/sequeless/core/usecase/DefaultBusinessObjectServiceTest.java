@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
+import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.Principal;
@@ -60,29 +61,35 @@ import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyFormat;
 import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.query.Query;
+import org.sequeless.spi.query.QueryPort;
+import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
 
 /**
  * Unit tests for {@link DefaultBusinessObjectService}, built against a hand-written 2-level type
- * hierarchy ({@code WorkItem} &gt; {@code Task}, plus unrelated {@code Person} and abstract {@code
- * AbstractThing}), the same idiom {@code TypeHierarchyTest} and {@code
- * DefaultMetaModelServiceTest} use: every port double is either a plain lambda ({@link
- * AuthorizationPort}, {@link ValidationPort}) or a small hand-written fake ({@link FakeOntologyPort},
- * {@link FakeObjectStorePort}) rather than a mocking framework. Core must not depend on the testkit
- * module at all, so {@code sequeless-spi-testkit}'s {@code InMemoryObjectStorePort} is deliberately
- * not reused here.
+ * hierarchy (abstract {@code WorkItem} &gt; concrete {@code Task} and {@code Project}, plus
+ * unrelated {@code Person} and abstract {@code AbstractThing}), the same idiom {@code
+ * TypeHierarchyTest} and {@code DefaultMetaModelServiceTest} use: every port double is either a
+ * plain lambda ({@link AuthorizationPort}, {@link ValidationPort}) or a small hand-written fake
+ * ({@link FakeOntologyPort}, {@link FakeObjectStorePort}, {@link FakeQueryPort}) rather than a
+ * mocking framework. Core must not depend on the testkit module at all, so {@code
+ * sequeless-spi-testkit}'s {@code InMemoryObjectStorePort} is deliberately not reused here.
  */
 class DefaultBusinessObjectServiceTest {
 
     private static final String NS = "https://sequeless.dev/ns/bo#";
     private static final String WORK_ITEM_IRI = NS + "WorkItem";
     private static final String TASK_IRI = NS + "Task";
+    private static final String PROJECT_IRI = NS + "Project";
     private static final String PERSON_IRI = NS + "Person";
     private static final String ABSTRACT_THING_IRI = NS + "AbstractThing";
     private static final String TITLE_IRI = NS + "title";
     private static final String HOURS_IRI = NS + "estimatedHours";
     private static final String ASSIGNED_TO_IRI = NS + "assignedTo";
+    private static final String STATUS_IRI = NS + "status";
+    private static final String TAGS_IRI = NS + "tags";
 
     private static final AttributeDefinition TITLE =
         new AttributeDefinition(
@@ -96,15 +103,30 @@ class DefaultBusinessObjectServiceTest {
         new RelationshipDefinition(
             ASSIGNED_TO_IRI, "assignedTo", Cardinality.atMost(1), false, false, false, false, false,
             DisplayHints.none(), Optional.empty(), PERSON_IRI, Optional.empty(), false);
+    /** Facet-enabled, indexed, scalar property — usable as a filter, sort, or facet key. */
+    private static final AttributeDefinition STATUS =
+        new AttributeDefinition(
+            STATUS_IRI, "status", Cardinality.atMost(1), true, true, false, false, false,
+            DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    /** Genuinely multi-valued property — must be rejected by filter/sort/facet resolution. */
+    private static final AttributeDefinition TAGS =
+        new AttributeDefinition(
+            TAGS_IRI, "tags", Cardinality.optional(), false, false, false, false, false,
+            DisplayHints.none(), Optional.empty(), Datatype.STRING);
 
     private static final TypeDefinition WORK_ITEM =
         new TypeDefinition(
-            WORK_ITEM_IRI, "WorkItem", List.of(), List.of(), DisplayHints.none(), false,
+            WORK_ITEM_IRI, "WorkItem", List.of(), List.of(), DisplayHints.none(), true,
             Optional.empty());
     private static final TypeDefinition TASK =
         new TypeDefinition(
-            TASK_IRI, "Task", List.of(WORK_ITEM_IRI), List.of(TITLE, HOURS, ASSIGNED_TO),
-            DisplayHints.none(), false, Optional.empty());
+            TASK_IRI, "Task", List.of(WORK_ITEM_IRI),
+            List.of(TITLE, HOURS, ASSIGNED_TO, STATUS, TAGS), DisplayHints.none(), false,
+            Optional.empty());
+    private static final TypeDefinition PROJECT =
+        new TypeDefinition(
+            PROJECT_IRI, "Project", List.of(WORK_ITEM_IRI), List.of(), DisplayHints.none(), false,
+            Optional.empty());
     private static final TypeDefinition PERSON =
         new TypeDefinition(
             PERSON_IRI, "Person", List.of(), List.of(), DisplayHints.none(), false,
@@ -119,7 +141,7 @@ class DefaultBusinessObjectServiceTest {
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
-            List.of(WORK_ITEM, TASK, PERSON, ABSTRACT_THING),
+            List.of(WORK_ITEM, TASK, PROJECT, PERSON, ABSTRACT_THING),
             new OntologyReport(true, List.of()));
 
     private static final Instant NOW = Instant.parse("2026-09-17T00:00:00Z");
@@ -140,19 +162,32 @@ class DefaultBusinessObjectServiceTest {
 
     private static DefaultBusinessObjectService service(
         FakeObjectStorePort store, ValidationPort validationPort, AuthorizationPort authorizationPort) {
+        return service(store, validationPort, authorizationPort, new FakeQueryPort());
+    }
+
+    private static DefaultBusinessObjectService service(
+        FakeObjectStorePort store,
+        ValidationPort validationPort,
+        AuthorizationPort authorizationPort,
+        FakeQueryPort queryPort) {
         return new DefaultBusinessObjectService(
-            new FakeOntologyPort(), store, validationPort, authorizationPort, CLOCK);
+            new FakeOntologyPort(), store, validationPort, authorizationPort, queryPort, CLOCK);
     }
 
     private static ValidationPort noViolations() {
         return (scope, snapshot, object) -> List.of();
     }
 
+    private static BrowseQuery browseQuery(Page page) {
+        return new BrowseQuery(List.of(), Optional.empty(), List.of(), page, List.of());
+    }
+
     // --- browse ---
 
     @Test
-    void browseAuthorizesOnceAgainstResolvedTypeIriAndListsTypeAndSubtypes() {
+    void browseAuthorizesOnceAgainstResolvedTypeIriAndQueriesConcreteSubtypes() {
         FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
         List<Operation> capturedOps = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
         AuthorizationPort authorizationPort =
@@ -161,34 +196,44 @@ class DefaultBusinessObjectServiceTest {
                 capturedResources.add(resource);
                 return AccessDecision.permit("ok");
             };
-        DefaultBusinessObjectService service = service(store, noViolations(), authorizationPort);
+        DefaultBusinessObjectService service =
+            service(store, noViolations(), authorizationPort, queryPort);
 
-        service.browse(ALICE, "WorkItem", new Page(0, 20));
+        QueryResult result = service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20)));
 
         assertThat(capturedOps).containsExactly(Operation.BROWSE);
         assertThat(capturedResources).containsExactly(WORK_ITEM_IRI);
-        assertThat(store.lastBrowseTypes)
-            .containsExactlyInAnyOrder(new TypeRef(WORK_ITEM_IRI), new TypeRef(TASK_IRI));
+        assertThat(queryPort.queries).hasSize(1);
+        Query captured = queryPort.queries.get(0);
+        assertThat(captured.types()).containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
+        assertThat(captured.criteria()).isEmpty();
+        assertThat(captured.sorts()).isEmpty();
+        assertThat(captured.facetProperties()).isEmpty();
+        assertThat(captured.includeDeleted()).isFalse();
+        assertThat(result).isSameAs(queryPort.response);
     }
 
     @Test
     void browseThrowsTypeNotFoundForUnknownTypeBeforeAnyPortCall() {
         FakeObjectStorePort store = new FakeObjectStorePort();
-        DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
 
         assertThatExceptionOfType(TypeNotFoundException.class)
-            .isThrownBy(() -> service.browse(ALICE, "NoSuchType", new Page(0, 20)));
-        assertThat(store.browseCalls).isZero();
+            .isThrownBy(
+                () -> service.browse(ALICE, "NoSuchType", browseQuery(new Page(0, 20))));
+        assertThat(queryPort.queries).isEmpty();
     }
 
     @Test
-    void browseThrowsAuthorizationExceptionOnDenyAndNeverCallsBrowse() {
+    void browseThrowsAuthorizationExceptionOnDenyAndNeverCallsQuery() {
         FakeObjectStorePort store = new FakeObjectStorePort();
-        DefaultBusinessObjectService service = service(store, noViolations(), denyAll());
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), denyAll(), queryPort);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.browse(ALICE, "WorkItem", new Page(0, 20)));
-        assertThat(store.browseCalls).isZero();
+            .isThrownBy(() -> service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20))));
+        assertThat(queryPort.queries).isEmpty();
     }
 
     // --- read ---
@@ -529,26 +574,31 @@ class DefaultBusinessObjectServiceTest {
     @Test
     void constructorRejectsNullArguments() {
         FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
         assertThatNullPointerException()
             .isThrownBy(
                 () -> new DefaultBusinessObjectService(
-                    null, store, noViolations(), permitAll(), CLOCK));
+                    null, store, noViolations(), permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
             .isThrownBy(
                 () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), null, noViolations(), permitAll(), CLOCK));
+                    new FakeOntologyPort(), null, noViolations(), permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
             .isThrownBy(
                 () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, null, permitAll(), CLOCK));
+                    new FakeOntologyPort(), store, null, permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
             .isThrownBy(
                 () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, noViolations(), null, CLOCK));
+                    new FakeOntologyPort(), store, noViolations(), null, queryPort, CLOCK));
         assertThatNullPointerException()
             .isThrownBy(
                 () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, noViolations(), permitAll(), null));
+                    new FakeOntologyPort(), store, noViolations(), permitAll(), null, CLOCK));
+        assertThatNullPointerException()
+            .isThrownBy(
+                () -> new DefaultBusinessObjectService(
+                    new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, null));
     }
 
     // --- null arguments per method ---
@@ -557,9 +607,9 @@ class DefaultBusinessObjectServiceTest {
     void browseRejectsNullArguments() {
         DefaultBusinessObjectService service =
             service(new FakeObjectStorePort(), noViolations(), permitAll());
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.browse(null, "Task", new Page(0, 20)));
-        assertThatNullPointerException().isThrownBy(() -> service.browse(ALICE, null, new Page(0, 20)));
+        BrowseQuery query = browseQuery(new Page(0, 20));
+        assertThatNullPointerException().isThrownBy(() -> service.browse(null, "Task", query));
+        assertThatNullPointerException().isThrownBy(() -> service.browse(ALICE, null, query));
         assertThatNullPointerException().isThrownBy(() -> service.browse(ALICE, "Task", null));
     }
 
@@ -619,6 +669,33 @@ class DefaultBusinessObjectServiceTest {
                 new Audit(createdAt, createdBy, createdAt, createdBy), false);
         store.seed(task);
         return task;
+    }
+
+    /**
+     * Hand-written {@link QueryPort} double: captures every {@link Query} passed to {@link
+     * #query}, returning a configurable (default empty) {@link QueryResult}. {@link #ensureIndexes}
+     * is not exercised by these tests (that's {@code DefaultOntologyAdministrationTest}'s job), so
+     * it throws, matching how every other fake in this file leaves an unexercised method
+     * unimplemented.
+     */
+    private static final class FakeQueryPort implements QueryPort {
+
+        private final List<Query> queries = new ArrayList<>();
+        private QueryResult response = new QueryResult(List.of(), 0, Map.of());
+
+        @Override
+        public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+            Objects.requireNonNull(scope, "scope must not be null");
+            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(query, "query must not be null");
+            queries.add(query);
+            return response;
+        }
+
+        @Override
+        public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+            throw new UnsupportedOperationException("not exercised by these tests");
+        }
     }
 
     /** Hand-written {@link OntologyPort} double: only {@code snapshot} is exercised. */

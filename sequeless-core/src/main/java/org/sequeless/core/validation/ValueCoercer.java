@@ -164,6 +164,47 @@ public final class ValueCoercer {
      * ScalarCoercion} carrying exactly one of a {@link Value} or a violation reason string, never
      * both and never neither.
      */
+    /**
+     * Coerces a single raw scalar value against {@code property}'s datatype, independent of {@code
+     * property}'s own declared cardinality.
+     *
+     * <p>This exists because the public {@link #coerce(TypeDefinition, Map)} entry point branches
+     * on the property's own cardinality and rejects a {@code List} input outright for a
+     * scalar-cardinality property — but query filter coercion needs exactly that combination: an
+     * {@code Operator#IN} filter must coerce N candidate values against a single-cardinality
+     * property, one at a time. {@link #coerceScalar} already does per-datatype coercion
+     * cardinality-independently, so this method is a small public wrapper around it, not a
+     * duplicate of its logic.
+     *
+     * @param property the property {@code rawValue} is coerced against; must not be {@code null}
+     * @param rawValue the raw scalar value to coerce — a {@code String}, {@code Number}, or {@code
+     *     Boolean}; must not be {@code null}
+     * @return a {@link ScalarResult} carrying exactly one of a coerced {@link Value} or a violation
+     *     reason string, never both and never neither
+     * @throws NullPointerException if either argument is {@code null}
+     */
+    public static ScalarResult coerceScalarValue(PropertyDefinition property, Object rawValue) {
+        Objects.requireNonNull(property, "property must not be null");
+        Objects.requireNonNull(rawValue, "rawValue must not be null");
+        ScalarCoercion result = coerceScalar(property, rawValue);
+        return new ScalarResult(result.value(), result.errorReason());
+    }
+
+    /**
+     * The outcome of {@link #coerceScalarValue}: exactly one of {@link #value()} or {@link
+     * #errorReason()} is non-{@code null}, never both, never neither.
+     */
+    public record ScalarResult(Value value, String errorReason) {
+
+        /**
+         * @return {@code true} if {@link #value()} is present (and {@link #errorReason()} is
+         *     {@code null})
+         */
+        public boolean isSuccess() {
+            return errorReason == null;
+        }
+    }
+
     private static ScalarCoercion coerceScalar(PropertyDefinition property, Object rawValue) {
         if (property instanceof RelationshipDefinition) {
             if (!(rawValue instanceof String text)) {
