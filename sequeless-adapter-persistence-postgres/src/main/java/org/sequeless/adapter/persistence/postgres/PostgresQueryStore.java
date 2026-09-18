@@ -245,11 +245,16 @@ public final class PostgresQueryStore implements QueryPort {
      * a newly backfilled row and a freshly trigger-computed row rank identically for the same
      * content.
      */
+    // Calls the same sq_extract_searchable_text(props, property_iri) SQL function the V2 migration's
+    // insert/update trigger uses, so a scalar-tagged ({"text": ...}) or list-tagged ({"list": [...]})
+    // searchable property is extracted identically here and on every future row insert/update --
+    // see V2__query_indexes_and_search.sql for why both shapes must be handled (sq:searchable
+    // carries no scalar-cardinality requirement, unlike sq:facet/sq:indexed).
     private void backfillSearchVector(String tenantId) {
         jdbcClient
             .sql(
                 "UPDATE sq_object o SET search_vector = ("
-                    + "SELECT to_tsvector('simple', COALESCE(string_agg(o.props -> sp.property_iri ->> 'text', ' '), '')) "
+                    + "SELECT to_tsvector('simple', COALESCE(string_agg(sq_extract_searchable_text(o.props, sp.property_iri), ' '), '')) "
                     + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
                     + "WHERE o.tenant_id = :tenantId")
             .param("tenantId", tenantId)

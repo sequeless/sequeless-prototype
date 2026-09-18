@@ -18,15 +18,44 @@ CREATE TABLE sq_searchable_property (
 
 ALTER TABLE sq_object ADD COLUMN search_vector tsvector;
 
--- Recomputes search_vector from every property registered as searchable for the row's tenant,
--- pulling each property's 'text'-tagged value out of props. Mirrors, statement-for-statement, the
--- backfill UPDATE PostgresQueryStore.ensureIndexes runs when a NEW property becomes searchable --
--- keep the two in sync if either changes.
+-- Extracts the text this property contributes to a row's search_vector, regardless of whether the
+-- property is scalar-tagged ({"text": "..."}, for a cardinality-max-1 property) or list-tagged
+-- ({"list": [{"text": "..."}, ...]}, for an unbounded-cardinality property such as ex:title or
+-- ex:description -- sq:searchable carries no scalar-cardinality requirement, unlike sq:facet/
+-- sq:indexed, which core's DefaultBusinessObjectService restricts to scalar properties only for
+-- filter/sort/facet). Returns NULL (silently, via string_agg's null-skipping) when the property is
+-- absent from props or neither shape matches.
+CREATE FUNCTION sq_extract_searchable_text(props jsonb, property_iri text) RETURNS text AS $$
+DECLARE
+    node jsonb;
+BEGIN
+    node := props -> property_iri;
+    IF node IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF node ? 'text' THEN
+        RETURN node ->> 'text';
+    END IF;
+    IF node ? 'list' THEN
+        RETURN (
+            SELECT string_agg(elem ->> 'text', ' ')
+            FROM jsonb_array_elements(node -> 'list') AS elem
+            WHERE elem ? 'text'
+        );
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Recomputes search_vector from every property registered as searchable for the row's tenant.
+-- Mirrors, statement-for-statement, the backfill UPDATE PostgresQueryStore.ensureIndexes runs when
+-- a NEW property becomes searchable -- keep the two in sync if either changes (both call
+-- sq_extract_searchable_text so the per-property extraction logic itself can't drift).
 CREATE FUNCTION sq_object_update_search_vector() RETURNS trigger AS $$
 DECLARE
     combined text;
 BEGIN
-    SELECT string_agg(NEW.props -> sp.property_iri ->> 'text', ' ')
+    SELECT string_agg(sq_extract_searchable_text(NEW.props, sp.property_iri), ' ')
     INTO combined
     FROM sq_searchable_property sp
     WHERE sp.tenant_id = NEW.tenant_id;

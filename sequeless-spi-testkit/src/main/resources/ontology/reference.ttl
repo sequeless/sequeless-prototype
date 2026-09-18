@@ -11,6 +11,17 @@
 # concrete Task and Project types. Person stands alone. The three-level hierarchy is intentional:
 # it is what makes the reasoner=none / rdfs / owl distinction on superTypes() observable.
 #
+# status (on WorkItem), priority/dueDate (on Task), and name (on Person) each carry an explicit
+# owl:maxCardinality 1 restriction (T13): DefaultBusinessObjectService's filter/sort/facet
+# resolution and PostgresQueryStore's per-datatype JSONB extraction both require a scalar
+# (cardinality max 1) property, since ValueCoercer stores anything else as a JSON list rather than
+# a bare tagged value. Without this, filtering/sorting/faceting on these properties through the
+# REST API (and the assignedTo facet's Person.name display-label resolution, which reads target.
+# props ->> 'text' the same way) is unreachable even though the property itself is sq:facet/
+# sq:indexed. title/estimatedHours/description are deliberately left unrestricted (max unbounded)
+# — nothing in this phase filters/sorts/facets on them, and existing tests (F39) rely on posting
+# them as JSON lists.
+#
 
 <https://sequeless.dev/ns/ref>
     a owl:Ontology ;
@@ -27,7 +38,10 @@ ex:Deliverable
 
 ex:WorkItem
     a owl:Class ;
-    rdfs:subClassOf ex:Deliverable ;
+    rdfs:subClassOf ex:Deliverable ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:status ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Work Item" ;
     sq:abstract "true"^^xsd:boolean .
 
@@ -39,6 +53,12 @@ ex:Task
           owl:minCardinality "1"^^xsd:nonNegativeInteger ] ,
         [ a owl:Restriction ;
           owl:onProperty ex:assignedTo ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:priority ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:dueDate ;
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Task" .
 
@@ -52,7 +72,10 @@ ex:Person
     rdfs:subClassOf
         [ a owl:Restriction ;
           owl:onProperty ex:name ;
-          owl:minCardinality "1"^^xsd:nonNegativeInteger ] ;
+          owl:minCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:name ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Person" .
 
 #

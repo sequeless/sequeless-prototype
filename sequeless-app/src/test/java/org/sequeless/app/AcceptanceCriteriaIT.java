@@ -107,7 +107,10 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
     void addWithWrongReferenceTypeReturnsStructuralViolation() {
         // belongsToProject's range is ex:Project; pointing it at a Person must be rejected by
         // StructuralValidator's reference-type check (F27/plan §4), not by SHACL.
-        BusinessObjectResponse person = createPerson(Map.of("name", List.of("Grace Hopper")));
+        // ex:name gained an owl:maxCardinality 1 restriction (T13, so Person.name can serve as a
+        // display-label extraction target for reference facets), so it is now scalar-expecting:
+        // send a bare string, not a list.
+        BusinessObjectResponse person = createPerson(Map.of("name", "Grace Hopper"));
 
         Map<String, Object> body =
                 Map.of(
