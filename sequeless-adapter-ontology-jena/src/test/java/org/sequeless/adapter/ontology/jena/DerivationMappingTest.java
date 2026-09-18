@@ -444,10 +444,100 @@ class DerivationMappingTest {
             "is not an object property effectively declared on sq:over type");
     }
 
+    // -- Reasoner interaction --------------------------------------------------------------------
+
+    /**
+     * Regression test for a real bug this phase shipped and then fixed: {@code sq:derivedBy} used
+     * to assert {@code rdfs:range sq:Rollup} (one arm of its real union range {@code sq:Rollup} ∪
+     * {@code sq:Plugin}, which RDFS cannot express directly). Under {@link ReasonerSetting#OWL} —
+     * the setting the running application actually uses, per {@code JenaOntologyProperties}'s
+     * default — Jena's rule-based reasoner applied the standard {@code rdfs:range} entailment rule
+     * to every {@code sq:derivedBy} statement, adding {@code rdf:type sq:Rollup} to genuine {@code
+     * sq:Plugin} nodes too, which made {@code derivationOf}'s "typed both/neither" check see every
+     * plug-in rule as typed both and reject it — a plug-in that only worked under {@code
+     * reasoner: none} would never satisfy this phase's acceptance criterion, since the app runs
+     * {@code reasoner: owl}. The fix (this vocabulary's Turtle file) removes that {@code rdfs:range}
+     * assertion entirely rather than trying to express the union; this test proves the entailment
+     * is actually gone, not just that {@link #mapTurtle} (pinned to {@link ReasonerSetting#NONE},
+     * see its own javadoc) continues to pass.
+     */
+    @Test
+    void pluginMapsToPluginRuleUnderTheOwlReasonerTheAppActuallyUses() {
+        MappingResult result = mapTurtleUnderReasoner(
+            """
+            ex:workload
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Person ;
+                rdfs:range xsd:decimal ;
+                sq:derivedBy [ a sq:Plugin ; sq:pluginName "workload" ] .
+            """,
+            ReasonerSetting.OWL);
+        assertThat(errors(result)).isEmpty();
+
+        AttributeDefinition property = attribute(result, REF_NS + "Person", REF_NS + "workload");
+        DerivationRule derivation = property.derivation().orElseThrow();
+        assertThat(derivation).isInstanceOf(PluginRule.class);
+        assertThat(((PluginRule) derivation).pluginName()).isEqualTo("workload");
+    }
+
+    /**
+     * Symmetry check: a {@code sq:Rollup} rule was never at risk from the {@code sq:derivedBy}
+     * range hazard above (asserting {@code sq:Rollup} could only ever spuriously *add* the type a
+     * genuine rollup node already has), but proving it still maps correctly under {@link
+     * ReasonerSetting#OWL} closes out the "does this whole feature work under the app's actual
+     * configuration" question this bug raised, for both rule shapes.
+     */
+    @Test
+    void rollupMapsToRollupRuleUnderTheOwlReasonerTheAppActuallyUses() {
+        MappingResult result = mapTurtleUnderReasoner(
+            """
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:status ;
+                                  sq:operator sq:ne ;
+                                  sq:value "done" ] ) ] .
+            """,
+            ReasonerSetting.OWL);
+        assertThat(errors(result)).isEmpty();
+
+        RollupRule rule =
+            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        assertThat(rule.sourceTypeIri()).isEqualTo(TASK_IRI);
+        assertThat(rule.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
+        assertThat(rule.function()).isEqualTo(AggregateFunction.COUNT);
+        assertThat(rule.criteria())
+            .containsExactly(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
+    }
+
     // -- Fixtures ---------------------------------------------------------------------------------
 
+    /**
+     * Pinned to {@link ReasonerSetting#NONE} for every rule-shape validation test in this class,
+     * deliberately: these tests assert {@code SnapshotMapper}'s parsing and validation logic in
+     * isolation from reasoner-entailed triples, which is what makes {@link #assertSingleError}
+     * reliable — an entailed triple could otherwise turn a deliberately-malformed fixture into a
+     * well-formed one, or vice versa, for reasons unrelated to what each test actually means to
+     * exercise (see the {@code sq:derivedBy}/{@code rdfs:range} bug the reasoner-interaction tests
+     * below regression-test: under {@link ReasonerSetting#OWL} a fixture built here would once have
+     * spuriously failed the "sq:Plugin" tests with an unrelated "typed both sq:Rollup and sq:Plugin"
+     * error). This proves the parsing/validation contract only; it does not by itself prove the
+     * mapping still holds under the reasoner setting the running application actually configures —
+     * that is what the OWL-reasoner tests above are for.
+     */
     private static MappingResult mapTurtle(String derivedByBlock) {
-        OntModel model = buildModel(HEADER + derivedByBlock, ReasonerSetting.NONE);
+        return mapTurtleUnderReasoner(derivedByBlock, ReasonerSetting.NONE);
+    }
+
+    private static MappingResult mapTurtleUnderReasoner(String derivedByBlock, ReasonerSetting reasoner) {
+        OntModel model = buildModel(HEADER + derivedByBlock, reasoner);
         return SnapshotMapper.map(model);
     }
 

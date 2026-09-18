@@ -75,8 +75,7 @@ sq:abstract
 sq:derivedBy
     a owl:AnnotationProperty ;
     rdfs:domain rdf:Property ;
-    rdfs:range sq:Rollup ;
-    rdfs:comment "Range is really the union of sq:Rollup and sq:Plugin (a derivation is a declarative rollup or a named plugin, never both); RDFS cannot express a union range on an annotation property, so it is recorded here rather than as an rdfs:range axiom — the same limitation sq:label's comment records for its union domain. Presence of sq:derivedBy on a property forces PropertyDefinition.readOnly() true regardless of sq:readOnly." .
+    rdfs:comment "Range is really the union of sq:Rollup and sq:Plugin (a derivation is a declarative rollup or a named plugin, never both); RDFS cannot express a union range on an annotation property, so it is recorded here rather than as an rdfs:range axiom — the same limitation sq:label's comment records for its union domain. Deliberately no rdfs:range is asserted for either arm of that union: asserting just sq:Rollup (as this term once did) lets a rule-based reasoner (ReasonerSetting.OWL/RDFS) entail rdf:type sq:Rollup onto every sq:derivedBy object via the standard rdfs:range rule, including genuine sq:Plugin nodes — silently breaking SnapshotMapper's mutual-exclusion check between the two rule kinds. Presence of sq:derivedBy on a property forces PropertyDefinition.readOnly() true regardless of sq:readOnly." .
 
 sq:Rollup
     a owl:Class ;

@@ -6,14 +6,22 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntModel;
 import org.sequeless.spi.Scope;
+import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.PluginRule;
+import org.sequeless.spi.meta.PropertyDefinition;
+import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.ontology.ImportMode;
@@ -92,7 +100,7 @@ import org.sequeless.spi.ontology.Severity;
  * in-memory copy if something changed the store out-of-band (another instance's {@link
  * #importDocument}, or a direct write to the store).
  *
- * <h2>Merging the three sources of an {@link OntologyReport}</h2>
+ * <h2>Merging the sources of an {@link OntologyReport}</h2>
  *
  * <p>{@link #buildStateFrom(OntModel)} is where this class earns its keep: it merges {@link
  * ConsistencyChecker}'s reasoner-level {@link OntologyReport}, an unresolved-{@code owl:imports}
@@ -101,10 +109,12 @@ import org.sequeless.spi.ontology.Severity;
  * auto-vivifies an *empty* graph for any other import instead of throwing, so this adapter must
  * detect the gap itself by comparing {@code model.getID().imports()} against the one IRI it knows,
  * rather than by catching an exception that never comes), {@link SqVocabulary}'s reserved-term
- * rejection (not wired in anywhere before this task — see the step plan's F35), and {@link
- * SnapshotMapper}'s own mapping issues — {@code WARNING} for a degraded-but-usable mapping, {@code
- * ERROR} for a malformed {@code sq:derivedBy} rule — into the single {@link OntologyReport}
- * that ends up inside the {@link MetaModelSnapshot} this port returns.
+ * rejection, {@link SnapshotMapper}'s own mapping issues — {@code WARNING} for a degraded-but-usable
+ * mapping, {@code ERROR} for a malformed {@code sq:derivedBy} rule — and {@link
+ * #unknownPluginIssues(List)}'s {@code ServiceLoader}-backed check that every {@code sq:Plugin}
+ * rule's {@code sq:pluginName} actually resolves to a registered {@link
+ * org.sequeless.spi.derivation.DerivationPlugin}, into the single {@link OntologyReport} that ends
+ * up inside the {@link MetaModelSnapshot} this port returns.
  */
 public final class JenaOntologyPort implements OntologyPort {
 
@@ -355,6 +365,10 @@ public final class JenaOntologyPort implements OntologyPort {
         issues.addAll(mapping.issues());
         consistent &= mapping.issues().stream().noneMatch(issue -> issue.severity() == Severity.ERROR);
 
+        List<OntologyIssue> pluginIssues = unknownPluginIssues(mapping.types());
+        issues.addAll(pluginIssues);
+        consistent &= pluginIssues.isEmpty();
+
         OntologyReport mergedReport = new OntologyReport(consistent, issues);
 
         String ontologyIri = model.getID().getURI();
@@ -370,6 +384,51 @@ public final class JenaOntologyPort implements OntologyPort {
             mergedReport);
 
         return new PortState(model, snapshot);
+    }
+
+    /**
+     * Checks every {@code sq:Plugin}-derived property in {@code types} against the {@link
+     * DerivationPlugin} implementations actually registered on the classpath via {@link
+     * ServiceLoader}, so that a typo'd or never-implemented {@code sq:pluginName} is an {@code
+     * ERROR} {@link OntologyIssue} at snapshot activation — not a lookup failure the first time
+     * someone reads an object of that type. Resolved fresh on every call rather than cached on this
+     * instance: caching would make a plug-in registered after this port's construction (e.g. a
+     * newly deployed adapter jar) invisible to a later {@link #reload(Scope)}, which would be a
+     * surprising and hard-to-diagnose staleness bug for the sake of an optimisation this method
+     * (one {@code ServiceLoader.load} plus a walk of an already-in-memory type list) does not need.
+     *
+     * <p>Deduplicated by property IRI: a derived property inherited by {@code N} subtypes appears in
+     * {@code N} types' {@link TypeDefinition#properties()} lists, but is one rule and must be one
+     * issue, not {@code N}.
+     */
+    private static List<OntologyIssue> unknownPluginIssues(List<TypeDefinition> types) {
+        Set<String> registeredPluginNames = ServiceLoader.load(DerivationPlugin.class).stream()
+            .map(ServiceLoader.Provider::get)
+            .map(DerivationPlugin::name)
+            .collect(Collectors.toSet());
+
+        Map<String, String> pluginRulesByPropertyIri = new LinkedHashMap<>();
+        for (TypeDefinition type : types) {
+            for (PropertyDefinition property : type.properties()) {
+                property.derivation()
+                    .filter(PluginRule.class::isInstance)
+                    .map(PluginRule.class::cast)
+                    .ifPresent(rule -> pluginRulesByPropertyIri.putIfAbsent(property.iri(), rule.pluginName()));
+            }
+        }
+
+        List<OntologyIssue> issues = new ArrayList<>();
+        for (Map.Entry<String, String> entry : pluginRulesByPropertyIri.entrySet()) {
+            String propertyIri = entry.getKey();
+            String pluginName = entry.getValue();
+            if (!registeredPluginNames.contains(pluginName)) {
+                issues.add(new OntologyIssue(
+                    Severity.ERROR,
+                    Optional.of(propertyIri),
+                    "sq:pluginName '" + pluginName + "' has no registered DerivationPlugin on the classpath."));
+            }
+        }
+        return issues;
     }
 
     private static PortState failureState(String message) {

@@ -55,7 +55,7 @@ rollup's `sq:filter` list.
 
 | IRI | RDF type | Domain | Range | Default | Snapshot field |
 |---|---|---|---|---|---|
-| `sq:derivedBy` | `owl:AnnotationProperty` | `rdf:Property` | `sq:Rollup` ∪ `sq:Plugin` | absent (`Optional.empty()`) | `PropertyDefinition.derivation()` |
+| `sq:derivedBy` | `owl:AnnotationProperty` | `rdf:Property` | — (conceptually `sq:Rollup` ∪ `sq:Plugin`; deliberately unasserted, see notes) | absent (`Optional.empty()`) | `PropertyDefinition.derivation()` |
 | `sq:function` | `owl:AnnotationProperty` | `sq:Rollup` | — (enumeration; see notes) | none, required | `RollupRule.function()` |
 | `sq:over` | `owl:AnnotationProperty` | `sq:Rollup` | `owl:Class` | none, required | `RollupRule.sourceTypeIri()` |
 | `sq:via` | `owl:AnnotationProperty` | `sq:Rollup` | `rdf:Property` | none, required | `RollupRule.viaIri()` |
@@ -84,6 +84,15 @@ Notes:
   names (T3's job).
 - Declaring `sq:derivedBy` on a property forces `PropertyDefinition.readOnly()` to `true`
   regardless of any `sq:readOnly` assertion — a derived value is never accepted on write.
+- `sq:derivedBy`'s range is conceptually the union `sq:Rollup` ∪ `sq:Plugin`, but no `rdfs:range` is
+  asserted for either arm, unlike `sq:label`'s inexpressible union *domain* (which is simply omitted
+  the same way). Asserting just `sq:Rollup` — as an earlier draft of this vocabulary did — is not
+  merely imprecise: under a rule-based reasoner (`ReasonerSetting.OWL`/`RDFS`, which is what the
+  running application actually uses), the standard `rdfs:range` entailment rule adds `rdf:type
+  sq:Rollup` to *every* `sq:derivedBy` object, including genuine `sq:Plugin` nodes, which silently
+  defeats `SnapshotMapper`'s "typed both/neither `sq:Rollup`/`sq:Plugin`" mutual-exclusion check.
+  `sq:over`/`sq:via`/`sq:of`/`sq:property`/`sq:value`/`sq:pluginName`, by contrast, each assert a
+  genuinely single range and are safe to entail.
 
 ## Two terms added beyond the brief
 
