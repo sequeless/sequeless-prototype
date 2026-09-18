@@ -90,7 +90,7 @@ record MappingResult(List<TypeDefinition> types, List<OntologyIssue> warnings) {
 final class SnapshotMapper {
 
     private static final Set<String> BUILTIN_NAMESPACES =
-        Set.of(RDF.getURI(), RDFS.getURI(), OWL.getURI(), XSD.getURI());
+        Set.of(RDF.getURI(), RDFS.getURI(), OWL.getURI(), XSD.getURI(), SqVocabulary.NS);
 
     private static final int NO_DISPLAY_ORDER = DisplayHints.none().order();
 
@@ -409,6 +409,10 @@ final class SnapshotMapper {
      *     {@code rdfs:}, {@code owl:} or {@code xsd:} builtin namespaces
      */
     private static boolean isNotBuiltin(Resource resource) {
+        // BUILTIN_NAMESPACES also includes SqVocabulary.NS: sq:Rollup/sq:Plugin/sq:Criterion (T1)
+        // are owl:Class so that sq:derivedBy's blank nodes can be typed, but they describe a
+        // derivation rule, not a business type or property, so they are excluded here exactly like
+        // rdf:/rdfs:/owl:/xsd: builtins are.
         return resource.isURIResource() && !BUILTIN_NAMESPACES.contains(resource.getNameSpace());
     }
 

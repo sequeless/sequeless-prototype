@@ -62,3 +62,120 @@ sq:abstract
     a owl:AnnotationProperty ;
     rdfs:domain owl:Class ;
     rdfs:range xsd:boolean .
+
+#
+# Derived properties (sq:Rollup / sq:Plugin) — Phase 4 (docs/architecture/sq-vocabulary.md,
+# "Terms in use (phase 4)"). Every term below is deliberately declared owl:AnnotationProperty,
+# never owl:ObjectProperty or owl:DatatypeProperty: SnapshotMapper's property attribution walks
+# OntDataProperty/OntObjectProperty only, so an annotation property never surfaces as a property
+# of a type — these terms describe a derivation rule attached to a property, not a property of
+# the domain type themselves. Do not "fix" this by upgrading them.
+#
+
+sq:derivedBy
+    a owl:AnnotationProperty ;
+    rdfs:domain rdf:Property ;
+    rdfs:range sq:Rollup ;
+    rdfs:comment "Range is really the union of sq:Rollup and sq:Plugin (a derivation is a declarative rollup or a named plugin, never both); RDFS cannot express a union range on an annotation property, so it is recorded here rather than as an rdfs:range axiom — the same limitation sq:label's comment records for its union domain. Presence of sq:derivedBy on a property forces PropertyDefinition.readOnly() true regardless of sq:readOnly." .
+
+sq:Rollup
+    a owl:Class ;
+    rdfs:comment "A declarative aggregate: sq:function applied over instances of sq:over reached via sq:via, using sq:of as the aggregated property (absent for sq:count), optionally narrowed by sq:filter." .
+
+sq:Plugin
+    a owl:Class ;
+    rdfs:comment "A derivation implemented in code and looked up by sq:pluginName via ServiceLoader against org.sequeless.spi.derivation.DerivationPlugin." .
+
+sq:Criterion
+    a owl:Class ;
+    rdfs:comment "A single filter condition inside an sq:filter list: sq:property sq:operator sq:value." .
+
+sq:function
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Rollup ;
+    rdfs:comment "Legal values are the five function individuals declared below (sq:count, sq:sum, sq:min, sq:max, sq:avg); this is a fixed enumeration that RDFS cannot express without owl:oneOf, so no rdfs:range is asserted and the set is validated at snapshot activation instead." .
+
+sq:over
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Rollup ;
+    rdfs:range owl:Class .
+
+sq:via
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Rollup ;
+    rdfs:range rdf:Property .
+
+sq:of
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Rollup ;
+    rdfs:range rdf:Property ;
+    rdfs:comment "Absent for sq:count." .
+
+sq:filter
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Rollup ;
+    rdfs:range rdf:List ;
+    rdfs:comment "An RDF list of sq:Criterion nodes." .
+
+sq:property
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Criterion ;
+    rdfs:range rdf:Property .
+
+sq:operator
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Criterion ;
+    rdfs:comment "Legal values are the eleven operator individuals declared below, mirroring org.sequeless.spi.query.Operator; this is a fixed enumeration that RDFS cannot express without owl:oneOf, so no rdfs:range is asserted and the set is validated at snapshot activation instead." .
+
+sq:value
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Criterion ;
+    rdfs:range rdfs:Literal ;
+    rdfs:comment "Absent for sq:isNull/sq:notNull." .
+
+sq:pluginName
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Plugin ;
+    rdfs:range xsd:string .
+
+#
+# Function individuals — mirror org.sequeless.spi.meta.AggregateFunction; matched by IRI local
+# name against the enum's constant names.
+#
+
+sq:count a owl:NamedIndividual .
+
+sq:sum a owl:NamedIndividual .
+
+sq:min a owl:NamedIndividual .
+
+sq:max a owl:NamedIndividual .
+
+sq:avg a owl:NamedIndividual .
+
+#
+# Operator individuals — mirror org.sequeless.spi.query.Operator; matched by IRI local name
+# against the enum's constant names.
+#
+
+sq:eq a owl:NamedIndividual .
+
+sq:ne a owl:NamedIndividual .
+
+sq:in a owl:NamedIndividual .
+
+sq:lt a owl:NamedIndividual .
+
+sq:lte a owl:NamedIndividual .
+
+sq:gt a owl:NamedIndividual .
+
+sq:gte a owl:NamedIndividual .
+
+sq:contains a owl:NamedIndividual .
+
+sq:startsWith a owl:NamedIndividual .
+
+sq:isNull a owl:NamedIndividual .
+
+sq:notNull a owl:NamedIndividual .

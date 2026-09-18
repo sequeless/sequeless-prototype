@@ -46,6 +46,45 @@ Notes:
   (`WorkItem`, `Deliverable` in the reference ontology) and that the application should not offer as
   a directly instantiable type.
 
+## Terms in use (phase 4)
+
+Phase 4 (derived properties, DR-08) adds a second layer on top of `sq:`: a property can carry a
+derivation rule instead of (never alongside) a stored value. `sq:derivedBy` attaches the rule;
+`sq:Rollup` and `sq:Plugin` are the two rule shapes; `sq:Criterion` is a filter condition inside a
+rollup's `sq:filter` list.
+
+| IRI | RDF type | Domain | Range | Default | Snapshot field |
+|---|---|---|---|---|---|
+| `sq:derivedBy` | `owl:AnnotationProperty` | `rdf:Property` | `sq:Rollup` ∪ `sq:Plugin` | absent (`Optional.empty()`) | `PropertyDefinition.derivation()` |
+| `sq:function` | `owl:AnnotationProperty` | `sq:Rollup` | — (enumeration; see notes) | none, required | `RollupRule.function()` |
+| `sq:over` | `owl:AnnotationProperty` | `sq:Rollup` | `owl:Class` | none, required | `RollupRule.sourceTypeIri()` |
+| `sq:via` | `owl:AnnotationProperty` | `sq:Rollup` | `rdf:Property` | none, required | `RollupRule.viaIri()` |
+| `sq:of` | `owl:AnnotationProperty` | `sq:Rollup` | `rdf:Property` | absent (required for `sum`/`min`/`max`/`avg`; absent for `count`) | `RollupRule.ofPropertyIri()` |
+| `sq:filter` | `owl:AnnotationProperty` | `sq:Rollup` | `rdf:List` | absent (`[]`) | `RollupRule.criteria()` |
+| `sq:property` | `owl:AnnotationProperty` | `sq:Criterion` | `rdf:Property` | none, required | `Criterion.property()` |
+| `sq:operator` | `owl:AnnotationProperty` | `sq:Criterion` | — (enumeration; see notes) | none, required | `Criterion.operator()` |
+| `sq:value` | `owl:AnnotationProperty` | `sq:Criterion` | `rdfs:Literal` | absent (required unless operator is `sq:isNull`/`sq:notNull`) | `Criterion.value()` |
+| `sq:pluginName` | `owl:AnnotationProperty` | `sq:Plugin` | `xsd:string` | none, required | `PluginRule.pluginName()` |
+
+Notes:
+- `sq:Rollup`, `sq:Plugin` and `sq:Criterion` are `owl:Class`, not annotation properties — they
+  type the blank nodes `sq:derivedBy` and `sq:filter` point at. They have no snapshot field of
+  their own; a node's type selects which SPI record (`RollupRule` vs. `PluginRule`) it maps to.
+- `sq:function` and `sq:operator` have no `rdfs:range`: their legal values are a fixed
+  enumeration (the five function individuals and eleven operator individuals below), which RDFS
+  cannot express without `owl:oneOf`. The set is validated at snapshot activation instead.
+- The five function individuals — `sq:count`, `sq:sum`, `sq:min`, `sq:max`, `sq:avg` — are
+  `owl:NamedIndividual`s with no snapshot field of their own: they are the *values* `sq:function`
+  takes, matched by IRI local name against `org.sequeless.spi.meta.AggregateFunction`'s enum
+  constant names (T3's job).
+- The eleven operator individuals — `sq:eq`, `sq:ne`, `sq:in`, `sq:lt`, `sq:lte`, `sq:gt`,
+  `sq:gte`, `sq:contains`, `sq:startsWith`, `sq:isNull`, `sq:notNull` — are likewise
+  `owl:NamedIndividual`s with no snapshot field of their own: they are the values `sq:operator`
+  takes, matched by IRI local name against `org.sequeless.spi.query.Operator`'s enum constant
+  names (T3's job).
+- Declaring `sq:derivedBy` on a property forces `PropertyDefinition.readOnly()` to `true`
+  regardless of any `sq:readOnly` assertion — a derived value is never accepted on write.
+
 ## Two terms added beyond the brief
 
 The phase-1 brief lists `sq:label`, `sq:displayOrder`, `sq:displayGroup`, `sq:facet`, `sq:indexed`,
@@ -70,7 +109,6 @@ pattern below, naming the term and the phase that will support it:
 
 | Term | RDF type (planned) | Reserved for |
 |---|---|---|
-| `sq:derivedBy` | `owl:AnnotationProperty` | Phase 4, derived properties (DR-08): attaches a `sq:Rollup` or `sq:Plugin` derivation rule to a property. |
 | `sq:StateMachine` | `owl:Class` | Phase 5, state machines and automation (DR-09): declares states, transitions, guards and actions for a type. |
 | `sq:permission` | `owl:AnnotationProperty` | Phase 8, authorisation (DR-11): attaches a permission requirement to a type, property or transition, evaluated by `AuthorizationPort` once Spring Security/OIDC replaces permit-all. |
 | `sq:materialised` | `owl:AnnotationProperty` | Phase 4, derived properties (DR-08): switches a `sq:derivedBy` rollup from on-read evaluation to event-driven materialisation. |
@@ -100,6 +138,12 @@ construct on the left, the snapshot field it produces on the right.
 | `owl:versionIRI` | `MetaModelSnapshot.versionIri()` |
 | Declared namespace prefixes | `MetaModelSnapshot.prefixes()` (export/display only — never used to derive a short name; see `MetaModelSnapshot`'s short-name rule) |
 | Unmapped/unrecognised XSD datatype in `rdfs:range` | falls back to `Datatype.STRING`, plus a `WARNING` `OntologyIssue` naming the property and the unrecognised IRI |
+| `sq:derivedBy` pointing at a `sq:Rollup`-typed blank node | `PropertyDefinition.derivation()` as a `RollupRule` |
+| `sq:derivedBy` pointing at a `sq:Plugin`-typed blank node | `PropertyDefinition.derivation()` as a `PluginRule` |
+| `sq:function` / `sq:over` / `sq:via` / `sq:of` / `sq:filter` (on a `sq:Rollup` node) | the matching `RollupRule.function()` / `sourceTypeIri()` / `viaIri()` / `ofPropertyIri()` / `criteria()` |
+| `sq:pluginName` (on a `sq:Plugin` node) | `PluginRule.pluginName()` |
+| `sq:property` / `sq:operator` / `sq:value` (on a `sq:Criterion` node) | the matching `Criterion.property()` / `operator()` / `value()` |
+| Presence of `sq:derivedBy` on a property | forces `PropertyDefinition.readOnly()` to `true`, regardless of `sq:readOnly` |
 
 ## What the reasoner setting changes
 

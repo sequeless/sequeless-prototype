@@ -192,7 +192,7 @@ class JenaOntologyPortAcceptanceTest {
 
             <https://sequeless.dev/ns/ref> a owl:Ontology ; owl:imports <https://sequeless.dev/ns/meta> .
 
-            ex:Widget a owl:Class ; sq:derivedBy ex:someRule .
+            ex:Widget a owl:Class ; sq:materialised true .
             """;
         JenaOntologyPort port =
             JenaOntologyPort.fromDocument(new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL);
@@ -208,7 +208,7 @@ class JenaOntologyPortAcceptanceTest {
                             issue ->
                                 issue.message()
                                     .equals(
-                                        "sq:derivedBy is reserved for Phase 4 (derived properties)"
+                                        "sq:materialised is reserved for Phase 4 (derived properties)"
                                             + " and is not supported yet."));
                 });
     }
