@@ -63,6 +63,8 @@ import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyFormat;
 import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.query.AggregateRequest;
+import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.Operator;
@@ -900,6 +902,11 @@ class DefaultBusinessObjectServiceTest {
 
         @Override
         public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+            throw new UnsupportedOperationException("not exercised by these tests");
+        }
+
+        @Override
+        public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
     }

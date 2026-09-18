@@ -25,6 +25,8 @@ import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyFormat;
 import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.query.AggregateRequest;
+import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
@@ -242,6 +244,11 @@ class DefaultOntologyAdministrationTest {
             Objects.requireNonNull(snapshot, "snapshot must not be null");
             ensureIndexesScopes.add(scope);
             ensureIndexesSnapshots.add(snapshot);
+        }
+
+        @Override
+        public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+            throw new UnsupportedOperationException("not exercised by these tests");
         }
     }
 

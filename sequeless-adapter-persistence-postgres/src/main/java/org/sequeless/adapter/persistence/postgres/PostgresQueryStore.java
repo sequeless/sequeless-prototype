@@ -34,6 +34,8 @@ import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.TextValue;
 import org.sequeless.spi.object.Value;
+import org.sequeless.spi.query.AggregateRequest;
+import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
@@ -152,6 +154,20 @@ public final class PostgresQueryStore implements QueryPort {
                 backfillSearchVector(tenantId);
             }
         });
+    }
+
+    /**
+     * Not yet implemented: the {@code GROUP BY} implementation over {@code sq_object.props} is
+     * [T7]'s work, reusing {@link #castExpression} and {@link #criterionSql} the same way {@link
+     * #query} does. Declared now purely so this class keeps compiling against {@link
+     * QueryPort#aggregate}.
+     */
+    @Override
+    public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(request, "request must not be null");
+        throw new UnsupportedOperationException("PostgresQueryStore.aggregate is not yet implemented");
     }
 
     private static Map<String, PropertyDefinition> indexAllProperties(MetaModelSnapshot snapshot) {

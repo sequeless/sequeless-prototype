@@ -1,10 +1,16 @@
 package org.sequeless.spi.meta;
 
 /**
- * Placeholder for the derivation-rule shape ({@code sq:Rollup} and {@code sq:Plugin}) that Phase 4
- * (derived properties, DR-08) will define. {@link PropertyDefinition#derivation()} already carries
- * an {@code Optional<DerivationRule>} so the snapshot shape does not need to change again once
- * Phase 4 lands; this type exists only so that slot compiles today, genuinely empty until then.
+ * The rule that computes a derived property's value on read, per {@link
+ * PropertyDefinition#derivation()}: either a {@link RollupRule} (a declarative aggregate over a
+ * related type, {@code sq:Rollup}) or a {@link PluginRule} (a named implementation looked up by
+ * {@code ServiceLoader}, {@code sq:Plugin}). Sealed to exactly these two permitted
+ * implementations, mirroring {@link PropertyDefinition} itself, so a {@code switch} over {@code
+ * DerivationRule} is exhaustive without a default case.
+ *
+ * <p>{@code permits} is declared explicitly rather than left implicit because {@link RollupRule}
+ * and {@link PluginRule} live in their own files, not nested inside this one; implicit permits
+ * only works for subtypes nested in the sealed type's own file.
  */
-public record DerivationRule() {
+public sealed interface DerivationRule permits RollupRule, PluginRule {
 }

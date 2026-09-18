@@ -1,6 +1,7 @@
 package org.sequeless.spi.query;
 
 import org.sequeless.spi.Scope;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 
 /**
@@ -50,6 +51,22 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
  *       {@link MetaModelSnapshot} whose types declare no {@code sq:indexed} and no {@code
  *       sq:searchable} properties must not cause {@link #ensureIndexes} to fail; it simply has
  *       nothing to prepare.
+ *   <li><b>{@link #aggregate} is scoped and filtered exactly like {@link #query}.</b> It is scoped
+ *       to {@code scope.tenantId()}; source objects are matched against the union of {@code
+ *       request.sourceTypes()}, exactly as {@link Query#types()} is a union; and a soft-deleted
+ *       source object is excluded from the aggregate, exactly as it is excluded from {@link
+ *       #query}'s results (there is no {@code includeDeleted} escape hatch for aggregation).
+ *   <li><b>{@link #aggregate}'s result density depends on {@code request.function()}.</b> This is
+ *       the most load-bearing, easiest-to-get-wrong part of this contract. For {@link
+ *       AggregateFunction#COUNT}, the returned {@link AggregateResult#values()} is <em>dense</em>:
+ *       every id in {@code request.targetIds()} is present as a key, with an {@link
+ *       org.sequeless.spi.object.IntegerValue} of {@code 0} when that target has no matching source
+ *       rows. For {@link AggregateFunction#SUM}, {@link AggregateFunction#MIN}, {@link
+ *       AggregateFunction#MAX}, and {@link AggregateFunction#AVG}, a target with no matching source
+ *       rows is simply <em>absent</em> from {@link AggregateResult#values()} — never present with a
+ *       zero or null-like value — so that "no sources" stays distinguishable from "sources totalling
+ *       zero". An empty {@code request.targetIds()} is not an error: it simply yields an {@link
+ *       AggregateResult} whose {@link AggregateResult#values()} is empty.
  * </ul>
  */
 public interface QueryPort {
@@ -85,4 +102,33 @@ public interface QueryPort {
      * @throws NullPointerException if either argument is {@code null}
      */
     void ensureIndexes(Scope scope, MetaModelSnapshot snapshot);
+
+    /**
+     * Computes a single {@link AggregateFunction} over the source objects of {@code
+     * request.sourceTypes()} that point back to each of {@code request.targetIds()} via {@code
+     * request.viaIri()}, restricted to source objects matching {@code request.criteria()}. Backs a
+     * {@code sq:Rollup}-derived property: the planner (core) resolves one such rule into one {@code
+     * AggregateRequest} and calls this method once per rule per page, never once per object.
+     *
+     * <p>See the interface-level javadoc for the full contract this method must satisfy, in
+     * particular tenant scoping and soft-deleted-source exclusion (identical to {@link #query}'s),
+     * and — most importantly — the result-density contract: {@link AggregateFunction#COUNT} is
+     * dense (every requested target id present, {@code 0} when it has no matching source rows),
+     * while {@link AggregateFunction#SUM}, {@link AggregateFunction#MIN}, {@link
+     * AggregateFunction#MAX}, and {@link AggregateFunction#AVG} simply omit a target id from the
+     * result when no source row matches it. An empty {@code request.targetIds()} is a valid,
+     * contract-tested request, not an error, and yields an {@link AggregateResult} with empty
+     * {@link AggregateResult#values()}.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
+     *     null}
+     * @param snapshot the type system {@code request} is interpreted against; must not be {@code
+     *     null}
+     * @param request the source types, relationship, targets, function, optional aggregated
+     *     property, and filter criteria to compute; must not be {@code null}
+     * @return a non-null result containing the computed value per target id, per the density
+     *     contract above
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request);
 }
