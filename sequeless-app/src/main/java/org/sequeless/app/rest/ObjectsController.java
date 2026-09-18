@@ -6,10 +6,17 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
 import org.sequeless.spi.Principal;
@@ -19,9 +26,10 @@ import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
+import org.sequeless.spi.query.QueryResult;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -88,30 +96,133 @@ public class ObjectsController {
      * @param type the type's short name or full IRI
      * @param page the 0-based page number; defaults to 0
      * @param size the requested page size; defaults to 20; capped at 200 (never rejected outright)
-     * @return the matching page, rendered as {@link PageResultResponse}
+     * @param q a free-text search term, matched against the type's {@code sq:searchable}
+     *     properties, or {@code null}/blank for no text search
+     * @param sort comma-separated sort keys; a leading {@code -} means descending, e.g. {@code
+     *     sort=-priority,dueDate}; {@code null}/blank for no explicit sort
+     * @param facets comma-separated property short names (or full IRIs) to compute facet counts
+     *     for; {@code null}/blank for no facets
+     * @param allParams every query parameter on the request, used only to pick out {@code
+     *     filter[<property>][<op>]=<value>} clauses (see {@link #parseFilters})
+     * @return the matching page, rendered as {@link QueryResultResponse}
      */
-    @Operation(summary = "List objects of a type, one page at a time")
+    @Operation(summary = "List objects of a type, filtered, sorted, faceted, and free-text searched")
     @ApiResponse(responseCode = "200", description = "The requested page")
+    @ApiResponse(
+            responseCode = "400",
+            description = "An invalid filter/sort/facet property or operator",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "404",
             description = "No such type",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping("/objects/{type}")
-    public PageResultResponse browse(
+    public QueryResultResponse browse(
             @PathVariable("type") String type,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @Parameter(description = "Free-text search, matched against the type's sq:searchable properties")
+                    @RequestParam(name = "q", required = false)
+                    String q,
+            @Parameter(
+                            description =
+                                    "Comma-separated sort keys; a leading '-' means descending, e.g."
+                                            + " sort=-priority,dueDate")
+                    @RequestParam(name = "sort", required = false)
+                    String sort,
+            @Parameter(description = "Comma-separated property short names to compute facet counts for")
+                    @RequestParam(name = "facets", required = false)
+                    String facets,
+            @Parameter(
+                            description =
+                                    "Filter clauses as filter[<property>][<op>]=<value>, repeatable; <op> is"
+                                        + " one of eq, ne, in, lt, lte, gt, gte, contains, startswith, isnull,"
+                                        + " notnull (case-insensitive); multiple filters AND together, including"
+                                        + " multiple filters on the same property (e.g."
+                                        + " dueDate[gte]=...&dueDate[lte]=... for a range); 'in' takes a"
+                                        + " comma-separated value; 'isnull'/'notnull' ignore any value")
+                    @RequestParam
+                    MultiValueMap<String, String> allParams) {
         Scope scope = currentScope();
         int effectiveSize = Math.min(size, 200);
-        PageResult<BusinessObject> result =
-                businessObjectService.browse(scope, type, new Page(page, effectiveSize));
+        List<BrowseQuery.Filter> filters = parseFilters(allParams);
+        List<BrowseQuery.SortKey> sortKeys = parseSort(sort);
+        List<String> facetNames = parseCommaList(facets);
+        BrowseQuery browseQuery =
+                new BrowseQuery(
+                        filters,
+                        Optional.ofNullable(q).filter(s -> !s.isBlank()),
+                        sortKeys,
+                        new Page(page, effectiveSize),
+                        facetNames);
+        QueryResult result = businessObjectService.browse(scope, type, browseQuery);
         TypeDefinition requestType = metaModelService.describeType(scope, type);
-        List<BusinessObjectResponse> items =
-                result.items().stream()
-                        .map(object -> ObjectPropertyMapper.toResponse(object, requestType))
-                        .toList();
-        return new PageResultResponse(
-                items, result.number(), result.size(), result.totalItems(), result.totalPages());
+        return QueryResultResponse.from(result, requestType, page, effectiveSize);
+    }
+
+    private static final Pattern FILTER_KEY = Pattern.compile("filter\\[([^\\]]+)\\]\\[([^\\]]+)\\]");
+
+    /**
+     * Picks {@code filter[<property>][<op>]=<value>} entries out of every query parameter on the
+     * request. {@code page}/{@code size}/{@code q}/{@code sort}/{@code facets} are all bound to
+     * their own {@code @RequestParam} arguments already, but Spring still hands every parameter to
+     * this {@link MultiValueMap} too — they are simply skipped here, since none of them matches
+     * {@link #FILTER_KEY}.
+     *
+     * @param allParams every query parameter on the request; must not be {@code null}
+     * @return one {@link BrowseQuery.Filter} per matching {@code key=value} pair, in encounter
+     *     order; a property repeated with the same or different operators yields one filter per
+     *     occurrence, which {@link BrowseQuery} itself ANDs together (e.g. a {@code gte}/{@code
+     *     lte} range on the same property)
+     */
+    private static List<BrowseQuery.Filter> parseFilters(MultiValueMap<String, String> allParams) {
+        List<BrowseQuery.Filter> filters = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : allParams.entrySet()) {
+            Matcher matcher = FILTER_KEY.matcher(entry.getKey());
+            if (!matcher.matches()) {
+                continue;
+            }
+            String property = matcher.group(1);
+            String operator = matcher.group(2);
+            for (String value : entry.getValue()) {
+                filters.add(new BrowseQuery.Filter(property, operator, Optional.of(value)));
+            }
+        }
+        return filters;
+    }
+
+    /**
+     * @param sort comma-separated sort keys, a leading {@code -} meaning descending; {@code null}
+     *     or blank for no sort
+     * @return one {@link BrowseQuery.SortKey} per token, in the order given; empty if {@code sort}
+     *     is {@code null}/blank
+     */
+    private static List<BrowseQuery.SortKey> parseSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return List.of();
+        }
+        List<BrowseQuery.SortKey> sorts = new ArrayList<>();
+        for (String token : sort.split(",")) {
+            String trimmed = token.trim();
+            if (trimmed.startsWith("-")) {
+                sorts.add(new BrowseQuery.SortKey(trimmed.substring(1), "desc"));
+            } else {
+                sorts.add(new BrowseQuery.SortKey(trimmed, "asc"));
+            }
+        }
+        return sorts;
+    }
+
+    /**
+     * @param value a comma-separated list, or {@code null}/blank for none
+     * @return {@code value}'s comma-separated tokens, trimmed, with any blank tokens dropped;
+     *     empty if {@code value} is {@code null}/blank
+     */
+    private static List<String> parseCommaList(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
     }
 
     /**
