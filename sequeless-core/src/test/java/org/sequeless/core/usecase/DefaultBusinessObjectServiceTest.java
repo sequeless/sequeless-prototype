@@ -20,6 +20,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.BrowseQuery;
+import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.Principal;
@@ -41,6 +42,7 @@ import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
+import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectNotFoundException;
@@ -61,9 +63,13 @@ import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyFormat;
 import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Direction;
+import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.Sort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
 
@@ -234,6 +240,206 @@ class DefaultBusinessObjectServiceTest {
         assertThatExceptionOfType(AuthorizationException.class)
             .isThrownBy(() -> service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20))));
         assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithUnknownFilterPropertyThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("noSuchProperty", "eq", Optional.of("x"))),
+                Optional.empty(), List.of(), new Page(0, 20), List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Task", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> assertThat(violation.path()).isEqualTo("noSuchProperty")));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithOperatorNotApplicableToDatatypeThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        // STATUS is Datatype.STRING; operatorApplicable only allows GT for INTEGER, LONG, DECIMAL,
+        // DOUBLE, DATE, and DATE_TIME attributes, so GT against a string property is rejected.
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("status", "gt", Optional.of("open"))),
+                Optional.empty(), List.of(), new Page(0, 20), List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Task", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> {
+                            assertThat(violation.path()).isEqualTo(STATUS_IRI);
+                            assertThat(violation.message()).contains("gt").contains("status");
+                        }));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithNonFacetPropertyRequestedAsFacetThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of("title"));
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Task", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TITLE_IRI)));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithNonSortablePropertyThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(), Optional.empty(), List.of(new BrowseQuery.SortKey("tags", "asc")),
+                new Page(0, 20), List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Task", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TAGS_IRI)));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithUnknownOperatorTokenThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("title", "bogus", Optional.of("x"))),
+                Optional.empty(), List.of(), new Page(0, 20), List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Task", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> {
+                            assertThat(violation.path()).isEqualTo("title");
+                            assertThat(violation.message()).contains("bogus");
+                        }));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithUnknownSortDirectionThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(), Optional.empty(), List.of(new BrowseQuery.SortKey("title", "bogus")),
+                new Page(0, 20), List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Task", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> {
+                            assertThat(violation.path()).isEqualTo("title");
+                            assertThat(violation.message()).contains("bogus");
+                        }));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseOfConcreteTypeResolvesToItsOwnIriOnly() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+
+        service.browse(ALICE, "Task", browseQuery(new Page(0, 20)));
+
+        assertThat(queryPort.queries).hasSize(1);
+        assertThat(queryPort.queries.get(0).types()).containsExactly(TASK_IRI);
+    }
+
+    @Test
+    void browseBuildsCriteriaSortsAndFacetsOnQuery() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("title", "eq", Optional.of("Write plan"))),
+                Optional.empty(),
+                List.of(new BrowseQuery.SortKey("estimatedHours", "asc")),
+                new Page(0, 20),
+                List.of("status"));
+
+        service.browse(ALICE, "Task", query);
+
+        assertThat(queryPort.queries).hasSize(1);
+        Query captured = queryPort.queries.get(0);
+        assertThat(captured.types()).containsExactly(TASK_IRI);
+        assertThat(captured.criteria())
+            .containsExactly(new Criterion(TITLE_IRI, Operator.EQ, Optional.of(Value.text("Write plan"))));
+        assertThat(captured.sorts()).containsExactly(new Sort(HOURS_IRI, Direction.ASC));
+        assertThat(captured.facetProperties()).containsExactly(STATUS_IRI);
+    }
+
+    @Test
+    void browseWithInFilterProducesListValueCriterion() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("status", "in", Optional.of("a,b,c"))),
+                Optional.empty(), List.of(), new Page(0, 20), List.of());
+
+        service.browse(ALICE, "Task", query);
+
+        assertThat(queryPort.queries).hasSize(1);
+        Criterion criterion = queryPort.queries.get(0).criteria().get(0);
+        assertThat(criterion.property()).isEqualTo(STATUS_IRI);
+        assertThat(criterion.operator()).isEqualTo(Operator.IN);
+        assertThat(criterion.value()).isPresent();
+        assertThat(criterion.value().get()).isInstanceOf(ListValue.class);
+        ListValue listValue = (ListValue) criterion.value().get();
+        assertThat(listValue.values())
+            .containsExactly(Value.text("a"), Value.text("b"), Value.text("c"));
+    }
+
+    @Test
+    void browseWithIsNullFilterProducesEmptyValueCriterion() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("title", "isnull", Optional.empty())),
+                Optional.empty(), List.of(), new Page(0, 20), List.of());
+
+        service.browse(ALICE, "Task", query);
+
+        assertThat(queryPort.queries).hasSize(1);
+        Criterion criterion = queryPort.queries.get(0).criteria().get(0);
+        assertThat(criterion.property()).isEqualTo(TITLE_IRI);
+        assertThat(criterion.operator()).isEqualTo(Operator.IS_NULL);
+        assertThat(criterion.value()).isEmpty();
     }
 
     // --- read ---
