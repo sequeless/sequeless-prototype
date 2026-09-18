@@ -102,7 +102,8 @@ import org.sequeless.spi.ontology.Severity;
  * detect the gap itself by comparing {@code model.getID().imports()} against the one IRI it knows,
  * rather than by catching an exception that never comes), {@link SqVocabulary}'s reserved-term
  * rejection (not wired in anywhere before this task — see the step plan's F35), and {@link
- * SnapshotMapper}'s {@code WARNING}-only mapping issues, into the single {@link OntologyReport}
+ * SnapshotMapper}'s own mapping issues — {@code WARNING} for a degraded-but-usable mapping, {@code
+ * ERROR} for a malformed {@code sq:derivedBy} rule — into the single {@link OntologyReport}
  * that ends up inside the {@link MetaModelSnapshot} this port returns.
  */
 public final class JenaOntologyPort implements OntologyPort {
@@ -351,7 +352,8 @@ public final class JenaOntologyPort implements OntologyPort {
         }
 
         MappingResult mapping = SnapshotMapper.map(model);
-        issues.addAll(mapping.warnings());
+        issues.addAll(mapping.issues());
+        consistent &= mapping.issues().stream().noneMatch(issue -> issue.severity() == Severity.ERROR);
 
         OntologyReport mergedReport = new OntologyReport(consistent, issues);
 

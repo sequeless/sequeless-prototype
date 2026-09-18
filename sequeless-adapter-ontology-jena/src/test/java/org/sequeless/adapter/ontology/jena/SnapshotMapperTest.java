@@ -90,8 +90,8 @@ class SnapshotMapperTest {
         assertThat(taskUnderOwl.isAbstract()).isFalse();
         assertThat(typeNamed(owl, Fixtures.WORK_ITEM_IRI).isAbstract()).isTrue();
 
-        assertThat(owl.warnings()).isEmpty();
-        assertThat(none.warnings()).isEmpty();
+        assertThat(owl.issues()).isEmpty();
+        assertThat(none.issues()).isEmpty();
     }
 
     @Test
@@ -121,7 +121,7 @@ class SnapshotMapperTest {
         assertThat(owl.types().stream().map(TypeDefinition::iri))
             .doesNotContain(
                 Fixtures.REFERENCE_ONTOLOGY_IRI + "#TaskShape", Fixtures.REFERENCE_ONTOLOGY_IRI + "#PersonShape");
-        assertThat(owl.warnings()).isEmpty();
+        assertThat(owl.issues()).isEmpty();
     }
 
     private static MappingResult mapReferenceOntology(ReasonerSetting reasoner) {

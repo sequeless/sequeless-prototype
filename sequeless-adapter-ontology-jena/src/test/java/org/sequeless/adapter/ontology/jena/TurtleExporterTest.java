@@ -66,7 +66,7 @@ class TurtleExporterTest {
         MappingResult reimportedMapping = SnapshotMapper.map(reimported);
 
         assertThat(reimportedMapping.types()).isEqualTo(originalMapping.types());
-        assertThat(reimportedMapping.warnings()).isEqualTo(originalMapping.warnings());
+        assertThat(reimportedMapping.issues()).isEqualTo(originalMapping.issues());
     }
 
     @Test

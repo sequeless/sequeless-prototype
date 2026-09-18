@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.rdf.model.Property;
+import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 
 /**
@@ -51,6 +52,52 @@ final class SqVocabulary {
 
     /** {@code sq:abstract} — feeds {@code TypeDefinition.isAbstract()}. */
     static final Property ABSTRACT = property("abstract");
+
+    /** {@code sq:derivedBy} — feeds {@code PropertyDefinition.derivation()}. */
+    static final Property DERIVED_BY = property("derivedBy");
+
+    /** {@code sq:function} — feeds {@code RollupRule.function()}. */
+    static final Property FUNCTION = property("function");
+
+    /** {@code sq:over} — feeds {@code RollupRule.sourceTypeIri()}. */
+    static final Property OVER = property("over");
+
+    /** {@code sq:via} — feeds {@code RollupRule.viaIri()}. */
+    static final Property VIA = property("via");
+
+    /** {@code sq:of} — feeds {@code RollupRule.ofPropertyIri()}. */
+    static final Property OF = property("of");
+
+    /** {@code sq:filter} — feeds {@code RollupRule.criteria()}. */
+    static final Property FILTER = property("filter");
+
+    /** {@code sq:property} — feeds {@code Criterion.property()}. */
+    static final Property PROPERTY = property("property");
+
+    /** {@code sq:operator} — feeds {@code Criterion.operator()}. */
+    static final Property OPERATOR = property("operator");
+
+    /** {@code sq:value} — feeds {@code Criterion.value()}. */
+    static final Property VALUE = property("value");
+
+    /** {@code sq:pluginName} — feeds {@code PluginRule.pluginName()}. */
+    static final Property PLUGIN_NAME = property("pluginName");
+
+    /**
+     * {@code sq:Rollup} — types a {@code sq:derivedBy} blank node as a declarative aggregate. A
+     * node typed both this and {@link #PLUGIN}, or neither, is a rule-shape {@code ERROR}.
+     */
+    static final Resource ROLLUP = ResourceFactory.createResource(NS + "Rollup");
+
+    /**
+     * {@code sq:Plugin} — types a {@code sq:derivedBy} blank node as a code-backed derivation
+     * looked up by {@code sq:pluginName}. A node typed both this and {@link #ROLLUP}, or neither,
+     * is a rule-shape {@code ERROR}.
+     */
+    static final Resource PLUGIN = ResourceFactory.createResource(NS + "Plugin");
+
+    /** {@code sq:Criterion} — types each element of a {@code sq:filter} RDF list. */
+    static final Resource CRITERION = ResourceFactory.createResource(NS + "Criterion");
 
     /**
      * Every {@code sq:} term implemented by a later phase, in the order they appear in the

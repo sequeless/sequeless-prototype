@@ -1,10 +1,14 @@
 package org.sequeless.adapter.ontology.jena;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -17,35 +21,48 @@ import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.ontapi.model.OntObject;
 import org.apache.jena.ontapi.model.OntObjectProperty;
 import org.apache.jena.ontapi.model.OntRelationalProperty;
+import org.apache.jena.rdf.model.RDFList;
+import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.vocabulary.OWL;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.Cardinality;
 import org.sequeless.spi.meta.Datatype;
+import org.sequeless.spi.meta.DerivationRule;
 import org.sequeless.spi.meta.DisplayHints;
+import org.sequeless.spi.meta.PluginRule;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.object.ObjectId;
+import org.sequeless.spi.object.Value;
 import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.Severity;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Operator;
 
 /**
  * The outcome of {@link SnapshotMapper#map(OntModel)}: every {@link TypeDefinition} the model
- * contains, deterministically ordered, plus any {@code WARNING} {@link OntologyIssue}s produced
- * along the way (currently only the unmapped-datatype fallback). Building the rest of a {@code
- * MetaModelSnapshot} — ontology IRI, version IRI, prefixes, and merging in the {@code
- * ConsistencyChecker}'s {@code OntologyReport} — is {@code JenaOntologyPort}'s job, not this
- * mapper's; {@code SnapshotMapper} only ever turns OWL/{@code sq:} into snapshot value types.
+ * contains, deterministically ordered, plus every {@link OntologyIssue} found while mapping.
+ * {@code WARNING} issues (currently only the unmapped-datatype fallback) describe a degraded but
+ * still-usable mapping; {@code ERROR} issues describe a malformed {@code sq:derivedBy} rule (a
+ * node typed as both/neither {@code sq:Rollup}/{@code sq:Plugin}, an unknown {@code sq:function}/
+ * {@code sq:operator}, a missing required term, or a {@code sq:via} that is not an object property
+ * of the {@code sq:over} type) — {@code JenaOntologyPort.buildStateFrom} folds these into the
+ * overall consistency verdict exactly like every other activation-time source of truth, the same
+ * way it already does for unresolved imports and reserved terms.
  *
  * @param types every named, non-builtin type in the model, sorted by IRI
- * @param warnings {@code WARNING}-severity issues found while mapping; never contains an {@code
- *     ERROR} — a document too broken to map at all is {@link OntModelBuilder}'s concern, not this
- *     mapper's
+ * @param issues every issue found while mapping, in the order produced; may contain {@code ERROR}
+ *     severity for a malformed derivation rule
  */
-record MappingResult(List<TypeDefinition> types, List<OntologyIssue> warnings) {}
+record MappingResult(List<TypeDefinition> types, List<OntologyIssue> issues) {}
 
 /**
  * Translates a built {@link OntModel} into the SPI's {@link TypeDefinition} snapshot shape,
@@ -104,7 +121,7 @@ final class SnapshotMapper {
      *     plus any {@code WARNING} issues found while mapping
      */
     static MappingResult map(OntModel model) {
-        List<OntologyIssue> warnings = new ArrayList<>();
+        List<OntologyIssue> issues = new ArrayList<>();
 
         List<OntClass.Named> classes = model.classes()
             .filter(SnapshotMapper::isNotBuiltin)
@@ -116,22 +133,67 @@ final class SnapshotMapper {
         Map<String, List<PropertyMeta>> declaredByOwner = new HashMap<>();
         model.dataProperties()
             .filter(SnapshotMapper::isNotBuiltin)
-            .map(p -> dataPropertyMeta(p, warnings))
+            .map(p -> dataPropertyMeta(p, model, issues))
             .flatMap(Optional::stream)
             .forEach(meta -> declaredByOwner.computeIfAbsent(meta.ownerIri(), k -> new ArrayList<>()).add(meta));
         model.objectProperties()
             .filter(SnapshotMapper::isNotBuiltin)
-            .map(p -> objectPropertyMeta(p, warnings))
+            .map(p -> objectPropertyMeta(p, model, issues))
             .flatMap(Optional::stream)
             .forEach(meta -> declaredByOwner.computeIfAbsent(meta.ownerIri(), k -> new ArrayList<>()).add(meta));
 
         Map<String, LinkedHashMap<String, PropertyMeta>> memo = new HashMap<>();
+
+        // Third pass: sq:via must name an object property effectively declared on sq:over's type.
+        // This cannot run inline while dataPropertyMeta/objectPropertyMeta build declaredByOwner
+        // above: declaredByOwner is populated incrementally across those two loops, so a rule's
+        // sq:over type's entry may not exist yet at the moment the rule itself is visited. Running
+        // it here, after both loops, and iterating declaredByOwner's own values (each derived
+        // property keyed exactly once by its owning type) rather than the final `types` list
+        // avoids re-reporting a property N times for N subtypes that inherit it. An unknown
+        // sq:over class needs no special case: effectivePropertyMeta then returns an empty map, so
+        // `via` is null below and the same "not found" error fires naturally.
+        declaredByOwner.values().stream()
+            .flatMap(List::stream)
+            .forEach(meta -> meta.derivation()
+                .filter(RollupRule.class::isInstance)
+                .map(RollupRule.class::cast)
+                .ifPresent(rollup -> validateVia(meta.iri(), rollup, classByIri, declaredByOwner, memo, issues)));
+
         List<TypeDefinition> types = classes.stream()
             .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo))
             .sorted(Comparator.comparing(TypeDefinition::iri))
             .toList();
 
-        return new MappingResult(types, List.copyOf(warnings));
+        return new MappingResult(types, List.copyOf(issues));
+    }
+
+    /**
+     * Validates that {@code rollup}'s {@code sq:via} names an object property effectively declared
+     * on {@code rollup}'s {@code sq:over} type — the one rule-shape check that needs cross-type
+     * knowledge and so cannot run inline in {@link #dataPropertyMeta}/{@link #objectPropertyMeta}.
+     * Reuses the same memoized {@link #effectivePropertyMeta} recursion the final type-building
+     * pass uses, so an unknown {@code sq:over} class or a {@code sq:via} that is a data property (or
+     * simply absent from the source type) both surface as the same {@code ERROR}, named on {@code
+     * propertyIri} (the derived property, not the rule node, since the rule node is a blank node
+     * with no IRI to name).
+     */
+    private static void validateVia(
+            String propertyIri,
+            RollupRule rollup,
+            Map<String, OntClass.Named> classByIri,
+            Map<String, List<PropertyMeta>> declaredByOwner,
+            Map<String, LinkedHashMap<String, PropertyMeta>> memo,
+            List<OntologyIssue> issues) {
+        LinkedHashMap<String, PropertyMeta> sourceProperties =
+            effectivePropertyMeta(rollup.sourceTypeIri(), classByIri, declaredByOwner, memo);
+        PropertyMeta via = sourceProperties.get(rollup.viaIri());
+        if (via == null || !via.isObjectProperty()) {
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " has sq:via '" + rollup.viaIri()
+                    + "' which is not an object property effectively declared on sq:over type '"
+                    + rollup.sourceTypeIri() + "'"));
+        }
     }
 
     private static TypeDefinition toTypeDefinition(
@@ -202,7 +264,8 @@ final class SnapshotMapper {
         return effective;
     }
 
-    private static Optional<PropertyMeta> dataPropertyMeta(OntDataProperty property, List<OntologyIssue> warnings) {
+    private static Optional<PropertyMeta> dataPropertyMeta(
+            OntDataProperty property, OntModel model, List<OntologyIssue> issues) {
         Optional<String> ownerIri = mostSpecificNamed(property.domains());
         if (ownerIri.isEmpty()) {
             return Optional.empty();
@@ -216,12 +279,15 @@ final class SnapshotMapper {
         Datatype datatype = xsdIri.flatMap(Datatype::fromXsd).orElse(null);
         if (datatype == null) {
             datatype = Datatype.STRING;
-            warnings.add(new OntologyIssue(
+            issues.add(new OntologyIssue(
                 Severity.WARNING,
                 Optional.of(property.getURI()),
                 "Unrecognised datatype '" + xsdIri.orElse("(none declared)") + "' for property "
                     + property.getURI() + "; defaulting to " + Datatype.STRING));
         }
+
+        Optional<DerivationRule> derivation = derivationOf(property, model, issues);
+        boolean readOnly = derivation.isPresent() || SqAnnotations.bool(property, SqVocabulary.READ_ONLY, false);
 
         return Optional.of(new PropertyMeta(
             property.getURI(),
@@ -232,17 +298,18 @@ final class SnapshotMapper {
             SqAnnotations.bool(property, SqVocabulary.FACET, false),
             SqAnnotations.bool(property, SqVocabulary.INDEXED, false),
             SqAnnotations.bool(property, SqVocabulary.SEARCHABLE, false),
-            SqAnnotations.bool(property, SqVocabulary.READ_ONLY, false),
+            readOnly,
             SqAnnotations.bool(property, SqVocabulary.DISPLAY_LABEL, false),
             displayHintsOf(property),
             null,
             Optional.empty(),
             false,
-            datatype));
+            datatype,
+            derivation));
     }
 
     private static Optional<PropertyMeta> objectPropertyMeta(
-            OntObjectProperty.Named property, List<OntologyIssue> warnings) {
+            OntObjectProperty.Named property, OntModel model, List<OntologyIssue> issues) {
         Optional<String> ownerIri = mostSpecificNamed(property.domains());
         if (ownerIri.isEmpty()) {
             return Optional.empty();
@@ -250,7 +317,7 @@ final class SnapshotMapper {
 
         Optional<String> targetTypeIri = mostSpecificNamed(property.ranges());
         if (targetTypeIri.isEmpty()) {
-            warnings.add(new OntologyIssue(
+            issues.add(new OntologyIssue(
                 Severity.WARNING,
                 Optional.of(property.getURI()),
                 "Object property " + property.getURI() + " has no named rdfs:range; excluded from the snapshot"));
@@ -263,6 +330,9 @@ final class SnapshotMapper {
             .sorted()
             .findFirst();
 
+        Optional<DerivationRule> derivation = derivationOf(property, model, issues);
+        boolean readOnly = derivation.isPresent() || SqAnnotations.bool(property, SqVocabulary.READ_ONLY, false);
+
         return Optional.of(new PropertyMeta(
             property.getURI(),
             ownerIri.get(),
@@ -272,13 +342,14 @@ final class SnapshotMapper {
             SqAnnotations.bool(property, SqVocabulary.FACET, false),
             SqAnnotations.bool(property, SqVocabulary.INDEXED, false),
             SqAnnotations.bool(property, SqVocabulary.SEARCHABLE, false),
-            SqAnnotations.bool(property, SqVocabulary.READ_ONLY, false),
+            readOnly,
             SqAnnotations.bool(property, SqVocabulary.DISPLAY_LABEL, false),
             displayHintsOf(property),
             targetTypeIri.get(),
             inverseIri,
             property.isTransitive(),
-            null));
+            null,
+            derivation));
     }
 
     private static PropertyDefinition toPropertyDefinition(PropertyMeta meta, Cardinality cardinality) {
@@ -293,7 +364,7 @@ final class SnapshotMapper {
                 meta.readOnly(),
                 meta.displayLabel(),
                 meta.displayHints(),
-                Optional.empty(),
+                meta.derivation(),
                 meta.targetTypeIri(),
                 meta.inverseIri(),
                 meta.transitive());
@@ -308,7 +379,7 @@ final class SnapshotMapper {
             meta.readOnly(),
             meta.displayLabel(),
             meta.displayHints(),
-            Optional.empty(),
+            meta.derivation(),
             meta.datatype());
     }
 
@@ -405,6 +476,314 @@ final class SnapshotMapper {
     }
 
     /**
+     * Mirrors {@code org.sequeless.spi.query.Operator}'s eleven constants against the local names
+     * the eleven {@code sq:} operator individuals use. Deliberately an explicit map rather than a
+     * camelCase-splitting regex: three names ({@code startsWith}, {@code isNull}, {@code notNull})
+     * do not uppercase directly to their enum constant, and an explicit map cannot silently accept
+     * an IRI nobody intended as an operator the way a permissive regex could — an unmatched local
+     * name falls through to a clean "unknown operator" {@code ERROR} instead.
+     */
+    private static final Map<String, Operator> OPERATORS_BY_LOCAL_NAME = Map.ofEntries(
+        Map.entry("eq", Operator.EQ),
+        Map.entry("ne", Operator.NE),
+        Map.entry("in", Operator.IN),
+        Map.entry("lt", Operator.LT),
+        Map.entry("lte", Operator.LTE),
+        Map.entry("gt", Operator.GT),
+        Map.entry("gte", Operator.GTE),
+        Map.entry("contains", Operator.CONTAINS),
+        Map.entry("startsWith", Operator.STARTS_WITH),
+        Map.entry("isNull", Operator.IS_NULL),
+        Map.entry("notNull", Operator.NOT_NULL));
+
+    /**
+     * Parses {@code property}'s {@code sq:derivedBy}, if any, into a {@link DerivationRule}. Every
+     * rule-shape problem below (an untyped/dual-typed rule node, an unknown function/operator, a
+     * missing required term, a malformed criterion) is recorded as an {@code ERROR} {@link
+     * OntologyIssue} naming {@code property}'s IRI and short-circuits to {@link Optional#empty()}
+     * rather than constructing a half-formed rule: {@link RollupRule} and {@link PluginRule} both
+     * throw {@link IllegalArgumentException} from their compact constructors on a blank IRI/name,
+     * which {@code JenaOntologyPort.buildState} would otherwise catch as an opaque whole-document
+     * failure instead of a clean, named issue — so every field is validated before either
+     * constructor is ever called.
+     *
+     * <p>Reads through the reasoner-expanded union model (whatever {@code property} itself is
+     * backed by), not the base model: entailment only ever adds triples, it never masks a base
+     * assertion, and every read here is a presence check ("does this rule node have a function?"),
+     * never an absence check. Contrast {@link SqVocabulary#rejectionMessageIfReserved}, which reads
+     * the base model because it checks the opposite thing — that a term is <em>never</em> used —
+     * and a reasoner could not manufacture a use that was not already there, but reading the union
+     * for an absence check would be reading the wrong thing for the wrong reason. Do not "fix" the
+     * calls below into base-only reads; that would just make {@code owl}/{@code rdfs} inference no
+     * longer able to help resolve one of these terms when it legitimately could.
+     */
+    private static Optional<DerivationRule> derivationOf(
+            OntRelationalProperty property, OntModel model, List<OntologyIssue> issues) {
+        Statement derivedByStmt = property.getProperty(SqVocabulary.DERIVED_BY);
+        if (derivedByStmt == null) {
+            return Optional.empty();
+        }
+        String propertyIri = property.getURI();
+        RDFNode ruleObject = derivedByStmt.getObject();
+        if (!ruleObject.isResource()) {
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " must point to a node, not a literal"));
+            return Optional.empty();
+        }
+        Resource ruleNode = ruleObject.asResource();
+
+        boolean isRollup = ruleNode.hasProperty(RDF.type, SqVocabulary.ROLLUP);
+        boolean isPlugin = ruleNode.hasProperty(RDF.type, SqVocabulary.PLUGIN);
+        if (isRollup && isPlugin) {
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " is typed both sq:Rollup and sq:Plugin"));
+            return Optional.empty();
+        }
+        if (!isRollup && !isPlugin) {
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " must be typed sq:Rollup or sq:Plugin"));
+            return Optional.empty();
+        }
+        return isPlugin
+            ? pluginRuleOf(propertyIri, ruleNode, issues)
+            : rollupRuleOf(propertyIri, ruleNode, model, issues);
+    }
+
+    private static Optional<DerivationRule> pluginRuleOf(
+            String propertyIri, Resource ruleNode, List<OntologyIssue> issues) {
+        Statement nameStmt = ruleNode.getProperty(SqVocabulary.PLUGIN_NAME);
+        if (nameStmt == null || nameStmt.getString().isBlank()) {
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " is a sq:Plugin missing sq:pluginName"));
+            return Optional.empty();
+        }
+        return Optional.of(new PluginRule(nameStmt.getString()));
+    }
+
+    private static Optional<DerivationRule> rollupRuleOf(
+            String propertyIri, Resource ruleNode, OntModel model, List<OntologyIssue> issues) {
+        Statement functionStmt = ruleNode.getProperty(SqVocabulary.FUNCTION);
+        if (functionStmt == null || !functionStmt.getObject().isURIResource()) {
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " is missing sq:function"));
+            return Optional.empty();
+        }
+        String functionLocalName = functionStmt.getObject().asResource().getLocalName();
+        AggregateFunction function;
+        try {
+            function = AggregateFunction.valueOf(functionLocalName.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " has unknown sq:function '" + functionLocalName + "'"));
+            return Optional.empty();
+        }
+
+        Statement overStmt = ruleNode.getProperty(SqVocabulary.OVER);
+        if (overStmt == null || !overStmt.getObject().isURIResource()) {
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " is missing sq:over"));
+            return Optional.empty();
+        }
+        String sourceTypeIri = overStmt.getObject().asResource().getURI();
+
+        Statement viaStmt = ruleNode.getProperty(SqVocabulary.VIA);
+        if (viaStmt == null || !viaStmt.getObject().isURIResource()) {
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " is missing sq:via"));
+            return Optional.empty();
+        }
+        String viaIri = viaStmt.getObject().asResource().getURI();
+
+        Statement ofStmt = ruleNode.getProperty(SqVocabulary.OF);
+        Optional<String> ofPropertyIri = ofStmt != null && ofStmt.getObject().isURIResource()
+            ? Optional.of(ofStmt.getObject().asResource().getURI())
+            : Optional.empty();
+        boolean requiresOf = function != AggregateFunction.COUNT;
+        if (requiresOf && ofPropertyIri.isEmpty()) {
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " uses " + function + " but is missing sq:of"));
+            return Optional.empty();
+        }
+        if (!requiresOf && ofPropertyIri.isPresent()) {
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " uses sq:count but must not declare sq:of"));
+            return Optional.empty();
+        }
+
+        Optional<List<Criterion>> criteria = criteriaOf(propertyIri, ruleNode, model, issues);
+        if (criteria.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new RollupRule(sourceTypeIri, viaIri, function, ofPropertyIri, criteria.get()));
+    }
+
+    /**
+     * {@code sq:filter}, if present, is an RDF list of {@code sq:Criterion} nodes; absent means "no
+     * filter" ({@code []}), per {@code sq-vocabulary.md}.
+     */
+    private static Optional<List<Criterion>> criteriaOf(
+            String propertyIri, Resource ruleNode, OntModel model, List<OntologyIssue> issues) {
+        Statement filterStmt = ruleNode.getProperty(SqVocabulary.FILTER);
+        if (filterStmt == null) {
+            return Optional.of(List.of());
+        }
+        RDFNode filterObject = filterStmt.getObject();
+        if (!filterObject.isResource() || !filterObject.asResource().canAs(RDFList.class)) {
+            issues.add(error(propertyIri, "sq:filter on " + propertyIri + " must be a well-formed RDF list"));
+            return Optional.empty();
+        }
+
+        List<Criterion> criteria = new ArrayList<>();
+        for (RDFNode node : filterObject.asResource().as(RDFList.class).asJavaList()) {
+            Optional<Criterion> criterion = criterionOf(propertyIri, node, model, issues);
+            if (criterion.isEmpty()) {
+                return Optional.empty();
+            }
+            criteria.add(criterion.get());
+        }
+        return Optional.of(criteria);
+    }
+
+    private static Optional<Criterion> criterionOf(
+            String propertyIri, RDFNode node, OntModel model, List<OntologyIssue> issues) {
+        if (!node.isResource()) {
+            issues.add(error(propertyIri, "sq:filter on " + propertyIri + " contains a non-resource criterion"));
+            return Optional.empty();
+        }
+        Resource criterionNode = node.asResource();
+
+        Statement propertyStmt = criterionNode.getProperty(SqVocabulary.PROPERTY);
+        if (propertyStmt == null || !propertyStmt.getObject().isURIResource()) {
+            issues.add(error(propertyIri, "sq:filter criterion on " + propertyIri + " is missing sq:property"));
+            return Optional.empty();
+        }
+        String criterionPropertyIri = propertyStmt.getObject().asResource().getURI();
+
+        Statement operatorStmt = criterionNode.getProperty(SqVocabulary.OPERATOR);
+        if (operatorStmt == null || !operatorStmt.getObject().isURIResource()) {
+            issues.add(error(propertyIri, "sq:filter criterion on " + propertyIri + " is missing sq:operator"));
+            return Optional.empty();
+        }
+        String operatorLocalName = operatorStmt.getObject().asResource().getLocalName();
+        Operator operator = OPERATORS_BY_LOCAL_NAME.get(operatorLocalName);
+        if (operator == null) {
+            issues.add(error(propertyIri,
+                "sq:filter criterion on " + propertyIri + " has unknown sq:operator '" + operatorLocalName + "'"));
+            return Optional.empty();
+        }
+
+        Statement valueStmt = criterionNode.getProperty(SqVocabulary.VALUE);
+        boolean noValueOperator = operator == Operator.IS_NULL || operator == Operator.NOT_NULL;
+        if (noValueOperator) {
+            if (valueStmt != null) {
+                issues.add(error(propertyIri,
+                    "sq:filter criterion on " + propertyIri + " must not declare sq:value for " + operator));
+                return Optional.empty();
+            }
+            return Optional.of(new Criterion(criterionPropertyIri, operator, Optional.empty()));
+        }
+        if (valueStmt == null) {
+            issues.add(error(propertyIri, "sq:filter criterion on " + propertyIri + " is missing sq:value"));
+            return Optional.empty();
+        }
+        Optional<Value> value =
+            criterionValue(propertyIri, criterionPropertyIri, valueStmt.getString(), model, issues);
+        return value.map(v -> new Criterion(criterionPropertyIri, operator, Optional.of(v)));
+    }
+
+    /**
+     * Coerces {@code lexical} (the lexical form of a criterion's {@code sq:value}) against {@code
+     * criterionPropertyIri}'s own kind and datatype, exactly as {@code dataPropertyMeta} resolves an
+     * ordinary attribute's datatype: {@link OntModel#getObjectProperty} / {@link
+     * OntModel#getDataProperty} tell us which kind {@code criterionPropertyIri} actually is (both
+     * return {@code null} rather than throwing when the IRI is not declared as that kind — verified
+     * empirically), and for a data property the same {@link OntDataProperty#ranges()} /
+     * {@link Datatype#fromXsd} lookup used there gives the target {@link Datatype}. This keeps the
+     * {@link RollupRule#criteria()} a snapshot carries already correct for every downstream
+     * consumer (in particular {@code PostgresQueryStore}, which casts the JSONB extraction per
+     * datatype): a criterion against a numeric or date property must never be forced through a
+     * lexical {@link org.sequeless.spi.object.TextValue}.
+     *
+     * @return the coerced {@link Value}, or {@link Optional#empty()} after recording an {@code
+     *     ERROR} naming {@code propertyIri} (the derived property) if {@code criterionPropertyIri}
+     *     has no resolvable kind/datatype, or if {@code lexical} does not parse for it (an object
+     *     property expects a UUID; a data property expects a lexical form its datatype accepts)
+     */
+    private static Optional<Value> criterionValue(
+            String propertyIri,
+            String criterionPropertyIri,
+            String lexical,
+            OntModel model,
+            List<OntologyIssue> issues) {
+        if (model.getObjectProperty(criterionPropertyIri) != null) {
+            try {
+                return Optional.of(Value.ref(ObjectId.parse(lexical)));
+            } catch (IllegalArgumentException e) {
+                issues.add(error(propertyIri,
+                    "sq:filter criterion on " + propertyIri + " has sq:value '" + lexical
+                        + "' which is not a valid object id for object property " + criterionPropertyIri));
+                return Optional.empty();
+            }
+        }
+
+        OntDataProperty dataProperty = model.getDataProperty(criterionPropertyIri);
+        Optional<Datatype> datatype = dataProperty == null
+            ? Optional.empty()
+            : dataProperty.ranges()
+                .filter(Resource::isURIResource)
+                .map(Resource::getURI)
+                .sorted()
+                .findFirst()
+                .flatMap(Datatype::fromXsd);
+        if (datatype.isEmpty()) {
+            issues.add(error(propertyIri,
+                "sq:filter criterion on " + propertyIri + " references sq:property '" + criterionPropertyIri
+                    + "' with no resolvable datatype"));
+            return Optional.empty();
+        }
+
+        Optional<Value> value = coerceLiteral(datatype.get(), lexical);
+        if (value.isEmpty()) {
+            issues.add(error(propertyIri,
+                "sq:filter criterion on " + propertyIri + " has sq:value '" + lexical + "' which is not a valid "
+                    + datatype.get() + " for property " + criterionPropertyIri));
+        }
+        return value;
+    }
+
+    /**
+     * Parses {@code lexical} per {@code datatype}, mirroring {@code
+     * org.sequeless.core.validation.ValueCoercer}'s per-datatype coercion but starting from a
+     * lexical string rather than an already-typed JSON value, since a Turtle {@code sq:value} is
+     * always a literal's lexical form. Returns {@link Optional#empty()} — never throws — when
+     * {@code lexical} does not parse, so the caller can report a clean, named {@code ERROR} instead
+     * of an uncaught parse exception.
+     */
+    private static Optional<Value> coerceLiteral(Datatype datatype, String lexical) {
+        try {
+            return Optional.of(switch (datatype) {
+                case STRING, ANY_URI, TIME, DURATION -> Value.text(lexical);
+                case INTEGER, LONG -> Value.integer(Long.parseLong(lexical));
+                case DECIMAL, DOUBLE -> Value.decimal(new BigDecimal(lexical));
+                case BOOLEAN -> Value.bool(parseStrictBoolean(lexical));
+                case DATE -> Value.date(LocalDate.parse(lexical));
+                case DATE_TIME -> Value.dateTime(Instant.parse(lexical));
+            });
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static boolean parseStrictBoolean(String lexical) {
+        if ("true".equalsIgnoreCase(lexical)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(lexical)) {
+            return false;
+        }
+        throw new IllegalArgumentException("not a boolean: " + lexical);
+    }
+
+    private static OntologyIssue error(String propertyIri, String message) {
+        return new OntologyIssue(Severity.ERROR, Optional.of(propertyIri), message);
+    }
+
+    /**
      * @return {@code true} unless {@code resource} is anonymous or belongs to the {@code rdf:},
      *     {@code rdfs:}, {@code owl:} or {@code xsd:} builtin namespaces
      */
@@ -440,5 +819,6 @@ final class SnapshotMapper {
         String targetTypeIri,
         Optional<String> inverseIri,
         boolean transitive,
-        Datatype datatype) {}
+        Datatype datatype,
+        Optional<DerivationRule> derivation) {}
 }
