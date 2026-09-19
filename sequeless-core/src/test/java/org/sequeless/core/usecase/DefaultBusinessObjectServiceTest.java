@@ -37,6 +37,8 @@ import org.sequeless.spi.meta.DisplayHints;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.RollupRule;
+import org.sequeless.spi.meta.State;
+import org.sequeless.spi.meta.StateMachineDefinition;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
@@ -633,6 +635,43 @@ class DefaultBusinessObjectServiceTest {
     }
 
     @Test
+    void addWithStateMachineInitializesStateToInitialState() {
+        // Isolated snapshot (not the shared SNAPSHOT fixture) carrying a stateMachine() on its one
+        // type, so this test exercises add()'s new "initialize state" branch without perturbing
+        // any other test's shared type list.
+        String ticketIri = NS + "Ticket";
+        String draftIri = NS + "Draft";
+        String openIri = NS + "Open";
+        State draft = new State(draftIri, "Draft", 0);
+        State open = new State(openIri, "Open", 1);
+        StateMachineDefinition machine =
+            new StateMachineDefinition(
+                NS + "TicketLifecycle", List.of(draft, open), draft, List.of());
+        TypeDefinition ticket =
+            new TypeDefinition(
+                ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false,
+                Optional.of(machine));
+        MetaModelSnapshot snapshot =
+            new MetaModelSnapshot(
+                NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(ticket),
+                new OntologyReport(true, List.of()));
+
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeValidationPort validationPort = new FakeValidationPort(List.of());
+        DefaultBusinessObjectService service =
+            new DefaultBusinessObjectService(
+                new FakeOntologyPort(snapshot), store, validationPort, permitAll(),
+                new FakeQueryPort(), CLOCK);
+
+        BusinessObject result = service.add(ALICE, "Ticket", Map.of());
+
+        assertThat(result.state()).contains(draftIri);
+        assertThat(store.commits).hasSize(1);
+        Create create = (Create) store.commits.get(0).mutations().get(0);
+        assertThat(create.object().state()).contains(draftIri);
+    }
+
+    @Test
     void addWithBadPropertyThrowsStructuralValidationExceptionWithoutCommitOrValidate() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeValidationPort validationPort = new FakeValidationPort(List.of());
@@ -1114,13 +1153,29 @@ class DefaultBusinessObjectServiceTest {
         }
     }
 
-    /** Hand-written {@link OntologyPort} double: only {@code snapshot} is exercised. */
+    /**
+     * Hand-written {@link OntologyPort} double: only {@code snapshot} is exercised. Defaults to
+     * the shared {@link #SNAPSHOT} fixture (every pre-existing test uses the no-arg constructor
+     * and is unaffected by this overload), but a test that needs its own isolated {@link
+     * MetaModelSnapshot} — e.g. one carrying a {@code stateMachine()} — can supply one directly
+     * rather than growing the shared fixture's type list.
+     */
     private static final class FakeOntologyPort implements OntologyPort {
+
+        private final MetaModelSnapshot snapshot;
+
+        FakeOntologyPort() {
+            this(SNAPSHOT);
+        }
+
+        FakeOntologyPort(MetaModelSnapshot snapshot) {
+            this.snapshot = snapshot;
+        }
 
         @Override
         public MetaModelSnapshot snapshot(Scope scope) {
             Objects.requireNonNull(scope, "scope must not be null");
-            return SNAPSHOT;
+            return snapshot;
         }
 
         @Override

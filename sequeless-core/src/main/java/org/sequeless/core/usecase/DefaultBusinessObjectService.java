@@ -80,11 +80,14 @@ import org.sequeless.spi.validation.Violation;
  * helper {@link #browse} uses to list a type's subtypes and {@code StructuralValidator} uses for
  * reference-target checking — rather than a hand-rolled equality check.
  *
- * <p>{@code state} is always {@link Optional#empty()} on every object this class builds: no state
- * machine is in scope for this phase. Every {@link Instant} this class produces — {@code
- * Audit.createdAt}/{@code updatedAt}, {@code Delete.at}, {@code OutboxEntry.occurredAt} — is
- * truncated to {@link ChronoUnit#MICROS}, since the object store may only round-trip microsecond
- * precision.
+ * <p>{@code state} on a freshly {@link #add added} object is {@link Optional#of} the resolved
+ * type's {@link org.sequeless.spi.meta.StateMachineDefinition#initialState()} IRI when the
+ * resolved type has a state machine, or {@link Optional#empty()} otherwise; {@link #edit} never
+ * changes an existing object's {@code state} itself — moving an object through its state machine
+ * after creation is {@link org.sequeless.core.usecase.DefaultTransitionService}'s job, not this
+ * class's. Every {@link Instant} this class produces — {@code Audit.createdAt}/{@code updatedAt},
+ * {@code Delete.at}, {@code OutboxEntry.occurredAt} — is truncated to {@link ChronoUnit#MICROS},
+ * since the object store may only round-trip microsecond precision.
  */
 public final class DefaultBusinessObjectService implements BusinessObjectService {
 
@@ -231,13 +234,14 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
 
         Instant now = now();
         String by = scope.principal().id();
+        Optional<String> initialState = resolved.stateMachine().map(m -> m.initialState().iri());
         BusinessObject candidate =
             new BusinessObject(
                 ObjectId.random(),
                 new TypeRef(resolved.iri()),
                 scope.tenantId(),
                 1,
-                Optional.empty(),
+                initialState,
                 coerced,
                 new Audit(now, by, now, by),
                 false);
@@ -298,7 +302,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
                 existing.type(),
                 existing.tenant(),
                 expectedVersion + 1,
-                Optional.empty(),
+                existing.state(),
                 coerced,
                 audit,
                 false);

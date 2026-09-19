@@ -43,6 +43,24 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     /** The event kind recorded when a {@link Delete} mutation succeeds. */
     public static final String KIND_OBJECT_DELETED = "ObjectDeleted";
 
+    /**
+     * The event kind recorded, as an audit trail, alongside every {@link #KIND_ACTION_REQUEST} row
+     * a state-machine transition produces. A relay or consumer that dispatches actions filters
+     * strictly on {@link #KIND_ACTION_REQUEST} and ignores rows of this kind.
+     */
+    public static final String KIND_TRANSITION_FIRED = "TransitionFired";
+
+    /**
+     * The event kind recorded once per {@code sq:action} a fired state-machine transition defines,
+     * carrying a self-contained payload (frozen at transition-fire time) that a durable automation
+     * adapter dispatches. Deliberately declared here, beside {@link #KIND_OBJECT_CREATED} and its
+     * siblings, rather than on the core use case that produces it: an adapter that consumes these
+     * rows (a relay, an automation port) must be able to filter on this constant without depending
+     * on {@code sequeless-core}, which the {@code noAdapterDependsOnCore} architecture rule
+     * forbids.
+     */
+    public static final String KIND_ACTION_REQUEST = "ActionRequest";
+
     private static final String OBJECT_ID_KEY = "objectId";
 
     public OutboxEntry {
