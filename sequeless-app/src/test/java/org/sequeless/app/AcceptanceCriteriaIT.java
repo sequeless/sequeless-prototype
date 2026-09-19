@@ -3,8 +3,12 @@ package org.sequeless.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +50,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
     private RestTestClient restTestClient;
     private JdbcClient jdbcClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
@@ -241,6 +246,123 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
                 .expectStatus()
                 .isBadRequest();
         assertThat(outboxCount()).as("failed add").isEqualTo(beforeFailedAdd);
+    }
+
+    @Test
+    void readAndBrowseAProjectComputeRollupsFromItsTasksWithNothingStored() {
+        BusinessObjectResponse project = create("Project", Map.of("title", List.of("Phase 4 rollup")));
+        String projectId = project.id().toString();
+
+        // openTaskCount counts Tasks with status != "done": two of the three below qualify.
+        // totalEstimatedHours sums estimatedHours over every Task regardless of status: 3+5+2=10.
+        createTask(
+                Map.of(
+                        "title", List.of("Done task"),
+                        "status", "done",
+                        "estimatedHours", 3,
+                        "belongsToProject", projectId));
+        createTask(
+                Map.of(
+                        "title", List.of("Open task"),
+                        "status", "open",
+                        "estimatedHours", 5,
+                        "belongsToProject", projectId));
+        createTask(
+                Map.of(
+                        "title", List.of("In-progress task"),
+                        "status", "in-progress",
+                        "estimatedHours", 2,
+                        "belongsToProject", projectId));
+
+        JsonNode read = fetchAsJson("/objects/Project/" + projectId);
+        assertThat(read.get("properties").get("openTaskCount").asInt()).isEqualTo(2);
+        assertThat(read.get("properties").get("totalEstimatedHours").decimalValue())
+                .isEqualByComparingTo(BigDecimal.valueOf(10));
+
+        JsonNode page = fetchAsJson("/objects/Project?page=0&size=200");
+        JsonNode browsedItem = null;
+        for (JsonNode item : page.get("items")) {
+            if (item.get("id").asText().equals(projectId)) {
+                browsedItem = item;
+            }
+        }
+        assertThat(browsedItem).as("created project appears in browse").isNotNull();
+        assertThat(browsedItem.get("properties").get("openTaskCount").asInt()).isEqualTo(2);
+        assertThat(browsedItem.get("properties").get("totalEstimatedHours").decimalValue())
+                .isEqualByComparingTo(BigDecimal.valueOf(10));
+
+        // Prove nothing is stored: the derived properties' local names must not appear anywhere in
+        // the row's raw JSONB, since they are computed on read rather than written by ValueCoercer.
+        String propsJson =
+                jdbcClient
+                        .sql("SELECT props::text FROM sq_object WHERE id = ?")
+                        .param(UUID.fromString(projectId))
+                        .query(String.class)
+                        .single();
+        assertThat(propsJson).doesNotContain("openTaskCount").doesNotContain("totalEstimatedHours");
+    }
+
+    @Test
+    void putWithADerivedPropertyReturns400NamingIt() {
+        BusinessObjectResponse project = create("Project", Map.of("title", List.of("Immutable rollup")));
+
+        Map<String, Object> updateBody =
+                Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of("title", List.of("Immutable rollup"), "openTaskCount", 5));
+
+        byte[] responseBody =
+                restTestClient
+                        .put()
+                        .uri("/objects/Project/" + project.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(updateBody)
+                        .exchange()
+                        .expectStatus()
+                        .isBadRequest()
+                        .expectHeader()
+                        .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                        .expectBody()
+                        .returnResult()
+                        .getResponseBody();
+
+        JsonNode body = readJson(responseBody);
+        assertThat(body.get("source").asText()).isEqualTo("structural");
+
+        JsonNode violation = null;
+        for (JsonNode candidate : body.get("violations")) {
+            if ("openTaskCount".equals(candidate.get("property").asText())) {
+                violation = candidate;
+            }
+        }
+        assertThat(violation).as("violation naming openTaskCount").isNotNull();
+        assertThat(violation.get("propertyIri").asText())
+                .isEqualTo("https://sequeless.dev/ns/ref#openTaskCount");
+        assertThat(violation.get("message").asText())
+                .contains("is a derived property and cannot be set directly");
+    }
+
+    private JsonNode fetchAsJson(String uri) {
+        return readJson(
+                restTestClient
+                        .get()
+                        .uri(uri)
+                        .exchange()
+                        .expectStatus()
+                        .isOk()
+                        .expectBody()
+                        .returnResult()
+                        .getResponseBody());
+    }
+
+    private JsonNode readJson(byte[] responseBody) {
+        try {
+            return objectMapper.readTree(responseBody);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
     }
 
     private long outboxCount() {
