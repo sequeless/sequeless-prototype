@@ -43,6 +43,13 @@ import org.sequeless.spi.validation.Violation;
  * is absent" and never produces a violation, even for a required property — required-ness is
  * {@link StructuralValidator}'s job, not this class's.
  *
+ * <p>A {@code readOnly} property supplied by the caller is always a violation, but the message
+ * distinguishes two different reasons: a plain read-only property (e.g. {@code createdAt}) reports
+ * "is read-only", while a property with a {@link PropertyDefinition#derivation()} present — one
+ * whose value is computed, not stored, such as an {@code sq:Rollup} — reports "is a derived
+ * property and cannot be set directly", since that is a more specific and more actionable message
+ * for a caller who tried to PUT/POST one.
+ *
  * <p>Stateless utility class: it has no dependencies to inject, so an instance would carry no
  * state, the same reason {@link org.sequeless.spi.meta.Datatype#fromXsd} and {@link Value}'s own
  * static factories are plain static methods rather than instantiated helpers.
@@ -87,10 +94,13 @@ public final class ValueCoercer {
                 continue;
             }
             if (property.readOnly()) {
+                String reason = property.derivation().isPresent()
+                    ? "is a derived property and cannot be set directly"
+                    : "is read-only";
                 violations.add(
                     new Violation(
                         property.iri(),
-                        "Property '" + shortName(property.iri()) + "' is read-only"));
+                        "Property '" + shortName(property.iri()) + "' " + reason));
                 continue;
             }
 

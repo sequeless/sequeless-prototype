@@ -123,11 +123,40 @@ public final class StructuralValidator {
             byIri.put(property.iri(), property);
         }
 
+        assertNoDerivedPropertyPresent(type, properties, byIri);
+
         List<Violation> violations = new ArrayList<>();
         violations.addAll(validateRequired(type, properties));
         violations.addAll(validateMaxCardinality(properties, byIri));
         violations.addAll(validateReferences(scope, snapshot, properties, byIri, objectStorePort));
         return violations;
+    }
+
+    /**
+     * Defensive canary, not the primary enforcement mechanism: asserts that no key in the
+     * already-coerced {@code properties} map corresponds to a {@code derivation()}-present property
+     * on {@code type}. {@link ValueCoercer#coerce} already rejects a caller-supplied derived
+     * property outright — coercion is all-or-nothing, so a derived-property violation empties
+     * {@code CoercionResult.properties()} and short-circuits {@code
+     * DefaultBusinessObjectService.coerceOrThrow} before this method is ever reached, on both the
+     * add and edit paths. This should therefore be unreachable in normal operation; it exists only
+     * to fail loudly, rather than silently persist a derived value, if some future change ever
+     * bypasses {@link ValueCoercer}.
+     *
+     * @throws IllegalStateException if {@code properties} contains a derived property's IRI, naming
+     *     it
+     */
+    private static void assertNoDerivedPropertyPresent(
+        TypeDefinition type, Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
+        for (PropertyRef ref : properties.keySet()) {
+            PropertyDefinition property = byIri.get(ref.iri());
+            if (property != null && property.derivation().isPresent()) {
+                throw new IllegalStateException(
+                    "Derived property '" + property.iri() + "' reached StructuralValidator for type '"
+                        + type.iri() + "' — this should be unreachable; ValueCoercer must reject it "
+                        + "before this point");
+            }
+        }
     }
 
     private static List<Violation> validateRequired(

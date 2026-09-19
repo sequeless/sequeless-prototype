@@ -648,6 +648,32 @@ class DefaultBusinessObjectServiceTest {
     }
 
     @Test
+    void addWithDerivedPropertyThrowsValidationExceptionNamingItAsDerived() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeValidationPort validationPort = new FakeValidationPort(List.of());
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, validationPort, permitAll(), queryPort);
+
+        assertThatExceptionOfType(ValidationException.class)
+            .isThrownBy(() -> service.add(ALICE, "Project", Map.of("openTaskCount", 3)))
+            .satisfies(
+                exception -> {
+                    assertThat(exception.source())
+                        .isEqualTo(ValidationException.Source.STRUCTURAL);
+                    assertThat(exception.violations())
+                        .anySatisfy(
+                            violation -> {
+                                assertThat(violation.path()).isEqualTo(OPEN_TASK_COUNT_IRI);
+                                assertThat(violation.message())
+                                    .contains("is a derived property and cannot be set directly");
+                            });
+                });
+        assertThat(store.commitCalls).isZero();
+        assertThat(validationPort.calls).isZero();
+        assertThat(queryPort.aggregateRequests).isEmpty();
+    }
+
+    @Test
     void addWithMissingRequiredTitleThrowsStructuralValidationExceptionWithoutValidate() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeValidationPort validationPort = new FakeValidationPort(List.of());
@@ -770,6 +796,36 @@ class DefaultBusinessObjectServiceTest {
                     .isEqualTo(ValidationException.Source.STRUCTURAL));
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
+    }
+
+    @Test
+    void editWithDerivedPropertyThrowsValidationExceptionNamingItAsDerived() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        BusinessObject existing = seedProject(store, "alice", NOW, 1);
+        FakeValidationPort validationPort = new FakeValidationPort(List.of());
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, validationPort, permitAll(), queryPort);
+
+        assertThatExceptionOfType(ValidationException.class)
+            .isThrownBy(
+                () ->
+                    service.edit(
+                        BOB, "Project", existing.id(), 1, Map.of("totalEstimatedHours", 40)))
+            .satisfies(
+                exception -> {
+                    assertThat(exception.source())
+                        .isEqualTo(ValidationException.Source.STRUCTURAL);
+                    assertThat(exception.violations())
+                        .anySatisfy(
+                            violation -> {
+                                assertThat(violation.path()).isEqualTo(TOTAL_ESTIMATED_HOURS_IRI);
+                                assertThat(violation.message())
+                                    .contains("is a derived property and cannot be set directly");
+                            });
+                });
+        assertThat(store.commitCalls).isZero();
+        assertThat(validationPort.calls).isZero();
+        assertThat(queryPort.aggregateRequests).isEmpty();
     }
 
     @Test
@@ -993,6 +1049,17 @@ class DefaultBusinessObjectServiceTest {
                 new Audit(createdAt, createdBy, createdAt, createdBy), false);
         store.seed(task);
         return task;
+    }
+
+    private static BusinessObject seedProject(
+        FakeObjectStorePort store, String createdBy, Instant createdAt, long version) {
+        BusinessObject project =
+            new BusinessObject(
+                ObjectId.random(), new TypeRef(PROJECT_IRI), new TenantId("acme"), version,
+                Optional.empty(), Map.of(),
+                new Audit(createdAt, createdBy, createdAt, createdBy), false);
+        store.seed(project);
+        return project;
     }
 
     /**

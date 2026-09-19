@@ -11,12 +11,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.Cardinality;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DisplayHints;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.DateTimeValue;
 import org.sequeless.spi.object.DateValue;
@@ -27,6 +31,7 @@ import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.TextValue;
+import org.sequeless.spi.validation.Violation;
 
 /**
  * Unit tests for {@link ValueCoercer}. The {@code Task} fixture is built directly from SPI records
@@ -44,6 +49,10 @@ class ValueCoercerTest {
     private static final String ASSIGNED_TO_IRI = NS + "assignedTo";
     private static final String CREATED_AT_IRI = NS + "createdAt";
     private static final String PERSON_IRI = NS + "Person";
+    private static final String OPEN_TASK_COUNT_IRI = NS + "openTaskCount";
+    private static final String PROJECT_IRI = NS + "Project";
+    private static final String STATUS_IRI = NS + "status";
+    private static final String BELONGS_TO_PROJECT_IRI = NS + "belongsToProject";
 
     private static final AttributeDefinition TITLE =
         attribute(TITLE_IRI, Cardinality.range(1, 1), Datatype.STRING, false);
@@ -72,6 +81,32 @@ class ValueCoercerTest {
             false);
     private static final AttributeDefinition CREATED_AT =
         attribute(CREATED_AT_IRI, Cardinality.atMost(1), Datatype.DATE_TIME, true);
+    /**
+     * {@code sq:Rollup}-derived: {@code count} of {@code Task} via {@code belongsToProject},
+     * filtered to {@code status != "done"} — mirrors {@code QueryFixtures.openTaskCount()}'s exact
+     * {@link RollupRule} shape, per T9's findings.
+     */
+    private static final AttributeDefinition OPEN_TASK_COUNT =
+        new AttributeDefinition(
+            OPEN_TASK_COUNT_IRI,
+            "Open Tasks",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            true,
+            false,
+            DisplayHints.none(),
+            Optional.of(
+                new RollupRule(
+                    NS + "Task",
+                    BELONGS_TO_PROJECT_IRI,
+                    AggregateFunction.COUNT,
+                    Optional.empty(),
+                    List.of(
+                        new Criterion(
+                            STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))))),
+            Datatype.INTEGER);
 
     private static final TypeDefinition TASK =
         new TypeDefinition(
@@ -79,6 +114,16 @@ class ValueCoercerTest {
             "Task",
             List.of(),
             List.of(TITLE, PRIORITY, ESTIMATED_HOURS, DUE_DATE, TAGS, ASSIGNED_TO, CREATED_AT),
+            DisplayHints.none(),
+            false,
+            Optional.empty());
+
+    private static final TypeDefinition PROJECT =
+        new TypeDefinition(
+            PROJECT_IRI,
+            "Project",
+            List.of(),
+            List.of(OPEN_TASK_COUNT),
             DisplayHints.none(),
             false,
             Optional.empty());
@@ -238,6 +283,23 @@ class ValueCoercerTest {
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.violations()).hasSize(1);
         assertThat(result.violations().get(0).path()).isEqualTo(CREATED_AT_IRI);
+    }
+
+    @Test
+    void derivedPropertySuppliedByCallerProducesViolationNamingItAsDerived() {
+        CoercionResult plainReadOnly =
+            ValueCoercer.coerce(TASK, Map.of("createdAt", "2026-09-16T10:00:00Z"));
+        CoercionResult derived = ValueCoercer.coerce(PROJECT, Map.of("openTaskCount", 3));
+
+        assertThat(plainReadOnly.isSuccess()).isFalse();
+        assertThat(derived.isSuccess()).isFalse();
+        assertThat(derived.violations()).hasSize(1);
+        Violation violation = derived.violations().get(0);
+        assertThat(violation.path()).isEqualTo(OPEN_TASK_COUNT_IRI);
+        assertThat(violation.message())
+            .contains("is a derived property and cannot be set directly");
+        assertThat(violation.message())
+            .isNotEqualTo(plainReadOnly.violations().get(0).message());
     }
 
     // --- datatype mismatches ---
