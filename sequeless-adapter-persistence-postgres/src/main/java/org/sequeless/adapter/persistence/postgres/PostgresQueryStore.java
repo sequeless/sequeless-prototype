@@ -3,6 +3,8 @@ package org.sequeless.adapter.persistence.postgres;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,10 +16,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.sequeless.spi.Scope;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.MetaModelSnapshot;
@@ -31,6 +36,7 @@ import org.sequeless.spi.object.DateValue;
 import org.sequeless.spi.object.DecimalValue;
 import org.sequeless.spi.object.IntegerValue;
 import org.sequeless.spi.object.ListValue;
+import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.TextValue;
 import org.sequeless.spi.object.Value;
@@ -157,17 +163,129 @@ public final class PostgresQueryStore implements QueryPort {
     }
 
     /**
-     * Not yet implemented: the {@code GROUP BY} implementation over {@code sq_object.props} is
-     * [T7]'s work, reusing {@link #castExpression} and {@link #criterionSql} the same way {@link
-     * #query} does. Declared now purely so this class keeps compiling against {@link
-     * QueryPort#aggregate}.
+     * Computes {@code request.function()} in one {@code GROUP BY} query over {@code sq_object},
+     * reusing {@link #castExpression} and {@link #criterionSql} exactly as {@link #query}'s {@link
+     * #buildWhere} does. See {@link QueryPort#aggregate}'s javadoc for the full density contract:
+     * {@link org.sequeless.spi.meta.AggregateFunction#COUNT} is zero-filled for every requested
+     * target id, while {@code SUM}/{@code MIN}/{@code MAX}/{@code AVG} simply omit a target with no
+     * matching source rows (a {@code GROUP BY} naturally emits no row for an empty group, so no
+     * special-casing is needed for those).
      */
     @Override
     public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         Objects.requireNonNull(request, "request must not be null");
-        throw new UnsupportedOperationException("PostgresQueryStore.aggregate is not yet implemented");
+
+        if (request.targetIds().isEmpty()) {
+            return new AggregateResult(Map.of());
+        }
+
+        String tenantId = scope.tenantId().value();
+        Map<String, PropertyDefinition> propertyIndex =
+            indexProperties(snapshot, request.sourceTypes());
+
+        Optional<AttributeDefinition> ofProperty =
+            request.ofPropertyIri().map(iri -> (AttributeDefinition) propertyIndex.get(iri));
+
+        StringBuilder sql = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+
+        sql.append("SELECT (props -> :via ->> 'ref')::uuid AS target_id, ");
+        params.put("via", request.viaIri());
+
+        if (request.function() == AggregateFunction.COUNT) {
+            sql.append("COUNT(*) AS agg_value ");
+        } else {
+            AttributeDefinition attribute =
+                ofProperty.orElseThrow(
+                    () ->
+                        new IllegalArgumentException(
+                            "AggregateRequest.ofPropertyIri() is required for " + request.function()));
+            String aggExpr = castExpression(attribute, "", "of");
+            params.put("of", attribute.iri());
+            String aggFunction =
+                switch (request.function()) {
+                    case SUM -> "SUM";
+                    case MIN -> "MIN";
+                    case MAX -> "MAX";
+                    case AVG -> "AVG";
+                    case COUNT -> throw new IllegalStateException("unreachable");
+                };
+            sql.append(aggFunction).append('(').append(aggExpr).append(") AS agg_value ");
+        }
+
+        sql.append("FROM sq_object WHERE tenant_id = :tenantId AND type_iri IN (:sourceTypes) "
+            + "AND deleted_at IS NULL AND (props -> :via ->> 'ref')::uuid IN (:targetIds)");
+        params.put("tenantId", tenantId);
+        params.put("sourceTypes", List.copyOf(request.sourceTypes()));
+        params.put(
+            "targetIds",
+            request.targetIds().stream().map(ObjectId::value).toList());
+
+        int i = 0;
+        for (Criterion criterion : request.criteria()) {
+            String propParam = "cp" + i;
+            String valueParamPrefix = "cv" + i;
+            i++;
+            PropertyDefinition property = propertyIndex.get(criterion.property());
+            String expr = castExpression(property, "", propParam);
+            params.put(propParam, criterion.property());
+            sql.append(" AND ").append(criterionSql(criterion, expr, valueParamPrefix, params));
+        }
+
+        sql.append(" GROUP BY 1");
+
+        if (request.function() == AggregateFunction.COUNT) {
+            Map<ObjectId, Long> counts =
+                jdbcClient
+                    .sql(sql.toString())
+                    .params(params)
+                    .query((rs, rowNum) -> Map.entry(objectIdOf(rs), rs.getLong("agg_value")))
+                    .list()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            Map<ObjectId, Value> result = new LinkedHashMap<>();
+            for (ObjectId targetId : request.targetIds()) {
+                result.put(targetId, new IntegerValue(counts.getOrDefault(targetId, 0L)));
+            }
+            return new AggregateResult(result);
+        }
+
+        Datatype datatype = ofProperty.orElseThrow().datatype();
+        Map<ObjectId, Value> result =
+            jdbcClient
+                .sql(sql.toString())
+                .params(params)
+                .query((rs, rowNum) -> Map.entry(objectIdOf(rs), aggregateValue(rs, datatype)))
+                .list()
+                .stream()
+                .collect(
+                    LinkedHashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), Map::putAll);
+
+        return new AggregateResult(result);
+    }
+
+    private static ObjectId objectIdOf(ResultSet rs) throws SQLException {
+        return new ObjectId(rs.getObject("target_id", UUID.class));
+    }
+
+    /**
+     * Maps {@code rs}'s {@code agg_value} column to a {@link Value} typed per {@code datatype},
+     * mirroring the same per-datatype shapes {@link #toSqlParam} and {@link #castExpression} encode
+     * for scalar properties elsewhere in this class. Only reachable for {@code
+     * SUM}/{@code MIN}/{@code MAX}/{@code AVG} — {@code COUNT} always yields an {@link
+     * IntegerValue} regardless of {@code ofPropertyIri}, handled separately in {@link #aggregate}.
+     */
+    private static Value aggregateValue(ResultSet rs, Datatype datatype) throws SQLException {
+        return switch (datatype) {
+            case DECIMAL, DOUBLE -> new DecimalValue(rs.getBigDecimal("agg_value"));
+            case INTEGER, LONG -> new IntegerValue(rs.getLong("agg_value"));
+            case STRING, ANY_URI, TIME, DURATION, BOOLEAN, DATE, DATE_TIME ->
+                throw new IllegalArgumentException(
+                    "Aggregate function is not supported for datatype " + datatype);
+        };
     }
 
     private static Map<String, PropertyDefinition> indexAllProperties(MetaModelSnapshot snapshot) {
