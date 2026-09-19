@@ -94,6 +94,57 @@ Notes:
   `sq:over`/`sq:via`/`sq:of`/`sq:property`/`sq:value`/`sq:pluginName`, by contrast, each assert a
   genuinely single range and are safe to entail.
 
+## Terms in use (phase 5)
+
+Phase 5 (state machines and automation, DR-09) adds a third layer on top of `sq:`: a type can carry a
+state machine — a set of named states, one initial, and transitions between them, each guarded by an
+optional condition and followed by an ordered list of actions. `sq:appliesTo` attaches the definition
+to a type; `sq:StateMachine`, `sq:State` and `sq:Transition` are the structural shapes; `sq:SetProperty`,
+`sq:CreateObject`, `sq:Webhook` and `sq:Log` are the four action kinds a transition can carry out, each
+built from `sq:PropertyAssignment` nodes where property values are being set.
+
+| IRI | RDF type | Domain | Range | Default | Snapshot field |
+|---|---|---|---|---|---|
+| `sq:appliesTo` | `owl:AnnotationProperty` | `sq:StateMachine` | `owl:Class` | none, required | attaches the definition to that type's `TypeDefinition.stateMachine()` |
+| `sq:initialState` | `owl:AnnotationProperty` | `sq:StateMachine` | `sq:State` | none, required | `StateMachineDefinition.initialState()` |
+| `sq:state` | `owl:AnnotationProperty` | `sq:StateMachine` | `sq:State` | none, required (≥1) | `StateMachineDefinition.states()` |
+| `sq:transition` | `owl:AnnotationProperty` | `sq:StateMachine` | `sq:Transition` | absent (`[]`) | `StateMachineDefinition.transitions()` |
+| `sq:name` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | none, required | `Transition.name()` |
+| `sq:from` | `owl:AnnotationProperty` | `sq:Transition` | `sq:State` | none, required | `Transition.fromStateIri()` |
+| `sq:to` | `owl:AnnotationProperty` | `sq:Transition` | `sq:State` | none, required | `Transition.toStateIri()` |
+| `sq:trigger` | `owl:AnnotationProperty` | `sq:Transition` | — (enumeration; see notes) | none, required | validated only — this phase supports exactly one legal value, `sq:UserAction`; no snapshot field |
+| `sq:guard` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | absent (always available) | `Transition.guard()` |
+| `sq:guardMessage` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | absent (generic fallback message) | `Transition.guardMessage()` |
+| `sq:action` | `owl:AnnotationProperty` | `sq:Transition` | `rdf:List` | absent (`[]`) | `Transition.actions()` |
+| `sq:property` *(reused)* | `owl:AnnotationProperty` | `sq:Criterion` ∪ `sq:SetProperty` ∪ `sq:PropertyAssignment` | `rdf:Property` | none, required | `Criterion.property()` / `SetPropertyAction.propertyIri()` / `PropertyAssignment.propertyIri()` |
+| `sq:value` *(reused)* | `owl:AnnotationProperty` | `sq:Criterion` ∪ `sq:SetProperty` ∪ `sq:PropertyAssignment` | `rdfs:Literal` | absent | `Criterion.value()` / `SetPropertyAction.value()` / `PropertyAssignment.value()` |
+| `sq:expression` *(new)* | `owl:AnnotationProperty` | `sq:SetProperty` ∪ `sq:PropertyAssignment` | `xsd:string` | absent | `SetPropertyAction.expression()` / `PropertyAssignment.expression()` |
+| `sq:type` | `owl:AnnotationProperty` | `sq:CreateObject` | `owl:Class` | none, required | `CreateObjectAction.typeIri()` |
+| `sq:properties` | `owl:AnnotationProperty` | `sq:CreateObject` | `rdf:List` (of `sq:PropertyAssignment`) | absent (`[]`) | `CreateObjectAction.properties()` |
+| `sq:url` | `owl:AnnotationProperty` | `sq:Webhook` | `xsd:string` | none, required | `WebhookAction.url()` |
+| `sq:method` | `owl:AnnotationProperty` | `sq:Webhook` | `xsd:string` | `"POST"` | `WebhookAction.method()` |
+| `sq:body` | `owl:AnnotationProperty` | `sq:Webhook` | `xsd:string` | absent | `WebhookAction.body()` |
+| `sq:message` | `owl:AnnotationProperty` | `sq:Log` | `xsd:string` | none, required | `LogAction.message()` |
+
+Notes:
+- `sq:StateMachine`/`sq:State`/`sq:Transition`/`sq:SetProperty`/`sq:CreateObject`/`sq:PropertyAssignment`/`sq:Webhook`/`sq:Log`
+  are `owl:Class`, exactly like `sq:Rollup`/`sq:Plugin`/`sq:Criterion` — they type the nodes the
+  properties above point at and have no snapshot field of their own.
+- `sq:State` individuals reuse the existing `sq:label`/`sq:displayOrder` terms, per those terms'
+  already-documented shared `owl:Class ∪ rdf:Property` domain.
+- `sq:state` is plain multi-valued (order doesn't matter); `sq:transition` and `sq:action` are
+  `rdf:List`s (order matters), mirroring the `sq:filter` precedent.
+- `sq:property`/`sq:value` now have a **three-way union domain** (`sq:Criterion` ∪ `sq:SetProperty` ∪
+  `sq:PropertyAssignment`). No `rdfs:domain` is asserted for either — exactly the
+  `sq:label`/`sq:derivedBy` pattern — because RDFS `rdfs:domain` triples combine by **intersection**,
+  not union: asserting `sq:Criterion` and `sq:SetProperty` both as domains would make a rule-based
+  reasoner (`ReasonerSetting.OWL`/`RDFS`) infer every subject of an `sq:property`/`sq:value` triple is
+  simultaneously typed as *all* of them. This is the same hazard the doc's phase-4 notes already call
+  out for `sq:derivedBy`; this edit **removes** the existing `rdfs:domain sq:Criterion` from
+  `sq:property`/`sq:value`'s declarations in the `.ttl` files, not just adds more domains.
+- `sq:trigger` has no `rdfs:range` asserted, mirroring `sq:function`/`sq:operator`: a fixed
+  enumeration (currently just `sq:UserAction`) that RDFS can't express without `owl:oneOf`.
+
 ## Two terms added beyond the brief
 
 The phase-1 brief lists `sq:label`, `sq:displayOrder`, `sq:displayGroup`, `sq:facet`, `sq:indexed`,
@@ -118,7 +169,6 @@ pattern below, naming the term and the phase that will support it:
 
 | Term | RDF type (planned) | Reserved for |
 |---|---|---|
-| `sq:StateMachine` | `owl:Class` | Phase 5, state machines and automation (DR-09): declares states, transitions, guards and actions for a type. |
 | `sq:permission` | `owl:AnnotationProperty` | Phase 8, authorisation (DR-11): attaches a permission requirement to a type, property or transition, evaluated by `AuthorizationPort` once Spring Security/OIDC replaces permit-all. |
 | `sq:materialised` | `owl:AnnotationProperty` | Phase 4, derived properties (DR-08): switches a `sq:derivedBy` rollup from on-read evaluation to event-driven materialisation. |
 
@@ -153,6 +203,16 @@ construct on the left, the snapshot field it produces on the right.
 | `sq:pluginName` (on a `sq:Plugin` node) | `PluginRule.pluginName()` |
 | `sq:property` / `sq:operator` / `sq:value` (on a `sq:Criterion` node) | the matching `Criterion.property()` / `operator()` / `value()` |
 | Presence of `sq:derivedBy` on a property | forces `PropertyDefinition.readOnly()` to `true`, regardless of `sq:readOnly` |
+| `sq:appliesTo` (on a `sq:StateMachine` node) | attaches `StateMachineDefinition` to that type's `TypeDefinition.stateMachine()` |
+| `sq:initialState` / `sq:state` / `sq:transition` (on a `sq:StateMachine` node) | the matching `StateMachineDefinition.initialState()` / `states()` / `transitions()` |
+| `sq:name` / `sq:from` / `sq:to` / `sq:guard` / `sq:guardMessage` / `sq:action` (on a `sq:Transition` node) | the matching `Transition.name()` / `fromStateIri()` / `toStateIri()` / `guard()` / `guardMessage()` / `actions()` |
+| `sq:trigger` (on a `sq:Transition` node) | validated only against the single legal value `sq:UserAction`; no snapshot field |
+| Type of a `sq:action` list element (`sq:SetProperty` / `sq:CreateObject` / `sq:Webhook` / `sq:Log`) | selects the matching `Transition.actions()` entry type (`SetPropertyAction` / `CreateObjectAction` / `WebhookAction` / `LogAction`) |
+| `sq:property` / `sq:value` / `sq:expression` (on a `sq:SetProperty` node) | the matching `SetPropertyAction.propertyIri()` / `value()` / `expression()` |
+| `sq:type` / `sq:properties` (on a `sq:CreateObject` node) | the matching `CreateObjectAction.typeIri()` / `properties()` |
+| `sq:property` / `sq:value` / `sq:expression` (on a `sq:PropertyAssignment` node) | the matching `PropertyAssignment.propertyIri()` / `value()` / `expression()` |
+| `sq:url` / `sq:method` / `sq:body` (on a `sq:Webhook` node) | the matching `WebhookAction.url()` / `method()` / `body()` |
+| `sq:message` (on a `sq:Log` node) | `LogAction.message()` |
 
 ## What the reasoner setting changes
 

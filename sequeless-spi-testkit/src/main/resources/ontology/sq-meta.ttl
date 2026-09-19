@@ -118,8 +118,8 @@ sq:filter
 
 sq:property
     a owl:AnnotationProperty ;
-    rdfs:domain sq:Criterion ;
-    rdfs:range rdf:Property .
+    rdfs:range rdf:Property ;
+    rdfs:comment "Domain is the three-way union of sq:Criterion, sq:SetProperty and sq:PropertyAssignment (Phase 5 reuses this term on state-machine action nodes); RDFS rdfs:domain triples combine by intersection, not union, so asserting more than one would make a rule-based reasoner (ReasonerSetting.OWL/RDFS) infer every subject of an sq:property triple is simultaneously typed as all of them. No rdfs:domain is asserted, for the same reason sq:label's comment records for its union domain and sq:derivedBy's comment records for its union range." .
 
 sq:operator
     a owl:AnnotationProperty ;
@@ -128,9 +128,8 @@ sq:operator
 
 sq:value
     a owl:AnnotationProperty ;
-    rdfs:domain sq:Criterion ;
     rdfs:range rdfs:Literal ;
-    rdfs:comment "Absent for sq:isNull/sq:notNull." .
+    rdfs:comment "Absent for sq:isNull/sq:notNull (on a sq:Criterion node). Domain is the three-way union of sq:Criterion, sq:SetProperty and sq:PropertyAssignment, for the same reason as sq:property's comment; see that term's comment." .
 
 sq:pluginName
     a owl:AnnotationProperty ;
@@ -178,3 +177,144 @@ sq:startsWith a owl:NamedIndividual .
 sq:isNull a owl:NamedIndividual .
 
 sq:notNull a owl:NamedIndividual .
+
+#
+# State machines (sq:StateMachine) — Phase 5 (docs/architecture/sq-vocabulary.md,
+# "Terms in use (phase 5)"). A type's sq:appliesTo state machine declares a set of sq:state
+# individuals (one sq:initialState) and an ordered sq:transition list; each sq:Transition names its
+# sq:from/sq:to states, an optional sq:guard/sq:guardMessage, and an ordered sq:action list of
+# sq:SetProperty / sq:CreateObject / sq:Webhook / sq:Log nodes. sq:property and sq:value (declared
+# above, for sq:Criterion) are reused on sq:SetProperty and sq:PropertyAssignment nodes.
+#
+
+sq:StateMachine
+    a owl:Class ;
+    rdfs:comment "Attached to a type via sq:appliesTo; declares sq:initialState, sq:state (>=1) and sq:transition." .
+
+sq:State
+    a owl:Class ;
+    rdfs:comment "A named state an instance of the owning type can be in; reuses sq:label/sq:displayOrder for its display name and ordering." .
+
+sq:Transition
+    a owl:Class ;
+    rdfs:comment "A named move from one sq:State to another: sq:name, sq:from, sq:to, an optional sq:guard/sq:guardMessage, and an ordered sq:action list." .
+
+sq:SetProperty
+    a owl:Class ;
+    rdfs:comment "A transition action that sets one property, via sq:property and either sq:value or sq:expression." .
+
+sq:CreateObject
+    a owl:Class ;
+    rdfs:comment "A transition action that creates an instance of sq:type, populated from an ordered sq:properties list of sq:PropertyAssignment nodes." .
+
+sq:PropertyAssignment
+    a owl:Class ;
+    rdfs:comment "One property/value pair inside a sq:CreateObject's sq:properties list: sq:property and either sq:value or sq:expression." .
+
+sq:Webhook
+    a owl:Class ;
+    rdfs:comment "A transition action that calls an external sq:url with sq:method (default POST) and optional sq:body." .
+
+sq:Log
+    a owl:Class ;
+    rdfs:comment "A transition action that records sq:message." .
+
+sq:appliesTo
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:StateMachine ;
+    rdfs:range owl:Class ;
+    rdfs:comment "Attaches the sq:StateMachine node to the type it governs; feeds TypeDefinition.stateMachine()." .
+
+sq:initialState
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:StateMachine ;
+    rdfs:range sq:State .
+
+sq:state
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:StateMachine ;
+    rdfs:range sq:State ;
+    rdfs:comment "Plain multi-valued (order doesn't matter), unlike sq:transition/sq:action." .
+
+sq:transition
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:StateMachine ;
+    rdfs:range sq:Transition ;
+    rdfs:comment "An RDF list of sq:Transition nodes; order matters, mirroring sq:filter." .
+
+sq:name
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range xsd:string .
+
+sq:from
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range sq:State .
+
+sq:to
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range sq:State .
+
+sq:trigger
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:comment "Legal values are a fixed enumeration currently containing only sq:UserAction, which RDFS cannot express without owl:oneOf, so no rdfs:range is asserted and the set is validated at snapshot activation instead." .
+
+sq:guard
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Absent means the transition is always available." .
+
+sq:guardMessage
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Absent falls back to a generic guard-failure message." .
+
+sq:action
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range rdf:List ;
+    rdfs:comment "An RDF list of sq:SetProperty / sq:CreateObject / sq:Webhook / sq:Log nodes; order matters, mirroring sq:filter." .
+
+sq:type
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:CreateObject ;
+    rdfs:range owl:Class .
+
+sq:properties
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:CreateObject ;
+    rdfs:range rdf:List ;
+    rdfs:comment "An RDF list of sq:PropertyAssignment nodes." .
+
+sq:url
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Webhook ;
+    rdfs:range xsd:string .
+
+sq:method
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Webhook ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Defaults to POST when absent." .
+
+sq:body
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Webhook ;
+    rdfs:range xsd:string .
+
+sq:message
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Log ;
+    rdfs:range xsd:string .
+
+sq:expression
+    a owl:AnnotationProperty ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Domain is the union of sq:SetProperty and sq:PropertyAssignment, for the same reason sq:property's comment records for its wider union; no rdfs:domain is asserted." .
+
+sq:UserAction a owl:NamedIndividual .

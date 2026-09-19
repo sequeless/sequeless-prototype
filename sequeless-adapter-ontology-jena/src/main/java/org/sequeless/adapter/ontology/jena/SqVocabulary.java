@@ -106,7 +106,6 @@ final class SqVocabulary {
      * message rather than one that depends on {@code Map} iteration order.
      */
     private static final List<ReservedTerm> RESERVED_TERMS = List.of(
-        new ReservedTerm("StateMachine", "Phase 5 (state machines and automation)"),
         new ReservedTerm("permission", "Phase 8 (authorisation)"),
         new ReservedTerm("materialised", "Phase 4 (derived properties)"));
 
