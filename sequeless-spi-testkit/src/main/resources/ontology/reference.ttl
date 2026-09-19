@@ -82,6 +82,9 @@ ex:Project
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
         [ a owl:Restriction ;
           owl:onProperty ex:totalEstimatedHours ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:owner ;
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Project" .
 
@@ -183,6 +186,13 @@ ex:hasTask
     sq:label "Has Task" ;
     sq:displayOrder "2"^^xsd:integer .
 
+ex:owner
+    a owl:ObjectProperty ;
+    rdfs:domain ex:Project ;
+    rdfs:range ex:Person ;
+    sq:label "Owner" ;
+    sq:displayOrder "6"^^xsd:integer .
+
 ex:name
     a owl:DatatypeProperty ;
     rdfs:domain ex:Person ;
@@ -230,6 +240,51 @@ ex:totalEstimatedHours
         sq:over ex:Task ;
         sq:via ex:belongsToProject ;
         sq:of ex:estimatedHours ] .
+
+#
+# State machine (Phase 5, DR-09) — ex:Project moves Draft -> Active -> OnHold/Closed. `activate`
+# is the only transition with a guard (self.owner != null) and the only one with actions, so it
+# exercises both mechanisms an ExpressionPort implementation (a later task) must support:
+# sq:expression on sq:SetProperty/sq:PropertyAssignment nodes is bare JEXL source (no ${} — the
+# whole string is the expression), while sq:url/sq:body on sq:Webhook are JXLT templates (${expr}
+# placeholders spliced into an otherwise-literal string). `hold`, `resume`, and `close` deliberately
+# carry no sq:guard, to exercise the "always available" path. Every expression here only reaches
+# into the ExpressionContext shape a later task will define (self's own properties, self's current
+# state, and the acting principal) — e.g. self.owner, self.title — never a property (like self.id)
+# that shape won't carry.
+#
+
+ex:ProjectLifecycle
+    a sq:StateMachine ;
+    sq:appliesTo ex:Project ;
+    sq:initialState ex:Draft ;
+    sq:state ex:Draft, ex:Active, ex:OnHold, ex:Closed ;
+    sq:transition
+        [ a sq:Transition ;
+          sq:name "activate" ;
+          sq:from ex:Draft ; sq:to ex:Active ;
+          sq:trigger sq:UserAction ;
+          sq:guard "self.owner != null" ;
+          sq:guardMessage "Project must have an owner before it can be activated" ;
+          sq:action
+            ( [ a sq:CreateObject ;
+                sq:type ex:Task ;
+                sq:properties
+                  ( [ a sq:PropertyAssignment ;
+                      sq:property ex:title ;
+                      sq:expression "'Kickoff: ' + self.title" ] ) ]
+              [ a sq:Webhook ;
+                sq:url "https://example.org/hooks/project-activated" ;
+                sq:method "POST" ;
+                sq:body "{\"project\": \"${self.title}\"}" ] ) ] ,
+        [ a sq:Transition ; sq:name "hold" ;   sq:from ex:Active ; sq:to ex:OnHold ; sq:trigger sq:UserAction ] ,
+        [ a sq:Transition ; sq:name "resume" ; sq:from ex:OnHold ; sq:to ex:Active ; sq:trigger sq:UserAction ] ,
+        [ a sq:Transition ; sq:name "close" ;  sq:from ex:Active ; sq:to ex:Closed ; sq:trigger sq:UserAction ] .
+
+ex:Draft  a sq:State ; sq:label "Draft"   ; sq:displayOrder "1"^^xsd:integer .
+ex:Active a sq:State ; sq:label "Active"  ; sq:displayOrder "2"^^xsd:integer .
+ex:OnHold a sq:State ; sq:label "On Hold" ; sq:displayOrder "3"^^xsd:integer .
+ex:Closed a sq:State ; sq:label "Closed"  ; sq:displayOrder "4"^^xsd:integer .
 
 #
 # SHACL shapes

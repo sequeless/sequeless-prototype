@@ -17,12 +17,17 @@
  * org.sequeless.spi.meta.AttributeDefinition} (scalar-valued) and {@link
  * org.sequeless.spi.meta.RelationshipDefinition} (object-valued). {@link
  * org.sequeless.spi.meta.Cardinality} and {@link org.sequeless.spi.meta.DisplayHints} are shared
- * value types; {@link org.sequeless.spi.meta.StateMachineDefinition} remains a deliberately empty
- * placeholder for Phase 5, present now so the snapshot shape does not change again when that phase
- * lands. {@link org.sequeless.spi.meta.DerivationRule} is no longer such a placeholder: it is
- * sealed to {@link org.sequeless.spi.meta.RollupRule} (a declarative {@code sq:Rollup} aggregate)
- * and {@link org.sequeless.spi.meta.PluginRule} (a named {@code sq:Plugin} dispatched through
- * {@link org.sequeless.spi.derivation.DerivationPlugin}), with {@link
+ * value types; {@link org.sequeless.spi.meta.StateMachineDefinition} is no longer a placeholder: it
+ * carries the {@link org.sequeless.spi.meta.State}s a type's objects move through, the {@link
+ * org.sequeless.spi.meta.State} they start in, and the {@link org.sequeless.spi.meta.Transition}s
+ * between them, each transition's actions sealed to {@link
+ * org.sequeless.spi.meta.SetPropertyAction}, {@link org.sequeless.spi.meta.CreateObjectAction},
+ * {@link org.sequeless.spi.meta.WebhookAction}, and {@link org.sequeless.spi.meta.LogAction} via
+ * the {@link org.sequeless.spi.meta.Action} sealed interface. {@link
+ * org.sequeless.spi.meta.DerivationRule} is likewise no longer a placeholder: it is sealed to
+ * {@link org.sequeless.spi.meta.RollupRule} (a declarative {@code sq:Rollup} aggregate) and {@link
+ * org.sequeless.spi.meta.PluginRule} (a named {@code sq:Plugin} dispatched through {@link
+ * org.sequeless.spi.derivation.DerivationPlugin}), with {@link
  * org.sequeless.spi.meta.AggregateFunction} as the shared function vocabulary also used by {@link
  * org.sequeless.spi.query.AggregateRequest}. The full mapping from OWL and the {@code sq:}
  * annotation vocabulary to these fields is documented in {@code docs/architecture/sq-vocabulary.md},
