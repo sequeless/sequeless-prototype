@@ -16,8 +16,10 @@
  * compatibility checking. Per-port contracts (the first being authorization) live in subpackages
  * such as {@link org.sequeless.spi.authz}, {@link org.sequeless.spi.meta}, {@link
  * org.sequeless.spi.object}, {@link org.sequeless.spi.ontology}, {@link org.sequeless.spi.query},
- * {@link org.sequeless.spi.validation}, and {@link org.sequeless.spi.derivation} — the
- * {@code sq:Plugin} vocabulary for derived properties computed by named, {@code ServiceLoader}-
- * discovered code rather than declaratively.
+ * {@link org.sequeless.spi.validation}, {@link org.sequeless.spi.derivation} — the {@code
+ * sq:Plugin} vocabulary for derived properties computed by named, {@code ServiceLoader}-discovered
+ * code rather than declaratively — and {@link org.sequeless.spi.expression} — the {@code
+ * ExpressionPort} that evaluates JEXL-family expressions authored in the ontology, such as {@code
+ * sq:guard}.
  */
 package org.sequeless.spi;
