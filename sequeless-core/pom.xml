@@ -27,6 +27,16 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!--
+      First direct SLF4J usage in sequeless-core (org.sequeless.core.automation.DefaultActionExecutor's
+      applyLog): declared explicitly, with the version left to the parent's spring-boot-dependencies
+      BOM import, rather than relying on whatever transitively pulls it in.
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

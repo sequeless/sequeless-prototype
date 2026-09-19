@@ -60,6 +60,17 @@ class ArchitectureTest {
                     + "usable by any adapter or client without pulling in anything beyond the JDK "
                     + "and its own port and value types.");
 
+    /**
+     * {@code org.slf4j} (the facade, not any concrete provider) is allowed alongside the JDK: it is
+     * a logging API with no implementation of its own and no adapter-specific technology behind it
+     * — {@code org.sequeless.core.automation.DefaultActionExecutor#applyLog} is the first, but not
+     * necessarily the last, direct SLF4J usage in {@code sequeless-core}. This is narrower than the
+     * blanket {@code java..} exemption: only the {@code org.slf4j} package itself is allowed, so a
+     * concrete logging backend (Logback, Log4j2, ...) pulled in transitively would still violate
+     * this rule if referenced directly from core.
+     */
+    private static final String SLF4J_PACKAGE = "org.slf4j";
+
     @ArchTest
     static final ArchRule coreDependsOnlyOnJdkSpiAndItself =
         classes()
@@ -67,11 +78,14 @@ class ArchitectureTest {
             .resideInAPackage(CORE_PACKAGE)
             .should()
             .onlyDependOnClassesThat(
-                resideInAnyPackage("java..", CORE_PACKAGE, SPI_PACKAGE).or(PRIMITIVE_OR_ARRAY))
+                resideInAnyPackage(
+                        "java..", CORE_PACKAGE, SPI_PACKAGE, SLF4J_PACKAGE)
+                    .or(PRIMITIVE_OR_ARRAY))
             .because(
                 "sequeless-core holds the use cases and orchestration logic; it may depend on the "
-                    + "ports it calls through (sequeless-spi) and on the JDK, but nothing else, or "
-                    + "the core would stop being portable across adapter choices.");
+                    + "ports it calls through (sequeless-spi), the JDK, and the SLF4J logging facade "
+                    + "(a dependency-free API, not an adapter-specific technology), but nothing "
+                    + "else, or the core would stop being portable across adapter choices.");
 
     @ArchTest
     static final ArchRule spiAndCoreDoNotDependOnSpring =
