@@ -25,6 +25,8 @@ package org.sequeless.app.rest;
  * @param cardinalityMax the maximum number of values this property may hold, or {@code null} if
  *     unbounded
  * @param datatype the scalar type this property's values hold, e.g. {@code "STRING"}
+ * @param derivation how this property's value is computed, or {@code null} if it is an ordinary
+ *     stored property
  */
 public record AttributePropertyResponse(
         String kind,
@@ -40,5 +42,6 @@ public record AttributePropertyResponse(
         boolean readOnly,
         int cardinalityMin,
         Integer cardinalityMax,
-        String datatype)
+        String datatype,
+        DerivationResponse derivation)
         implements PropertyResponse {}

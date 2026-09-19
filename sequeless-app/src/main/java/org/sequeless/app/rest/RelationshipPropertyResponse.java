@@ -28,6 +28,8 @@ package org.sequeless.app.rest;
  * @param inverseIri the IRI of this relationship's {@code owl:inverseOf} partner, or {@code null}
  *     if none is declared
  * @param transitive whether this relationship is declared {@code owl:TransitiveProperty}
+ * @param derivation how this property's value is computed, or {@code null} if it is an ordinary
+ *     stored property
  */
 public record RelationshipPropertyResponse(
         String kind,
@@ -45,5 +47,6 @@ public record RelationshipPropertyResponse(
         Integer cardinalityMax,
         String targetTypeIri,
         String inverseIri,
-        boolean transitive)
+        boolean transitive,
+        DerivationResponse derivation)
         implements PropertyResponse {}

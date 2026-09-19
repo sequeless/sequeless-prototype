@@ -2,12 +2,28 @@ package org.sequeless.app.rest;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.sequeless.spi.meta.AttributeDefinition;
+import org.sequeless.spi.meta.DerivationRule;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.PluginRule;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.object.BoolValue;
+import org.sequeless.spi.object.DateTimeValue;
+import org.sequeless.spi.object.DateValue;
+import org.sequeless.spi.object.DecimalValue;
+import org.sequeless.spi.object.IntegerValue;
+import org.sequeless.spi.object.ListValue;
+import org.sequeless.spi.object.ReferenceValue;
+import org.sequeless.spi.object.TextValue;
+import org.sequeless.spi.object.Value;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Operator;
 
 /**
  * Maps sequeless-core's {@code org.sequeless.spi.meta} types onto their {@link TypesController}
@@ -20,6 +36,27 @@ import org.sequeless.spi.meta.TypeDefinition;
  * types directly.
  */
 final class TypeResponseMapper {
+
+    /**
+     * Operator tokens as the REST filter grammar spells them (see {@code
+     * DefaultBusinessObjectService.parseOperatorToken}), keyed by {@link Operator}. Three operators
+     * do not lowercase their enum name verbatim ({@code STARTS_WITH} -&gt; {@code startswith},
+     * {@code IS_NULL} -&gt; {@code isnull}, {@code NOT_NULL} -&gt; {@code notnull}); the rest do
+     * (e.g. {@code EQ} -&gt; {@code eq}).
+     */
+    private static final Map<Operator, String> OPERATOR_TOKENS =
+            Map.ofEntries(
+                    Map.entry(Operator.EQ, "eq"),
+                    Map.entry(Operator.NE, "ne"),
+                    Map.entry(Operator.IN, "in"),
+                    Map.entry(Operator.LT, "lt"),
+                    Map.entry(Operator.LTE, "lte"),
+                    Map.entry(Operator.GT, "gt"),
+                    Map.entry(Operator.GTE, "gte"),
+                    Map.entry(Operator.CONTAINS, "contains"),
+                    Map.entry(Operator.STARTS_WITH, "startswith"),
+                    Map.entry(Operator.IS_NULL, "isnull"),
+                    Map.entry(Operator.NOT_NULL, "notnull"));
 
     private TypeResponseMapper() {}
 
@@ -98,7 +135,8 @@ final class TypeResponseMapper {
                     attribute.cardinality().max().isPresent()
                             ? attribute.cardinality().max().getAsInt()
                             : null,
-                    attribute.datatype().name());
+                    attribute.datatype().name(),
+                    attribute.derivation().map(TypeResponseMapper::toDerivationResponse).orElse(null));
             case RelationshipDefinition relationship -> new RelationshipPropertyResponse(
                     "relationship",
                     relationship.iri(),
@@ -117,7 +155,75 @@ final class TypeResponseMapper {
                             : null,
                     relationship.targetTypeIri(),
                     relationship.inverseIri().orElse(null),
-                    relationship.transitive());
+                    relationship.transitive(),
+                    relationship
+                            .derivation()
+                            .map(TypeResponseMapper::toDerivationResponse)
+                            .orElse(null));
+        };
+    }
+
+    /**
+     * Maps one {@link DerivationRule} onto its {@link DerivationResponse}, an exhaustive {@code
+     * switch} over the sealed {@link DerivationRule} hierarchy with no {@code default} branch,
+     * mirroring {@link #toProperty(PropertyDefinition)}'s own exhaustive switch.
+     */
+    private static DerivationResponse toDerivationResponse(DerivationRule rule) {
+        return switch (rule) {
+            case RollupRule rollup -> new DerivationResponse("rollup", rollupSummary(rollup));
+            case PluginRule plugin -> new DerivationResponse(
+                    "plugin", "plugin(" + plugin.pluginName() + ")");
+        };
+    }
+
+    private static String rollupSummary(RollupRule rollup) {
+        StringBuilder summary = new StringBuilder();
+        summary
+                .append(rollup.function().name().toLowerCase(Locale.ROOT))
+                .append('(')
+                .append(shortName(rollup.sourceTypeIri()))
+                .append(" via ")
+                .append(shortName(rollup.viaIri()));
+        if (rollup.ofPropertyIri().isPresent()) {
+            summary.append(" of ").append(shortName(rollup.ofPropertyIri().get()));
+        }
+        if (!rollup.criteria().isEmpty()) {
+            summary
+                    .append(" where ")
+                    .append(
+                            rollup.criteria().stream()
+                                    .map(TypeResponseMapper::criterionSummary)
+                                    .collect(Collectors.joining(" and ")));
+        }
+        summary.append(')');
+        return summary.toString();
+    }
+
+    private static String criterionSummary(Criterion criterion) {
+        String property = shortName(criterion.property());
+        String operator = OPERATOR_TOKENS.get(criterion.operator());
+        if (criterion.value().isEmpty()) {
+            return property + " " + operator;
+        }
+        return property + " " + operator + " " + valueSummary(criterion.value().get());
+    }
+
+    /**
+     * Renders a {@link Criterion}'s value for a rollup summary, an exhaustive {@code switch} over
+     * the sealed {@link Value} hierarchy with no {@code default} branch.
+     */
+    private static String valueSummary(Value value) {
+        return switch (value) {
+            case TextValue text -> "'" + text.value() + "'";
+            case IntegerValue integer -> Long.toString(integer.value());
+            case DecimalValue decimal -> decimal.value().toString();
+            case BoolValue bool -> Boolean.toString(bool.value());
+            case DateValue date -> date.value().toString();
+            case DateTimeValue dateTime -> dateTime.value().toString();
+            case ReferenceValue reference -> reference.target().toString();
+            case ListValue list -> list.values().stream()
+                    .map(TypeResponseMapper::valueSummary)
+                    .collect(Collectors.joining(", ", "[", "]"));
         };
     }
 

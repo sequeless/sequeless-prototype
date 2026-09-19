@@ -102,6 +102,31 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     @Test
+    void projectShowsDerivedPropertiesWithReadOnlyAndSummary() throws Exception {
+        JsonNode project = fetchAsJson("/types/Project");
+
+        JsonNode properties = project.get("properties");
+        JsonNode openTaskCount = findProperty(properties, "openTaskCount");
+        assertThat(openTaskCount.get("readOnly").asBoolean()).as("openTaskCount readOnly").isTrue();
+        JsonNode openTaskCountDerivation = openTaskCount.get("derivation");
+        assertThat(openTaskCountDerivation.get("kind").asText()).isEqualTo("rollup");
+        assertThat(openTaskCountDerivation.get("summary").asText())
+                .isEqualTo("count(Task via belongsToProject where status ne 'done')");
+
+        JsonNode totalEstimatedHours = findProperty(properties, "totalEstimatedHours");
+        assertThat(totalEstimatedHours.get("readOnly").asBoolean())
+                .as("totalEstimatedHours readOnly")
+                .isTrue();
+        JsonNode totalEstimatedHoursDerivation = totalEstimatedHours.get("derivation");
+        assertThat(totalEstimatedHoursDerivation.get("kind").asText()).isEqualTo("rollup");
+        assertThat(totalEstimatedHoursDerivation.get("summary").asText())
+                .isEqualTo("sum(Task via belongsToProject of estimatedHours)");
+
+        JsonNode title = findProperty(properties, "title");
+        assertThat(title.get("derivation").isNull()).as("title derivation absent").isTrue();
+    }
+
+    @Test
     void resolvesByEncodedIri() throws Exception {
         JsonNode byName = fetchAsJson("/types/Task");
         String encodedIri = URLEncoder.encode(Fixtures.TASK_IRI, StandardCharsets.UTF_8);
@@ -163,6 +188,15 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
                         .returnResult()
                         .getResponseBody();
         return objectMapper.readTree(body);
+    }
+
+    private static JsonNode findProperty(JsonNode properties, String name) {
+        for (JsonNode property : properties) {
+            if (property.get("name").asText().equals(name)) {
+                return property;
+            }
+        }
+        throw new AssertionError("No property named '" + name + "' found");
     }
 
     private static List<String> toList(JsonNode array) {
