@@ -20,6 +20,8 @@ import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.derivation.DerivationPlanner;
+import org.sequeless.core.derivation.DerivationPluginRegistry;
 import org.sequeless.core.validation.CoercionResult;
 import org.sequeless.core.validation.StructuralValidator;
 import org.sequeless.core.validation.TypeHierarchy;
@@ -92,6 +94,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     private final AuthorizationPort authorizationPort;
     private final QueryPort queryPort;
     private final Clock clock;
+    private final DerivationPlanner derivationPlanner;
 
     /**
      * @param ontologyPort the port consulted for the type system; must not be {@code null}
@@ -113,6 +116,40 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         AuthorizationPort authorizationPort,
         QueryPort queryPort,
         Clock clock) {
+        this(
+            ontologyPort,
+            objectStorePort,
+            validationPort,
+            authorizationPort,
+            queryPort,
+            clock,
+            new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader()));
+    }
+
+    /**
+     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * @param objectStorePort the port every read and write ultimately goes through; must not be
+     *     {@code null}
+     * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
+     *     must not be {@code null}
+     * @param authorizationPort the port every call consults; must not be {@code null}
+     * @param queryPort the port {@link #browse} delegates to once its {@link BrowseQuery} resolves
+     *     cleanly against the current snapshot, and {@code derivationPlanner} uses to compute
+     *     rollups; must not be {@code null}
+     * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
+     *     {@code null}
+     * @param derivationPlanner computes every derived property on the object(s) {@link #read} and
+     *     {@link #browse} return; must not be {@code null}
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    public DefaultBusinessObjectService(
+        OntologyPort ontologyPort,
+        ObjectStorePort objectStorePort,
+        ValidationPort validationPort,
+        AuthorizationPort authorizationPort,
+        QueryPort queryPort,
+        Clock clock,
+        DerivationPlanner derivationPlanner) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
         this.objectStorePort =
             Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
@@ -122,6 +159,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
         this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.derivationPlanner =
+            Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
     }
 
     @Override
@@ -150,7 +189,10 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
 
         Query spiQuery =
             new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
-        return queryPort.query(scope, snapshot, spiQuery);
+        QueryResult result = queryPort.query(scope, snapshot, spiQuery);
+        List<BusinessObject> derived =
+            derivationPlanner.apply(scope, snapshot, resolved, result.items());
+        return new QueryResult(derived, result.total(), result.facets());
     }
 
     @Override
@@ -166,7 +208,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         BusinessObject found =
             objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(snapshot, found, resolved, id);
-        return found;
+        return derivationPlanner.apply(scope, snapshot, resolved, List.of(found)).get(0);
     }
 
     @Override

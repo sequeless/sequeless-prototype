@@ -29,12 +29,14 @@ import org.sequeless.spi.TenantId;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.Cardinality;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DisplayHints;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
@@ -42,6 +44,7 @@ import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
+import org.sequeless.spi.object.IntegerValue;
 import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectId;
@@ -98,6 +101,9 @@ class DefaultBusinessObjectServiceTest {
     private static final String ASSIGNED_TO_IRI = NS + "assignedTo";
     private static final String STATUS_IRI = NS + "status";
     private static final String TAGS_IRI = NS + "tags";
+    private static final String BELONGS_TO_PROJECT_IRI = NS + "belongsToProject";
+    private static final String OPEN_TASK_COUNT_IRI = NS + "openTaskCount";
+    private static final String TOTAL_ESTIMATED_HOURS_IRI = NS + "totalEstimatedHours";
 
     private static final AttributeDefinition TITLE =
         new AttributeDefinition(
@@ -121,6 +127,36 @@ class DefaultBusinessObjectServiceTest {
         new AttributeDefinition(
             TAGS_IRI, "tags", Cardinality.optional(), false, false, false, false, false,
             DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    /**
+     * {@code sq:Rollup}-derived: {@code count} of {@code Task} via {@code belongsToProject},
+     * filtered to {@code status != "open"} — mirrors {@code QueryFixtures.openTaskCount()}'s exact
+     * {@link RollupRule} shape.
+     */
+    private static final AttributeDefinition OPEN_TASK_COUNT =
+        new AttributeDefinition(
+            OPEN_TASK_COUNT_IRI, "openTaskCount", Cardinality.atMost(1), false, false, false, true,
+            false, DisplayHints.none(),
+            Optional.of(
+                new RollupRule(
+                    TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(),
+                    List.of(
+                        new Criterion(
+                            STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))))),
+            Datatype.INTEGER);
+    /**
+     * {@code sq:Rollup}-derived: {@code sum} of {@code estimatedHours} over {@code Task} via
+     * {@code belongsToProject}, no filter — mirrors {@code
+     * QueryFixtures.totalEstimatedHours()}'s exact {@link RollupRule} shape.
+     */
+    private static final AttributeDefinition TOTAL_ESTIMATED_HOURS =
+        new AttributeDefinition(
+            TOTAL_ESTIMATED_HOURS_IRI, "totalEstimatedHours", Cardinality.atMost(1), false, false,
+            false, true, false, DisplayHints.none(),
+            Optional.of(
+                new RollupRule(
+                    TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM,
+                    Optional.of(HOURS_IRI), List.of())),
+            Datatype.DECIMAL);
 
     private static final TypeDefinition WORK_ITEM =
         new TypeDefinition(
@@ -133,7 +169,8 @@ class DefaultBusinessObjectServiceTest {
             Optional.empty());
     private static final TypeDefinition PROJECT =
         new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(WORK_ITEM_IRI), List.of(), DisplayHints.none(), false,
+            PROJECT_IRI, "Project", List.of(WORK_ITEM_IRI),
+            List.of(OPEN_TASK_COUNT, TOTAL_ESTIMATED_HOURS), DisplayHints.none(), false,
             Optional.empty());
     private static final TypeDefinition PERSON =
         new TypeDefinition(
@@ -218,7 +255,11 @@ class DefaultBusinessObjectServiceTest {
         assertThat(captured.sorts()).isEmpty();
         assertThat(captured.facetProperties()).isEmpty();
         assertThat(captured.includeDeleted()).isFalse();
-        assertThat(result).isSameAs(queryPort.response);
+        // No longer isSameAs: browse now always passes the query result through the
+        // DerivationPlanner, which returns a fresh QueryResult (equal in content, since there are
+        // no derived properties to compute on an empty items list here) rather than the queryPort's
+        // own instance.
+        assertThat(result).isEqualTo(queryPort.response);
     }
 
     @Test
@@ -444,6 +485,50 @@ class DefaultBusinessObjectServiceTest {
         assertThat(criterion.value()).isEmpty();
     }
 
+    @Test
+    void browseComputesRollupsWithExactlyTwoAggregateCallsForFiftyProjects() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        List<BusinessObject> projects = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            projects.add(
+                new BusinessObject(
+                    ObjectId.random(), new TypeRef(PROJECT_IRI), ALICE.tenantId(), 1,
+                    Optional.empty(), Map.of(), new Audit(NOW, "alice", NOW, "alice"), false));
+        }
+        queryPort.response = new QueryResult(projects, 50, Map.of());
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+
+        QueryResult result = service.browse(ALICE, "Project", browseQuery(new Page(0, 50)));
+
+        // Exactly one COUNT request and one SUM request — never one per object (50) and never
+        // one per property-per-object (100).
+        assertThat(queryPort.aggregateRequests).hasSize(2);
+        AggregateRequest countRequest =
+            queryPort.aggregateRequests.stream()
+                .filter(request -> request.function() == AggregateFunction.COUNT)
+                .findFirst()
+                .orElseThrow();
+        AggregateRequest sumRequest =
+            queryPort.aggregateRequests.stream()
+                .filter(request -> request.function() == AggregateFunction.SUM)
+                .findFirst()
+                .orElseThrow();
+        assertThat(countRequest.sourceTypes()).containsExactly(TASK_IRI);
+        assertThat(countRequest.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
+        assertThat(countRequest.targetIds()).hasSize(50);
+        assertThat(sumRequest.sourceTypes()).containsExactly(TASK_IRI);
+        assertThat(sumRequest.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
+        assertThat(sumRequest.ofPropertyIri()).contains(HOURS_IRI);
+        assertThat(sumRequest.targetIds()).hasSize(50);
+
+        assertThat(result.items()).hasSize(50);
+        assertThat(result.items())
+            .allSatisfy(
+                object ->
+                    assertThat(object.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI)));
+    }
+
     // --- read ---
 
     @Test
@@ -471,15 +556,35 @@ class DefaultBusinessObjectServiceTest {
     @Test
     void readThrowsObjectNotFoundForUnrelatedStoredType() {
         FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
         BusinessObject person =
             new BusinessObject(
                 ObjectId.random(), new TypeRef(PERSON_IRI), ALICE.tenantId(), 1, Optional.empty(),
                 Map.of(), new Audit(NOW, "alice", NOW, "alice"), false);
         store.seed(person);
-        DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
             .isThrownBy(() -> service.read(ALICE, "Task", person.id()));
+        // The type-mismatch 404 must short-circuit before derivation ever runs an aggregate.
+        assertThat(queryPort.aggregateRequests).isEmpty();
+    }
+
+    @Test
+    void readComputesRollupsWithExactlyTwoAggregateCallsSameAsBrowse() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        BusinessObject project =
+            new BusinessObject(
+                ObjectId.random(), new TypeRef(PROJECT_IRI), ALICE.tenantId(), 1, Optional.empty(),
+                Map.of(), new Audit(NOW, "alice", NOW, "alice"), false);
+        store.seed(project);
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+
+        BusinessObject result = service.read(ALICE, "Project", project.id());
+
+        assertThat(queryPort.aggregateRequests).hasSize(2);
+        assertThat(result.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI));
     }
 
     @Test
@@ -809,6 +914,17 @@ class DefaultBusinessObjectServiceTest {
                     new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, null));
     }
 
+    @Test
+    void sevenArgConstructorRejectsNullDerivationPlanner() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        assertThatNullPointerException()
+            .isThrownBy(
+                () -> new DefaultBusinessObjectService(
+                    new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, CLOCK,
+                    null));
+    }
+
     // --- null arguments per method ---
 
     @Test
@@ -889,6 +1005,7 @@ class DefaultBusinessObjectServiceTest {
     private static final class FakeQueryPort implements QueryPort {
 
         private final List<Query> queries = new ArrayList<>();
+        private final List<AggregateRequest> aggregateRequests = new ArrayList<>();
         private QueryResult response = new QueryResult(List.of(), 0, Map.of());
 
         @Override
@@ -905,9 +1022,28 @@ class DefaultBusinessObjectServiceTest {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
+        /**
+         * Real counting implementation, not a stub: {@code DerivationPlanner} bounding tests
+         * assert exactly how many times, and with what shape, this is called for a page of
+         * objects. Density-aware per {@link QueryPort#aggregate}'s contract: {@link
+         * AggregateFunction#COUNT} returns every requested target id mapped to a canned {@code 0},
+         * every other function returns an empty map (as if nothing matched) — simplest canned
+         * response that still respects the density contract.
+         */
         @Override
         public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+            Objects.requireNonNull(scope, "scope must not be null");
+            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(request, "request must not be null");
+            aggregateRequests.add(request);
+            if (request.function() == AggregateFunction.COUNT) {
+                Map<ObjectId, Value> values = new HashMap<>();
+                for (ObjectId id : request.targetIds()) {
+                    values.put(id, new IntegerValue(0));
+                }
+                return new AggregateResult(values);
+            }
+            return new AggregateResult(Map.of());
         }
     }
 
