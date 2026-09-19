@@ -15,9 +15,9 @@
 
   <name>sequeless-adapter-expression-jexl</name>
   <description>
-    Shell module for the default ExpressionPort adapter: Commons JEXL 3 in a sandboxed,
-    side-effect-free configuration used to evaluate state machine transition guards. JEXL
-    dependencies arrive in Phase 5; for now this module only proves the reactor wiring and toolchain.
+    The default ExpressionPort adapter: Commons JEXL 3 in a sandboxed, side-effect-free
+    configuration (no reflection, no static method/class access) used to evaluate state machine
+    transition guards and render sq:Webhook/sq:Log JXLT ${expr} templates.
   </description>
 
   <dependencies>
@@ -27,10 +27,37 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- Version comes from the root dependencyManagement (${jexl.version}). -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-jexl3</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-autoconfigure</artifactId>
       <optional>true</optional>
+    </dependency>
+
+    <!--
+      Brings ExpressionContract and (transitively, at compile scope there by design) JUnit Jupiter
+      and AssertJ.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      JexlExpressionAutoConfigurationTest uses ApplicationContextRunner, mirroring
+      sequeless-adapter-ontology-jena's ShaclValidationAutoConfigurationTest.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

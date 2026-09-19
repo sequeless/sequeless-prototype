@@ -4,6 +4,8 @@ spring:
 sequeless:
   authz:
     adapter: permit-all
+  expression:
+    adapter: jexl
   ontology:
     adapter: jena
     # owl is the only setting that detects an inconsistent ontology: rdfs inference never notices
