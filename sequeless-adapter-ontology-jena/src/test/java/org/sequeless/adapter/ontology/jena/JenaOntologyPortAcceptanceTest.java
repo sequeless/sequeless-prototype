@@ -4,16 +4,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.Scope;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
+import org.sequeless.spi.meta.DerivationRule;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.PluginRule;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.object.TextValue;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.ontology.OntologyFormat;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Operator;
 import org.sequeless.testkit.Fixtures;
 
 /**
@@ -211,6 +219,70 @@ class JenaOntologyPortAcceptanceTest {
                                         "sq:materialised is reserved for Phase 4 (derived properties)"
                                             + " and is not supported yet."));
                 });
+    }
+
+    /**
+     * T5 regression guard: the real, shipped {@code reference.ttl} (not a small inline fixture
+     * such as {@code DerivationMappingTest}'s) maps {@code ex:Project}'s two derived properties to
+     * the exact {@link RollupRule}s the design commits to, under {@link ReasonerSetting#OWL} — the
+     * reasoner setting the running application actually configures per {@code
+     * JenaOntologyProperties}'s default. This is the closest thing to an end-to-end proof, short of
+     * booting the app itself, that the reference ontology's derivation vocabulary is well-formed
+     * and reads back correctly.
+     */
+    @Test
+    void referenceSnapshotMapsProjectRollupsUnderTheOwlReasonerTheAppActuallyUses() {
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        TypeDefinition project = type(port.snapshot(SCOPE), Fixtures.PROJECT_IRI);
+
+        AttributeDefinition openTaskCount = attribute(project, Fixtures.OPEN_TASK_COUNT_IRI);
+        assertThat(openTaskCount.readOnly()).isTrue();
+        DerivationRule openTaskCountDerivation = openTaskCount.derivation().orElseThrow();
+        assertThat(openTaskCountDerivation).isInstanceOf(RollupRule.class);
+        RollupRule openTaskCountRule = (RollupRule) openTaskCountDerivation;
+        assertThat(openTaskCountRule.sourceTypeIri()).isEqualTo(Fixtures.TASK_IRI);
+        assertThat(openTaskCountRule.viaIri()).isEqualTo(Fixtures.BELONGS_TO_PROJECT_IRI);
+        assertThat(openTaskCountRule.function()).isEqualTo(AggregateFunction.COUNT);
+        assertThat(openTaskCountRule.ofPropertyIri()).isEmpty();
+        assertThat(openTaskCountRule.criteria())
+            .containsExactly(
+                new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
+
+        AttributeDefinition totalEstimatedHours = attribute(project, Fixtures.TOTAL_ESTIMATED_HOURS_IRI);
+        assertThat(totalEstimatedHours.readOnly()).isTrue();
+        DerivationRule totalEstimatedHoursDerivation = totalEstimatedHours.derivation().orElseThrow();
+        assertThat(totalEstimatedHoursDerivation).isInstanceOf(RollupRule.class);
+        RollupRule totalEstimatedHoursRule = (RollupRule) totalEstimatedHoursDerivation;
+        assertThat(totalEstimatedHoursRule.sourceTypeIri()).isEqualTo(Fixtures.TASK_IRI);
+        assertThat(totalEstimatedHoursRule.viaIri()).isEqualTo(Fixtures.BELONGS_TO_PROJECT_IRI);
+        assertThat(totalEstimatedHoursRule.function()).isEqualTo(AggregateFunction.SUM);
+        assertThat(totalEstimatedHoursRule.ofPropertyIri()).hasValue(Fixtures.ESTIMATED_HOURS_IRI);
+        assertThat(totalEstimatedHoursRule.criteria()).isEmpty();
+    }
+
+    /**
+     * T5 regression guard, first positive proof {@code ServiceLoader} plug-in discovery works end
+     * to end: {@code reference-plugin.ttl}'s {@code ex:workload} names {@code "workload"}, which
+     * this reactor's {@code sequeless-spi-testkit} module now registers via {@code
+     * META-INF/services/org.sequeless.spi.derivation.DerivationPlugin} (the sample {@code
+     * WorkloadDerivationPlugin}). Activation must succeed — T4 already proves the opposite case
+     * (an unregistered name fails activation) in {@code UnknownPluginActivationTest}.
+     */
+    @Test
+    void referencePluginFixtureActivatesCleanlyNowThatWorkloadIsRegistered() {
+        JenaOntologyPort port =
+            JenaOntologyPort.fromDocument(Fixtures.referencePluginOntology(), ReasonerSetting.OWL);
+        MetaModelSnapshot snapshot = port.snapshot(SCOPE);
+
+        assertThat(snapshot.report().consistent()).isTrue();
+        assertThat(snapshot.report().issues()).isEmpty();
+
+        TypeDefinition person = type(snapshot, Fixtures.PERSON_IRI);
+        AttributeDefinition workload = attribute(person, Fixtures.WORKLOAD_IRI);
+        assertThat(workload.readOnly()).isTrue();
+        DerivationRule derivation = workload.derivation().orElseThrow();
+        assertThat(derivation).isInstanceOf(PluginRule.class);
+        assertThat(((PluginRule) derivation).pluginName()).isEqualTo("workload");
     }
 
     private static List<String> propertyIris(ReasonerSetting reasoner, String typeIri) {

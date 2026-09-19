@@ -18,9 +18,18 @@
 # a bare tagged value. Without this, filtering/sorting/faceting on these properties through the
 # REST API (and the assignedTo facet's Person.name display-label resolution, which reads target.
 # props ->> 'text' the same way) is unreachable even though the property itself is sq:facet/
-# sq:indexed. title/estimatedHours/description are deliberately left unrestricted (max unbounded)
-# — nothing in this phase filters/sorts/facets on them, and existing tests (F39) rely on posting
-# them as JSON lists.
+# sq:indexed. estimatedHours (on Task) gained the same restriction in Phase 4 (derived properties,
+# T5): ex:totalEstimatedHours below is a sq:Rollup that sums it with SQL sum(), which needs
+# ValueCoercer to have stored a bare tagged value ({"decimal": ...}) rather than a JSON list, for
+# exactly the reason filter/sort/facet resolution does above. title/description remain
+# deliberately unrestricted (max unbounded) — nothing filters/sorts/facets/aggregates on them, and
+# existing tests (F39) rely on posting them as JSON lists.
+#
+# ex:Project also declares two Phase 4 derived properties, openTaskCount and totalEstimatedHours:
+# both are sq:Rollup-derived, computed on read from ex:Task via ex:belongsToProject, and never
+# stored in props. Declaring sq:derivedBy forces PropertyDefinition.readOnly() true regardless of
+# sq:readOnly, and both carry an owl:maxCardinality 1 restriction so they render as scalars, the
+# same way status does above. See docs/architecture/sq-vocabulary.md for the sq:Rollup vocabulary.
 #
 
 <https://sequeless.dev/ns/ref>
@@ -59,12 +68,21 @@ ex:Task
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
         [ a owl:Restriction ;
           owl:onProperty ex:dueDate ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:estimatedHours ;
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Task" .
 
 ex:Project
     a owl:Class ;
-    rdfs:subClassOf ex:WorkItem ;
+    rdfs:subClassOf ex:WorkItem ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:openTaskCount ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:totalEstimatedHours ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Project" .
 
 ex:Person
@@ -179,6 +197,39 @@ ex:email
     rdfs:range xsd:string ;
     sq:label "Email" ;
     sq:displayOrder "2"^^xsd:integer .
+
+#
+# Derived properties (Phase 4, DR-08) — computed on read from ex:Task, never stored in props.
+#
+
+ex:openTaskCount
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Project ;
+    rdfs:range xsd:integer ;
+    sq:label "Open Tasks" ;
+    sq:displayOrder "3"^^xsd:integer ;
+    sq:derivedBy [
+        a sq:Rollup ;
+        sq:function sq:count ;
+        sq:over ex:Task ;
+        sq:via ex:belongsToProject ;
+        sq:filter ( [ a sq:Criterion ;
+                      sq:property ex:status ;
+                      sq:operator sq:ne ;
+                      sq:value "done" ] ) ] .
+
+ex:totalEstimatedHours
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Project ;
+    rdfs:range xsd:decimal ;
+    sq:label "Total Estimated Hours" ;
+    sq:displayOrder "4"^^xsd:integer ;
+    sq:derivedBy [
+        a sq:Rollup ;
+        sq:function sq:sum ;
+        sq:over ex:Task ;
+        sq:via ex:belongsToProject ;
+        sq:of ex:estimatedHours ] .
 
 #
 # SHACL shapes

@@ -81,12 +81,13 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
     @Test
     void addWithEstimatedHoursOutOfRangeReturnsShaclViolation() {
         // ex:TaskShape's sh:maxInclusive on estimatedHours is 1000; 5000 violates it.
-        // estimatedHours, like title (F39), has no maxCardinality restriction in the ontology, so
-        // ValueCoercer treats it as list-expecting too: send [5000], not a bare 5000.
+        // estimatedHours gained an owl:maxCardinality 1 restriction in Phase 4 (T5, so its
+        // Project-level rollup can sum it in SQL), so it is now scalar-expecting like name
+        // (F27's comment below): send a bare 5000, not a list.
         Map<String, Object> body =
                 Map.of(
                         "properties",
-                        Map.of("title", List.of("Overbudget task"), "estimatedHours", List.of(5000)));
+                        Map.of("title", List.of("Overbudget task"), "estimatedHours", 5000));
 
         restTestClient
                 .post()

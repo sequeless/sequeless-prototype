@@ -103,11 +103,37 @@ public final class Fixtures {
     /** {@code ex:email} — {@code xsd:string}, declared on {@link #PERSON_IRI}. */
     public static final String EMAIL_IRI = REF + "email";
 
+    /**
+     * {@code ex:openTaskCount} — {@code xsd:integer}, declared on {@link #PROJECT_IRI}; {@code
+     * sq:Rollup}-derived ({@code count} of {@link #TASK_IRI} via {@link #BELONGS_TO_PROJECT_IRI},
+     * filtered to {@code status != "done"}).
+     */
+    public static final String OPEN_TASK_COUNT_IRI = REF + "openTaskCount";
+
+    /**
+     * {@code ex:totalEstimatedHours} — {@code xsd:decimal}, declared on {@link #PROJECT_IRI};
+     * {@code sq:Rollup}-derived ({@code sum} of {@link #ESTIMATED_HOURS_IRI} over {@link
+     * #TASK_IRI} via {@link #BELONGS_TO_PROJECT_IRI}, no filter).
+     */
+    public static final String TOTAL_ESTIMATED_HOURS_IRI = REF + "totalEstimatedHours";
+
+    /**
+     * {@code ex:workload} — {@code xsd:decimal}, declared on {@link #PERSON_IRI} only in {@link
+     * #referencePluginOntology()} and {@link #unknownPluginOntology()} (not in {@link
+     * #referenceOntology()}); {@code sq:Plugin}-derived, dispatching by {@code sq:pluginName} to a
+     * registered {@code DerivationPlugin}.
+     */
+    public static final String WORKLOAD_IRI = REF + "workload";
+
     private static final String REFERENCE_TURTLE = readClasspathResource("/ontology/reference.ttl");
     private static final String INCONSISTENT_TURTLE =
         readClasspathResource("/ontology/inconsistent.ttl");
     private static final String INVERSE_TRANSITIVE_TURTLE =
         readClasspathResource("/ontology/inverse-transitive.ttl");
+    private static final String REFERENCE_PLUGIN_TURTLE =
+        readClasspathResource("/ontology/reference-plugin.ttl");
+    private static final String UNKNOWN_PLUGIN_TURTLE =
+        readClasspathResource("/ontology/unknown-plugin.ttl");
 
     private Fixtures() {}
 
@@ -165,6 +191,32 @@ public final class Fixtures {
      */
     public static OntologyDocument inverseTransitiveOntology() {
         return new OntologyDocument(INVERSE_TRANSITIVE_TURTLE, OntologyFormat.TURTLE);
+    }
+
+    /**
+     * {@link #referenceOntology()} plus one {@code sq:Plugin}-derived property, {@link
+     * #WORKLOAD_IRI} on {@link #PERSON_IRI}, whose {@code sq:pluginName} ({@code "workload"})
+     * matches the sample {@code WorkloadDerivationPlugin} this module registers under {@code
+     * META-INF/services/org.sequeless.spi.derivation.DerivationPlugin}. This is the fixture a
+     * {@code @SpringBootTest} points {@code sequeless.ontology.source} at to prove a plug-in is
+     * discovered and executed end to end.
+     *
+     * @return a fresh {@link OntologyDocument} holding the reference-plus-plugin ontology as Turtle
+     */
+    public static OntologyDocument referencePluginOntology() {
+        return new OntologyDocument(REFERENCE_PLUGIN_TURTLE, OntologyFormat.TURTLE);
+    }
+
+    /**
+     * Identical in shape to {@link #referencePluginOntology()}, except {@link #WORKLOAD_IRI}'s
+     * {@code sq:pluginName} names a plug-in nothing on the classpath registers. Activation must
+     * fail with an ERROR {@link org.sequeless.spi.ontology.OntologyIssue} naming {@link
+     * #WORKLOAD_IRI}, exactly as an unresolved import or a reserved term does.
+     *
+     * @return a fresh {@link OntologyDocument} holding the unknown-plugin ontology as Turtle
+     */
+    public static OntologyDocument unknownPluginOntology() {
+        return new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE);
     }
 
     /**

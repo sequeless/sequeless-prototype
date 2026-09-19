@@ -3,14 +3,19 @@ package org.sequeless.testkit.query;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.Cardinality;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DisplayHints;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.RelationshipDefinition;
+import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.object.TextValue;
 import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Operator;
 import org.sequeless.testkit.Fixtures;
 
 /**
@@ -24,10 +29,16 @@ import org.sequeless.testkit.Fixtures;
  * produce: {@link #task()}'s properties list is {@code title, createdAt} (from {@code
  * Deliverable}), {@code status, description} (from {@code WorkItem}), plus {@code priority,
  * assignedTo, belongsToProject, estimatedHours, dueDate} (Task's own) — nine properties in total.
- * {@code title}'s cardinality differs by which type's properties list it appears in: {@link
- * #task()} carries a {@code min 1} view of it (Task's own {@code owl:minCardinality} restriction),
- * while every other type carries the unrestricted {@code optional()} view, matching {@code
- * reference.ttl} precisely.
+ * {@link #project()}'s properties list is {@code title, createdAt} (from {@code Deliverable}),
+ * {@code status, description} (from {@code WorkItem}), plus {@code hasTask, openTaskCount,
+ * totalEstimatedHours} (Project's own, the latter two {@code sq:Rollup}-derived) — seven
+ * properties in total. {@code title}'s cardinality differs by which type's properties list it
+ * appears in: {@link #task()} carries a {@code min 1} view of it (Task's own {@code
+ * owl:minCardinality} restriction), while every other type carries the unrestricted {@code
+ * optional()} view, matching {@code reference.ttl} precisely. {@code estimatedHours} carries a
+ * {@code max 1} view (T5's {@code owl:maxCardinality 1} restriction on {@code ex:Task}), which is
+ * what lets {@code ValueCoercer} store it as a bare tagged value rather than a JSON list — the
+ * shape {@code totalEstimatedHours}'s rollup sums.
  *
  * <p>Every property and type here uses {@link DisplayHints#none()} — query logic never reads
  * display hints, so building meaningful ones would only be noise.
@@ -109,14 +120,23 @@ public final class QueryFixtures {
     /**
      * {@code ex:Project} — concrete, subclass of {@link #workItem()} (and transitively {@link
      * #deliverable()}); properties list is every inherited property plus Project's own {@code
-     * hasTask}, five in total.
+     * hasTask, openTaskCount, totalEstimatedHours}, seven in total. The latter two are {@code
+     * sq:Rollup}-derived (T5) and {@code readOnly}, matching the exact {@link RollupRule} shape
+     * {@code SnapshotMapper} produces from {@code reference.ttl}.
      */
     public static TypeDefinition project() {
         return new TypeDefinition(
             Fixtures.PROJECT_IRI,
             "Project",
             List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
-            List.of(titleOptional(), createdAt(), status(), description(), hasTask()),
+            List.of(
+                titleOptional(),
+                createdAt(),
+                status(),
+                description(),
+                hasTask(),
+                openTaskCount(),
+                totalEstimatedHours()),
             DisplayHints.none(),
             false,
             Optional.empty());
@@ -172,10 +192,74 @@ public final class QueryFixtures {
             false, Datatype.INTEGER);
     }
 
+    /**
+     * {@code max 1} (T5's {@code owl:maxCardinality 1} restriction on {@code ex:Task}) — a change
+     * from this fixture's earlier unbounded cardinality, made so a stored value is a bare tagged
+     * value rather than a JSON list, which is what lets {@link #totalEstimatedHours()}'s rollup sum
+     * it in SQL.
+     */
     private static AttributeDefinition estimatedHours() {
         return attribute(
-            Fixtures.ESTIMATED_HOURS_IRI, "Estimated Hours", Cardinality.optional(), false, false,
+            Fixtures.ESTIMATED_HOURS_IRI, "Estimated Hours", Cardinality.atMost(1), false, false,
             false, false, false, Datatype.DECIMAL);
+    }
+
+    /**
+     * {@code ex:openTaskCount} — {@code sq:Rollup}-derived: {@code count} of {@link
+     * Fixtures#TASK_IRI} via {@link Fixtures#BELONGS_TO_PROJECT_IRI}, filtered to {@code status !=
+     * "done"}. Matches the exact {@link RollupRule} {@code SnapshotMapper} produces from {@code
+     * reference.ttl}'s {@code ex:openTaskCount} declaration, including the typed {@link TextValue}
+     * criterion value.
+     */
+    private static AttributeDefinition openTaskCount() {
+        return new AttributeDefinition(
+            Fixtures.OPEN_TASK_COUNT_IRI,
+            "Open Tasks",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            true,
+            false,
+            DisplayHints.none(),
+            Optional.of(
+                new RollupRule(
+                    Fixtures.TASK_IRI,
+                    Fixtures.BELONGS_TO_PROJECT_IRI,
+                    AggregateFunction.COUNT,
+                    Optional.empty(),
+                    List.of(
+                        new Criterion(
+                            Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))))),
+            Datatype.INTEGER);
+    }
+
+    /**
+     * {@code ex:totalEstimatedHours} — {@code sq:Rollup}-derived: {@code sum} of {@link
+     * Fixtures#ESTIMATED_HOURS_IRI} over {@link Fixtures#TASK_IRI} via {@link
+     * Fixtures#BELONGS_TO_PROJECT_IRI}, no filter. Matches the exact {@link RollupRule} {@code
+     * SnapshotMapper} produces from {@code reference.ttl}'s {@code ex:totalEstimatedHours}
+     * declaration.
+     */
+    private static AttributeDefinition totalEstimatedHours() {
+        return new AttributeDefinition(
+            Fixtures.TOTAL_ESTIMATED_HOURS_IRI,
+            "Total Estimated Hours",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            true,
+            false,
+            DisplayHints.none(),
+            Optional.of(
+                new RollupRule(
+                    Fixtures.TASK_IRI,
+                    Fixtures.BELONGS_TO_PROJECT_IRI,
+                    AggregateFunction.SUM,
+                    Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                    List.of())),
+            Datatype.DECIMAL);
     }
 
     private static AttributeDefinition dueDate() {

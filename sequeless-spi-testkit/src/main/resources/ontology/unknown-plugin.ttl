@@ -6,6 +6,16 @@
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
 
 #
+# reference.ttl plus one sq:Plugin-derived property, ex:workload on ex:Person, whose sq:pluginName
+# ("does-not-exist") matches no registered org.sequeless.spi.derivation.DerivationPlugin on the
+# classpath -- unlike reference-plugin.ttl's "workload", which the sample WorkloadDerivationPlugin
+# does register. Exists to prove ontology activation fails, at startup, on an unresolvable
+# sq:pluginName (T4's ServiceLoader-backed check in JenaOntologyPort.buildStateFrom). Distinct
+# filename (and, at the app level, distinct classpath resource) from reference.ttl and
+# reference-plugin.ttl on purpose: sequeless-app and sequeless-spi-testkit both put resources under
+# ontology/, so reusing a shared filename would make a classpath lookup ambiguous and
+# order-dependent.
+#
 # Reference-domain ontology used across the contract testkit and the Jena adapter's own tests.
 # Deliverable is abstract and superclasses WorkItem, which is itself abstract and superclasses the
 # concrete Task and Project types. Person stands alone. The three-level hierarchy is intentional:
@@ -93,6 +103,9 @@ ex:Person
           owl:minCardinality "1"^^xsd:nonNegativeInteger ] ,
         [ a owl:Restriction ;
           owl:onProperty ex:name ;
+          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
+        [ a owl:Restriction ;
+          owl:onProperty ex:workload ;
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ;
     sq:label "Person" .
 
@@ -230,6 +243,20 @@ ex:totalEstimatedHours
         sq:over ex:Task ;
         sq:via ex:belongsToProject ;
         sq:of ex:estimatedHours ] .
+
+#
+# Derived property backed by a code plug-in rather than a declarative rollup (Phase 4, DR-08):
+# dispatches by name to a registered org.sequeless.spi.derivation.DerivationPlugin, exactly as
+# ex:openTaskCount/ex:totalEstimatedHours above dispatch to a declarative sq:Rollup.
+#
+
+ex:workload
+    a owl:DatatypeProperty ;
+    rdfs:domain ex:Person ;
+    rdfs:range xsd:decimal ;
+    sq:label "Workload" ;
+    sq:displayOrder "3"^^xsd:integer ;
+    sq:derivedBy [ a sq:Plugin ; sq:pluginName "does-not-exist" ] .
 
 #
 # SHACL shapes
