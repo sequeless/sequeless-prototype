@@ -83,6 +83,63 @@ final class SqVocabulary {
     /** {@code sq:pluginName} — feeds {@code PluginRule.pluginName()}. */
     static final Property PLUGIN_NAME = property("pluginName");
 
+    /** {@code sq:appliesTo} — feeds the type key of {@code TypeDefinition.stateMachine()}. */
+    static final Property APPLIES_TO = property("appliesTo");
+
+    /** {@code sq:initialState} — feeds {@code StateMachineDefinition.initialState()}. */
+    static final Property INITIAL_STATE = property("initialState");
+
+    /** {@code sq:state} — feeds {@code StateMachineDefinition.states()}; plain multi-valued. */
+    static final Property STATE = property("state");
+
+    /** {@code sq:transition} — feeds {@code StateMachineDefinition.transitions()}; plain multi-valued. */
+    static final Property TRANSITION = property("transition");
+
+    /** {@code sq:name} — feeds {@code Transition.name()}. */
+    static final Property NAME = property("name");
+
+    /** {@code sq:from} — feeds {@code Transition.fromStateIri()}. */
+    static final Property FROM = property("from");
+
+    /** {@code sq:to} — feeds {@code Transition.toStateIri()}. */
+    static final Property TO = property("to");
+
+    /** {@code sq:trigger} — validated only; this phase's one legal value is {@link #USER_ACTION}. */
+    static final Property TRIGGER = property("trigger");
+
+    /** {@code sq:guard} — feeds {@code Transition.guard()}. */
+    static final Property GUARD = property("guard");
+
+    /** {@code sq:guardMessage} — feeds {@code Transition.guardMessage()}. */
+    static final Property GUARD_MESSAGE = property("guardMessage");
+
+    /** {@code sq:action} — feeds {@code Transition.actions()}; an {@code rdf:List}. */
+    static final Property ACTION = property("action");
+
+    /**
+     * {@code sq:expression} — feeds {@code SetPropertyAction.expression()} /
+     * {@code PropertyAssignment.expression()}.
+     */
+    static final Property EXPRESSION = property("expression");
+
+    /** {@code sq:type} — feeds {@code CreateObjectAction.typeIri()}. */
+    static final Property TYPE = property("type");
+
+    /** {@code sq:properties} — feeds {@code CreateObjectAction.properties()}; an {@code rdf:List}. */
+    static final Property PROPERTIES = property("properties");
+
+    /** {@code sq:url} — feeds {@code WebhookAction.url()}. */
+    static final Property URL = property("url");
+
+    /** {@code sq:method} — feeds {@code WebhookAction.method()}; defaults to {@code "POST"}. */
+    static final Property METHOD = property("method");
+
+    /** {@code sq:body} — feeds {@code WebhookAction.body()}. */
+    static final Property BODY = property("body");
+
+    /** {@code sq:message} — feeds {@code LogAction.message()}. */
+    static final Property MESSAGE = property("message");
+
     /**
      * {@code sq:Rollup} — types a {@code sq:derivedBy} blank node as a declarative aggregate. A
      * node typed both this and {@link #PLUGIN}, or neither, is a rule-shape {@code ERROR}.
@@ -98,6 +155,37 @@ final class SqVocabulary {
 
     /** {@code sq:Criterion} — types each element of a {@code sq:filter} RDF list. */
     static final Resource CRITERION = ResourceFactory.createResource(NS + "Criterion");
+
+    /** {@code sq:StateMachine} — types a node attached to a type via {@link #APPLIES_TO}. */
+    static final Resource STATE_MACHINE = ResourceFactory.createResource(NS + "StateMachine");
+
+    /** {@code sq:State} — types each element of a {@link #STATE} triple. */
+    static final Resource STATE_CLASS = ResourceFactory.createResource(NS + "State");
+
+    /** {@code sq:Transition} — types each element of a {@link #TRANSITION} triple. */
+    static final Resource TRANSITION_CLASS = ResourceFactory.createResource(NS + "Transition");
+
+    /**
+     * {@code sq:SetProperty} — one of the four {@code sq:action} list element kinds. A node typed
+     * as none or more than one of {@link #SET_PROPERTY}/{@link #CREATE_OBJECT}/{@link #WEBHOOK}/
+     * {@link #LOG} is a rule-shape {@code ERROR}, mirroring {@link #ROLLUP}/{@link #PLUGIN}.
+     */
+    static final Resource SET_PROPERTY = ResourceFactory.createResource(NS + "SetProperty");
+
+    /** {@code sq:CreateObject} — one of the four {@code sq:action} list element kinds. */
+    static final Resource CREATE_OBJECT = ResourceFactory.createResource(NS + "CreateObject");
+
+    /** {@code sq:PropertyAssignment} — types each element of a {@link #PROPERTIES} RDF list. */
+    static final Resource PROPERTY_ASSIGNMENT = ResourceFactory.createResource(NS + "PropertyAssignment");
+
+    /** {@code sq:Webhook} — one of the four {@code sq:action} list element kinds. */
+    static final Resource WEBHOOK = ResourceFactory.createResource(NS + "Webhook");
+
+    /** {@code sq:Log} — one of the four {@code sq:action} list element kinds. */
+    static final Resource LOG = ResourceFactory.createResource(NS + "Log");
+
+    /** {@code sq:UserAction} — the only legal {@link #TRIGGER} value this phase supports. */
+    static final Resource USER_ACTION = ResourceFactory.createResource(NS + "UserAction");
 
     /**
      * Every {@code sq:} term implemented by a later phase, in the order they appear in the

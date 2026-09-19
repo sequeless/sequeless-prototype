@@ -132,8 +132,8 @@ Notes:
   properties above point at and have no snapshot field of their own.
 - `sq:State` individuals reuse the existing `sq:label`/`sq:displayOrder` terms, per those terms'
   already-documented shared `owl:Class ∪ rdf:Property` domain.
-- `sq:state` is plain multi-valued (order doesn't matter); `sq:transition` and `sq:action` are
-  `rdf:List`s (order matters), mirroring the `sq:filter` precedent.
+- `sq:state` and `sq:transition` are plain multi-valued (order doesn't matter); `sq:action` is an
+  `rdf:List` (order matters), mirroring the `sq:filter` precedent.
 - `sq:property`/`sq:value` now have a **three-way union domain** (`sq:Criterion` ∪ `sq:SetProperty` ∪
   `sq:PropertyAssignment`). No `rdfs:domain` is asserted for either — exactly the
   `sq:label`/`sq:derivedBy` pattern — because RDFS `rdfs:domain` triples combine by **intersection**,

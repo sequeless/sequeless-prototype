@@ -125,6 +125,27 @@ public final class Fixtures {
      */
     public static final String WORKLOAD_IRI = REF + "workload";
 
+    /** {@code ex:owner} — object property to {@link #PERSON_IRI}, declared on {@link #PROJECT_IRI}. */
+    public static final String OWNER_IRI = REF + "owner";
+
+    /**
+     * {@code ex:ProjectLifecycle} — the {@code sq:StateMachine} attached to {@link #PROJECT_IRI}
+     * (Phase 5, DR-09), moving a project Draft → Active → OnHold/Closed.
+     */
+    public static final String PROJECT_LIFECYCLE_IRI = REF + "ProjectLifecycle";
+
+    /** {@code ex:Draft} — {@link #PROJECT_LIFECYCLE_IRI}'s initial state. */
+    public static final String DRAFT_IRI = REF + "Draft";
+
+    /** {@code ex:Active} — reached from {@link #DRAFT_IRI} by the {@code activate} transition. */
+    public static final String ACTIVE_IRI = REF + "Active";
+
+    /** {@code ex:OnHold} — reached from {@link #ACTIVE_IRI} by the {@code hold} transition. */
+    public static final String ON_HOLD_IRI = REF + "OnHold";
+
+    /** {@code ex:Closed} — reached from {@link #ACTIVE_IRI} by the {@code close} transition. */
+    public static final String CLOSED_IRI = REF + "Closed";
+
     private static final String REFERENCE_TURTLE = readClasspathResource("/ontology/reference.ttl");
     private static final String INCONSISTENT_TURTLE =
         readClasspathResource("/ontology/inconsistent.ttl");

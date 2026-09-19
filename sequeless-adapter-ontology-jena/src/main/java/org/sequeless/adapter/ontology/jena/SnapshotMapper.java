@@ -29,17 +29,26 @@ import org.apache.jena.vocabulary.OWL;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
+import org.sequeless.spi.meta.Action;
 import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.Cardinality;
+import org.sequeless.spi.meta.CreateObjectAction;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DerivationRule;
 import org.sequeless.spi.meta.DisplayHints;
+import org.sequeless.spi.meta.LogAction;
 import org.sequeless.spi.meta.PluginRule;
+import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.RollupRule;
+import org.sequeless.spi.meta.SetPropertyAction;
+import org.sequeless.spi.meta.State;
+import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.Value;
 import org.sequeless.spi.ontology.OntologyIssue;
@@ -160,8 +169,13 @@ final class SnapshotMapper {
                 .map(RollupRule.class::cast)
                 .ifPresent(rollup -> validateVia(meta.iri(), rollup, classByIri, declaredByOwner, memo, issues)));
 
+        // Fourth pass: sq:StateMachine nodes, top-down (state machine -> its sq:appliesTo type)
+        // rather than bottom-up like the sq:derivedBy passes above, since a state machine names
+        // its target type instead of being discovered by walking that type's own properties.
+        Map<String, StateMachineDefinition> stateMachineByTypeIri = stateMachinesOf(model, classByIri, issues);
+
         List<TypeDefinition> types = classes.stream()
-            .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo))
+            .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo, stateMachineByTypeIri))
             .sorted(Comparator.comparing(TypeDefinition::iri))
             .toList();
 
@@ -200,7 +214,8 @@ final class SnapshotMapper {
             OntClass.Named cls,
             Map<String, OntClass.Named> classByIri,
             Map<String, List<PropertyMeta>> declaredByOwner,
-            Map<String, LinkedHashMap<String, PropertyMeta>> memo) {
+            Map<String, LinkedHashMap<String, PropertyMeta>> memo,
+            Map<String, StateMachineDefinition> stateMachineByTypeIri) {
         LinkedHashMap<String, PropertyMeta> effective =
             effectivePropertyMeta(cls.getURI(), classByIri, declaredByOwner, memo);
 
@@ -221,7 +236,8 @@ final class SnapshotMapper {
         boolean isAbstract = SqAnnotations.bool(cls, SqVocabulary.ABSTRACT, false);
 
         return new TypeDefinition(
-            cls.getURI(), label, superTypes, properties, displayHints, isAbstract, Optional.empty());
+            cls.getURI(), label, superTypes, properties, displayHints, isAbstract,
+            Optional.ofNullable(stateMachineByTypeIri.get(cls.getURI())));
     }
 
     /**
@@ -460,9 +476,11 @@ final class SnapshotMapper {
 
     /**
      * {@code sq:label}, then {@code rdfs:label}, then the IRI's local name — the priority order
-     * {@code sq-vocabulary.md} specifies, reused for both types and properties.
+     * {@code sq-vocabulary.md} specifies, reused for types, properties, and (phase 5) {@code
+     * sq:State} individuals. Parameter type is the plain {@link Resource}, not {@code OntObject} —
+     * see {@link SqAnnotations}'s javadoc for why.
      */
-    private static String resolveLabel(OntObject subject) {
+    private static String resolveLabel(Resource subject) {
         return SqAnnotations.string(subject, SqVocabulary.LABEL)
             .or(() -> SqAnnotations.string(subject, RDFS.label))
             .orElseGet(subject::getLocalName);
@@ -688,16 +706,11 @@ final class SnapshotMapper {
 
     /**
      * Coerces {@code lexical} (the lexical form of a criterion's {@code sq:value}) against {@code
-     * criterionPropertyIri}'s own kind and datatype, exactly as {@code dataPropertyMeta} resolves an
-     * ordinary attribute's datatype: {@link OntModel#getObjectProperty} / {@link
-     * OntModel#getDataProperty} tell us which kind {@code criterionPropertyIri} actually is (both
-     * return {@code null} rather than throwing when the IRI is not declared as that kind — verified
-     * empirically), and for a data property the same {@link OntDataProperty#ranges()} /
-     * {@link Datatype#fromXsd} lookup used there gives the target {@link Datatype}. This keeps the
-     * {@link RollupRule#criteria()} a snapshot carries already correct for every downstream
-     * consumer (in particular {@code PostgresQueryStore}, which casts the JSONB extraction per
-     * datatype): a criterion against a numeric or date property must never be forced through a
-     * lexical {@link org.sequeless.spi.object.TextValue}.
+     * criterionPropertyIri}'s own kind and datatype. Thin wrapper over {@link
+     * #resolveValueForProperty}, which is the shared core reused by phase 5's {@code sq:SetProperty}
+     * / {@code sq:PropertyAssignment} {@code sq:value} coercion — see that method's javadoc for the
+     * mechanics; this wrapper exists only to supply this call site's own {@code "sq:filter criterion
+     * on ..."} error wording, so every message produced here is byte-for-byte what it always was.
      *
      * @return the coerced {@link Value}, or {@link Optional#empty()} after recording an {@code
      *     ERROR} naming {@code propertyIri} (the derived property) if {@code criterionPropertyIri}
@@ -710,18 +723,56 @@ final class SnapshotMapper {
             String lexical,
             OntModel model,
             List<OntologyIssue> issues) {
-        if (model.getObjectProperty(criterionPropertyIri) != null) {
+        return resolveValueForProperty(
+            propertyIri, "sq:filter criterion on " + propertyIri, criterionPropertyIri, lexical, model, issues);
+    }
+
+    /**
+     * Coerces {@code lexical} against {@code targetPropertyIri}'s own kind and datatype, exactly as
+     * {@code dataPropertyMeta} resolves an ordinary attribute's datatype: {@link
+     * OntModel#getObjectProperty} / {@link OntModel#getDataProperty} tell us which kind {@code
+     * targetPropertyIri} actually is (both return {@code null} rather than throwing when the IRI is
+     * not declared as that kind — verified empirically), and for a data property the same {@link
+     * OntDataProperty#ranges()} / {@link Datatype#fromXsd} lookup used there gives the target {@link
+     * Datatype}. Shared by {@link #criterionValue} (a {@code sq:filter} criterion's {@code
+     * sq:value}) and {@link #valueOrExpressionOf} (a {@code sq:SetProperty}/{@code
+     * sq:PropertyAssignment} node's {@code sq:value}) — every caller supplies its own {@code
+     * context} description (e.g. {@code "sq:filter criterion on " + propertyIri}) so the {@code
+     * ERROR} message stays specific to what was actually being parsed, while the coercion mechanics
+     * (and the {@code ERROR} it reports for each of the two ways a value can fail to resolve) live
+     * here exactly once. This keeps a downstream {@link Value} always correct for every consumer (in
+     * particular {@code PostgresQueryStore}, which casts the JSONB extraction per datatype): a value
+     * against a numeric or date property must never be forced through a lexical {@link
+     * org.sequeless.spi.object.TextValue}.
+     *
+     * @param errorSubjectIri the IRI an {@code ERROR} issue is named on
+     * @param context a human-readable description of what is being parsed, e.g. {@code "sq:filter
+     *     criterion on ex:openTaskCount"} or {@code "sq:SetProperty action on transition 'activate'
+     *     of ex:ProjectLifecycle"}; prefixed onto every message this method reports
+     * @return the coerced {@link Value}, or {@link Optional#empty()} after recording an {@code
+     *     ERROR} if {@code targetPropertyIri} has no resolvable kind/datatype, or if {@code lexical}
+     *     does not parse for it (an object property expects a UUID; a data property expects a
+     *     lexical form its datatype accepts)
+     */
+    private static Optional<Value> resolveValueForProperty(
+            String errorSubjectIri,
+            String context,
+            String targetPropertyIri,
+            String lexical,
+            OntModel model,
+            List<OntologyIssue> issues) {
+        if (model.getObjectProperty(targetPropertyIri) != null) {
             try {
                 return Optional.of(Value.ref(ObjectId.parse(lexical)));
             } catch (IllegalArgumentException e) {
-                issues.add(error(propertyIri,
-                    "sq:filter criterion on " + propertyIri + " has sq:value '" + lexical
-                        + "' which is not a valid object id for object property " + criterionPropertyIri));
+                issues.add(error(errorSubjectIri,
+                    context + " has sq:value '" + lexical
+                        + "' which is not a valid object id for object property " + targetPropertyIri));
                 return Optional.empty();
             }
         }
 
-        OntDataProperty dataProperty = model.getDataProperty(criterionPropertyIri);
+        OntDataProperty dataProperty = model.getDataProperty(targetPropertyIri);
         Optional<Datatype> datatype = dataProperty == null
             ? Optional.empty()
             : dataProperty.ranges()
@@ -731,17 +782,16 @@ final class SnapshotMapper {
                 .findFirst()
                 .flatMap(Datatype::fromXsd);
         if (datatype.isEmpty()) {
-            issues.add(error(propertyIri,
-                "sq:filter criterion on " + propertyIri + " references sq:property '" + criterionPropertyIri
-                    + "' with no resolvable datatype"));
+            issues.add(error(errorSubjectIri,
+                context + " references sq:property '" + targetPropertyIri + "' with no resolvable datatype"));
             return Optional.empty();
         }
 
         Optional<Value> value = coerceLiteral(datatype.get(), lexical);
         if (value.isEmpty()) {
-            issues.add(error(propertyIri,
-                "sq:filter criterion on " + propertyIri + " has sq:value '" + lexical + "' which is not a valid "
-                    + datatype.get() + " for property " + criterionPropertyIri));
+            issues.add(error(errorSubjectIri,
+                context + " has sq:value '" + lexical + "' which is not a valid "
+                    + datatype.get() + " for property " + targetPropertyIri));
         }
         return value;
     }
@@ -778,6 +828,427 @@ final class SnapshotMapper {
         }
         throw new IllegalArgumentException("not a boolean: " + lexical);
     }
+
+    // -- sq:StateMachine (phase 5) ----------------------------------------------------------------
+
+    /**
+     * Finds every {@code sq:StateMachine} node in {@code model} and parses each into a {@link
+     * StateMachineDefinition} keyed by the IRI of the type it governs ({@code sq:appliesTo}). A
+     * top-down pass — state-machine node to governed type — rather than the bottom-up shape {@link
+     * #derivationOf} uses (property to its own rule), since a state machine names its target type
+     * instead of being discovered by walking that type's own properties; that is also why this
+     * builds its own map once here rather than folding into the per-property loops that build
+     * {@code declaredByOwner} above. A malformed state machine is skipped — absent from the
+     * returned map, so its type resolves to {@link Optional#empty()} for {@code stateMachine()}) —
+     * rather than aborting the whole document mapping, exactly like a malformed {@code sq:derivedBy}
+     * rule is skipped for just the one property that declared it.
+     */
+    private static Map<String, StateMachineDefinition> stateMachinesOf(
+            OntModel model, Map<String, OntClass.Named> classByIri, List<OntologyIssue> issues) {
+        Map<String, StateMachineDefinition> byTypeIri = new LinkedHashMap<>();
+        List<Resource> nodes = model.listResourcesWithProperty(RDF.type, SqVocabulary.STATE_MACHINE).toList();
+        for (Resource node : nodes.stream().sorted(Comparator.comparing(SnapshotMapper::identifierOf)).toList()) {
+            stateMachineOf(node, model, classByIri, issues)
+                .ifPresent(byType -> byTypeIri.put(byType.typeIri(), byType.definition()));
+        }
+        return byTypeIri;
+    }
+
+    private static Optional<StateMachineByType> stateMachineOf(
+            Resource node, OntModel model, Map<String, OntClass.Named> classByIri, List<OntologyIssue> issues) {
+        String stateMachineIri = identifierOf(node);
+
+        Statement appliesToStmt = node.getProperty(SqVocabulary.APPLIES_TO);
+        if (appliesToStmt == null || !appliesToStmt.getObject().isURIResource()
+                || !classByIri.containsKey(appliesToStmt.getObject().asResource().getURI())) {
+            issues.add(error(stateMachineIri,
+                "sq:StateMachine " + stateMachineIri + " must declare sq:appliesTo naming a named owl:Class"));
+            return Optional.empty();
+        }
+        String typeIri = appliesToStmt.getObject().asResource().getURI();
+
+        List<Statement> stateStmts = node.listProperties(SqVocabulary.STATE).toList();
+        if (stateStmts.isEmpty()) {
+            issues.add(error(stateMachineIri,
+                "sq:StateMachine " + stateMachineIri + " must declare at least one sq:state"));
+            return Optional.empty();
+        }
+        List<State> states = new ArrayList<>();
+        for (Statement stmt : stateStmts) {
+            RDFNode stateObject = stmt.getObject();
+            if (!stateObject.isURIResource()) {
+                issues.add(error(stateMachineIri,
+                    "sq:StateMachine " + stateMachineIri + " has a sq:state that is not a named individual"));
+                return Optional.empty();
+            }
+            Resource stateNode = stateObject.asResource();
+            states.add(new State(
+                stateNode.getURI(),
+                resolveLabel(stateNode),
+                SqAnnotations.intValue(stateNode, SqVocabulary.DISPLAY_ORDER, NO_DISPLAY_ORDER)));
+        }
+        states.sort(Comparator.comparingInt(State::displayOrder).thenComparing(State::iri));
+        Set<String> stateIris = states.stream().map(State::iri).collect(Collectors.toSet());
+
+        Statement initialStateStmt = node.getProperty(SqVocabulary.INITIAL_STATE);
+        if (initialStateStmt == null || !initialStateStmt.getObject().isURIResource()
+                || !stateIris.contains(initialStateStmt.getObject().asResource().getURI())) {
+            issues.add(error(stateMachineIri,
+                "sq:StateMachine " + stateMachineIri
+                    + " sq:initialState must name one of its own sq:state values"));
+            return Optional.empty();
+        }
+        String initialStateIri = initialStateStmt.getObject().asResource().getURI();
+        State initialState = states.stream()
+            .filter(s -> s.iri().equals(initialStateIri))
+            .findFirst()
+            .orElseThrow();
+
+        List<Statement> transitionStmts = node.listProperties(SqVocabulary.TRANSITION).toList();
+        List<Transition> transitions = new ArrayList<>();
+        for (Statement stmt : transitionStmts) {
+            if (!stmt.getObject().isResource()) {
+                issues.add(error(stateMachineIri,
+                    "sq:StateMachine " + stateMachineIri + " has a sq:transition that is not a node"));
+                return Optional.empty();
+            }
+            Optional<Transition> transition =
+                transitionOf(stateMachineIri, stmt.getObject().asResource(), stateIris, model, issues);
+            if (transition.isEmpty()) {
+                return Optional.empty();
+            }
+            transitions.add(transition.get());
+        }
+        transitions.sort(Comparator.comparing(Transition::name));
+
+        try {
+            return Optional.of(
+                new StateMachineByType(typeIri, new StateMachineDefinition(stateMachineIri, states, initialState, transitions)));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "sq:StateMachine " + stateMachineIri + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Parses one {@code sq:Transition} node: {@code sq:name} (required, non-blank), {@code
+     * sq:from}/{@code sq:to} (required, must each name one of {@code stateIris}), {@code sq:trigger}
+     * (required; must be exactly {@code sq:UserAction} — this phase's only supported trigger kind,
+     * validated only, no snapshot field), {@code sq:guard}/{@code sq:guardMessage} (optional
+     * strings), and {@code sq:action} (an ordered {@code rdf:List}, absent meaning {@code []}).
+     */
+    private static Optional<Transition> transitionOf(
+            String stateMachineIri,
+            Resource node,
+            Set<String> stateIris,
+            OntModel model,
+            List<OntologyIssue> issues) {
+        Statement nameStmt = node.getProperty(SqVocabulary.NAME);
+        if (nameStmt == null || nameStmt.getString().isBlank()) {
+            issues.add(error(stateMachineIri, "a sq:transition on " + stateMachineIri + " is missing sq:name"));
+            return Optional.empty();
+        }
+        String name = nameStmt.getString();
+
+        Statement fromStmt = node.getProperty(SqVocabulary.FROM);
+        if (fromStmt == null || !fromStmt.getObject().isURIResource()
+                || !stateIris.contains(fromStmt.getObject().asResource().getURI())) {
+            issues.add(error(stateMachineIri, "transition '" + name + "' on " + stateMachineIri
+                + " sq:from must name one of the state machine's sq:state values"));
+            return Optional.empty();
+        }
+        String fromStateIri = fromStmt.getObject().asResource().getURI();
+
+        Statement toStmt = node.getProperty(SqVocabulary.TO);
+        if (toStmt == null || !toStmt.getObject().isURIResource()
+                || !stateIris.contains(toStmt.getObject().asResource().getURI())) {
+            issues.add(error(stateMachineIri, "transition '" + name + "' on " + stateMachineIri
+                + " sq:to must name one of the state machine's sq:state values"));
+            return Optional.empty();
+        }
+        String toStateIri = toStmt.getObject().asResource().getURI();
+
+        Statement triggerStmt = node.getProperty(SqVocabulary.TRIGGER);
+        if (triggerStmt == null || !triggerStmt.getObject().isURIResource()
+                || !SqVocabulary.USER_ACTION.getURI().equals(triggerStmt.getObject().asResource().getURI())) {
+            issues.add(error(stateMachineIri,
+                "transition '" + name + "' on " + stateMachineIri + " sq:trigger must be sq:UserAction"));
+            return Optional.empty();
+        }
+
+        Optional<String> guard = SqAnnotations.string(node, SqVocabulary.GUARD);
+        Optional<String> guardMessage = SqAnnotations.string(node, SqVocabulary.GUARD_MESSAGE);
+
+        Optional<List<Action>> actions = actionsOf(stateMachineIri, name, node, model, issues);
+        if (actions.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(new Transition(name, fromStateIri, toStateIri, guard, guardMessage, actions.get()));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri,
+                "transition '" + name + "' on " + stateMachineIri + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * {@code sq:action}, if present, is an RDF list of action nodes; absent means "no actions"
+     * ({@code []}), mirroring {@link #criteriaOf}'s handling of {@code sq:filter}.
+     */
+    private static Optional<List<Action>> actionsOf(
+            String stateMachineIri, String transitionName, Resource transitionNode, OntModel model,
+            List<OntologyIssue> issues) {
+        Statement actionStmt = transitionNode.getProperty(SqVocabulary.ACTION);
+        if (actionStmt == null) {
+            return Optional.of(List.of());
+        }
+        RDFNode actionListObject = actionStmt.getObject();
+        if (!actionListObject.isResource() || !actionListObject.asResource().canAs(RDFList.class)) {
+            issues.add(error(stateMachineIri, "sq:action on transition '" + transitionName + "' of "
+                + stateMachineIri + " must be a well-formed RDF list"));
+            return Optional.empty();
+        }
+
+        List<Action> actions = new ArrayList<>();
+        for (RDFNode actionNode : actionListObject.asResource().as(RDFList.class).asJavaList()) {
+            Optional<Action> action = actionOf(stateMachineIri, transitionName, actionNode, model, issues);
+            if (action.isEmpty()) {
+                return Optional.empty();
+            }
+            actions.add(action.get());
+        }
+        return Optional.of(actions);
+    }
+
+    /**
+     * Dispatches one {@code sq:action} list element by its {@code rdf:type} into exactly one of the
+     * four {@link Action} variants; a node typed as none or more than one of {@code sq:SetProperty}/
+     * {@code sq:CreateObject}/{@code sq:Webhook}/{@code sq:Log} is an {@code ERROR}, mirroring {@link
+     * #derivationOf}'s {@code sq:Rollup}/{@code sq:Plugin} dual-type check.
+     */
+    private static Optional<Action> actionOf(
+            String stateMachineIri, String transitionName, RDFNode node, OntModel model, List<OntologyIssue> issues) {
+        if (!node.isResource()) {
+            issues.add(error(stateMachineIri, "an action on transition '" + transitionName + "' of "
+                + stateMachineIri + " is not a node"));
+            return Optional.empty();
+        }
+        Resource actionNode = node.asResource();
+
+        boolean isSetProperty = actionNode.hasProperty(RDF.type, SqVocabulary.SET_PROPERTY);
+        boolean isCreateObject = actionNode.hasProperty(RDF.type, SqVocabulary.CREATE_OBJECT);
+        boolean isWebhook = actionNode.hasProperty(RDF.type, SqVocabulary.WEBHOOK);
+        boolean isLog = actionNode.hasProperty(RDF.type, SqVocabulary.LOG);
+        int kindCount = (isSetProperty ? 1 : 0) + (isCreateObject ? 1 : 0) + (isWebhook ? 1 : 0) + (isLog ? 1 : 0);
+        if (kindCount != 1) {
+            issues.add(error(stateMachineIri, "an action on transition '" + transitionName + "' of "
+                + stateMachineIri
+                + " must be typed exactly one of sq:SetProperty, sq:CreateObject, sq:Webhook, sq:Log"));
+            return Optional.empty();
+        }
+
+        String context = "on transition '" + transitionName + "' of " + stateMachineIri;
+        if (isSetProperty) {
+            return setPropertyActionOf(stateMachineIri, context, actionNode, model, issues).map(Action.class::cast);
+        }
+        if (isCreateObject) {
+            return createObjectActionOf(stateMachineIri, context, actionNode, model, issues).map(Action.class::cast);
+        }
+        if (isWebhook) {
+            return webhookActionOf(stateMachineIri, context, actionNode, issues).map(Action.class::cast);
+        }
+        return logActionOf(stateMachineIri, context, actionNode, issues).map(Action.class::cast);
+    }
+
+    private static Optional<SetPropertyAction> setPropertyActionOf(
+            String stateMachineIri, String context, Resource node, OntModel model, List<OntologyIssue> issues) {
+        Statement propertyStmt = node.getProperty(SqVocabulary.PROPERTY);
+        if (propertyStmt == null || !propertyStmt.getObject().isURIResource()) {
+            issues.add(error(stateMachineIri, "sq:SetProperty " + context + " is missing sq:property"));
+            return Optional.empty();
+        }
+        String propertyIri = propertyStmt.getObject().asResource().getURI();
+
+        Optional<ValueOrExpression> valueOrExpression = valueOrExpressionOf(
+            stateMachineIri, "sq:SetProperty " + context, node, propertyIri, model, issues);
+        if (valueOrExpression.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(new SetPropertyAction(
+                propertyIri, valueOrExpression.get().value(), valueOrExpression.get().expression()));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "sq:SetProperty " + context + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<CreateObjectAction> createObjectActionOf(
+            String stateMachineIri, String context, Resource node, OntModel model, List<OntologyIssue> issues) {
+        Statement typeStmt = node.getProperty(SqVocabulary.TYPE);
+        if (typeStmt == null || !typeStmt.getObject().isURIResource()) {
+            issues.add(error(stateMachineIri, "sq:CreateObject " + context + " is missing sq:type"));
+            return Optional.empty();
+        }
+        String createTypeIri = typeStmt.getObject().asResource().getURI();
+
+        Statement propertiesStmt = node.getProperty(SqVocabulary.PROPERTIES);
+        List<PropertyAssignment> properties = new ArrayList<>();
+        if (propertiesStmt != null) {
+            RDFNode propertiesObject = propertiesStmt.getObject();
+            if (!propertiesObject.isResource() || !propertiesObject.asResource().canAs(RDFList.class)) {
+                issues.add(error(stateMachineIri, "sq:properties " + context + " must be a well-formed RDF list"));
+                return Optional.empty();
+            }
+            for (RDFNode propertyNode : propertiesObject.asResource().as(RDFList.class).asJavaList()) {
+                Optional<PropertyAssignment> assignment =
+                    propertyAssignmentOf(stateMachineIri, context, propertyNode, model, issues);
+                if (assignment.isEmpty()) {
+                    return Optional.empty();
+                }
+                properties.add(assignment.get());
+            }
+        }
+
+        try {
+            return Optional.of(new CreateObjectAction(createTypeIri, properties));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "sq:CreateObject " + context + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<PropertyAssignment> propertyAssignmentOf(
+            String stateMachineIri, String context, RDFNode node, OntModel model, List<OntologyIssue> issues) {
+        if (!node.isResource()) {
+            issues.add(error(stateMachineIri, "sq:properties " + context + " contains a non-resource sq:PropertyAssignment"));
+            return Optional.empty();
+        }
+        Resource assignmentNode = node.asResource();
+        if (!assignmentNode.hasProperty(RDF.type, SqVocabulary.PROPERTY_ASSIGNMENT)) {
+            issues.add(error(stateMachineIri, "sq:properties " + context + " contains a node not typed sq:PropertyAssignment"));
+            return Optional.empty();
+        }
+
+        Statement propertyStmt = assignmentNode.getProperty(SqVocabulary.PROPERTY);
+        if (propertyStmt == null || !propertyStmt.getObject().isURIResource()) {
+            issues.add(error(stateMachineIri, "sq:PropertyAssignment " + context + " is missing sq:property"));
+            return Optional.empty();
+        }
+        String propertyIri = propertyStmt.getObject().asResource().getURI();
+
+        Optional<ValueOrExpression> valueOrExpression = valueOrExpressionOf(
+            stateMachineIri, "sq:PropertyAssignment " + context, assignmentNode, propertyIri, model, issues);
+        if (valueOrExpression.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(new PropertyAssignment(
+                propertyIri, valueOrExpression.get().value(), valueOrExpression.get().expression()));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "sq:PropertyAssignment " + context + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<WebhookAction> webhookActionOf(
+            String stateMachineIri, String context, Resource node, List<OntologyIssue> issues) {
+        Statement urlStmt = node.getProperty(SqVocabulary.URL);
+        if (urlStmt == null || urlStmt.getString().isBlank()) {
+            issues.add(error(stateMachineIri, "sq:Webhook " + context + " is missing sq:url"));
+            return Optional.empty();
+        }
+        String url = urlStmt.getString();
+        String method = SqAnnotations.string(node, SqVocabulary.METHOD)
+            .filter(m -> !m.isBlank())
+            .orElse("POST");
+        Optional<String> body = SqAnnotations.string(node, SqVocabulary.BODY);
+
+        try {
+            return Optional.of(new WebhookAction(url, method, body));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "sq:Webhook " + context + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<LogAction> logActionOf(
+            String stateMachineIri, String context, Resource node, List<OntologyIssue> issues) {
+        Statement messageStmt = node.getProperty(SqVocabulary.MESSAGE);
+        if (messageStmt == null || messageStmt.getString().isBlank()) {
+            issues.add(error(stateMachineIri, "sq:Log " + context + " is missing sq:message"));
+            return Optional.empty();
+        }
+
+        try {
+            return Optional.of(new LogAction(messageStmt.getString()));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "sq:Log " + context + " is malformed: " + e.getMessage()));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The exactly-one-of-{@code sq:value}/{@code sq:expression} shape shared verbatim by {@code
+     * sq:SetProperty} and {@code sq:PropertyAssignment} nodes: coerces {@code sq:value} against
+     * {@code targetPropertyIri}'s own datatype via {@link #resolveValueForProperty} when present, or
+     * carries {@code sq:expression}'s JEXL source through unparsed (the {@code ExpressionPort}, a
+     * later phase, evaluates it) — factored out here once rather than duplicated between {@link
+     * #setPropertyActionOf} and {@link #propertyAssignmentOf}.
+     */
+    private static Optional<ValueOrExpression> valueOrExpressionOf(
+            String stateMachineIri,
+            String context,
+            Resource node,
+            String targetPropertyIri,
+            OntModel model,
+            List<OntologyIssue> issues) {
+        Statement valueStmt = node.getProperty(SqVocabulary.VALUE);
+        Statement expressionStmt = node.getProperty(SqVocabulary.EXPRESSION);
+        boolean hasValue = valueStmt != null;
+        boolean hasExpression = expressionStmt != null;
+        if (hasValue == hasExpression) {
+            issues.add(error(stateMachineIri, context + " must declare exactly one of sq:value or sq:expression"));
+            return Optional.empty();
+        }
+
+        if (hasExpression) {
+            String expression = expressionStmt.getString();
+            if (expression.isBlank()) {
+                issues.add(error(stateMachineIri, context + " has a blank sq:expression"));
+                return Optional.empty();
+            }
+            return Optional.of(new ValueOrExpression(Optional.empty(), Optional.of(expression)));
+        }
+
+        Optional<Value> value =
+            resolveValueForProperty(stateMachineIri, context, targetPropertyIri, valueStmt.getString(), model, issues);
+        return value.map(v -> new ValueOrExpression(Optional.of(v), Optional.empty()));
+    }
+
+    /**
+     * @return {@code resource}'s IRI if it is named, or its {@code toString()} form (e.g. {@code
+     *     "_:b0"}) otherwise — used only to name an {@code ERROR} issue's subject when the resource
+     *     itself may be a blank node (state machines are always named in practice, but this defends
+     *     against a malformed document that declares one anonymously anyway) and as a deterministic
+     *     sort key across {@link #stateMachinesOf}'s document-wide pass.
+     */
+    private static String identifierOf(Resource resource) {
+        return resource.isURIResource() ? resource.getURI() : resource.toString();
+    }
+
+    /** {@code sq:appliesTo}'s target type IRI, paired with the {@link StateMachineDefinition} it maps to. */
+    private record StateMachineByType(String typeIri, StateMachineDefinition definition) {}
+
+    /**
+     * The parsed {@code sq:value}/{@code sq:expression} of a {@code sq:SetProperty} or {@code
+     * sq:PropertyAssignment} node — exactly one populated, per {@link #valueOrExpressionOf}.
+     */
+    private record ValueOrExpression(Optional<Value> value, Optional<String> expression) {}
 
     private static OntologyIssue error(String propertyIri, String message) {
         return new OntologyIssue(Severity.ERROR, Optional.of(propertyIri), message);

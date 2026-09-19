@@ -240,7 +240,7 @@ sq:transition
     a owl:AnnotationProperty ;
     rdfs:domain sq:StateMachine ;
     rdfs:range sq:Transition ;
-    rdfs:comment "An RDF list of sq:Transition nodes; order matters, mirroring sq:filter." .
+    rdfs:comment "Plain multi-valued (order doesn't matter), unlike sq:action." .
 
 sq:name
     a owl:AnnotationProperty ;
