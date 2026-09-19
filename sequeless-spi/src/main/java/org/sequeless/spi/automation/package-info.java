@@ -35,5 +35,13 @@
  * sq:Webhook} action's templated {@code url}/{@code method}/{@code body} fields have been
  * rendered — this package performs no HTTP I/O itself, leaving the actual call to whichever
  * automation adapter invoked {@code resolveWebhook}.
+ *
+ * <p>{@link org.sequeless.spi.automation.AutomationPort} is, by contrast, an ordinary
+ * <em>outbound</em> port shaped like every other port in this SPI: a relay calls {@link
+ * org.sequeless.spi.automation.AutomationPort#dispatch}, and an automation adapter implements it,
+ * itself calling back into {@link org.sequeless.spi.automation.ActionExecutor} to apply the
+ * action. The two ports compose in opposite directions around the same {@link
+ * org.sequeless.spi.object.OutboxEntry} row: {@code dispatch} is how the action gets durably
+ * started, {@code ActionExecutor}'s methods are how it actually gets applied.
  */
 package org.sequeless.spi.automation;

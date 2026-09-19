@@ -32,5 +32,11 @@
  * this same package, added alongside these value types. Its full behavioural contract is documented
  * on the port interface itself, and asserted mechanically by {@code sequeless-spi-testkit}'s {@code
  * ObjectStoreContract}.
+ *
+ * <p>{@link org.sequeless.spi.object.OutboxPort} is a sibling outbound port, not a method on
+ * {@link org.sequeless.spi.object.ObjectStorePort}: it lets a relay claim, one row at a time, an
+ * unprocessed {@link org.sequeless.spi.object.OutboxEntry#KIND_ACTION_REQUEST} row written by
+ * {@code commit} above, without forcing every {@code ObjectStorePort} implementation — including
+ * test doubles that have no use for outbox claiming — to implement it.
  */
 package org.sequeless.spi.object;
