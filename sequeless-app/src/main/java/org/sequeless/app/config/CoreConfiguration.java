@@ -4,12 +4,17 @@ import java.time.Clock;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
 import org.sequeless.core.api.OntologyAdministration;
+import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.api.WhoAmI;
+import org.sequeless.core.automation.DefaultActionExecutor;
 import org.sequeless.core.usecase.DefaultBusinessObjectService;
 import org.sequeless.core.usecase.DefaultMetaModelService;
 import org.sequeless.core.usecase.DefaultOntologyAdministration;
+import org.sequeless.core.usecase.DefaultTransitionService;
 import org.sequeless.core.usecase.DefaultWhoAmI;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.query.QueryPort;
@@ -143,5 +148,63 @@ public class CoreConfiguration {
             @Lazy AuthorizationPort authorizationPort,
             @Lazy QueryPort queryPort) {
         return new DefaultOntologyAdministration(ontologyPort, authorizationPort, queryPort);
+    }
+
+    /**
+     * Builds the {@link ActionExecutor} implementation around whichever {@link ExpressionPort} and
+     * {@link ObjectStorePort} adapters are configured. Unlike every other bean in this class, {@code
+     * ActionExecutor} is not consumed by a REST controller in this module — it is consumed by
+     * whichever automation adapter ({@code sequeless-adapter-automation-inprocess} or {@code
+     * sequeless-adapter-automation-temporal}) is on the classpath and selected by {@code
+     * sequeless.automation.adapter}. Both adapters' own {@code @AutoConfiguration} classes declare,
+     * in their javadoc, that they take an {@link ActionExecutor} as a plain {@code @Bean} method
+     * parameter and expect "some other, application-level configuration" to have already registered
+     * it on the context by the time they run — this bean method is that configuration. Neither
+     * adapter module may depend on {@code sequeless-core} (the {@code noAdapterDependsOnCore}
+     * architecture rule), which is exactly why {@link DefaultActionExecutor} has to be wired here,
+     * in one of the two packages this reactor permits to depend on {@code sequeless-core}.
+     *
+     * <p>Both parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above, and neither may be "simplified" away.
+     *
+     * <p>No shared {@link Clock} bean exists in this application — {@link Clock#systemUTC()} is
+     * called inline here, matching {@link #businessObjectService}'s existing convention, rather than
+     * introducing a new shared bean for one call site each.
+     *
+     * @param expressionPort the lazily-resolved expression port adapter
+     * @param objectStorePort the lazily-resolved object store port adapter
+     * @return a {@link DefaultActionExecutor} consulting both ports on every call
+     */
+    @Bean
+    public ActionExecutor actionExecutor(
+            @Lazy ExpressionPort expressionPort, @Lazy ObjectStorePort objectStorePort) {
+        return new DefaultActionExecutor(expressionPort, objectStorePort, Clock.systemUTC());
+    }
+
+    /**
+     * Builds the {@link TransitionService} use case around whichever {@link OntologyPort}, {@link
+     * ObjectStorePort}, {@link AuthorizationPort}, and {@link ExpressionPort} adapters are
+     * configured.
+     *
+     * <p>All four port-typed parameters are {@code @Lazy} for exactly the reason spelled out on
+     * {@link #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.
+     *
+     * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
+     * javadoc for why {@link Clock#systemUTC()} is called inline here too.
+     *
+     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param objectStorePort the lazily-resolved object store port adapter
+     * @param authorizationPort the lazily-resolved authorization port adapter
+     * @param expressionPort the lazily-resolved expression port adapter
+     * @return a {@link DefaultTransitionService} consulting all four ports on every call
+     */
+    @Bean
+    public TransitionService transitionService(
+            @Lazy OntologyPort ontologyPort,
+            @Lazy ObjectStorePort objectStorePort,
+            @Lazy AuthorizationPort authorizationPort,
+            @Lazy ExpressionPort expressionPort) {
+        return new DefaultTransitionService(
+            ontologyPort, objectStorePort, authorizationPort, expressionPort, Clock.systemUTC());
     }
 }
