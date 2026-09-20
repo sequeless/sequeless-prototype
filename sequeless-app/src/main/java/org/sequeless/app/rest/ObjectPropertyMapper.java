@@ -41,7 +41,7 @@ final class ObjectPropertyMapper {
                 shortName(object.type().iri()),
                 object.type().iri(),
                 object.version(),
-                object.state().orElse(null),
+                object.state().map(ObjectPropertyMapper::shortName).orElse(null),
                 toProperties(requestType, object.properties()),
                 new BusinessObjectResponse.AuditResponse(
                         object.audit().createdAt(),

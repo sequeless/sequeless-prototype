@@ -19,9 +19,13 @@ import java.util.regex.Pattern;
 import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
+import org.sequeless.core.api.TransitionService;
+import org.sequeless.core.statemachine.StateMachineInterpreter;
 import org.sequeless.spi.Principal;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.TenantId;
+import org.sequeless.spi.expression.ExpressionPort;
+import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
@@ -42,7 +46,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Exposes {@link BusinessObjectService} over HTTP: browse/read/add/edit/delete against {@code
- * /objects/{type}} and {@code /objects/{type}/{id}}, per plan.md §8.
+ * /objects/{type}} and {@code /objects/{type}/{id}}, per plan.md §8. Also exposes {@link
+ * TransitionService} over HTTP: {@code GET .../transitions} ({@link #transitions}) and {@code POST
+ * .../transitions/{name}} ({@link #fireTransition}), per plan.md §8's state-machine addendum —
+ * {@code GET} reads availability computed the same way the {@code POST} write path itself decides
+ * whether the named transition may fire, via the shared {@link StateMachineInterpreter}.
  *
  * <p>{@code type} accepts a short name or a full IRI, the same as {@link TypesController} — passed
  * straight through to {@link BusinessObjectService}, which does all resolution, the same
@@ -75,6 +83,8 @@ public class ObjectsController {
 
     private final BusinessObjectService businessObjectService;
     private final MetaModelService metaModelService;
+    private final TransitionService transitionService;
+    private final ExpressionPort expressionPort;
 
     /**
      * @param businessObjectService the use case this controller delegates every BREAD operation
@@ -82,14 +92,27 @@ public class ObjectsController {
      * @param metaModelService the use case consulted for the current request's resolved {@link
      *     TypeDefinition}, used only to render the response's property names; must not be {@code
      *     null}
-     * @throws NullPointerException if either argument is {@code null}
+     * @param transitionService the use case {@link #fireTransition} delegates to; must not be
+     *     {@code null}
+     * @param expressionPort the port {@link #transitions} evaluates transition guards through, via
+     *     a fresh {@link StateMachineInterpreter} built per request, exactly as {@link
+     *     org.sequeless.core.usecase.DefaultTransitionService} does internally on the write path;
+     *     must not be {@code null}
+     * @throws NullPointerException if any argument is {@code null}
      */
     public ObjectsController(
-            BusinessObjectService businessObjectService, MetaModelService metaModelService) {
+            BusinessObjectService businessObjectService,
+            MetaModelService metaModelService,
+            TransitionService transitionService,
+            ExpressionPort expressionPort) {
         this.businessObjectService =
                 Objects.requireNonNull(businessObjectService, "businessObjectService must not be null");
         this.metaModelService =
                 Objects.requireNonNull(metaModelService, "metaModelService must not be null");
+        this.transitionService =
+                Objects.requireNonNull(transitionService, "transitionService must not be null");
+        this.expressionPort =
+                Objects.requireNonNull(expressionPort, "expressionPort must not be null");
     }
 
     /**
@@ -348,6 +371,79 @@ public class ObjectsController {
                 ifMatch == null ? OptionalLong.empty() : OptionalLong.of(parseVersion(ifMatch));
         businessObjectService.delete(currentScope(), type, new ObjectId(id), expectedVersion);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * @param type the type's short name or full IRI
+     * @param id the object's id
+     * @return every transition departing from the object's current state, each with its
+     *     availability and (when unavailable) a reason, computed the same way {@link
+     *     TransitionService#fire} itself decides whether a requested transition may fire
+     */
+    @Operation(summary = "List every transition available from an object's current state")
+    @ApiResponse(responseCode = "200", description = "The available transitions, possibly empty")
+    @ApiResponse(
+            responseCode = "404",
+            description = "No such type, or no such object",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @GetMapping("/objects/{type}/{id}/transitions")
+    public List<TransitionResponse> transitions(
+            @PathVariable("type") String type, @PathVariable("id") UUID id) {
+        Scope scope = currentScope();
+        BusinessObject object = businessObjectService.read(scope, type, new ObjectId(id));
+        MetaModelSnapshot snapshot = metaModelService.snapshot(scope);
+        StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
+        return interpreter.availableTransitions(scope, snapshot, object).stream()
+                .map(TransitionResponse::from)
+                .toList();
+    }
+
+    /**
+     * @param type the type's short name or full IRI
+     * @param id the id of the object to transition
+     * @param name the name of the transition to fire
+     * @param request the version (nullable), or {@code null} if the request has no body at all —
+     *     unlike {@link #edit}, a transition has no other body content, so a client relying purely
+     *     on {@code If-Match} may send no body whatsoever
+     * @param ifMatch the {@code If-Match} header, or {@code null} if absent
+     * @return 200 with the object after the transition, plus an {@code ETag} carrying its new
+     *     version
+     */
+    @Operation(summary = "Fire a named transition on an existing object")
+    @ApiResponse(responseCode = "200", description = "The object after the transition")
+    @ApiResponse(
+            responseCode = "404",
+            description = "No such type, or no such object",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "409",
+            description =
+                    "The stored object is not at the expected version, or the named transition is"
+                            + " not available (no such transition, wrong current state, or its guard"
+                            + " failed)",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "428",
+            description = "Neither a body version nor an If-Match header was supplied",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @PostMapping("/objects/{type}/{id}/transitions/{name}")
+    public ResponseEntity<BusinessObjectResponse> fireTransition(
+            @PathVariable("type") String type,
+            @PathVariable("id") UUID id,
+            @PathVariable("name") String name,
+            @RequestBody(required = false) TransitionRequest request,
+            @Parameter(description = "The version the caller expects the object to currently be at")
+                    @RequestHeader(value = "If-Match", required = false)
+                    String ifMatch) {
+        Scope scope = currentScope();
+        Long bodyVersion = request == null ? null : request.expectedVersion();
+        long expectedVersion = resolveExpectedVersion(bodyVersion, ifMatch);
+        BusinessObject updated =
+                transitionService.fire(scope, type, new ObjectId(id), name, expectedVersion);
+        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        return ResponseEntity.ok()
+                .eTag(Long.toString(updated.version()))
+                .body(ObjectPropertyMapper.toResponse(updated, requestType));
     }
 
     private static long resolveExpectedVersion(Long bodyVersion, String ifMatch) {

@@ -127,6 +127,41 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     @Test
+    void projectShowsStateMachineWithStatesAndTransitions() throws Exception {
+        JsonNode project = fetchAsJson("/types/Project");
+
+        JsonNode stateMachine = project.get("stateMachine");
+        assertThat(stateMachine).as("Project has a stateMachine block").isNotNull();
+
+        JsonNode states = stateMachine.get("states");
+        assertThat(states).hasSize(4);
+        assertThat(namesOf(states)).containsExactly("Draft", "Active", "OnHold", "Closed");
+
+        assertThat(stateMachine.get("initialState").asText()).isEqualTo("Draft");
+
+        JsonNode transitions = stateMachine.get("transitions");
+        assertThat(transitions).hasSize(4);
+        assertThat(findTransition(transitions, "activate").get("hasGuard").asBoolean())
+                .as("activate hasGuard")
+                .isTrue();
+        assertThat(findTransition(transitions, "hold").get("hasGuard").asBoolean())
+                .as("hold hasGuard")
+                .isFalse();
+        assertThat(findTransition(transitions, "resume").get("hasGuard").asBoolean())
+                .as("resume hasGuard")
+                .isFalse();
+        assertThat(findTransition(transitions, "close").get("hasGuard").asBoolean())
+                .as("close hasGuard")
+                .isFalse();
+    }
+
+    @Test
+    void taskShowsNoStateMachine() throws Exception {
+        JsonNode task = fetchAsJson("/types/Task");
+        assertThat(task.get("stateMachine").isNull()).as("Task has no stateMachine").isTrue();
+    }
+
+    @Test
     void resolvesByEncodedIri() throws Exception {
         JsonNode byName = fetchAsJson("/types/Task");
         String encodedIri = URLEncoder.encode(Fixtures.TASK_IRI, StandardCharsets.UTF_8);
@@ -197,6 +232,23 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
             }
         }
         throw new AssertionError("No property named '" + name + "' found");
+    }
+
+    private static List<String> namesOf(JsonNode states) {
+        List<String> names = new ArrayList<>();
+        for (JsonNode state : states) {
+            names.add(state.get("name").asText());
+        }
+        return names;
+    }
+
+    private static JsonNode findTransition(JsonNode transitions, String name) {
+        for (JsonNode transition : transitions) {
+            if (transition.get("name").asText().equals(name)) {
+                return transition;
+            }
+        }
+        throw new AssertionError("No transition named '" + name + "' found");
     }
 
     private static List<String> toList(JsonNode array) {

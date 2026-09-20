@@ -18,8 +18,8 @@ import java.util.UUID;
  *     {@code type} path variable the request named, e.g. when browsing an abstract supertype)
  * @param typeIri the full IRI of the object's own ontology type
  * @param version the optimistic-locking version, also rendered as the response's {@code ETag}
- * @param state the object's state-machine state, or {@code null} if the type has none (always
- *     {@code null} in this phase: no state machine is in scope)
+ * @param state the short name of the object's current state-machine state, or {@code null} if the
+ *     type has none
  * @param properties the object's property values, keyed by short name
  * @param audit who created and last modified this object, and when
  */

@@ -3,6 +3,7 @@ package org.sequeless.app.rest;
 import java.net.URI;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.InvalidQueryException;
+import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.object.ObjectNotFoundException;
@@ -35,12 +36,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *       AuthorizationException#decision()}'s {@code reason()}
  * </ul>
  *
- * <p>The six handlers below are {@link ObjectsController}'s, added alongside the three above
+ * <p>The seven handlers below are {@link ObjectsController}'s, added alongside the three above
  * without touching them — {@link TypesController}'s error shapes ({@link ErrorResponse}, the raw
  * {@link OntologyReportResponse}) stay exactly as they were. {@link InvalidQueryException}'s
- * handler is the newest of the six, added for {@link ObjectsController#browse}'s Phase 3 filter/
- * sort/facet query parameters. All six render {@link ProblemDetail} ({@code
- * application/problem+json}), per plan.md §8's error table:
+ * handler was added for {@link ObjectsController#browse}'s Phase 3 filter/sort/facet query
+ * parameters; {@link TransitionNotAvailableException}'s is the newest of the seven, added for
+ * {@link ObjectsController#fireTransition}'s Phase 5 state-machine endpoint. All seven render
+ * {@link ProblemDetail} ({@code application/problem+json}), per plan.md §8's error table:
  *
  * <ul>
  *   <li>{@link ValidationException} → 400, {@code type} suffix {@code validation}, plus {@code
@@ -53,6 +55,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *   <li>{@link PreconditionMismatchException} → 400, {@code type} suffix {@code bad-request}
  *   <li>{@link InvalidQueryException} → 400, {@code type} suffix {@code invalid-query}, plus a
  *       {@code violations} array (see {@link #toViolationBody})
+ *   <li>{@link TransitionNotAvailableException} → 409, {@code type} suffix {@code
+ *       transition-not-available}, plus {@code transitionName}
  * </ul>
  */
 @RestControllerAdvice
@@ -181,6 +185,25 @@ public class ApiExceptionAdvice {
                 ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/bad-request"));
         detail.setTitle("Conflicting version");
+        return detail;
+    }
+
+    /**
+     * @param exception the unavailable-transition failure escaping from {@link
+     *     org.sequeless.core.api.TransitionService#fire}; must not be {@code null}
+     * @return 409 with a {@link ProblemDetail} carrying {@link
+     *     TransitionNotAvailableException#transitionName()}, detail text taken from {@link
+     *     TransitionNotAvailableException#reason()} (not {@code getMessage()}, even though the two
+     *     are identical today — {@code reason()} is the self-documenting accessor for this specific
+     *     purpose)
+     */
+    @ExceptionHandler(TransitionNotAvailableException.class)
+    public ProblemDetail handleTransitionNotAvailable(TransitionNotAvailableException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.reason());
+        detail.setType(URI.create("https://sequeless.dev/problems/transition-not-available"));
+        detail.setTitle("Transition not available");
+        detail.setProperty("transitionName", exception.transitionName());
         return detail;
     }
 

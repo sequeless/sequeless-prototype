@@ -2,10 +2,12 @@ package org.sequeless.app.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
+import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.ontology.OntologyException;
@@ -13,6 +15,7 @@ import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.spi.ontology.Severity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 
 /**
@@ -67,5 +70,22 @@ class ApiExceptionAdviceTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("no ADMIN role"));
+    }
+
+    @Test
+    void transitionNotAvailableExceptionMapsTo409WithReasonAndTransitionName() {
+        ProblemDetail detail =
+                advice.handleTransitionNotAvailable(
+                        new TransitionNotAvailableException(
+                                "activate",
+                                "Project must have an owner before it can be activated"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(detail.getDetail())
+                .isEqualTo("Project must have an owner before it can be activated");
+        assertThat(detail.getType())
+                .isEqualTo(URI.create("https://sequeless.dev/problems/transition-not-available"));
+        assertThat(detail.getTitle()).isEqualTo("Transition not available");
+        assertThat(detail.getProperties()).containsEntry("transitionName", "activate");
     }
 }

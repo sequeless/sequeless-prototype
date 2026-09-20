@@ -15,7 +15,9 @@ import java.util.List;
  * wire-vs-domain divergence, the same rationale {@link WhoAmIResponse}'s javadoc already states.
  * The record component is named {@code isAbstract} rather than {@code abstract} because {@code
  * abstract} is a reserved Java keyword; {@link JsonProperty} restores the wire field name {@code
- * "abstract"} that the JSON shape calls for.
+ * "abstract"} that the JSON shape calls for. {@code stateMachine} is likewise a plain nullable
+ * field, for the same reason as {@code group}: {@code null} when this type declares no {@code
+ * sq:StateMachine} (every type except {@code Project} today), present otherwise.
  *
  * @param iri the type's IRI
  * @param name the type's short name
@@ -26,6 +28,7 @@ import java.util.List;
  * @param group the type's named display group, or {@code null} if it has none
  * @param hidden whether this type should be hidden from ordinary presentation
  * @param properties this type's properties, in display order, inherited ones included
+ * @param stateMachine this type's {@code sq:StateMachine}, or {@code null} if it declares none
  */
 public record TypeDetailResponse(
         String iri,
@@ -35,4 +38,5 @@ public record TypeDetailResponse(
         List<String> superTypes,
         String group,
         boolean hidden,
-        List<PropertyResponse> properties) {}
+        List<PropertyResponse> properties,
+        StateMachineResponse stateMachine) {}

@@ -12,6 +12,9 @@ import org.sequeless.spi.meta.PluginRule;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.RollupRule;
+import org.sequeless.spi.meta.State;
+import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.DateTimeValue;
@@ -89,7 +92,36 @@ final class TypeResponseMapper {
                 superTypeNames,
                 type.displayHints().group().orElse(null),
                 type.displayHints().hidden(),
-                properties);
+                properties,
+                type.stateMachine().map(TypeResponseMapper::toStateMachineResponse).orElse(null));
+    }
+
+    /**
+     * Maps a {@link StateMachineDefinition} onto its {@link StateMachineResponse}.
+     *
+     * <p>{@code machine.states()} is rendered without re-sorting: it already arrives sorted by
+     * {@code (displayOrder, iri)} — {@code SnapshotMapper}'s own contract, mirroring {@link
+     * #toDetail(TypeDefinition)}'s identical reliance on {@link TypeDefinition#properties()}'s
+     * pre-sorted order.
+     */
+    private static StateMachineResponse toStateMachineResponse(StateMachineDefinition machine) {
+        List<StateResponse> states = machine.states().stream().map(TypeResponseMapper::toState).toList();
+        List<TransitionSummaryResponse> transitions =
+                machine.transitions().stream().map(TypeResponseMapper::toTransitionSummary).toList();
+        return new StateMachineResponse(
+                machine.iri(), states, shortName(machine.initialState().iri()), transitions);
+    }
+
+    private static StateResponse toState(State state) {
+        return new StateResponse(state.iri(), shortName(state.iri()), state.label(), state.displayOrder());
+    }
+
+    private static TransitionSummaryResponse toTransitionSummary(Transition transition) {
+        return new TransitionSummaryResponse(
+                transition.name(),
+                shortName(transition.fromStateIri()),
+                shortName(transition.toStateIri()),
+                transition.guard().isPresent());
     }
 
     private static TypeSummaryResponse toSummary(TypeDefinition type, Map<String, String> namesByIri) {
