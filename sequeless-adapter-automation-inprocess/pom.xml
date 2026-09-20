@@ -15,9 +15,8 @@
 
   <name>sequeless-adapter-automation-inprocess</name>
   <description>
-    Shell module for the test/dev AutomationPort adapter: a synchronous executor over the outbox,
-    used in place of Temporal for tests and local development. Arrives in Phase 5; for now this
-    module only proves the reactor wiring and toolchain.
+    The test/dev AutomationPort adapter: a synchronous executor over the outbox, used in place of
+    Temporal for tests and local development.
   </description>
 
   <dependencies>
@@ -31,6 +30,27 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-autoconfigure</artifactId>
       <optional>true</optional>
+    </dependency>
+
+    <!--
+      Brings AutomationContract and RecordingActionExecutor and (transitively, at compile scope
+      there by design) JUnit Jupiter and AssertJ.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      InProcessAutomationAutoConfigurationTest uses ApplicationContextRunner, mirroring
+      sequeless-adapter-expression-jexl's JexlExpressionAutoConfigurationTest.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
