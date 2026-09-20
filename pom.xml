@@ -27,6 +27,7 @@
     <jena.version>6.1.0</jena.version>
     <jexl.version>3.6.2</jexl.version>
     <springdoc.version>3.1.1</springdoc.version>
+    <temporal.version>1.39.0</temporal.version>
 
     <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
     <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
@@ -105,6 +106,28 @@
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-jexl3</artifactId>
         <version>${jexl.version}</version>
+      </dependency>
+
+      <!--
+        Temporal Java SDK for the default AutomationPort adapter (sequeless-adapter-automation-
+        temporal), 1.39.0 verified as the latest stable 1.x on Maven Central as of Phase 5 T10.
+        temporal-spring-boot-starter is deliberately NOT used here: verified (mvn dependency:tree)
+        that it transitively pulls Spring Boot 2.7.18 (spring-boot-starter/spring-boot-
+        autoconfigure 2.7.18), incompatible with this project's Boot 4.1.1 line and a real risk of
+        NoSuchMethodError/ClassNotFoundException from stale bytecode even after dependencyManagement
+        force-upgrades the jar versions. This adapter hand-rolls its own @AutoConfiguration against
+        the dependency-free temporal-sdk instead, exactly like every other adapter in this repo.
+      -->
+      <dependency>
+        <groupId>io.temporal</groupId>
+        <artifactId>temporal-sdk</artifactId>
+        <version>${temporal.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.temporal</groupId>
+        <artifactId>temporal-testing</artifactId>
+        <version>${temporal.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

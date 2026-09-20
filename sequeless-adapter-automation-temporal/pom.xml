@@ -15,9 +15,9 @@
 
   <name>sequeless-adapter-automation-temporal</name>
   <description>
-    Shell module for the default AutomationPort adapter: the Temporal Java SDK driving the outbox
-    relay, action workflows, timers and signals. The Temporal SDK arrives in Phase 5; for now this
-    module only proves the reactor wiring and toolchain.
+    The default, durable AutomationPort adapter: the Temporal Java SDK drives an ActionWorkflow per
+    ActionRequest outbox entry, dispatching to ActionExecutor-backed activities with configurable
+    retry.
   </description>
 
   <dependencies>
@@ -27,9 +27,50 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!-- Version comes from the root dependencyManagement (${temporal.version}). This adapter's own
+         core library, declared non-optionally exactly like commons-jexl3 in the Jexl adapter -
+         see the root pom's dependencyManagement comment for why temporal-spring-boot-starter is
+         deliberately not used instead. -->
+    <dependency>
+      <groupId>io.temporal</groupId>
+      <artifactId>temporal-sdk</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter</artifactId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!--
+      Brings AutomationContract and RecordingActionExecutor and (transitively, at compile scope
+      there by design) JUnit Jupiter and AssertJ.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>sequeless-spi-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      TemporalAutomationAutoConfigurationTest uses ApplicationContextRunner, mirroring
+      sequeless-adapter-expression-jexl's JexlExpressionAutoConfigurationTest.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      TestWorkflowEnvironment: an in-memory Temporal test service, no live server or Testcontainers
+      required, used by TemporalAutomationPortContractTest.
+    -->
+    <dependency>
+      <groupId>io.temporal</groupId>
+      <artifactId>temporal-testing</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

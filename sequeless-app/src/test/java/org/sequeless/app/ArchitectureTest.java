@@ -180,6 +180,22 @@ class ArchitectureTest {
                     + "runtime; referencing Jena, JDBC or Temporal types directly would leak adapter "
                     + "implementation details into the use cases the ports exist to hide.");
 
+    private static final String TEMPORAL_ADAPTER_PACKAGE = "org.sequeless.adapter.automation.temporal..";
+
+    @ArchTest
+    static final ArchRule onlyTemporalAdapterMayDependOnTemporal =
+        noClasses()
+            .that()
+            .resideOutsideOfPackage(TEMPORAL_ADAPTER_PACKAGE)
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("io.temporal..")
+            .because(
+                "io.temporal is sequeless-adapter-automation-temporal's own implementation library; "
+                    + "confining it there (stronger than coreDoesNotDependOnAdapterSpecificLibraries, "
+                    + "which only guards sequeless-core) keeps every other module free to swap or omit "
+                    + "the Temporal adapter without dragging its SDK onto an unrelated classpath.");
+
     @ArchTest
     static final ArchRule noJenaInSpiOrCore =
         noClasses()
