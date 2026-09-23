@@ -39,6 +39,7 @@ import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BoolValue;
@@ -158,7 +159,8 @@ class DefaultActionExecutorTest {
 
         Transition activate =
             new Transition(
-                "activate", DRAFT_IRI, ACTIVE_IRI, Optional.of(OWNER_GUARD), Optional.empty(),
+                "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
+                Optional.empty(),
                 List.of(
                     setPropertyValue,
                     setPropertyExpression,
@@ -308,7 +310,8 @@ class DefaultActionExecutorTest {
         assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
         assertThat(changeSet.outbox().get(0).payload())
             .containsEntry("objectId", id.value().toString())
-            .containsEntry("version", 4L);
+            .containsEntry("version", 4L)
+            .containsEntry("typeIri", PROJECT_IRI);
     }
 
     @Test
@@ -401,6 +404,10 @@ class DefaultActionExecutorTest {
         assertThat(created).isNotNull();
         assertThat(created.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("Kickoff"));
         assertThat(created.state()).isEmpty();
+
+        OutboxEntry objectCreated = store.commits.get(0).outbox().get(0);
+        assertThat(objectCreated.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_CREATED);
+        assertThat(objectCreated.payload()).containsEntry("typeIri", TASK_IRI);
 
         // Idempotent retry: the derived id already exists, so no second Create is committed.
         executor.applyCreateObject(ALICE, entry);

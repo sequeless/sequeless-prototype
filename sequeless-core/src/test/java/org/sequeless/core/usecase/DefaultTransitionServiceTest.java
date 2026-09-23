@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -38,8 +39,12 @@ import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.OnChangeTrigger;
+import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
+import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
@@ -127,21 +132,24 @@ class DefaultTransitionServiceTest {
 
     private static final Transition ACTIVATE =
         new Transition(
-            "activate", DRAFT_IRI, ACTIVE_IRI, Optional.of(OWNER_GUARD),
+            "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
             Optional.of(ACTIVATE_GUARD_MESSAGE),
             List.of(SET_PROPERTY_ACTION, CREATE_OBJECT_ACTION, WEBHOOK_ACTION, LOG_ACTION));
     /** Guarded, but with no {@code guardMessage} — exercises the generic fallback text. */
     private static final Transition ARCHIVE =
         new Transition(
-            "archive", DRAFT_IRI, ARCHIVED_IRI, Optional.of(OWNER_GUARD), Optional.empty(), List.of());
+            "archive", DRAFT_IRI, ARCHIVED_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
+            Optional.empty(), List.of());
     /** Unguarded — always available from {@code Active}. */
     private static final Transition CLOSE =
-        new Transition("close", ACTIVE_IRI, CLOSED_IRI, Optional.empty(), Optional.empty(), List.of());
+        new Transition(
+            "close", ACTIVE_IRI, CLOSED_IRI, new UserActionTrigger(), Optional.empty(),
+            Optional.empty(), List.of());
     /** Unguarded, exercises the "omitted, not null" payload shapes {@link #ACTIVATE} does not. */
     private static final Transition REOPEN =
         new Transition(
-            "reopen", CLOSED_IRI, DRAFT_IRI, Optional.empty(), Optional.empty(),
-            List.of(SET_PROPERTY_EXPRESSION_ACTION, WEBHOOK_NO_BODY_ACTION));
+            "reopen", CLOSED_IRI, DRAFT_IRI, new UserActionTrigger(), Optional.empty(),
+            Optional.empty(), List.of(SET_PROPERTY_EXPRESSION_ACTION, WEBHOOK_NO_BODY_ACTION));
 
     private static final StateMachineDefinition PROJECT_LIFECYCLE =
         new StateMachineDefinition(
@@ -158,10 +166,69 @@ class DefaultTransitionServiceTest {
             NS + "Widget", "Widget", List.of(), List.of(), DisplayHints.none(), false,
             Optional.empty());
 
+    // --- a second, independent state machine dedicated to timer/fireAutomated tests, so its
+    // fixtures never perturb the outbox sizes the Project-based tests above already assert on ---
+
+    private static final String TIMER_WIDGET_IRI = NS + "TimerWidget";
+    private static final String START_IRI = NS + "Start";
+    private static final String WAITING_IRI = NS + "Waiting";
+    private static final String ELSEWHERE_IRI = NS + "Elsewhere";
+    private static final String DONE_IRI = NS + "Done";
+    private static final Duration EXPIRE_AFTER = Duration.ofHours(1);
+
+    private static final State TW_START = new State(START_IRI, "Start", 0);
+    private static final State TW_WAITING = new State(WAITING_IRI, "Waiting", 1);
+    private static final State TW_ELSEWHERE = new State(ELSEWHERE_IRI, "Elsewhere", 2);
+    private static final State TW_DONE = new State(DONE_IRI, "Done", 3);
+
+    /** Enters {@code Waiting}, which {@link #EXPIRE} departs via a timer — schedules on entry. */
+    private static final Transition ENTER_WAITING =
+        new Transition(
+            "enter", START_IRI, WAITING_IRI, new UserActionTrigger(), Optional.empty(),
+            Optional.empty(), List.of());
+    /** The timer transition itself, departing {@code Waiting}. */
+    private static final Transition EXPIRE =
+        new Transition(
+            "expire", WAITING_IRI, DONE_IRI, new TimerTrigger(EXPIRE_AFTER), Optional.empty(),
+            Optional.empty(), List.of());
+    /** Leaves {@code Waiting} by a different transition than {@link #EXPIRE} — cancels on exit. */
+    private static final Transition LEAVE_WAITING =
+        new Transition(
+            "leave", WAITING_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(),
+            Optional.empty(), List.of());
+    /** Neither endpoint has a timer transition departing it — no timer entries expected. */
+    private static final Transition NO_TIMER_TRANSITION =
+        new Transition(
+            "noop", START_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(),
+            Optional.empty(), List.of());
+    /** Unguarded {@code OnChange} transition, with one action, for {@code fireAutomated}'s happy path. */
+    private static final Transition AUTO_ADVANCE =
+        new Transition(
+            "autoAdvance", START_IRI, DONE_IRI, new OnChangeTrigger(List.of()), Optional.empty(),
+            Optional.empty(), List.of(LOG_ACTION));
+    /** Guarded {@code OnChange} transition; {@link #OWNER_GUARD} always fails on a TimerWidget. */
+    private static final Transition GUARDED_ON_CHANGE =
+        new Transition(
+            "guardedAdvance", START_IRI, DONE_IRI, new OnChangeTrigger(List.of()),
+            Optional.of(OWNER_GUARD), Optional.empty(), List.of());
+
+    private static final StateMachineDefinition TIMER_WIDGET_LIFECYCLE =
+        new StateMachineDefinition(
+            NS + "TimerWidgetLifecycle", List.of(TW_START, TW_WAITING, TW_ELSEWHERE, TW_DONE),
+            TW_START,
+            List.of(
+                ENTER_WAITING, EXPIRE, LEAVE_WAITING, NO_TIMER_TRANSITION, AUTO_ADVANCE,
+                GUARDED_ON_CHANGE));
+
+    private static final TypeDefinition TIMER_WIDGET =
+        new TypeDefinition(
+            TIMER_WIDGET_IRI, "TimerWidget", List.of(), List.of(), DisplayHints.none(), false,
+            Optional.of(TIMER_WIDGET_LIFECYCLE));
+
     private static final MetaModelSnapshot SNAPSHOT =
         new MetaModelSnapshot(
             NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(),
-            List.of(PROJECT, NO_MACHINE_TYPE), new OntologyReport(true, List.of()));
+            List.of(PROJECT, NO_MACHINE_TYPE, TIMER_WIDGET), new OntologyReport(true, List.of()));
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-01T00:00:00Z");
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
@@ -189,6 +256,12 @@ class DefaultTransitionServiceTest {
         return new BusinessObject(
             id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.of(state),
             properties, new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+    }
+
+    private static BusinessObject timerWidget(ObjectId id, long version, String state) {
+        return new BusinessObject(
+            id, new TypeRef(TIMER_WIDGET_IRI), new TenantId("acme"), version, Optional.of(state),
+            Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
     }
 
     // --- happy path: guard passes, state moves, one TransitionFired + one ActionRequest per action ---
@@ -458,6 +531,175 @@ class DefaultTransitionServiceTest {
             .isThrownBy(() -> service.fire(ALICE, "Project", null, "activate", 1));
         assertThatNullPointerException()
             .isThrownBy(() -> service.fire(ALICE, "Project", id, null, 1));
+    }
+
+    // --- timer outbox entries ---
+
+    @Test
+    void firingATransitionIntoAStateWithATimerTransitionWritesTimerScheduled() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.fire(ALICE, "TimerWidget", id, "enter", 1);
+
+        ChangeSet changeSet = store.commits.get(0);
+        assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + TimerScheduled
+        assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+        OutboxEntry scheduled = changeSet.outbox().get(1);
+        assertThat(scheduled.kind()).isEqualTo(OutboxEntry.KIND_TIMER_SCHEDULED);
+        String expectedTimerKey = id.value().toString() + "|" + WAITING_IRI + "|expire";
+        assertThat(scheduled.payload())
+            .containsEntry("objectId", id.value().toString())
+            .containsEntry("tenantId", "acme")
+            .containsEntry("principalId", "alice")
+            .containsEntry("typeIri", TIMER_WIDGET_IRI)
+            .containsEntry("state", WAITING_IRI)
+            .containsEntry("transitionName", "expire")
+            .containsEntry("after", EXPIRE_AFTER.toString())
+            .containsEntry("timerKey", expectedTimerKey);
+    }
+
+    @Test
+    void firingATransitionOutOfAStateWithATimerTransitionWritesTimerCancelled() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, WAITING_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.fire(ALICE, "TimerWidget", id, "leave", 1);
+
+        ChangeSet changeSet = store.commits.get(0);
+        assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + TimerCancelled
+        OutboxEntry cancelled = changeSet.outbox().get(1);
+        assertThat(cancelled.kind()).isEqualTo(OutboxEntry.KIND_TIMER_CANCELLED);
+        String expectedTimerKey = id.value().toString() + "|" + WAITING_IRI + "|expire";
+        assertThat(cancelled.payload())
+            .containsEntry("objectId", id.value().toString())
+            .containsEntry("tenantId", "acme")
+            .containsEntry("timerKey", expectedTimerKey);
+    }
+
+    @Test
+    void firingATransitionBetweenTwoStatesWithNoTimersWritesNoTimerEntries() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.fire(ALICE, "TimerWidget", id, "noop", 1);
+
+        ChangeSet changeSet = store.commits.get(0);
+        assertThat(changeSet.outbox()).hasSize(1); // TransitionFired only, no timer entries.
+        assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+    }
+
+    // --- fireAutomated ---
+
+    @Test
+    void fireAutomatedReturnsEmptyAndCommitsNothingWhenObjectIsAbsent() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        DefaultTransitionService service = service(store, permitAll());
+
+        Optional<BusinessObject> result =
+            service.fireAutomated(ALICE, ObjectId.random(), "autoAdvance", TriggerKind.ON_CHANGE);
+
+        assertThat(result).isEmpty();
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void fireAutomatedReturnsEmptyWhenTransitionDoesNotDepartCurrentState() {
+        ObjectId id = ObjectId.random();
+        // "autoAdvance" only departs Start; this object is in Elsewhere.
+        BusinessObject existing = timerWidget(id, 1, ELSEWHERE_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        Optional<BusinessObject> result =
+            service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.ON_CHANGE);
+
+        assertThat(result).isEmpty();
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void fireAutomatedReturnsEmptyWhenGuardFails() {
+        ObjectId id = ObjectId.random();
+        // TimerWidget objects never carry an "owner" property, so OWNER_GUARD always fails.
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        Optional<BusinessObject> result =
+            service.fireAutomated(ALICE, id, "guardedAdvance", TriggerKind.ON_CHANGE);
+
+        assertThat(result).isEmpty();
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void fireAutomatedReturnsEmptyWhenTriggerKindDoesNotMatchExpected() {
+        ObjectId id = ObjectId.random();
+        // "autoAdvance"'s trigger is OnChange, not UserAction.
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        Optional<BusinessObject> result =
+            service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.USER_ACTION);
+
+        assertThat(result).isEmpty();
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void fireAutomatedFiresNormallyMovingStateAndDispatchingTransitionFiredPlusActionRequest() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 3, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        Optional<BusinessObject> result =
+            service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.ON_CHANGE);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().state()).contains(DONE_IRI);
+        assertThat(result.get().version()).isEqualTo(4);
+
+        assertThat(store.commits).hasSize(1);
+        ChangeSet changeSet = store.commits.get(0);
+        Update update = (Update) changeSet.mutations().get(0);
+        assertThat(update.expectedVersion()).isEqualTo(3); // fireAutomated reads the version itself.
+
+        assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + one ActionRequest (Log).
+        assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+        assertThat(changeSet.outbox().get(1).kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
+    }
+
+    // --- fire rejects non-UserAction triggers ---
+
+    @Test
+    void fireThrowsTransitionNotAvailableForATransitionWhoseTriggerIsNotUserAction() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        assertThatExceptionOfType(TransitionNotAvailableException.class)
+            .isThrownBy(() -> service.fire(ALICE, "TimerWidget", id, "autoAdvance", 1))
+            .satisfies(
+                exception -> assertThat(exception.transitionName()).isEqualTo("autoAdvance"));
+        assertThat(store.commitCalls).isZero();
     }
 
     // --- fakes ---

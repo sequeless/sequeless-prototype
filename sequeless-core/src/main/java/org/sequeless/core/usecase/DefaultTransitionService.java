@@ -30,7 +30,9 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
+import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.Audit;
@@ -150,13 +152,123 @@ public final class DefaultTransitionService implements TransitionService {
                         new TransitionNotAvailableException(
                             transitionName, notAvailableMessage(transitionName)));
 
-        Instant now = now();
+        if (transition.trigger().kind() != TriggerKind.USER_ACTION) {
+            throw new TransitionNotAvailableException(
+                transitionName,
+                "Transition '" + transitionName
+                    + "' is not user-triggerable; its trigger is " + transition.trigger().kind());
+        }
+
+        return commitTransition(scope, resolved, existing, transition, expectedVersion, now());
+    }
+
+    /**
+     * The automation counterpart to {@link #fire}, called by {@code DefaultTriggerEvaluator} (an
+     * inbound port implemented in this same package, but not depended on here to avoid a cycle) once
+     * a change event, an elapsed timer, or an external signal suggests {@code transitionName} might
+     * now be available on {@code id}. Unlike {@link #fire}, a mismatch of any kind is a silent
+     * no-op, never an exception: the event that prompted this call is, by construction, a hint that
+     * may already be stale by the time it is acted on — the object may have been deleted, moved to a
+     * different state by a race, or have had this exact transition disabled by an ontology edit —
+     * and none of that is a caller error worth surfacing as a thrown exception the way a user's own
+     * misdirected REST call is in {@link #fire}.
+     *
+     * <p>Every check {@link #fire} performs via {@link TransitionNotAvailableException} is performed
+     * here too, plus one more: {@code transition.trigger().kind()} must equal {@code expected},
+     * checked via the {@link TriggerKind} discriminator rather than an {@code instanceof} match on
+     * {@link org.sequeless.spi.meta.TriggerSpec}, exactly so a caller with only a {@link TriggerKind}
+     * in hand (as every inbound automation port method has, from the outbox entry it is dispatching)
+     * never needs to reconstruct or guess at the full trigger payload just to compare kinds.
+     *
+     * @param scope the tenant and principal context the commit is recorded under; must not be {@code
+     *     null}. Automation never authorizes against {@link
+     *     org.sequeless.spi.authz.Operation#TRANSITION} the way {@link #fire} does — there is no
+     *     external caller to authorize, only the object's own current, valid state
+     * @param id the id of the object to transition; must not be {@code null}
+     * @param transitionName the name of the transition to fire; must not be {@code null}
+     * @param expected the {@link TriggerKind} the resolved transition's {@link
+     *     Transition#trigger()} must match; must not be {@code null}
+     * @return the object after the transition, or {@link Optional#empty()} if {@code id} no longer
+     *     resolves to a live object, {@code transitionName} does not name a transition currently
+     *     departing the object's state, that transition's guard evaluates {@code false}, or its
+     *     trigger kind does not equal {@code expected}
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    @Override
+    public Optional<BusinessObject> fireAutomated(
+        Scope scope, ObjectId id, String transitionName, TriggerKind expected) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        Objects.requireNonNull(transitionName, "transitionName must not be null");
+        Objects.requireNonNull(expected, "expected must not be null");
+
+        Optional<BusinessObject> maybeExisting = objectStorePort.find(scope, id);
+        if (maybeExisting.isEmpty()) {
+            return Optional.empty();
+        }
+        BusinessObject existing = maybeExisting.get();
+
+        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
+        Optional<TypeDefinition> maybeResolved = snapshot.type(existing.type().iri());
+        if (maybeResolved.isEmpty()) {
+            return Optional.empty();
+        }
+        TypeDefinition resolved = maybeResolved.get();
+        if (resolved.stateMachine().isEmpty()) {
+            return Optional.empty();
+        }
+        StateMachineDefinition machine = resolved.stateMachine().get();
+
+        StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
+        List<TransitionAvailability> available =
+            interpreter.availableTransitions(scope, snapshot, existing);
+        Optional<TransitionAvailability> match =
+            available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
+        if (match.isEmpty() || !match.get().available()) {
+            return Optional.empty();
+        }
+
+        Optional<Transition> maybeTransition =
+            machine.transitions().stream()
+                .filter(
+                    t ->
+                        t.name().equals(transitionName)
+                            && existing.state().isPresent()
+                            && Objects.equals(t.fromStateIri(), existing.state().get()))
+                .findFirst();
+        if (maybeTransition.isEmpty()) {
+            return Optional.empty();
+        }
+        Transition transition = maybeTransition.get();
+        if (transition.trigger().kind() != expected) {
+            return Optional.empty();
+        }
+
+        return Optional.of(
+            commitTransition(scope, resolved, existing, transition, existing.version(), now()));
+    }
+
+    /**
+     * The single commit path shared by {@link #fire} and {@link #fireAutomated}: builds the moved-
+     * state {@code candidate}, the {@code TransitionFired} entry, one {@code ActionRequest} entry
+     * per {@code sq:action}, the {@code TimerScheduled}/{@code TimerCancelled} entries for every
+     * timer transition entered or departed by this move (see {@link #addTimerOutboxEntries}), and
+     * commits all of it as one {@link ChangeSet} — so the two callers can never disagree about what
+     * a successful transition commits.
+     */
+    private BusinessObject commitTransition(
+        Scope scope,
+        TypeDefinition resolved,
+        BusinessObject existing,
+        Transition transition,
+        long expectedVersion,
+        Instant now) {
         String by = scope.principal().id();
         Audit audit =
             new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
         BusinessObject candidate =
             new BusinessObject(
-                id,
+                existing.id(),
                 existing.type(),
                 existing.tenant(),
                 expectedVersion + 1,
@@ -172,11 +284,99 @@ public final class DefaultTransitionService implements TransitionService {
             outbox.add(
                 actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), now));
         }
+        addTimerOutboxEntries(scope, resolved, existing, transition, now, outbox);
 
         ChangeSet changeSet =
             new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
         CommitResult result = objectStorePort.commit(scope, changeSet);
         return result.objects().get(0);
+    }
+
+    /**
+     * Appends, to {@code outbox}, one {@code TimerCancelled} entry for every timer transition
+     * departing the state {@code transition} is leaving ({@link Transition#fromStateIri()}) and one
+     * {@code TimerScheduled} entry for every timer transition departing the state {@code transition}
+     * is entering ({@link Transition#toStateIri()}) — including {@code transition} itself, if its
+     * own trigger happens to be a timer. Iterates the whole {@link StateMachineDefinition} rather
+     * than a from/to-indexed lookup: state machines are small, and this keeps {@link Transition}'s
+     * own representation untouched.
+     */
+    private void addTimerOutboxEntries(
+        Scope scope,
+        TypeDefinition resolved,
+        BusinessObject existing,
+        Transition transition,
+        Instant now,
+        List<OutboxEntry> outbox) {
+        StateMachineDefinition machine = resolved.stateMachine().orElseThrow();
+        for (Transition candidate : machine.transitions()) {
+            if (!(candidate.trigger() instanceof TimerTrigger timer)) {
+                continue;
+            }
+            if (candidate.fromStateIri().equals(transition.fromStateIri())) {
+                outbox.add(timerCancelledEntry(scope, existing, candidate, now));
+            }
+            if (candidate.fromStateIri().equals(transition.toStateIri())) {
+                outbox.add(timerScheduledEntry(scope, resolved, existing, candidate, timer, now));
+            }
+        }
+    }
+
+    /**
+     * Builds one {@code TimerScheduled} entry for {@code timerTransition}, a timer transition
+     * departing the state the object just entered. {@code state} and {@code timerKey} are both
+     * anchored to {@code timerTransition.fromStateIri()} — the state the timer waits in — not to
+     * {@code transition.toStateIri()} on the caller's stack, even though the two are always equal
+     * here, so this method's own contract is self-evident without relying on that equality holding
+     * at every call site.
+     */
+    private OutboxEntry timerScheduledEntry(
+        Scope scope,
+        TypeDefinition resolved,
+        BusinessObject existing,
+        Transition timerTransition,
+        TimerTrigger timer,
+        Instant now) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", existing.id().value().toString());
+        payload.put("tenantId", scope.tenantId().value());
+        payload.put("principalId", scope.principal().id());
+        payload.put("typeIri", resolved.iri());
+        payload.put("state", timerTransition.fromStateIri());
+        payload.put("transitionName", timerTransition.name());
+        payload.put("after", timer.after().toString());
+        payload.put(
+            "timerKey",
+            timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED, payload, now);
+    }
+
+    /**
+     * Builds one {@code TimerCancelled} entry for {@code timerTransition}, a timer transition
+     * departing the state the object just left. {@code timerKey} is computed by the exact same
+     * {@link #timerKey} helper {@link #timerScheduledEntry} uses, keyed the same way (the timer
+     * transition's own {@code fromStateIri}), so a cancel entry always carries the identical key the
+     * matching schedule entry carried — the two can never drift apart.
+     */
+    private OutboxEntry timerCancelledEntry(
+        Scope scope, BusinessObject existing, Transition timerTransition, Instant now) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", existing.id().value().toString());
+        payload.put("tenantId", scope.tenantId().value());
+        payload.put(
+            "timerKey",
+            timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_CANCELLED, payload, now);
+    }
+
+    /**
+     * The one place {@code objectId|stateIri|transitionName} is assembled, used identically by
+     * {@link #timerScheduledEntry} and {@link #timerCancelledEntry} so a scheduled timer and its
+     * later cancellation always carry the exact same key — this is also used directly as the
+     * Temporal workflow id and the in-process scheduler key by a later automation-adapter task.
+     */
+    private static String timerKey(ObjectId objectId, String stateIri, String transitionName) {
+        return objectId.value().toString() + "|" + stateIri + "|" + transitionName;
     }
 
     private static String notAvailableMessage(String transitionName) {

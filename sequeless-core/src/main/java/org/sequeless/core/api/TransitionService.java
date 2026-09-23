@@ -1,8 +1,11 @@
 package org.sequeless.core.api;
 
+import java.util.Optional;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.spi.meta.Transition;
+import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectNotFoundException;
@@ -58,4 +61,29 @@ public interface TransitionService {
      */
     BusinessObject fire(
         Scope scope, String type, ObjectId id, String transitionName, long expectedVersion);
+
+    /**
+     * Fires {@code transitionName} on {@code id} in response to an automation event — a change to
+     * another object, an elapsed timer, or an external signal — rather than a user's own REST
+     * request. Unlike {@link #fire}, every mismatch is a silent {@link Optional#empty()}, never an
+     * exception: the event that prompted this call is, by construction, only a hint that {@code
+     * transitionName} might now be available, and it may already be stale by the time it is acted
+     * on. No {@link Operation#TRANSITION} authorization check is performed — there is no external
+     * caller to authorize, only the object's own current, valid state.
+     *
+     * @param scope the tenant and principal context the commit (if any) is recorded under; must not
+     *     be {@code null}
+     * @param id the id of the object to transition; must not be {@code null}
+     * @param transitionName the name of the transition to fire ({@link Transition#name()}); must not
+     *     be {@code null}
+     * @param expected the {@link TriggerKind} the resolved transition's {@link Transition#trigger()}
+     *     must match; must not be {@code null}
+     * @return the object after the transition, or {@link Optional#empty()} if {@code id} no longer
+     *     resolves to a live object of a type with a state machine, {@code transitionName} does not
+     *     name a transition currently departing the object's state, that transition's guard
+     *     evaluates {@code false}, or its trigger kind does not equal {@code expected}
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    Optional<BusinessObject> fireAutomated(
+        Scope scope, ObjectId id, String transitionName, TriggerKind expected);
 }

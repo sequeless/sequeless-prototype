@@ -22,6 +22,7 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.Principal;
 import org.sequeless.spi.Scope;
@@ -631,6 +632,7 @@ class DefaultBusinessObjectServiceTest {
         OutboxEntry outbox = changeSet.outbox().get(0);
         assertThat(outbox.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_CREATED);
         assertThat(outbox.payload().get("version")).isEqualTo(1L);
+        assertThat(outbox.payload().get("typeIri")).isEqualTo(TASK_IRI);
         assertThat(result.version()).isEqualTo(1);
     }
 
@@ -790,6 +792,7 @@ class DefaultBusinessObjectServiceTest {
         OutboxEntry outbox = changeSet.outbox().get(0);
         assertThat(outbox.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
         assertThat(outbox.payload().get("version")).isEqualTo(2L);
+        assertThat(outbox.payload().get("typeIri")).isEqualTo(TASK_IRI);
         assertThat(result.version()).isEqualTo(2);
     }
 
@@ -924,6 +927,14 @@ class DefaultBusinessObjectServiceTest {
         OutboxEntry outbox = changeSet.outbox().get(0);
         assertThat(outbox.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_DELETED);
         assertThat(outbox.payload().get("version")).isEqualTo(4L);
+        assertThat(outbox.payload().get("typeIri")).isEqualTo(TASK_IRI);
+        // ObjectStorePort#find can never read a soft-deleted object back, so ObjectDeleted embeds a
+        // full-IRI-keyed snapshot of the object's properties, tagged exactly as PayloadValueCodec
+        // encodes every other outbox value.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) outbox.payload().get("properties");
+        assertThat(properties)
+            .containsEntry(TITLE_IRI, PayloadValueCodec.toPayload(new TextValue("Write plan")));
     }
 
     @Test

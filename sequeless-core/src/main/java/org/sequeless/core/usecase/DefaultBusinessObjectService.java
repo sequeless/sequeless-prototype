@@ -22,6 +22,7 @@ import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.derivation.DerivationPlanner;
 import org.sequeless.core.derivation.DerivationPluginRegistry;
+import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.CoercionResult;
 import org.sequeless.core.validation.StructuralValidator;
 import org.sequeless.core.validation.TypeHierarchy;
@@ -255,7 +256,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_CREATED,
-                outboxPayload(candidate.id(), 1L),
+                outboxPayload(candidate.id(), 1L, candidate.type().iri()),
                 now);
         ChangeSet changeSet =
             new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
@@ -316,7 +317,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
-                outboxPayload(id, expectedVersion + 1),
+                outboxPayload(id, expectedVersion + 1, existing.type().iri()),
                 now);
         ChangeSet changeSet =
             new ChangeSet(
@@ -345,12 +346,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Instant now = now();
         String by = scope.principal().id();
         Delete deletion = new Delete(id, versionToDelete, now, by);
+        Map<String, Object> payload =
+            outboxPayload(id, versionToDelete + 1, existing.type().iri());
+        payload.put("properties", propertiesSnapshot(existing));
         OutboxEntry outboxEntry =
-            new OutboxEntry(
-                UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_DELETED,
-                outboxPayload(id, versionToDelete + 1),
-                now);
+            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED, payload, now);
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(deletion), List.of(outboxEntry));
 
         objectStorePort.commit(scope, changeSet);
@@ -654,11 +654,39 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         return clock.instant().truncatedTo(ChronoUnit.MICROS);
     }
 
-    private static Map<String, Object> outboxPayload(ObjectId id, long version) {
+    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
+        payload.put("typeIri", typeIri);
         return payload;
+    }
+
+    /**
+     * Encodes {@code object}'s stored properties, keyed by their <b>full IRI</b> (not short name),
+     * into the tagged, JSON-compatible shape {@link PayloadValueCodec#toPayload} produces — the same
+     * scheme {@code DefaultTransitionService.selfPayload} uses for an {@code ActionRequest}'s {@code
+     * self} map, except keyed differently on purpose: {@code self} is short-name-keyed because it
+     * feeds an {@link org.sequeless.spi.expression.ExpressionContext}, whereas this snapshot is
+     * consulted by {@code DefaultTriggerEvaluator}/{@code DefaultDerivationRecomputer} matching
+     * against {@code sq:watch}/{@code sq:via} IRIs directly, so short names would force those
+     * consumers to re-derive full IRIs from a name they don't otherwise need.
+     *
+     * <p>This snapshot exists solely because {@link ObjectStorePort#find} contractually returns
+     * {@link Optional#empty()} for a soft-deleted object (see that method's own javadoc) — once
+     * {@link #delete} commits, there is no port method left that can read the deleted object's
+     * properties. Without this snapshot embedded in the {@code ObjectDeleted} payload itself, a
+     * consumer reacting to a Task's deletion could never learn which Project it belonged to. {@code
+     * ObjectCreated}/{@code ObjectUpdated} consumers do not need this: they read the still-live
+     * object straight from {@link ObjectStorePort#find}, which is the intended, simpler, convergent
+     * path when the object still exists.
+     */
+    private static Map<String, Object> propertiesSnapshot(BusinessObject object) {
+        Map<String, Object> snapshot = new HashMap<>();
+        for (Map.Entry<PropertyRef, Value> entry : object.properties().entrySet()) {
+            snapshot.put(entry.getKey().iri(), PayloadValueCodec.toPayload(entry.getValue()));
+        }
+        return snapshot;
     }
 
     private void authorize(Scope scope, Operation operation, String resource) {

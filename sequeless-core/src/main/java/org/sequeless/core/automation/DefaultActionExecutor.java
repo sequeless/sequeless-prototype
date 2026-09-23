@@ -120,7 +120,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
             new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
-                outboxPayload(objectId, current.version() + 1),
+                outboxPayload(objectId, current.version() + 1, current.type().iri()),
                 now);
         ChangeSet changeSet =
             new ChangeSet(
@@ -170,7 +170,10 @@ public final class DefaultActionExecutor implements ActionExecutor {
 
         OutboxEntry outboxEntry =
             new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, outboxPayload(newId, 1L), now);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_CREATED,
+                outboxPayload(newId, 1L, createType),
+                now);
         ChangeSet changeSet =
             new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
@@ -246,10 +249,21 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 (entryId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
     }
 
-    private static Map<String, Object> outboxPayload(ObjectId id, long version) {
+    /**
+     * Duplicated from {@code DefaultBusinessObjectService}'s identically-named private helper —
+     * this codebase's established convention for this specific short pure function — widened here
+     * exactly as that copy was, to carry {@code typeIri}: the {@code ObjectUpdated}/{@code
+     * ObjectCreated} entries this class writes are ordinary domain events flowing through the same
+     * dispatch path as {@code DefaultBusinessObjectService}'s own, so {@code
+     * DefaultTriggerEvaluator}/{@code DefaultDerivationRecomputer} need the changed object's type
+     * from these payloads exactly as much as from those. Without it, a write made by an action
+     * (a {@code SetProperty} or {@code CreateObject}) would silently fail to retrigger automation.
+     */
+    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
+        payload.put("typeIri", typeIri);
         return payload;
     }
 
