@@ -33,13 +33,19 @@ import org.sequeless.spi.query.Criterion;
  *     sq:filter}), already resolved to SPI {@link Criterion}s; combined with AND, exactly as {@link
  *     org.sequeless.spi.query.Query#criteria()} is; must not be {@code null}; may be empty;
  *     returned as an unmodifiable copy so callers cannot mutate this rule after construction
+ * @param materialised whether this rule's value is kept correct in {@code sq_object.props} from
+ *     domain events rather than computed only on read ({@code sq:materialised}), per {@link
+ *     DerivationRule#materialised()}; declared last, after every field the Jena mapper already
+ *     produced before this phase, so this record's canonical constructor call sites need only one
+ *     new trailing argument
  */
 public record RollupRule(
     String sourceTypeIri,
     String viaIri,
     AggregateFunction function,
     Optional<String> ofPropertyIri,
-    List<Criterion> criteria)
+    List<Criterion> criteria,
+    boolean materialised)
     implements DerivationRule {
 
     public RollupRule {

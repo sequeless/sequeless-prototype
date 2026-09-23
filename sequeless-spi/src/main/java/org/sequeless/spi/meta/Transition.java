@@ -22,6 +22,9 @@ import java.util.Optional;
  *     be blank
  * @param toStateIri the IRI of the state this transition arrives at ({@code sq:to}); must not be
  *     blank
+ * @param trigger what makes this transition eligible to fire ({@code sq:trigger}): a user's own
+ *     REST request, another object's change, an elapsed duration, or a named external signal — see
+ *     {@link TriggerSpec}; must not be {@code null}
  * @param guard optional JEXL source evaluated against the {@code ExpressionContext} to decide
  *     whether this transition is currently available ({@code sq:guard}); absent means always
  *     available; must not be {@code null} (the {@link Optional} wrapper itself, not just its
@@ -37,6 +40,7 @@ public record Transition(
     String name,
     String fromStateIri,
     String toStateIri,
+    TriggerSpec trigger,
     Optional<String> guard,
     Optional<String> guardMessage,
     List<Action> actions) {
@@ -51,6 +55,7 @@ public record Transition(
         if (toStateIri == null || toStateIri.isBlank()) {
             throw new IllegalArgumentException("Transition toStateIri must not be blank");
         }
+        Objects.requireNonNull(trigger, "trigger must not be null");
         Objects.requireNonNull(guard, "guard must not be null");
         Objects.requireNonNull(guardMessage, "guardMessage must not be null");
         Objects.requireNonNull(actions, "actions must not be null");

@@ -11,8 +11,12 @@ package org.sequeless.spi.meta;
  *
  * @param pluginName the {@link org.sequeless.spi.derivation.DerivationPlugin#name()} this rule
  *     dispatches to ({@code sq:pluginName}); must not be blank
+ * @param materialised whether this rule's value is kept correct in {@code sq_object.props} from
+ *     domain events rather than computed only on read ({@code sq:materialised}), per {@link
+ *     DerivationRule#materialised()}; declared last so this record's canonical constructor call
+ *     sites need only one new trailing argument
  */
-public record PluginRule(String pluginName) implements DerivationRule {
+public record PluginRule(String pluginName, boolean materialised) implements DerivationRule {
 
     public PluginRule {
         if (pluginName == null || pluginName.isBlank()) {

@@ -230,7 +230,8 @@ public final class QueryFixtures {
                     Optional.empty(),
                     List.of(
                         new Criterion(
-                            Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))))),
+                            Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+                    false)),
             Datatype.INTEGER);
     }
 
@@ -258,7 +259,8 @@ public final class QueryFixtures {
                     Fixtures.BELONGS_TO_PROJECT_IRI,
                     AggregateFunction.SUM,
                     Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
-                    List.of())),
+                    List.of(),
+                    false)),
             Datatype.DECIMAL);
     }
 
