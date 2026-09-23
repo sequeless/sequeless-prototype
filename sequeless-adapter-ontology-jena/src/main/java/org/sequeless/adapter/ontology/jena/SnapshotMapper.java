@@ -1,8 +1,10 @@
 package org.sequeless.adapter.ontology.jena;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -37,7 +39,9 @@ import org.sequeless.spi.meta.CreateObjectAction;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DerivationRule;
 import org.sequeless.spi.meta.DisplayHints;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.LogAction;
+import org.sequeless.spi.meta.OnChangeTrigger;
 import org.sequeless.spi.meta.PluginRule;
 import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.PropertyDefinition;
@@ -46,8 +50,11 @@ import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
+import org.sequeless.spi.meta.TriggerSpec;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.Value;
@@ -169,10 +176,21 @@ final class SnapshotMapper {
                 .map(RollupRule.class::cast)
                 .ifPresent(rollup -> validateVia(meta.iri(), rollup, classByIri, declaredByOwner, memo, issues)));
 
+        // Flat, global property-IRI lookup: sq:watch (unlike sq:via) has no single owner-side type
+        // to resolve against — a sq:OnChange transition needs to know, given only the IRI, whether
+        // it names an object property at all and what its range is, before it can check that range
+        // against the state machine's own type. declaredByOwner is keyed by owner type and would
+        // require iterating every owner to find one property; this flattens it once for O(1) lookup
+        // by IRI, mirroring classByIri's role for sq:appliesTo.
+        Map<String, PropertyMeta> propertyByIri = declaredByOwner.values().stream()
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(PropertyMeta::iri, meta -> meta, (a, b) -> a));
+
         // Fourth pass: sq:StateMachine nodes, top-down (state machine -> its sq:appliesTo type)
         // rather than bottom-up like the sq:derivedBy passes above, since a state machine names
         // its target type instead of being discovered by walking that type's own properties.
-        Map<String, StateMachineDefinition> stateMachineByTypeIri = stateMachinesOf(model, classByIri, issues);
+        Map<String, StateMachineDefinition> stateMachineByTypeIri =
+            stateMachinesOf(model, classByIri, propertyByIri, issues);
 
         List<TypeDefinition> types = classes.stream()
             .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo, stateMachineByTypeIri))
@@ -573,7 +591,8 @@ final class SnapshotMapper {
             issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " is a sq:Plugin missing sq:pluginName"));
             return Optional.empty();
         }
-        return Optional.of(new PluginRule(nameStmt.getString()));
+        boolean materialised = SqAnnotations.bool(ruleNode, SqVocabulary.MATERIALISED, false);
+        return Optional.of(new PluginRule(nameStmt.getString(), materialised));
     }
 
     private static Optional<DerivationRule> rollupRuleOf(
@@ -627,7 +646,8 @@ final class SnapshotMapper {
         if (criteria.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(new RollupRule(sourceTypeIri, viaIri, function, ofPropertyIri, criteria.get()));
+        boolean materialised = SqAnnotations.bool(ruleNode, SqVocabulary.MATERIALISED, false);
+        return Optional.of(new RollupRule(sourceTypeIri, viaIri, function, ofPropertyIri, criteria.get(), materialised));
     }
 
     /**
@@ -844,18 +864,25 @@ final class SnapshotMapper {
      * rule is skipped for just the one property that declared it.
      */
     private static Map<String, StateMachineDefinition> stateMachinesOf(
-            OntModel model, Map<String, OntClass.Named> classByIri, List<OntologyIssue> issues) {
+            OntModel model,
+            Map<String, OntClass.Named> classByIri,
+            Map<String, PropertyMeta> propertyByIri,
+            List<OntologyIssue> issues) {
         Map<String, StateMachineDefinition> byTypeIri = new LinkedHashMap<>();
         List<Resource> nodes = model.listResourcesWithProperty(RDF.type, SqVocabulary.STATE_MACHINE).toList();
         for (Resource node : nodes.stream().sorted(Comparator.comparing(SnapshotMapper::identifierOf)).toList()) {
-            stateMachineOf(node, model, classByIri, issues)
+            stateMachineOf(node, model, classByIri, propertyByIri, issues)
                 .ifPresent(byType -> byTypeIri.put(byType.typeIri(), byType.definition()));
         }
         return byTypeIri;
     }
 
     private static Optional<StateMachineByType> stateMachineOf(
-            Resource node, OntModel model, Map<String, OntClass.Named> classByIri, List<OntologyIssue> issues) {
+            Resource node,
+            OntModel model,
+            Map<String, OntClass.Named> classByIri,
+            Map<String, PropertyMeta> propertyByIri,
+            List<OntologyIssue> issues) {
         String stateMachineIri = identifierOf(node);
 
         Statement appliesToStmt = node.getProperty(SqVocabulary.APPLIES_TO);
@@ -912,8 +939,8 @@ final class SnapshotMapper {
                     "sq:StateMachine " + stateMachineIri + " has a sq:transition that is not a node"));
                 return Optional.empty();
             }
-            Optional<Transition> transition =
-                transitionOf(stateMachineIri, stmt.getObject().asResource(), stateIris, model, issues);
+            Optional<Transition> transition = transitionOf(
+                stateMachineIri, typeIri, stmt.getObject().asResource(), stateIris, propertyByIri, model, issues);
             if (transition.isEmpty()) {
                 return Optional.empty();
             }
@@ -933,14 +960,26 @@ final class SnapshotMapper {
     /**
      * Parses one {@code sq:Transition} node: {@code sq:name} (required, non-blank), {@code
      * sq:from}/{@code sq:to} (required, must each name one of {@code stateIris}), {@code sq:trigger}
-     * (required; must be exactly {@code sq:UserAction} — this phase's only supported trigger kind,
-     * validated only, no snapshot field), {@code sq:guard}/{@code sq:guardMessage} (optional
-     * strings), and {@code sq:action} (an ordered {@code rdf:List}, absent meaning {@code []}).
+     * (required; parsed into a {@link TriggerSpec} — see {@link #onChangeTriggerOf}/{@link
+     * #timerTriggerOf}/{@link #externalSignalTriggerOf} for the per-kind required terms and
+     * validation, and {@link UserActionTrigger} for the fourth, field-less kind), {@code
+     * sq:guard}/{@code sq:guardMessage} (optional strings), and {@code sq:action} (an ordered
+     * {@code rdf:List}, absent meaning {@code []}).
+     *
+     * @param typeIri the IRI of the type this transition's owning state machine governs ({@code
+     *     sq:appliesTo}'s target) — needed only to validate a {@code sq:OnChange} trigger's {@code
+     *     sq:watch} IRIs, each of which must be an object property whose range is this very type
+     * @param propertyByIri every property declared anywhere in the model, flattened by IRI — see
+     *     {@link #map}'s construction of this map for why a global, owner-independent lookup is
+     *     needed here where {@link #effectivePropertyMeta}'s owner-scoped lookup (used by {@link
+     *     #validateVia}) is not enough
      */
     private static Optional<Transition> transitionOf(
             String stateMachineIri,
+            String typeIri,
             Resource node,
             Set<String> stateIris,
+            Map<String, PropertyMeta> propertyByIri,
             OntModel model,
             List<OntologyIssue> issues) {
         Statement nameStmt = node.getProperty(SqVocabulary.NAME);
@@ -969,10 +1008,24 @@ final class SnapshotMapper {
         String toStateIri = toStmt.getObject().asResource().getURI();
 
         Statement triggerStmt = node.getProperty(SqVocabulary.TRIGGER);
-        if (triggerStmt == null || !triggerStmt.getObject().isURIResource()
-                || !SqVocabulary.USER_ACTION.getURI().equals(triggerStmt.getObject().asResource().getURI())) {
-            issues.add(error(stateMachineIri,
-                "transition '" + name + "' on " + stateMachineIri + " sq:trigger must be sq:UserAction"));
+        String triggerUri = triggerStmt != null && triggerStmt.getObject().isURIResource()
+            ? triggerStmt.getObject().asResource().getURI()
+            : null;
+        Optional<TriggerSpec> trigger;
+        if (SqVocabulary.USER_ACTION.getURI().equals(triggerUri)) {
+            trigger = Optional.of(new UserActionTrigger());
+        } else if (SqVocabulary.ON_CHANGE.getURI().equals(triggerUri)) {
+            trigger = onChangeTriggerOf(stateMachineIri, name, node, typeIri, propertyByIri, issues);
+        } else if (SqVocabulary.TIMER.getURI().equals(triggerUri)) {
+            trigger = timerTriggerOf(stateMachineIri, name, node, issues);
+        } else if (SqVocabulary.EXTERNAL_SIGNAL.getURI().equals(triggerUri)) {
+            trigger = externalSignalTriggerOf(stateMachineIri, name, node, issues);
+        } else {
+            issues.add(error(stateMachineIri, "transition '" + name + "' on " + stateMachineIri
+                + " sq:trigger must be one of sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal"));
+            trigger = Optional.empty();
+        }
+        if (trigger.isEmpty()) {
             return Optional.empty();
         }
 
@@ -985,12 +1038,101 @@ final class SnapshotMapper {
         }
 
         try {
-            return Optional.of(new Transition(name, fromStateIri, toStateIri, guard, guardMessage, actions.get()));
+            return Optional.of(
+                new Transition(name, fromStateIri, toStateIri, trigger.get(), guard, guardMessage, actions.get()));
         } catch (IllegalArgumentException e) {
             issues.add(error(stateMachineIri,
                 "transition '" + name + "' on " + stateMachineIri + " is malformed: " + e.getMessage()));
             return Optional.empty();
         }
+    }
+
+    /**
+     * Parses a {@code sq:OnChange} trigger's {@code sq:watch} values: plain multi-valued (mirroring
+     * how {@link #stateMachineOf} reads {@code sq:state}/{@code sq:transition}), each required to be
+     * a named individual — {@code sq:watch} names a property, never a literal — that resolves in
+     * {@code propertyByIri} to an object property whose range is exactly {@code typeIri}, the type
+     * this transition's own state machine governs. {@code sq:watch} may be entirely absent, which is
+     * legal and yields an empty {@link OnChangeTrigger#watchIris()} ("watch self only"), per {@link
+     * OnChangeTrigger}'s own javadoc.
+     */
+    private static Optional<TriggerSpec> onChangeTriggerOf(
+            String stateMachineIri,
+            String transitionName,
+            Resource node,
+            String typeIri,
+            Map<String, PropertyMeta> propertyByIri,
+            List<OntologyIssue> issues) {
+        List<String> watchIris = new ArrayList<>();
+        for (Statement stmt : node.listProperties(SqVocabulary.WATCH).toList()) {
+            if (!stmt.getObject().isURIResource()) {
+                issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                    + " has a sq:watch that is not a named property"));
+                return Optional.empty();
+            }
+            String watchIri = stmt.getObject().asResource().getURI();
+            PropertyMeta watched = propertyByIri.get(watchIri);
+            if (watched == null || !watched.isObjectProperty()) {
+                issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                    + " sq:watch '" + watchIri + "' is not an object property declared in this ontology"));
+                return Optional.empty();
+            }
+            if (!typeIri.equals(watched.targetTypeIri())) {
+                issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                    + " sq:watch '" + watchIri + "' has range '" + watched.targetTypeIri()
+                    + "' but must target " + typeIri));
+                return Optional.empty();
+            }
+            watchIris.add(watchIri);
+        }
+        return Optional.of(new OnChangeTrigger(watchIris));
+    }
+
+    /**
+     * Parses a {@code sq:Timer} trigger: {@code sq:after} is required and must be a well-formed
+     * ISO-8601 duration string ({@link Duration#parse}) that is also strictly positive — {@link
+     * TimerTrigger}'s own compact constructor rejects zero/negative, and that {@link
+     * IllegalArgumentException} is caught here too so it surfaces as a named mapping {@code ERROR}
+     * rather than escaping {@code transitionOf} uncaught.
+     */
+    private static Optional<TriggerSpec> timerTriggerOf(
+            String stateMachineIri, String transitionName, Resource node, List<OntologyIssue> issues) {
+        Statement afterStmt = node.getProperty(SqVocabulary.AFTER);
+        if (afterStmt == null || afterStmt.getString().isBlank()) {
+            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                + " sq:trigger sq:Timer requires sq:after"));
+            return Optional.empty();
+        }
+        String lexical = afterStmt.getString();
+        Duration after;
+        try {
+            after = Duration.parse(lexical);
+        } catch (DateTimeParseException e) {
+            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                + " sq:after '" + lexical + "' is not a valid ISO-8601 duration"));
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(new TimerTrigger(after));
+        } catch (IllegalArgumentException e) {
+            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                + " sq:after '" + lexical + "' must be a positive duration"));
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Parses a {@code sq:ExternalSignal} trigger: {@code sq:signalName} is required and non-blank.
+     */
+    private static Optional<TriggerSpec> externalSignalTriggerOf(
+            String stateMachineIri, String transitionName, Resource node, List<OntologyIssue> issues) {
+        Statement signalNameStmt = node.getProperty(SqVocabulary.SIGNAL_NAME);
+        if (signalNameStmt == null || signalNameStmt.getString().isBlank()) {
+            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
+                + " sq:trigger sq:ExternalSignal requires sq:signalName"));
+            return Optional.empty();
+        }
+        return Optional.of(new ExternalSignalTrigger(signalNameStmt.getString()));
     }
 
     /**

@@ -112,7 +112,7 @@ built from `sq:PropertyAssignment` nodes where property values are being set.
 | `sq:name` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | none, required | `Transition.name()` |
 | `sq:from` | `owl:AnnotationProperty` | `sq:Transition` | `sq:State` | none, required | `Transition.fromStateIri()` |
 | `sq:to` | `owl:AnnotationProperty` | `sq:Transition` | `sq:State` | none, required | `Transition.toStateIri()` |
-| `sq:trigger` | `owl:AnnotationProperty` | `sq:Transition` | — (enumeration; see notes) | none, required | validated only — this phase supports exactly one legal value, `sq:UserAction`; no snapshot field |
+| `sq:trigger` | `owl:AnnotationProperty` | `sq:Transition` | — (enumeration; see notes) | none, required | `Transition.trigger()` — see phase 6 below for the full four-value enumeration and its three added terms (`sq:watch`/`sq:after`/`sq:signalName`); phase 5 alone only ever exercised `sq:UserAction` |
 | `sq:guard` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | absent (always available) | `Transition.guard()` |
 | `sq:guardMessage` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | absent (generic fallback message) | `Transition.guardMessage()` |
 | `sq:action` | `owl:AnnotationProperty` | `sq:Transition` | `rdf:List` | absent (`[]`) | `Transition.actions()` |
@@ -143,7 +143,54 @@ Notes:
   out for `sq:derivedBy`; this edit **removes** the existing `rdfs:domain sq:Criterion` from
   `sq:property`/`sq:value`'s declarations in the `.ttl` files, not just adds more domains.
 - `sq:trigger` has no `rdfs:range` asserted, mirroring `sq:function`/`sq:operator`: a fixed
-  enumeration (currently just `sq:UserAction`) that RDFS can't express without `owl:oneOf`.
+  enumeration — `sq:UserAction`, `sq:OnChange`, `sq:Timer`, `sq:ExternalSignal` as of phase 6 — that
+  RDFS can't express without `owl:oneOf`.
+
+## Terms in use (phase 6)
+
+Phase 6 (event-driven automation and materialised derivations, DR-11) widens `sq:trigger` from its
+phase-5 single legal value to a four-way enumeration, so a `sq:Transition` can fire from something
+other than a REST caller, and adds `sq:materialised` so a derived property's value can be kept
+correct in `sq_object.props` from domain events instead of only ever being computed on read.
+
+| IRI | RDF type | Domain | Range | Default | Snapshot field |
+|---|---|---|---|---|---|
+| `sq:watch` | `owl:AnnotationProperty` | `sq:Transition` | `rdf:Property` | absent (watch self only) | `OnChangeTrigger.watchIris()` |
+| `sq:after` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` (ISO-8601 duration lexical form) | none, required for `sq:Timer` | `TimerTrigger.after()` |
+| `sq:signalName` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | none, required for `sq:ExternalSignal` | `ExternalSignalTrigger.signalName()` |
+| `sq:materialised` | `owl:AnnotationProperty` | conceptually `sq:Rollup` ∪ `sq:Plugin` (deliberately unasserted, same reasoning as `sq:derivedBy`) | `xsd:boolean` | `false` | `DerivationRule.materialised()` (`RollupRule`/`PluginRule`) |
+
+`sq:trigger`'s four legal values, each an `owl:NamedIndividual` with no snapshot field of its own —
+they are the values `sq:trigger` takes, matched by IRI local name against
+`org.sequeless.spi.meta.TriggerKind`'s enum constant names, exactly as the phase-4 function/operator
+individuals are matched against their own enums:
+
+| Individual | Paired `TriggerSpec` | Required companion terms |
+|---|---|---|
+| `sq:UserAction` | `UserActionTrigger` | none — carries no fields; the transition fires only from `POST /objects/{type}/{id}/transitions/{name}` |
+| `sq:OnChange` | `OnChangeTrigger` | `sq:watch` (optional, multi-valued) |
+| `sq:Timer` | `TimerTrigger` | `sq:after` (required) |
+| `sq:ExternalSignal` | `ExternalSignalTrigger` | `sq:signalName` (required) |
+
+Notes:
+- `sq:watch` is plain multi-valued (order doesn't matter), mirroring `sq:state`, not an `rdf:List`
+  like `sq:action`/`sq:filter`. Each value must be an object property declared somewhere in the
+  ontology whose range is exactly the type the watching transition's own state machine governs
+  (`sq:appliesTo`'s target) — `ex:belongsToProject` (domain `ex:Task`, range `ex:Project`) is a
+  legal `sq:watch` on `ex:ProjectLifecycle`'s `autoClose` transition for exactly this reason. Absent
+  `sq:watch` is legal and means "watch self only": the transition re-evaluates when the object it is
+  declared on changes directly, with no relationship hop.
+- `sq:after`'s value is the same ISO-8601 duration lexical form `java.time.Duration.parse` accepts
+  (e.g. `"PT72H"`), asserted as a plain `xsd:string` rather than `xsd:duration`: it is validated and
+  parsed by `SnapshotMapper`, not by RDFS/XSD typing, mirroring how `sq:guard`'s JEXL source and
+  `sq:message`'s log text are also plain strings despite carrying more specific content. The parsed
+  `java.time.Duration` must be strictly positive; zero or negative durations are rejected as a
+  mapping error, not something a durable timer workflow could represent.
+- `sq:materialised` follows the same union-domain reasoning `sq:derivedBy` already documents above:
+  no `rdfs:domain` is asserted, so a rule-based reasoner cannot entail it onto a node it was never
+  asserted on. Marking a rule materialised never changes what a `GET`/browse response returns for
+  that property — it is always the freshly recomputed aggregate — it only makes the stored value
+  exist so `QueryPort` can filter and sort on it.
 
 ## Two terms added beyond the brief
 
@@ -170,7 +217,6 @@ pattern below, naming the term and the phase that will support it:
 | Term | RDF type (planned) | Reserved for |
 |---|---|---|
 | `sq:permission` | `owl:AnnotationProperty` | Phase 8, authorisation (DR-11): attaches a permission requirement to a type, property or transition, evaluated by `AuthorizationPort` once Spring Security/OIDC replaces permit-all. |
-| `sq:materialised` | `owl:AnnotationProperty` | Phase 4, derived properties (DR-08): switches a `sq:derivedBy` rollup from on-read evaluation to event-driven materialisation. |
 
 ## OWL → snapshot mapping table
 
@@ -206,7 +252,11 @@ construct on the left, the snapshot field it produces on the right.
 | `sq:appliesTo` (on a `sq:StateMachine` node) | attaches `StateMachineDefinition` to that type's `TypeDefinition.stateMachine()` |
 | `sq:initialState` / `sq:state` / `sq:transition` (on a `sq:StateMachine` node) | the matching `StateMachineDefinition.initialState()` / `states()` / `transitions()` |
 | `sq:name` / `sq:from` / `sq:to` / `sq:guard` / `sq:guardMessage` / `sq:action` (on a `sq:Transition` node) | the matching `Transition.name()` / `fromStateIri()` / `toStateIri()` / `guard()` / `guardMessage()` / `actions()` |
-| `sq:trigger` (on a `sq:Transition` node) | validated only against the single legal value `sq:UserAction`; no snapshot field |
+| `sq:trigger` (on a `sq:Transition` node) | `Transition.trigger()`, one of `UserActionTrigger`/`OnChangeTrigger`/`TimerTrigger`/`ExternalSignalTrigger` per which of `sq:UserAction`/`sq:OnChange`/`sq:Timer`/`sq:ExternalSignal` it names |
+| `sq:watch` (on a `sq:OnChange`-triggered `sq:Transition` node) | `OnChangeTrigger.watchIris()` |
+| `sq:after` (on a `sq:Timer`-triggered `sq:Transition` node) | `TimerTrigger.after()`, parsed as an ISO-8601 `java.time.Duration` |
+| `sq:signalName` (on a `sq:ExternalSignal`-triggered `sq:Transition` node) | `ExternalSignalTrigger.signalName()` |
+| `sq:materialised` (on a `sq:Rollup` or `sq:Plugin` node) | `DerivationRule.materialised()` |
 | Type of a `sq:action` list element (`sq:SetProperty` / `sq:CreateObject` / `sq:Webhook` / `sq:Log`) | selects the matching `Transition.actions()` entry type (`SetPropertyAction` / `CreateObjectAction` / `WebhookAction` / `LogAction`) |
 | `sq:property` / `sq:value` / `sq:expression` (on a `sq:SetProperty` node) | the matching `SetPropertyAction.propertyIri()` / `value()` / `expression()` |
 | `sq:type` / `sq:properties` (on a `sq:CreateObject` node) | the matching `CreateObjectAction.typeIri()` / `properties()` |

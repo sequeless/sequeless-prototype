@@ -183,6 +183,85 @@ class DerivationMappingTest {
         assertThat(property.readOnly()).isTrue();
     }
 
+    // -- sq:materialised (Phase 6) ----------------------------------------------------------------
+
+    @Test
+    void rollupWithoutMaterialisedDefaultsToFalse() {
+        MappingResult result = mapTurtle(
+            """
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        RollupRule rule =
+            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        assertThat(rule.materialised()).isFalse();
+    }
+
+    @Test
+    void rollupWithMaterialisedTrueIsHonoured() {
+        MappingResult result = mapTurtle(
+            """
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:materialised true ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        RollupRule rule =
+            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        assertThat(rule.materialised()).isTrue();
+    }
+
+    @Test
+    void pluginWithoutMaterialisedDefaultsToFalse() {
+        MappingResult result = mapTurtle(
+            """
+            ex:workload
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Person ;
+                rdfs:range xsd:decimal ;
+                sq:derivedBy [ a sq:Plugin ; sq:pluginName "workload" ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        PluginRule rule =
+            (PluginRule) attribute(result, REF_NS + "Person", REF_NS + "workload").derivation().orElseThrow();
+        assertThat(rule.materialised()).isFalse();
+    }
+
+    @Test
+    void pluginWithMaterialisedTrueIsHonoured() {
+        MappingResult result = mapTurtle(
+            """
+            ex:workload
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Person ;
+                rdfs:range xsd:decimal ;
+                sq:derivedBy [ a sq:Plugin ; sq:pluginName "workload" ; sq:materialised true ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        PluginRule rule =
+            (PluginRule) attribute(result, REF_NS + "Person", REF_NS + "workload").derivation().orElseThrow();
+        assertThat(rule.materialised()).isTrue();
+    }
+
     // -- Rule-shape validation --------------------------------------------------------------------
 
     @Test

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.apache.jena.ontapi.OntModelFactory;
@@ -15,13 +16,17 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.meta.Action;
 import org.sequeless.spi.meta.CreateObjectAction;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.LogAction;
+import org.sequeless.spi.meta.OnChangeTrigger;
 import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.IntegerValue;
 import org.sequeless.spi.object.TextValue;
@@ -290,6 +295,203 @@ class StateMachineMappingTest {
         assertThat(log.message()).isEqualTo("activated: ${self.title}");
     }
 
+    // -- Trigger kinds (Phase 6) -----------------------------------------------------------------
+
+    @Test
+    void onChangeTriggerWithWatchMapsToOnChangeTrigger() {
+        MappingResult result = mapTurtle(
+            """
+            ex:belongsToProject a owl:ObjectProperty ; rdfs:domain ex:Task ; rdfs:range ex:Project .
+
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "autoClose" ; sq:from ex:Active ; sq:to ex:Draft ;
+                      sq:trigger sq:OnChange ; sq:watch ex:belongsToProject ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        Transition autoClose = transition(stateMachine(result, PROJECT_IRI), "autoClose");
+        assertThat(autoClose.trigger()).isInstanceOf(OnChangeTrigger.class);
+        assertThat(((OnChangeTrigger) autoClose.trigger()).watchIris())
+            .containsExactly(REF_NS + "belongsToProject");
+    }
+
+    @Test
+    void onChangeTriggerWithoutWatchIsWatchSelfOnlyAndLegal() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:OnChange ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        Transition activate = transition(stateMachine(result, PROJECT_IRI), "activate");
+        assertThat(activate.trigger()).isInstanceOf(OnChangeTrigger.class);
+        assertThat(((OnChangeTrigger) activate.trigger()).watchIris()).isEmpty();
+    }
+
+    @Test
+    void timerTriggerWithAfterMapsToTimerTrigger() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:Timer ; sq:after "PT72H" ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        Transition activate = transition(stateMachine(result, PROJECT_IRI), "activate");
+        assertThat(activate.trigger()).isInstanceOf(TimerTrigger.class);
+        assertThat(((TimerTrigger) activate.trigger()).after()).isEqualTo(Duration.parse("PT72H"));
+    }
+
+    @Test
+    void externalSignalTriggerWithSignalNameMapsToExternalSignalTrigger() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:ExternalSignal ; sq:signalName "reopen" ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        Transition activate = transition(stateMachine(result, PROJECT_IRI), "activate");
+        assertThat(activate.trigger()).isInstanceOf(ExternalSignalTrigger.class);
+        assertThat(((ExternalSignalTrigger) activate.trigger()).signalName()).isEqualTo("reopen");
+    }
+
+    @Test
+    void timerTriggerMissingAfterIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:Timer ] .
+            """);
+        assertSingleError(result, "sq:trigger sq:Timer requires sq:after");
+    }
+
+    @Test
+    void timerTriggerMalformedAfterIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:Timer ; sq:after "not-a-duration" ] .
+            """);
+        assertSingleError(result, "is not a valid ISO-8601 duration");
+    }
+
+    @Test
+    void timerTriggerZeroAfterIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:Timer ; sq:after "PT0S" ] .
+            """);
+        assertSingleError(result, "must be a positive duration");
+    }
+
+    @Test
+    void externalSignalTriggerMissingSignalNameIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:ExternalSignal ] .
+            """);
+        assertSingleError(result, "sq:trigger sq:ExternalSignal requires sq:signalName");
+    }
+
+    @Test
+    void onChangeTriggerWatchingDataPropertyIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:OnChange ; sq:watch ex:title ] .
+            """);
+        assertSingleError(result, "is not an object property declared in this ontology");
+    }
+
+    @Test
+    void onChangeTriggerWatchingObjectPropertyWithWrongRangeIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:OnChange ; sq:watch ex:owner ] .
+            """);
+        assertSingleError(result, "has range '" + REF_NS + "Person' but must target");
+    }
+
+    @Test
+    void onChangeTriggerWatchingUnknownIriIsError() {
+        MappingResult result = mapTurtle(
+            """
+            ex:ProjectLifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:OnChange ; sq:watch ex:doesNotExist ] .
+            """);
+        assertSingleError(result, "is not an object property declared in this ontology");
+    }
+
     // -- Rule-shape validation --------------------------------------------------------------------
 
     @Test
@@ -416,7 +618,8 @@ class StateMachineMappingTest {
                     [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
                       sq:trigger ex:SomeOtherTrigger ] .
             """);
-        assertSingleError(result, "sq:trigger must be sq:UserAction");
+        assertSingleError(result,
+            "sq:trigger must be one of sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal");
     }
 
     @Test
@@ -658,7 +861,7 @@ class StateMachineMappingTest {
             .containsExactly(Fixtures.DRAFT_IRI, Fixtures.ACTIVE_IRI, Fixtures.ON_HOLD_IRI, Fixtures.CLOSED_IRI);
         assertThat(definition.initialState().iri()).isEqualTo(Fixtures.DRAFT_IRI);
         assertThat(definition.transitions().stream().map(Transition::name))
-            .containsExactly("activate", "close", "hold", "resume");
+            .containsExactly("activate", "autoClose", "close", "expireHold", "hold", "reopen", "resume");
 
         Transition activate = transition(definition, "activate");
         assertThat(activate.guard()).contains("self.owner != null");
@@ -682,6 +885,24 @@ class StateMachineMappingTest {
             Transition t = transition(definition, alwaysAvailable);
             assertThat(t.guard()).isEmpty();
         }
+        for (String userTriggered : List.of("activate", "hold", "resume", "close")) {
+            assertThat(transition(definition, userTriggered).trigger()).isInstanceOf(UserActionTrigger.class);
+        }
+
+        Transition autoClose = transition(definition, "autoClose");
+        assertThat(autoClose.trigger()).isInstanceOf(OnChangeTrigger.class);
+        assertThat(((OnChangeTrigger) autoClose.trigger()).watchIris())
+            .containsExactly(Fixtures.BELONGS_TO_PROJECT_IRI);
+        assertThat(autoClose.guard()).contains("self.openTaskCount == 0");
+        assertThat(autoClose.guardMessage()).contains("Project still has open tasks");
+
+        Transition expireHold = transition(definition, "expireHold");
+        assertThat(expireHold.trigger()).isInstanceOf(TimerTrigger.class);
+        assertThat(((TimerTrigger) expireHold.trigger()).after()).isEqualTo(Duration.parse("PT72H"));
+
+        Transition reopen = transition(definition, "reopen");
+        assertThat(reopen.trigger()).isInstanceOf(ExternalSignalTrigger.class);
+        assertThat(((ExternalSignalTrigger) reopen.trigger()).signalName()).isEqualTo("reopen");
 
         TypeDefinition task = typeNamed(result, Fixtures.TASK_IRI);
         assertThat(task.stateMachine()).isEmpty();

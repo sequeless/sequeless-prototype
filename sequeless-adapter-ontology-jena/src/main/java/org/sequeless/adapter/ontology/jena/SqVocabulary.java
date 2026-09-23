@@ -83,6 +83,12 @@ final class SqVocabulary {
     /** {@code sq:pluginName} — feeds {@code PluginRule.pluginName()}. */
     static final Property PLUGIN_NAME = property("pluginName");
 
+    /**
+     * {@code sq:materialised} — feeds {@code DerivationRule.materialised()} on both {@link #ROLLUP}
+     * and {@link #PLUGIN} nodes; defaults to {@code false} when absent.
+     */
+    static final Property MATERIALISED = property("materialised");
+
     /** {@code sq:appliesTo} — feeds the type key of {@code TypeDefinition.stateMachine()}. */
     static final Property APPLIES_TO = property("appliesTo");
 
@@ -104,7 +110,10 @@ final class SqVocabulary {
     /** {@code sq:to} — feeds {@code Transition.toStateIri()}. */
     static final Property TO = property("to");
 
-    /** {@code sq:trigger} — validated only; this phase's one legal value is {@link #USER_ACTION}. */
+    /**
+     * {@code sq:trigger} — feeds {@code Transition.trigger()}'s {@code TriggerKind}; legal values
+     * are {@link #USER_ACTION}, {@link #ON_CHANGE}, {@link #TIMER}, and {@link #EXTERNAL_SIGNAL}.
+     */
     static final Property TRIGGER = property("trigger");
 
     /** {@code sq:guard} — feeds {@code Transition.guard()}. */
@@ -115,6 +124,25 @@ final class SqVocabulary {
 
     /** {@code sq:action} — feeds {@code Transition.actions()}; an {@code rdf:List}. */
     static final Property ACTION = property("action");
+
+    /**
+     * {@code sq:watch} — feeds {@code OnChangeTrigger.watchIris()}; plain multi-valued, each value a
+     * URI resource naming a relationship property declared on the type being watched whose range is
+     * this transition's own owning type. May be absent, meaning "watch self only".
+     */
+    static final Property WATCH = property("watch");
+
+    /**
+     * {@code sq:after} — feeds {@code TimerTrigger.after()}, an ISO-8601 duration literal (e.g.
+     * {@code "PT72H"}); required when {@code sq:trigger} is {@link #TIMER}.
+     */
+    static final Property AFTER = property("after");
+
+    /**
+     * {@code sq:signalName} — feeds {@code ExternalSignalTrigger.signalName()}; required and
+     * non-blank when {@code sq:trigger} is {@link #EXTERNAL_SIGNAL}.
+     */
+    static final Property SIGNAL_NAME = property("signalName");
 
     /**
      * {@code sq:expression} — feeds {@code SetPropertyAction.expression()} /
@@ -184,8 +212,17 @@ final class SqVocabulary {
     /** {@code sq:Log} — one of the four {@code sq:action} list element kinds. */
     static final Resource LOG = ResourceFactory.createResource(NS + "Log");
 
-    /** {@code sq:UserAction} — the only legal {@link #TRIGGER} value this phase supports. */
+    /** {@code sq:UserAction} — a {@link #TRIGGER} value; pairs with {@code UserActionTrigger}. */
     static final Resource USER_ACTION = ResourceFactory.createResource(NS + "UserAction");
+
+    /** {@code sq:OnChange} — a {@link #TRIGGER} value; pairs with {@code OnChangeTrigger}. */
+    static final Resource ON_CHANGE = ResourceFactory.createResource(NS + "OnChange");
+
+    /** {@code sq:Timer} — a {@link #TRIGGER} value; pairs with {@code TimerTrigger}. */
+    static final Resource TIMER = ResourceFactory.createResource(NS + "Timer");
+
+    /** {@code sq:ExternalSignal} — a {@link #TRIGGER} value; pairs with {@code ExternalSignalTrigger}. */
+    static final Resource EXTERNAL_SIGNAL = ResourceFactory.createResource(NS + "ExternalSignal");
 
     /**
      * Every {@code sq:} term implemented by a later phase, in the order they appear in the
@@ -194,8 +231,7 @@ final class SqVocabulary {
      * message rather than one that depends on {@code Map} iteration order.
      */
     private static final List<ReservedTerm> RESERVED_TERMS = List.of(
-        new ReservedTerm("permission", "Phase 8 (authorisation)"),
-        new ReservedTerm("materialised", "Phase 4 (derived properties)"));
+        new ReservedTerm("permission", "Phase 8 (authorisation)"));
 
     private SqVocabulary() {}
 

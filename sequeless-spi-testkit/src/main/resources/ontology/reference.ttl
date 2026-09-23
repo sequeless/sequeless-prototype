@@ -210,6 +210,11 @@ ex:email
 
 #
 # Derived properties (Phase 4, DR-08) — computed on read from ex:Task, never stored in props.
+# ex:openTaskCount is additionally sq:materialised (Phase 6): its value is *also* kept correct in
+# sq_object.props from domain events, so it is filterable/sortable (filter[openTaskCount][eq]=0),
+# while GET/browse still always return the freshly recomputed aggregate above, never the stored
+# value. ex:totalEstimatedHours is deliberately left non-materialised, to exercise the 400
+# rejection path for filtering/sorting an un-materialised derived property.
 #
 
 ex:openTaskCount
@@ -226,7 +231,8 @@ ex:openTaskCount
         sq:filter ( [ a sq:Criterion ;
                       sq:property ex:status ;
                       sq:operator sq:ne ;
-                      sq:value "done" ] ) ] .
+                      sq:value "done" ] ) ;
+        sq:materialised true ] .
 
 ex:totalEstimatedHours
     a owl:DatatypeProperty ;
@@ -242,16 +248,30 @@ ex:totalEstimatedHours
         sq:of ex:estimatedHours ] .
 
 #
-# State machine (Phase 5, DR-09) — ex:Project moves Draft -> Active -> OnHold/Closed. `activate`
-# is the only transition with a guard (self.owner != null) and the only one with actions, so it
-# exercises both mechanisms an ExpressionPort implementation (a later task) must support:
-# sq:expression on sq:SetProperty/sq:PropertyAssignment nodes is bare JEXL source (no ${} — the
-# whole string is the expression), while sq:url/sq:body on sq:Webhook are JXLT templates (${expr}
-# placeholders spliced into an otherwise-literal string). `hold`, `resume`, and `close` deliberately
-# carry no sq:guard, to exercise the "always available" path. Every expression here only reaches
-# into the ExpressionContext shape a later task will define (self's own properties, self's current
-# state, and the acting principal) — e.g. self.owner, self.title — never a property (like self.id)
-# that shape won't carry.
+# State machine (Phase 5, DR-09; automated triggers added Phase 6, DR-11) — ex:Project moves
+# Draft -> Active -> OnHold/Closed, plus Closed -> Active. `activate`, `hold`, `resume`, and
+# `close` are sq:UserAction, fired only by a REST caller. `activate` is the only transition with a
+# guard (self.owner != null) and the only one with actions, so it exercises both mechanisms an
+# ExpressionPort implementation (a later task) must support: sq:expression on
+# sq:SetProperty/sq:PropertyAssignment nodes is bare JEXL source (no ${} — the whole string is the
+# expression), while sq:url/sq:body on sq:Webhook are JXLT templates (${expr} placeholders spliced
+# into an otherwise-literal string). `hold`, `resume`, and `close` deliberately carry no sq:guard,
+# to exercise the "always available" path.
+#
+# The three remaining transitions each exercise one of the other three sq:trigger kinds and fire
+# without any user request, through the same guard -> commit -> action path `fire` uses:
+#   - `autoClose` (sq:OnChange, sq:watch ex:belongsToProject) reacts to any ex:Task that points
+#     back at this ex:Project changing, and moves Active -> Closed once self.openTaskCount == 0 —
+#     the very reason ex:openTaskCount is sq:materialised above, since the guard reads it from
+#     stored props, not by recomputing it inline.
+#   - `expireHold` (sq:Timer, sq:after "PT72H") moves OnHold -> Closed 72 hours after the object
+#     entered OnHold; the duration is ontology data, editable without a rebuild.
+#   - `reopen` (sq:ExternalSignal, sq:signalName "reopen") moves Closed -> Active in response to a
+#     POST /objects/Project/{id}/signals/reopen call naming that signal.
+#
+# Every expression here only reaches into the ExpressionContext shape a later task will define
+# (self's own properties, self's current state, and the acting principal) — e.g. self.owner,
+# self.title, self.openTaskCount — never a property (like self.id) that shape won't carry.
 #
 
 ex:ProjectLifecycle
@@ -279,7 +299,18 @@ ex:ProjectLifecycle
                 sq:body "{\"project\": \"${self.title}\"}" ] ) ] ,
         [ a sq:Transition ; sq:name "hold" ;   sq:from ex:Active ; sq:to ex:OnHold ; sq:trigger sq:UserAction ] ,
         [ a sq:Transition ; sq:name "resume" ; sq:from ex:OnHold ; sq:to ex:Active ; sq:trigger sq:UserAction ] ,
-        [ a sq:Transition ; sq:name "close" ;  sq:from ex:Active ; sq:to ex:Closed ; sq:trigger sq:UserAction ] .
+        [ a sq:Transition ; sq:name "close" ;  sq:from ex:Active ; sq:to ex:Closed ; sq:trigger sq:UserAction ] ,
+        [ a sq:Transition ; sq:name "autoClose" ;
+          sq:from ex:Active ; sq:to ex:Closed ;
+          sq:trigger sq:OnChange ; sq:watch ex:belongsToProject ;
+          sq:guard "self.openTaskCount == 0" ;
+          sq:guardMessage "Project still has open tasks" ] ,
+        [ a sq:Transition ; sq:name "expireHold" ;
+          sq:from ex:OnHold ; sq:to ex:Closed ;
+          sq:trigger sq:Timer ; sq:after "PT72H" ] ,
+        [ a sq:Transition ; sq:name "reopen" ;
+          sq:from ex:Closed ; sq:to ex:Active ;
+          sq:trigger sq:ExternalSignal ; sq:signalName "reopen" ] .
 
 ex:Draft  a sq:State ; sq:label "Draft"   ; sq:displayOrder "1"^^xsd:integer .
 ex:Active a sq:State ; sq:label "Active"  ; sq:displayOrder "2"^^xsd:integer .

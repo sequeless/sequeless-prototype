@@ -104,14 +104,14 @@ class SnapshotMapperTest {
 
             <https://sequeless.dev/ns/ref> a owl:Ontology ; owl:imports <https://sequeless.dev/ns/meta> .
 
-            ex:Widget a owl:Class ; sq:materialised true .
+            ex:Widget a owl:Class ; sq:permission true .
             """;
         OntModel model = buildModel(turtle, ReasonerSetting.NONE);
 
         Optional<String> message = SqVocabulary.rejectionMessageIfReserved(model);
 
         assertThat(message)
-            .contains("sq:materialised is reserved for Phase 4 (derived properties) and is not supported yet.");
+            .contains("sq:permission is reserved for Phase 8 (authorisation) and is not supported yet.");
     }
 
     @Test

@@ -136,6 +136,11 @@ sq:pluginName
     rdfs:domain sq:Plugin ;
     rdfs:range xsd:string .
 
+sq:materialised
+    a owl:AnnotationProperty ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Domain is the union of sq:Rollup and sq:Plugin (Phase 6): whether this rule's value is kept correct in sq_object.props from domain events, making it filterable/sortable, in addition to always being recomputed on read; defaults to false when absent. No rdfs:domain is asserted, for the same reason sq:derivedBy's comment records for its own union range." .
+
 #
 # Function individuals — mirror org.sequeless.spi.meta.AggregateFunction; matched by IRI local
 # name against the enum's constant names.
@@ -260,7 +265,25 @@ sq:to
 sq:trigger
     a owl:AnnotationProperty ;
     rdfs:domain sq:Transition ;
-    rdfs:comment "Legal values are a fixed enumeration currently containing only sq:UserAction, which RDFS cannot express without owl:oneOf, so no rdfs:range is asserted and the set is validated at snapshot activation instead." .
+    rdfs:comment "Legal values are the fixed enumeration sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal (Phase 6), which RDFS cannot express without owl:oneOf, so no rdfs:range is asserted and the set is validated at snapshot activation instead." .
+
+sq:watch
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range rdf:Property ;
+    rdfs:comment "Phase 6: for a sq:OnChange sq:trigger, the forward relationship property/properties declared on the changed type that point back at this transition's own sq:appliesTo type; plain multi-valued, like sq:state. Absent means watch self only." .
+
+sq:after
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Phase 6: for a sq:Timer sq:trigger, the ISO-8601 duration lexical form (e.g. \"PT72H\", parsed via java.time.Duration.parse) to wait after the object enters sq:from before this transition fires; required for sq:Timer, must be strictly positive." .
+
+sq:signalName
+    a owl:AnnotationProperty ;
+    rdfs:domain sq:Transition ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Phase 6: for a sq:ExternalSignal sq:trigger, the signal name this transition fires in response to; required and non-blank for sq:ExternalSignal." .
 
 sq:guard
     a owl:AnnotationProperty ;
@@ -318,3 +341,9 @@ sq:expression
     rdfs:comment "Domain is the union of sq:SetProperty and sq:PropertyAssignment, for the same reason sq:property's comment records for its wider union; no rdfs:domain is asserted." .
 
 sq:UserAction a owl:NamedIndividual .
+
+sq:OnChange a owl:NamedIndividual .
+
+sq:Timer a owl:NamedIndividual .
+
+sq:ExternalSignal a owl:NamedIndividual .
