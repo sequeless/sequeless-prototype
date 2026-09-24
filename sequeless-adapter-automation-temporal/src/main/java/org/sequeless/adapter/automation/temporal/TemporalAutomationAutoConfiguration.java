@@ -10,6 +10,8 @@ import io.temporal.worker.WorkerFactory;
 import java.time.Duration;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.TriggerEvaluator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -110,6 +112,11 @@ public class TemporalAutomationAutoConfiguration {
      * @param client the Temporal client the worker factory is built from
      * @param actionExecutor the {@link ActionExecutor} bean some other, application-level
      *     configuration is expected to have already registered on the context
+     * @param triggerEvaluator the {@link TriggerEvaluator} bean {@link TriggerActivitiesImpl} calls
+     *     back into, expected to already be registered on the context (mirroring {@code
+     *     actionExecutor}'s own precedent)
+     * @param derivationRecomputer the {@link DerivationRecomputer} bean {@link TriggerActivitiesImpl}
+     *     calls back into, expected to already be registered on the context
      * @param props the bound {@code sequeless.automation.temporal.*} configuration, supplying the
      *     task queue name and retry policy
      * @return the {@link WorkerFactory}, kept as a bean so its lifecycle is visible to (and
@@ -117,13 +124,23 @@ public class TemporalAutomationAutoConfiguration {
      */
     @Bean
     public WorkerFactory workerFactory(
-        WorkflowClient client, ActionExecutor actionExecutor, TemporalAutomationProperties props) {
+        WorkflowClient client,
+        ActionExecutor actionExecutor,
+        TriggerEvaluator triggerEvaluator,
+        DerivationRecomputer derivationRecomputer,
+        TemporalAutomationProperties props) {
         ActionWorkflowImpl.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
 
         WorkerFactory factory = WorkerFactory.newInstance(client);
         Worker worker = factory.newWorker(props.getTaskQueue());
-        worker.registerWorkflowImplementationTypes(ActionWorkflowImpl.class);
-        worker.registerActivitiesImplementations(new ActionActivitiesImpl(actionExecutor));
+        worker.registerWorkflowImplementationTypes(
+            ActionWorkflowImpl.class,
+            ChangeEventWorkflowImpl.class,
+            TimerWorkflowImpl.class,
+            SignalEventWorkflowImpl.class);
+        worker.registerActivitiesImplementations(
+            new ActionActivitiesImpl(actionExecutor),
+            new TriggerActivitiesImpl(triggerEvaluator, derivationRecomputer));
         try {
             factory.start();
         } catch (RuntimeException e) {
