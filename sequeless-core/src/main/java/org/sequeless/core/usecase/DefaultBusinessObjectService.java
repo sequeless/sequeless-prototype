@@ -384,9 +384,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
 
     /**
      * Resolves a filter/sort/facet property reference (short name or full IRI) against {@code
-     * index}, rejecting an unknown property or a multi-valued one — every one of the three query
-     * clauses this method backs requires a scalar property, per phase-3's explicit scope. Records a
-     * {@link Violation} and returns {@code null} on either failure, rather than throwing, so a
+     * index}, rejecting an unknown property, a multi-valued one — every one of the three query
+     * clauses this method backs requires a scalar property, per phase-3's explicit scope — or a
+     * derived property whose rule is not materialised, since only a materialised rule's value ever
+     * reaches {@code sq_object.props} for {@code QueryPort} to filter, sort, or facet on. Records a
+     * {@link Violation} and returns {@code null} on any failure, rather than throwing, so a
      * single {@link BrowseQuery} can report every violation it contains at once.
      */
     private PropertyDefinition resolveQueryableProperty(
@@ -402,6 +404,12 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
                     property.iri(),
                     "Property '" + shortName(property.iri())
                         + "' is multi-valued and cannot be used in a " + kind));
+            return null;
+        }
+        if (property.derivation().isPresent() && !property.derivation().get().materialised()) {
+            violations.add(new Violation(property.iri(),
+                "Property '" + shortName(property.iri()) + "' is a derived property that is not materialised "
+                    + "and cannot be used in a " + kind));
             return null;
         }
         return property;

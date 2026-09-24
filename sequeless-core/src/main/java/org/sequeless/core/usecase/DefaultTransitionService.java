@@ -14,6 +14,7 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.api.UnknownSignalException;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.statemachine.StateMachineInterpreter;
 import org.sequeless.core.statemachine.TransitionAvailability;
@@ -30,6 +31,7 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TriggerKind;
@@ -246,6 +248,57 @@ public final class DefaultTransitionService implements TransitionService {
 
         return Optional.of(
             commitTransition(scope, resolved, existing, transition, existing.version(), now()));
+    }
+
+    /**
+     * Records {@code signalName}'s arrival for {@code id} as a durable {@code SignalReceived}
+     * outbox entry, without firing any transition itself — routing that entry to {@code
+     * DefaultTriggerEvaluator.onSignal} (which calls {@link #fireAutomated}) is the automation
+     * adapter's job. Committed via a {@link ChangeSet} with no mutations, only the one outbox
+     * entry — legal because {@link ChangeSet} only rejects a commit whose mutations <em>and</em>
+     * outbox are both empty.
+     */
+    @Override
+    public void signal(
+        Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        Objects.requireNonNull(signalName, "signalName must not be null");
+        Objects.requireNonNull(body, "body must not be null");
+
+        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
+        TypeDefinition resolved = resolveType(snapshot, type);
+        authorize(scope, Operation.TRANSITION, resolved.iri());
+
+        BusinessObject existing =
+            objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        requireMatchingType(snapshot, existing, resolved, id);
+
+        StateMachineDefinition machine =
+            resolved
+                .stateMachine()
+                .orElseThrow(() -> new UnknownSignalException(resolved.iri(), signalName));
+        boolean declared =
+            machine.transitions().stream()
+                .anyMatch(
+                    t ->
+                        t.trigger() instanceof ExternalSignalTrigger signal
+                            && signal.signalName().equals(signalName));
+        if (!declared) {
+            throw new UnknownSignalException(resolved.iri(), signalName);
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", existing.id().value().toString());
+        payload.put("tenantId", scope.tenantId().value());
+        payload.put("principalId", scope.principal().id());
+        payload.put("signalName", signalName);
+        payload.put("body", body);
+        OutboxEntry signalEntry =
+            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, payload, now());
+
+        objectStorePort.commit(scope, new ChangeSet(List.of(), List.of(signalEntry)));
     }
 
     /**

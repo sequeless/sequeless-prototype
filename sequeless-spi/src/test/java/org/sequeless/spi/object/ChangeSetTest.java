@@ -37,8 +37,20 @@ class ChangeSetTest {
     }
 
     @Test
-    void rejectsEmptyMutations() {
+    void rejectsBothMutationsAndOutboxEmpty() {
         assertThatIllegalArgumentException().isThrownBy(() -> new ChangeSet(List.of(), List.of()));
+    }
+
+    @Test
+    void allowsEmptyMutationsWithNonEmptyOutbox() {
+        OutboxEntry outboxEntry = new OutboxEntry(
+            UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, Map.of("objectId", "x"),
+            Instant.parse("2026-09-16T10:00:00Z"));
+
+        ChangeSet changeSet = new ChangeSet(List.of(), List.of(outboxEntry));
+
+        assertThat(changeSet.mutations()).isEmpty();
+        assertThat(changeSet.outbox()).containsExactly(outboxEntry);
     }
 
     @Test

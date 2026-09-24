@@ -1,9 +1,11 @@
 package org.sequeless.core.api;
 
+import java.util.Map;
 import java.util.Optional;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.object.BusinessObject;
@@ -86,4 +88,37 @@ public interface TransitionService {
      */
     Optional<BusinessObject> fireAutomated(
         Scope scope, ObjectId id, String transitionName, TriggerKind expected);
+
+    /**
+     * Records an external signal for {@code id}, for {@code POST
+     * /objects/{type}/{id}/signals/{name}} — durably, as a {@code SignalReceived} outbox entry —
+     * without firing any transition itself. Routing that entry to {@code
+     * org.sequeless.spi.automation.TriggerEvaluator#onSignal} (which in turn calls {@link
+     * #fireAutomated}) is the automation adapter's job, not this method's: {@code signal}'s only
+     * responsibility is to make the signal's arrival durable and to reject it early if it could
+     * never possibly do anything.
+     *
+     * <p>Authorizes {@link Operation#TRANSITION} against the resolved type's IRI, reads the
+     * existing object, and validates that {@code signalName} matches an {@link
+     * ExternalSignalTrigger#signalName()} declared by <em>some</em> transition anywhere on the
+     * resolved type's state machine — checked type-wide, not scoped to the object's current state,
+     * because the object may move through other states before the signal is actually acted on.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
+     *     null}
+     * @param type the type's short name or full IRI; must not be {@code null}
+     * @param id the id of the object the signal targets; must not be {@code null}
+     * @param signalName the signal name to record ({@link ExternalSignalTrigger#signalName()});
+     *     must not be {@code null}
+     * @param body the request body to record alongside the signal for audit; must not be {@code
+     *     null}; not bound into any guard's {@code ExpressionContext} this phase
+     * @throws NullPointerException if any argument is {@code null}
+     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws AuthorizationException if the authorization port denies the operation
+     * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
+     *     subtype of it exists with {@code id}
+     * @throws UnknownSignalException if no transition on the resolved type's state machine declares
+     *     {@code signalName}
+     */
+    void signal(Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body);
 }

@@ -370,6 +370,86 @@ class DefaultBusinessObjectServiceTest {
     }
 
     @Test
+    void browseWithNonMaterialisedDerivedPropertyFilterThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("totalEstimatedHours", "eq", Optional.of("40"))),
+                Optional.empty(), List.of(), new Page(0, 20), List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Project", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> assertThat(violation.path())
+                            .isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithNonMaterialisedDerivedPropertySortThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(), Optional.empty(),
+                List.of(new BrowseQuery.SortKey("totalEstimatedHours", "asc")), new Page(0, 20),
+                List.of());
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Project", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> assertThat(violation.path())
+                            .isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithNonMaterialisedDerivedPropertyFacetThrowsInvalidQueryException() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(), Optional.empty(), List.of(), new Page(0, 20),
+                List.of("totalEstimatedHours"));
+
+        assertThatExceptionOfType(InvalidQueryException.class)
+            .isThrownBy(() -> service.browse(ALICE, "Project", query))
+            .satisfies(
+                exception -> assertThat(exception.violations())
+                    .anySatisfy(
+                        violation -> assertThat(violation.path())
+                            .isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
+        assertThat(queryPort.queries).isEmpty();
+    }
+
+    @Test
+    void browseWithMaterialisedDerivedPropertyFilterAndSortReachesQueryPort() {
+        // openTaskCount is not itself facet-enabled (see its AttributeDefinition fixture above), so
+        // this only exercises filter + sort — buildFacets's own "not a facet property" check is
+        // unrelated to the materialised-rejection this test targets.
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
+        BrowseQuery query =
+            new BrowseQuery(
+                List.of(new BrowseQuery.Filter("openTaskCount", "eq", Optional.of("0"))),
+                Optional.empty(), List.of(new BrowseQuery.SortKey("openTaskCount", "asc")),
+                new Page(0, 20), List.of());
+
+        service.browse(ALICE, "Project", query);
+
+        assertThat(queryPort.queries).hasSize(1);
+    }
+
+    @Test
     void browseWithUnknownOperatorTokenThrowsInvalidQueryException() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();

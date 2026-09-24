@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.api.UnknownSignalException;
 import org.sequeless.spi.Principal;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.TenantId;
@@ -39,6 +40,7 @@ import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.OnChangeTrigger;
 import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
@@ -211,6 +213,15 @@ class DefaultTransitionServiceTest {
         new Transition(
             "guardedAdvance", START_IRI, DONE_IRI, new OnChangeTrigger(List.of()),
             Optional.of(OWNER_GUARD), Optional.empty(), List.of());
+    /**
+     * Departs {@code Done}, not {@code Start} — used to prove {@code signal} validates a signal
+     * name against the whole state machine, not just the object's current state.
+     */
+    private static final String WAKE_SIGNAL = "wake";
+    private static final Transition WAKE =
+        new Transition(
+            "wake", DONE_IRI, START_IRI, new ExternalSignalTrigger(WAKE_SIGNAL), Optional.empty(),
+            Optional.empty(), List.of());
 
     private static final StateMachineDefinition TIMER_WIDGET_LIFECYCLE =
         new StateMachineDefinition(
@@ -218,7 +229,7 @@ class DefaultTransitionServiceTest {
             TW_START,
             List.of(
                 ENTER_WAITING, EXPIRE, LEAVE_WAITING, NO_TIMER_TRANSITION, AUTO_ADVANCE,
-                GUARDED_ON_CHANGE));
+                GUARDED_ON_CHANGE, WAKE));
 
     private static final TypeDefinition TIMER_WIDGET =
         new TypeDefinition(
@@ -683,6 +694,122 @@ class DefaultTransitionServiceTest {
         assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + one ActionRequest (Log).
         assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
         assertThat(changeSet.outbox().get(1).kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
+    }
+
+    // --- signal ---
+
+    @Test
+    void signalCommitsSignalReceivedEntryWithNoMutations() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, DONE_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of("reason", "manual"));
+
+        assertThat(store.commits).hasSize(1);
+        ChangeSet changeSet = store.commits.get(0);
+        assertThat(changeSet.mutations()).isEmpty();
+        assertThat(changeSet.outbox()).hasSize(1);
+        OutboxEntry entry = changeSet.outbox().get(0);
+        assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
+        assertThat(entry.payload())
+            .containsEntry("objectId", id.value().toString())
+            .containsEntry("tenantId", "acme")
+            .containsEntry("principalId", "alice")
+            .containsEntry("signalName", WAKE_SIGNAL)
+            .containsEntry("body", Map.of("reason", "manual"));
+    }
+
+    @Test
+    void signalSucceedsForASignalDeclaredOnATransitionNotDepartingTheCurrentState() {
+        ObjectId id = ObjectId.random();
+        // "wake" departs Done, but this object is in Start — signal validation is type-wide.
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of());
+
+        assertThat(store.commits).hasSize(1);
+        assertThat(store.commits.get(0).outbox().get(0).kind())
+            .isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
+    }
+
+    @Test
+    void signalThrowsObjectNotFoundForMissingObject() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        DefaultTransitionService service = service(store, permitAll());
+        ObjectId id = ObjectId.random();
+
+        assertThatExceptionOfType(ObjectNotFoundException.class)
+            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void signalThrowsUnknownSignalExceptionWhenNoTransitionDeclaresIt() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        assertThatExceptionOfType(UnknownSignalException.class)
+            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, "noSuchSignal", Map.of()))
+            .satisfies(
+                exception -> {
+                    assertThat(exception.typeIri()).isEqualTo(TIMER_WIDGET_IRI);
+                    assertThat(exception.signalName()).isEqualTo("noSuchSignal");
+                });
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void signalThrowsUnknownSignalExceptionOnTypeWithNoStateMachine() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing =
+            new BusinessObject(
+                id, new TypeRef(NS + "Widget"), new TenantId("acme"), 1, Optional.empty(),
+                Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        assertThatExceptionOfType(UnknownSignalException.class)
+            .isThrownBy(() -> service.signal(ALICE, "Widget", id, WAKE_SIGNAL, Map.of()));
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void signalThrowsAuthorizationExceptionOnDenyBeforeReadingObject() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        DefaultTransitionService service = service(store, denyAll());
+        ObjectId id = ObjectId.random();
+
+        assertThatExceptionOfType(AuthorizationException.class)
+            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThat(store.findCalls).isZero();
+    }
+
+    @Test
+    void signalRejectsNullArguments() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        DefaultTransitionService service = service(store, permitAll());
+        ObjectId id = ObjectId.random();
+
+        assertThatNullPointerException()
+            .isThrownBy(() -> service.signal(null, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThatNullPointerException()
+            .isThrownBy(() -> service.signal(ALICE, null, id, WAKE_SIGNAL, Map.of()));
+        assertThatNullPointerException()
+            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", null, WAKE_SIGNAL, Map.of()));
+        assertThatNullPointerException()
+            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, null, Map.of()));
+        assertThatNullPointerException()
+            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, null));
     }
 
     // --- fire rejects non-UserAction triggers ---
