@@ -17,8 +17,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * A thin {@code @Scheduled} poller that drains the {@code ActionRequest} outbox, one row at a
- * time, into whichever {@link AutomationPort} adapter is currently configured.
+ * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — {@link
+ * OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, and the three automation
+ * kinds ({@link OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, {@link
+ * OutboxEntry#KIND_SIGNAL_RECEIVED}) — one row at a time, into whichever {@link AutomationPort}
+ * adapter is currently configured. {@link OutboxEntry#KIND_TRANSITION_FIRED} is deliberately never
+ * included: it is audit-only and nothing ever claims it.
  *
  * <p><b>Why an {@link ObjectProvider}, not a plain {@code AutomationPort} constructor
  * parameter.</b> {@code AutomationPort} is supplied by an {@code @AutoConfiguration} class ({@code
@@ -38,6 +42,16 @@ import org.springframework.stereotype.Component;
 public class OutboxRelay {
 
     private static final Logger LOG = LoggerFactory.getLogger(OutboxRelay.class);
+
+    private static final Set<String> DISPATCHABLE_KINDS =
+        Set.of(
+            OutboxEntry.KIND_ACTION_REQUEST,
+            OutboxEntry.KIND_OBJECT_CREATED,
+            OutboxEntry.KIND_OBJECT_UPDATED,
+            OutboxEntry.KIND_OBJECT_DELETED,
+            OutboxEntry.KIND_TIMER_SCHEDULED,
+            OutboxEntry.KIND_TIMER_CANCELLED,
+            OutboxEntry.KIND_SIGNAL_RECEIVED);
 
     private final OutboxPort outboxPort;
     private final ObjectProvider<AutomationPort> automationPortProvider;
@@ -61,8 +75,8 @@ public class OutboxRelay {
     }
 
     /**
-     * Drains the {@code ActionRequest} outbox, dispatching one row at a time, until either the
-     * queue is empty or a dispatch fails.
+     * Drains {@link #DISPATCHABLE_KINDS}, dispatching one row at a time, until either the queue is
+     * empty or a dispatch fails.
      *
      * <p>Checks {@link ObjectProvider#getIfAvailable()} before touching {@link #outboxPort} at
      * all: a cheap short-circuit so a deployment or test that never configures an automation
@@ -76,8 +90,9 @@ public class OutboxRelay {
      * relying on the next {@code @Scheduled} tick to retry naturally rather than busy-looping
      * against the same failure.
      *
-     * <p><b>Known, accepted limitation.</b> {@link OutboxPort#claimNextActionRequest} always claims
-     * the oldest unprocessed row first, and there is no dead-letter or skip-ahead mechanism yet
+     * <p><b>Known, accepted limitation.</b> {@link OutboxPort#claimNext} always claims the oldest
+     * unprocessed row (among {@link #DISPATCHABLE_KINDS}) first, and there is no dead-letter or
+     * skip-ahead mechanism yet
      * ({@code sq_outbox.attempts} exists but is write-only per an earlier phase's finding). A single
      * "poison pill" row whose payload always makes {@link AutomationPort#dispatch} throw will
      * therefore block every row behind it indefinitely, at one-tick granularity. This is an
@@ -92,10 +107,11 @@ public class OutboxRelay {
         while (true) {
             try {
                 Optional<Boolean> claimed =
-                    outboxPort.claimNextActionRequest(
+                    outboxPort.claimNext(
+                        DISPATCHABLE_KINDS,
                         (tenantId, entry) -> {
                             automationPort.dispatch(buildScope(tenantId, entry), entry);
-                            // Non-null sentinel: OutboxPort#claimNextActionRequest returns
+                            // Non-null sentinel: OutboxPort#claimNext returns
                             // Optional.empty() both when no row was available AND (per its own
                             // javadoc) if handler legitimately returned null, so the handler must
                             // return a non-null value to make "a row was claimed and dispatched"

@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
@@ -231,7 +232,9 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         Optional<Boolean> claimed;
         do {
-            claimed = outboxPort.claimNextActionRequest((tenantId, entry) -> Boolean.TRUE);
+            claimed =
+                outboxPort.claimNext(
+                    Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> Boolean.TRUE);
             if (claimed.isPresent()) {
                 sleep(Duration.ofMillis(100));
             }

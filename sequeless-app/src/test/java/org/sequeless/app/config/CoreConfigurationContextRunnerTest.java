@@ -125,13 +125,13 @@ class CoreConfigurationContextRunnerTest {
      */
     @Test
     void schedulingConfigurationRegistersScheduledAnnotationProcessor() {
-        // OutboxPort#claimNextActionRequest is itself generic, so a lambda cannot implement it
-        // (javac cannot infer a per-call T for a lambda body); an anonymous class is required.
+        // OutboxPort#claimNext is itself generic, so a lambda cannot implement it (javac cannot
+        // infer a per-call T for a lambda body); an anonymous class is required.
         OutboxPort neverClaimsOutboxPort =
             new OutboxPort() {
                 @Override
-                public <T> Optional<T> claimNextActionRequest(
-                    BiFunction<String, OutboxEntry, T> handler) {
+                public <T> Optional<T> claimNext(
+                    Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
                     return Optional.empty();
                 }
             };

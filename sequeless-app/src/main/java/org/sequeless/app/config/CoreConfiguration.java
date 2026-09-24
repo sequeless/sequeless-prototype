@@ -302,8 +302,16 @@ public class CoreConfiguration {
      * @param maxAttempts the maximum number of commit attempts per recompute before a stale-version
      *     conflict is allowed to propagate, from {@code
      *     sequeless.automation.recompute.retry.max-attempts}, defaulting to 8
-     * @param baseDelay the base of the jittered retry backoff, from {@code
-     *     sequeless.automation.recompute.retry.base-delay}, defaulting to 20ms
+     * @param baseDelayText the ISO-8601 base of the jittered retry backoff, from {@code
+     *     sequeless.automation.recompute.retry.base-delay}, defaulting to 20ms. Bound as a plain
+     *     {@link String} and parsed with {@link Duration#parse} in this method body, deliberately
+     *     not as a {@code @Value}-injected {@link Duration} parameter directly: plain {@code
+     *     @Value} type conversion goes through the bean factory's {@code TypeConverter}, which only
+     *     knows how to parse a {@link Duration} from a string when Spring Boot's {@code
+     *     ApplicationConversionService} has been installed as the context's conversion service —
+     *     true for a real {@code SpringApplication} run, but not guaranteed for every {@code
+     *     ApplicationContextRunner}-based test, which does not always go through that bootstrap
+     *     path. Parsing the raw string here has no such dependency.
      * @return a {@link DefaultDerivationRecomputer} consulting both ports and {@code
      *     derivationPlanner} on every call
      */
@@ -313,8 +321,9 @@ public class CoreConfiguration {
             @Lazy ObjectStorePort objectStorePort,
             DerivationPlanner derivationPlanner,
             @Value("${sequeless.automation.recompute.retry.max-attempts:8}") int maxAttempts,
-            @Value("${sequeless.automation.recompute.retry.base-delay:PT0.02S}") Duration baseDelay) {
+            @Value("${sequeless.automation.recompute.retry.base-delay:PT0.02S}") String baseDelayText) {
         return new DefaultDerivationRecomputer(
-            ontologyPort, objectStorePort, derivationPlanner, maxAttempts, baseDelay, Clock.systemUTC());
+            ontologyPort, objectStorePort, derivationPlanner, maxAttempts, Duration.parse(baseDelayText),
+            Clock.systemUTC());
     }
 }

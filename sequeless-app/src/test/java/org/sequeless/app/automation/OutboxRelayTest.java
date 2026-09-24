@@ -10,7 +10,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Iterator;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
@@ -23,11 +25,11 @@ import org.springframework.beans.factory.ObjectProvider;
 /**
  * Unit-tests {@link OutboxRelay#pollOnce()} directly against hand-built test doubles — no Spring
  * context, no mocking library, mirroring {@code ApiExceptionAdviceTest}'s convention. {@link
- * InMemoryOutboxPort} is a trivial deque-backed {@link OutboxPort} whose {@code
- * claimNextActionRequest} pops one row at a time and mirrors the real contract's crucial detail: a
- * handler exception leaves the claimed row unremoved (as if the claiming transaction had rolled
- * back). {@link RecordingAutomationPort} records every {@link AutomationPort#dispatch} call and can
- * be told to throw on a specific call.
+ * InMemoryOutboxPort} is a trivial deque-backed {@link OutboxPort} whose {@code claimNext} pops the
+ * first row matching the caller's requested kind set and mirrors the real contract's crucial
+ * detail: a handler exception leaves the claimed row unremoved (as if the claiming transaction had
+ * rolled back). {@link RecordingAutomationPort} records every {@link AutomationPort#dispatch} call
+ * and can be told to throw on a specific call.
  */
 class OutboxRelayTest {
 
@@ -137,10 +139,12 @@ class OutboxRelayTest {
     }
 
     /**
-     * A trivial deque-backed {@link OutboxPort}: {@link #claimNextActionRequest} peeks (does not
-     * remove) the head row, calls {@code handler}, and only removes the row once {@code handler}
-     * returns normally — mirroring the real contract's guarantee that a handler exception leaves
-     * the row claimable again, as if the claiming transaction had rolled back.
+     * A trivial deque-backed {@link OutboxPort}: {@link #claimNext} scans from the head for the
+     * first row whose kind is in the caller's requested set (respecting insertion/{@code
+     * occurredAt} order, mirroring the real port's {@code ORDER BY occurred_at}), calls {@code
+     * handler}, and only removes that row once {@code handler} returns normally — mirroring the
+     * real contract's guarantee that a handler exception leaves the row claimable again, as if the
+     * claiming transaction had rolled back.
      */
     private static final class InMemoryOutboxPort implements OutboxPort {
 
@@ -164,16 +168,24 @@ class OutboxRelayTest {
         }
 
         @Override
-        public <T> Optional<T> claimNextActionRequest(BiFunction<String, OutboxEntry, T> handler) {
-            Objects.requireNonNull(handler, "handler must not be null");
-            Map.Entry<String, OutboxEntry> head = queue.peekFirst();
-            if (head == null) {
-                return Optional.empty();
+        public <T> Optional<T> claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
+            Objects.requireNonNull(kinds, "kinds must not be null");
+            if (kinds.isEmpty()) {
+                throw new IllegalArgumentException("kinds must not be empty");
             }
-            claimAttempts++;
-            T result = handler.apply(head.getKey(), head.getValue());
-            queue.removeFirst();
-            return Optional.ofNullable(result);
+            Objects.requireNonNull(handler, "handler must not be null");
+
+            Iterator<Map.Entry<String, OutboxEntry>> iterator = queue.iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, OutboxEntry> candidate = iterator.next();
+                if (kinds.contains(candidate.getValue().kind())) {
+                    claimAttempts++;
+                    T result = handler.apply(candidate.getKey(), candidate.getValue());
+                    iterator.remove();
+                    return Optional.ofNullable(result);
+                }
+            }
+            return Optional.empty();
         }
     }
 

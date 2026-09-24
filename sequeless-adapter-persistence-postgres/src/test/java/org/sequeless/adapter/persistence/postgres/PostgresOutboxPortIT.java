@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import javax.sql.DataSource;
@@ -57,7 +58,7 @@ class PostgresOutboxPortIT {
 
     @Test
     void claimReturnsEmptyWhenNothingPending() {
-        Optional<UUID> result = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
+        Optional<UUID> result = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
         assertThat(result).isEmpty();
     }
 
@@ -65,7 +66,7 @@ class PostgresOutboxPortIT {
     void claimSkipsNonActionRequestKinds() {
         insertOutboxRow(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, UUID.randomUUID(), Instant.now());
 
-        Optional<UUID> result = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
+        Optional<UUID> result = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
 
         assertThat(result).isEmpty();
     }
@@ -78,12 +79,30 @@ class PostgresOutboxPortIT {
         insertOutboxRow(firstId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now);
         insertOutboxRow(secondId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now.plusSeconds(1));
 
-        Optional<UUID> first = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
-        Optional<UUID> second = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
-        Optional<UUID> third = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
+        Optional<UUID> first = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+        Optional<UUID> second = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+        Optional<UUID> third = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
 
         assertThat(first).contains(firstId);
         assertThat(second).contains(secondId);
+        assertThat(third).isEmpty();
+    }
+
+    @Test
+    void claimAcrossMultipleKindsReturnsBothInOccurredAtOrder() {
+        UUID timerRowId = UUID.randomUUID();
+        UUID actionRowId = UUID.randomUUID();
+        Instant now = Instant.now();
+        insertOutboxRow(timerRowId, OutboxEntry.KIND_TIMER_SCHEDULED, UUID.randomUUID(), now);
+        insertOutboxRow(actionRowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now.plusSeconds(1));
+
+        Set<String> kinds = Set.of(OutboxEntry.KIND_TIMER_SCHEDULED, OutboxEntry.KIND_ACTION_REQUEST);
+        Optional<UUID> first = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
+        Optional<UUID> second = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
+        Optional<UUID> third = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
+
+        assertThat(first).contains(timerRowId);
+        assertThat(second).contains(actionRowId);
         assertThat(third).isEmpty();
     }
 
@@ -95,7 +114,7 @@ class PostgresOutboxPortIT {
 
         Optional<String> observedTenantId =
             freshPort()
-                .claimNextActionRequest(
+                .claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), 
                     (tenantId, entry) -> {
                         assertThat(entry.id()).isEqualTo(rowId);
                         assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
@@ -118,7 +137,7 @@ class PostgresOutboxPortIT {
             new Thread(
                 () ->
                     freshPort()
-                        .claimNextActionRequest(
+                        .claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), 
                             (tenantId, entry) -> {
                                 handlerEntered.countDown();
                                 await(releaseHandler);
@@ -129,7 +148,7 @@ class PostgresOutboxPortIT {
 
         // The row is locked (FOR UPDATE) by the first claimer's still-open transaction; SKIP
         // LOCKED means this second claim must return immediately, empty, rather than block.
-        Optional<UUID> second = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
+        Optional<UUID> second = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
         assertThat(second).isEmpty();
 
         releaseHandler.countDown();
@@ -144,7 +163,7 @@ class PostgresOutboxPortIT {
         assertThatThrownBy(
                 () ->
                     freshPort()
-                        .claimNextActionRequest(
+                        .claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), 
                             (tenantId, entry) -> {
                                 throw new RuntimeException("boom");
                             }))
@@ -161,7 +180,7 @@ class PostgresOutboxPortIT {
 
         // The row must still be claimable afterwards: the failed transaction released its lock
         // and never stamped processed_at.
-        Optional<UUID> retried = freshPort().claimNextActionRequest((tenantId, entry) -> entry.id());
+        Optional<UUID> retried = freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
         assertThat(retried).contains(rowId);
     }
 
