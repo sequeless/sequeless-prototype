@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.api.UnknownSignalException;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.ontology.OntologyIssue;
@@ -87,5 +88,23 @@ class ApiExceptionAdviceTest {
                 .isEqualTo(URI.create("https://sequeless.dev/problems/transition-not-available"));
         assertThat(detail.getTitle()).isEqualTo("Transition not available");
         assertThat(detail.getProperties()).containsEntry("transitionName", "activate");
+    }
+
+    @Test
+    void unknownSignalExceptionMapsTo400WithTypeIriAndSignalName() {
+        ProblemDetail detail =
+                advice.handleUnknownSignal(
+                        new UnknownSignalException("https://sequeless.dev/ns/ref#Project", "bogus"));
+
+        assertThat(detail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(detail.getDetail())
+                .isEqualTo(
+                        "No transition on type 'https://sequeless.dev/ns/ref#Project' declares signal"
+                                + " 'bogus'");
+        assertThat(detail.getType()).isEqualTo(URI.create("https://sequeless.dev/problems/unknown-signal"));
+        assertThat(detail.getTitle()).isEqualTo("Unknown signal");
+        assertThat(detail.getProperties())
+                .containsEntry("typeIri", "https://sequeless.dev/ns/ref#Project")
+                .containsEntry("signalName", "bogus");
     }
 }

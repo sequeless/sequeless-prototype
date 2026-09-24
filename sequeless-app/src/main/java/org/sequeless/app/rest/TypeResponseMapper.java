@@ -7,15 +7,21 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.sequeless.spi.meta.AttributeDefinition;
 import org.sequeless.spi.meta.DerivationRule;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.OnChangeTrigger;
 import org.sequeless.spi.meta.PluginRule;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
+import org.sequeless.spi.meta.TriggerKind;
+import org.sequeless.spi.meta.TriggerSpec;
 import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.DateTimeValue;
 import org.sequeless.spi.object.DateValue;
@@ -103,11 +109,23 @@ final class TypeResponseMapper {
      * {@code (displayOrder, iri)} — {@code SnapshotMapper}'s own contract, mirroring {@link
      * #toDetail(TypeDefinition)}'s identical reliance on {@link TypeDefinition#properties()}'s
      * pre-sorted order.
+     *
+     * <p>{@code machine.transitions()} is filtered to {@link TriggerKind#USER_ACTION} transitions
+     * only before mapping: this descriptor backs {@code GET /types/{nameOrIri}}, a type-level view a
+     * client uses to learn which transitions it may itself call via {@code POST
+     * .../transitions/{name}} — a transition only {@code fireAutomated} can ever fire (phase 6's
+     * {@code ON_CHANGE}/{@code TIMER}/{@code EXTERNAL_SIGNAL} kinds) would otherwise appear
+     * indistinguishable from a callable one, mirroring {@link
+     * org.sequeless.app.rest.ObjectsController#transitions}'s identical {@code USER_ACTION}-only
+     * filtering of the per-object availability list.
      */
     private static StateMachineResponse toStateMachineResponse(StateMachineDefinition machine) {
         List<StateResponse> states = machine.states().stream().map(TypeResponseMapper::toState).toList();
         List<TransitionSummaryResponse> transitions =
-                machine.transitions().stream().map(TypeResponseMapper::toTransitionSummary).toList();
+                machine.transitions().stream()
+                        .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
+                        .map(TypeResponseMapper::toTransitionSummary)
+                        .toList();
         return new StateMachineResponse(
                 machine.iri(), states, shortName(machine.initialState().iri()), transitions);
     }
@@ -117,11 +135,55 @@ final class TypeResponseMapper {
     }
 
     private static TransitionSummaryResponse toTransitionSummary(Transition transition) {
+        TriggerSpec trigger = transition.trigger();
         return new TransitionSummaryResponse(
                 transition.name(),
                 shortName(transition.fromStateIri()),
                 shortName(transition.toStateIri()),
-                transition.guard().isPresent());
+                transition.guard().isPresent(),
+                trigger.kind().name(),
+                triggerAfter(trigger),
+                triggerSignalName(trigger),
+                triggerWatch(trigger));
+    }
+
+    /**
+     * Renders {@link TransitionSummaryResponse#after()} from a transition's {@link TriggerSpec}, an
+     * exhaustive {@code switch} over the sealed hierarchy with no {@code default} branch, mirroring
+     * {@link #toDerivationResponse(DerivationRule)}'s own exhaustive switch.
+     */
+    private static String triggerAfter(TriggerSpec trigger) {
+        return switch (trigger) {
+            case TimerTrigger timer -> timer.after().toString();
+            case UserActionTrigger ignored -> null;
+            case OnChangeTrigger ignored -> null;
+            case ExternalSignalTrigger ignored -> null;
+        };
+    }
+
+    /** Renders {@link TransitionSummaryResponse#signalName()} from a transition's {@link TriggerSpec}. */
+    private static String triggerSignalName(TriggerSpec trigger) {
+        return switch (trigger) {
+            case ExternalSignalTrigger signal -> signal.signalName();
+            case UserActionTrigger ignored -> null;
+            case OnChangeTrigger ignored -> null;
+            case TimerTrigger ignored -> null;
+        };
+    }
+
+    /**
+     * Renders {@link TransitionSummaryResponse#watch()} from a transition's {@link TriggerSpec}: the
+     * watched properties' short names for an {@link OnChangeTrigger}, empty (never {@code null}) for
+     * every other trigger kind.
+     */
+    private static List<String> triggerWatch(TriggerSpec trigger) {
+        return switch (trigger) {
+            case OnChangeTrigger onChange ->
+                    onChange.watchIris().stream().map(TypeResponseMapper::shortName).toList();
+            case UserActionTrigger ignored -> List.of();
+            case TimerTrigger ignored -> List.of();
+            case ExternalSignalTrigger ignored -> List.of();
+        };
     }
 
     private static TypeSummaryResponse toSummary(TypeDefinition type, Map<String, String> namesByIri) {
@@ -202,9 +264,10 @@ final class TypeResponseMapper {
      */
     private static DerivationResponse toDerivationResponse(DerivationRule rule) {
         return switch (rule) {
-            case RollupRule rollup -> new DerivationResponse("rollup", rollupSummary(rollup));
+            case RollupRule rollup -> new DerivationResponse(
+                    "rollup", rollupSummary(rollup), rollup.materialised());
             case PluginRule plugin -> new DerivationResponse(
-                    "plugin", "plugin(" + plugin.pluginName() + ")");
+                    "plugin", "plugin(" + plugin.pluginName() + ")", plugin.materialised());
         };
     }
 

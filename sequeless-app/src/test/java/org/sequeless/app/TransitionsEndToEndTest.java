@@ -202,6 +202,92 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
         awaitKickoffTask("Kickoff: [" + projectTitle + "]");
     }
 
+    /**
+     * REST-level proof that {@code POST /objects/{type}/{id}/signals/{name}} durably records a
+     * structurally valid signal and returns 202, per plan.md §6 ("core writes a {@code
+     * SignalReceived} entry and returns"). Whether the {@code reopen} signal actually moves the
+     * Closed Project back to Active is T12's end-to-end job (it needs the automation adapter to
+     * dispatch the resulting {@code SignalReceived} outbox row to {@code TriggerEvaluator.onSignal})
+     * — this test only proves the REST layer's own contract: 202, no body, and the signal is
+     * accepted for a type-wide-valid signal name regardless of the object's current state (per
+     * {@code TransitionService.signal}'s javadoc, signal validity is checked type-wide, not against
+     * the object's current state).
+     */
+    @Test
+    void reopenSignalOnClosedProjectIsAccepted() {
+        String projectTitle = "Signal test project";
+        BusinessObjectResponse project = createProject(projectTitle);
+        BusinessObjectResponse owner = createPerson("Grace Hopper");
+
+        restTestClient
+                .put()
+                .uri("/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(
+                        Map.of(
+                                "version",
+                                1,
+                                "properties",
+                                Map.of(
+                                        "title", List.of(projectTitle),
+                                        "owner", owner.id().toString())))
+                .exchange()
+                .expectStatus()
+                .isOk();
+
+        fireTransition(project.id(), "activate", 2);
+        fireTransition(project.id(), "close", 3);
+
+        restTestClient
+                .post()
+                .uri("/objects/Project/" + project.id() + "/signals/reopen")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of())
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.ACCEPTED)
+                .expectBody()
+                .isEmpty();
+    }
+
+    /**
+     * A signal name no transition anywhere on the resolved type's state machine declares is a 400
+     * with {@code type} suffix {@code unknown-signal} and {@code signalName} set — {@link
+     * org.sequeless.app.rest.ApiExceptionAdviceTest} unit-tests the mapping directly; this proves it
+     * wired end to end through the real controller and advice.
+     */
+    @Test
+    void unknownSignalNameIs400() {
+        BusinessObjectResponse project = createProject("Unknown signal project");
+
+        restTestClient
+                .post()
+                .uri("/objects/Project/" + project.id() + "/signals/bogus")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of())
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.type")
+                .value(type -> assertThat(type.toString()).endsWith("unknown-signal"))
+                .jsonPath("$.signalName")
+                .isEqualTo("bogus");
+    }
+
+    private void fireTransition(UUID projectId, String name, long expectedVersion) {
+        restTestClient
+                .post()
+                .uri("/objects/Project/" + projectId + "/transitions/" + name)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("expectedVersion", expectedVersion))
+                .exchange()
+                .expectStatus()
+                .isOk();
+    }
+
     private void awaitKickoffTask(String expectedTitle) {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         boolean found = false;

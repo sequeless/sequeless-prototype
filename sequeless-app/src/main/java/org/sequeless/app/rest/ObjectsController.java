@@ -13,9 +13,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
@@ -26,6 +28,8 @@ import org.sequeless.spi.Scope;
 import org.sequeless.spi.TenantId;
 import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
@@ -376,11 +380,17 @@ public class ObjectsController {
     /**
      * @param type the type's short name or full IRI
      * @param id the object's id
-     * @return every transition departing from the object's current state, each with its
-     *     availability and (when unavailable) a reason, computed the same way {@link
-     *     TransitionService#fire} itself decides whether a requested transition may fire
+     * @return every {@code sq:UserAction}-triggered transition departing from the object's current
+     *     state, each with its availability and (when unavailable) a reason, computed the same way
+     *     {@link TransitionService#fire} itself decides whether a requested transition may fire —
+     *     transitions triggered by {@code ON_CHANGE}/{@code TIMER}/{@code EXTERNAL_SIGNAL} are
+     *     omitted, since {@link TransitionService#fire} would reject a {@code POST} against any of
+     *     them (409, not user-fireable); only {@link TransitionService#fireAutomated} can fire those,
+     *     and it is never invoked from a client request. Filtered here, not inside {@link
+     *     StateMachineInterpreter#availableTransitions}, which stays a pure per-object-state
+     *     computation shared by every trigger kind.
      */
-    @Operation(summary = "List every transition available from an object's current state")
+    @Operation(summary = "List every user-fireable transition available from an object's current state")
     @ApiResponse(responseCode = "200", description = "The available transitions, possibly empty")
     @ApiResponse(
             responseCode = "404",
@@ -393,9 +403,31 @@ public class ObjectsController {
         BusinessObject object = businessObjectService.read(scope, type, new ObjectId(id));
         MetaModelSnapshot snapshot = metaModelService.snapshot(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
+        Set<String> userActionTransitionNames = userActionTransitionNames(snapshot, object);
         return interpreter.availableTransitions(scope, snapshot, object).stream()
+                .filter(availability -> userActionTransitionNames.contains(availability.name()))
                 .map(TransitionResponse::from)
                 .toList();
+    }
+
+    /**
+     * @param snapshot the snapshot {@code object}'s type is resolved against; must not be {@code
+     *     null}
+     * @param object the object whose type's state machine is consulted; must not be {@code null}
+     * @return the names of every transition on {@code object}'s type's state machine whose {@link
+     *     org.sequeless.spi.meta.Transition#trigger()} is {@link TriggerKind#USER_ACTION}; empty if
+     *     the type has no state machine
+     */
+    private static Set<String> userActionTransitionNames(MetaModelSnapshot snapshot, BusinessObject object) {
+        Optional<StateMachineDefinition> machine =
+                snapshot.type(object.type().iri()).flatMap(TypeDefinition::stateMachine);
+        if (machine.isEmpty()) {
+            return Set.of();
+        }
+        return machine.get().transitions().stream()
+                .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
+                .map(org.sequeless.spi.meta.Transition::name)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -444,6 +476,44 @@ public class ObjectsController {
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
                 .body(ObjectPropertyMapper.toResponse(updated, requestType));
+    }
+
+    /**
+     * @param type the type's short name or full IRI
+     * @param id the id of the object the signal targets
+     * @param name the signal name ({@link org.sequeless.spi.meta.ExternalSignalTrigger#signalName()})
+     * @param body an arbitrary JSON object recorded alongside the signal for audit, or {@code null}
+     *     if the request has no body at all — {@link TransitionService#signal} requires a non-null
+     *     {@code Map}, so a missing body is treated as {@code Map.of()}
+     * @return 202 with no body: the signal is durably recorded as a {@code SignalReceived} outbox
+     *     entry and this method returns immediately, before any transition it might eventually cause
+     *     actually fires — see {@link TransitionService#signal}'s javadoc for why firing is the
+     *     automation adapter's job, not this endpoint's
+     */
+    @Operation(
+            summary =
+                    "Record an external signal for an object; does not itself fire any transition")
+    @ApiResponse(
+            responseCode = "202",
+            description = "The signal was durably recorded; any resulting transition fires asynchronously")
+    @ApiResponse(
+            responseCode = "400",
+            description = "No transition on this type declares a signal named {name}",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "No such type, or no such object",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @PostMapping("/objects/{type}/{id}/signals/{name}")
+    public ResponseEntity<Void> signal(
+            @PathVariable("type") String type,
+            @PathVariable("id") UUID id,
+            @PathVariable("name") String name,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Scope scope = currentScope();
+        transitionService.signal(
+                scope, type, new ObjectId(id), name, body == null ? Map.of() : body);
+        return ResponseEntity.accepted().build();
     }
 
     private static long resolveExpectedVersion(Long bodyVersion, String ifMatch) {

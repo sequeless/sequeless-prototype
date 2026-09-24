@@ -5,6 +5,7 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.api.UnknownSignalException;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.StaleObjectException;
@@ -57,6 +58,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *       {@code violations} array (see {@link #toViolationBody})
  *   <li>{@link TransitionNotAvailableException} → 409, {@code type} suffix {@code
  *       transition-not-available}, plus {@code transitionName}
+ *   <li>{@link UnknownSignalException} → 400, {@code type} suffix {@code unknown-signal}, plus
+ *       {@code typeIri} and {@code signalName}, added for {@link
+ *       ObjectsController#signal}'s phase 6 {@code POST .../signals/{name}} endpoint, mirroring
+ *       {@link TransitionNotAvailableException}'s handler exactly
  * </ul>
  */
 @RestControllerAdvice
@@ -204,6 +209,23 @@ public class ApiExceptionAdvice {
         detail.setType(URI.create("https://sequeless.dev/problems/transition-not-available"));
         detail.setTitle("Transition not available");
         detail.setProperty("transitionName", exception.transitionName());
+        return detail;
+    }
+
+    /**
+     * @param exception the unrecognised signal name escaping from {@link
+     *     org.sequeless.core.api.TransitionService#signal}; must not be {@code null}
+     * @return 400 with a {@link ProblemDetail} carrying {@link UnknownSignalException#typeIri()} and
+     *     {@link UnknownSignalException#signalName()}
+     */
+    @ExceptionHandler(UnknownSignalException.class)
+    public ProblemDetail handleUnknownSignal(UnknownSignalException exception) {
+        ProblemDetail detail =
+                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/unknown-signal"));
+        detail.setTitle("Unknown signal");
+        detail.setProperty("typeIri", exception.typeIri());
+        detail.setProperty("signalName", exception.signalName());
         return detail;
     }
 
