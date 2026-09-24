@@ -3,6 +3,8 @@ package org.sequeless.adapter.automation.inprocess;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -10,6 +12,8 @@ import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.testkit.automation.AutomationContract;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
+import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
+import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
  * Proves {@link InProcessAutomationPort} satisfies every clause of {@link AutomationPort}'s
@@ -52,8 +56,18 @@ class InProcessAutomationPortContractTest extends AutomationContract {
 
     private final RecordingActionExecutor recorder =
         new RecordingActionExecutor(new ResolvedWebhookRequest(webhookUrl, "POST", Optional.empty()));
+    private final RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+    private final RecordingDerivationRecomputer derivationRecomputer = new RecordingDerivationRecomputer();
+    private final MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+    private final InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
     private final AutomationPort port =
-        new InProcessAutomationPort(recorder, new InProcessAutomationProperties());
+        new InProcessAutomationPort(
+            recorder,
+            new InProcessAutomationProperties(),
+            triggerEvaluator,
+            derivationRecomputer,
+            InProcessRecomputeProperties.Mode.RETRY_ONLY,
+            timerScheduler);
 
     @Override
     protected AutomationPort port() {
@@ -63,5 +77,21 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     @Override
     protected RecordingActionExecutor recordingExecutor() {
         return recorder;
+    }
+
+    @Override
+    protected RecordingTriggerEvaluator recordingTriggerEvaluator() {
+        return triggerEvaluator;
+    }
+
+    @Override
+    protected RecordingDerivationRecomputer recordingDerivationRecomputer() {
+        return derivationRecomputer;
+    }
+
+    @Override
+    protected void advanceTime(Duration by) {
+        clock.advance(by);
+        timerScheduler.sweep();
     }
 }

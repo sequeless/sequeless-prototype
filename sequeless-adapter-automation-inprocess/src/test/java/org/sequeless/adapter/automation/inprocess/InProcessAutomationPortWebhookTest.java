@@ -21,6 +21,8 @@ import org.sequeless.spi.TenantId;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
+import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
+import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
  * In-process-specific webhook delivery tests: not part of {@link
@@ -70,7 +72,7 @@ class InProcessAutomationPortWebhookTest {
         InProcessAutomationProperties properties = new InProcessAutomationProperties();
         properties.setRetryAttempts(3);
         properties.setRetryDelay(Duration.ofMillis(10));
-        InProcessAutomationPort port = new InProcessAutomationPort(recorder, properties);
+        InProcessAutomationPort port = newPort(recorder, properties);
 
         OutboxEntry entry = webhookEntry();
         port.dispatch(SCOPE, entry);
@@ -101,13 +103,25 @@ class InProcessAutomationPortWebhookTest {
         InProcessAutomationProperties properties = new InProcessAutomationProperties();
         properties.setRetryAttempts(3);
         properties.setRetryDelay(Duration.ofMillis(10));
-        InProcessAutomationPort port = new InProcessAutomationPort(recorder, properties);
+        InProcessAutomationPort port = newPort(recorder, properties);
 
         OutboxEntry entry = webhookEntry();
 
         assertThatThrownBy(() -> port.dispatch(SCOPE, entry))
             .isInstanceOf(WebhookDeliveryException.class);
         assertThat(requestCount.get()).isEqualTo(3);
+    }
+
+    private static InProcessAutomationPort newPort(
+            RecordingActionExecutor recorder, InProcessAutomationProperties properties) {
+        RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+        return new InProcessAutomationPort(
+            recorder,
+            properties,
+            triggerEvaluator,
+            new RecordingDerivationRecomputer(),
+            InProcessRecomputeProperties.Mode.RETRY_ONLY,
+            new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator));
     }
 
     private static OutboxEntry webhookEntry() {

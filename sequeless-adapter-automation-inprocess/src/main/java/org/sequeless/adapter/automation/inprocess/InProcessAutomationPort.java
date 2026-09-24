@@ -14,7 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
+import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.OutboxEntry;
 
 /**
@@ -49,6 +51,16 @@ import org.sequeless.spi.object.OutboxEntry;
  * itself is retried: {@link ActionExecutor#resolveWebhook}'s own template-resolution failures (a
  * malformed {@code ${expr}}) propagate immediately, on the first and only attempt, since retrying
  * a deterministic template error can never succeed.
+ *
+ * <p><b>Kind routing beyond {@code ActionRequest}.</b> {@link #dispatch} also routes the three
+ * object-lifecycle kinds ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}) to
+ * {@link DerivationRecomputer#recompute} (via {@link RecomputeCoordinator}, applying the
+ * configured {@link InProcessRecomputeProperties.Mode}) and then, always synchronously right
+ * after, to {@link TriggerEvaluator#onChange} — deliberately in that order, since {@code
+ * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that must already
+ * be fresh. {@code TimerScheduled}/{@code TimerCancelled} go to {@link InProcessTimerScheduler},
+ * and {@code SignalReceived} to {@link TriggerEvaluator#onSignal}. {@code TransitionFired} is
+ * audit-only and, like any other unrecognised kind, is rejected.
  */
 public final class InProcessAutomationPort implements AutomationPort {
 
@@ -59,6 +71,9 @@ public final class InProcessAutomationPort implements AutomationPort {
 
     private final ActionExecutor actionExecutor;
     private final InProcessAutomationProperties properties;
+    private final TriggerEvaluator triggerEvaluator;
+    private final RecomputeCoordinator recomputeCoordinator;
+    private final InProcessTimerScheduler timerScheduler;
     private final HttpClient httpClient;
     private final Set<UUID> dispatched = ConcurrentHashMap.newKeySet();
 
@@ -66,10 +81,30 @@ public final class InProcessAutomationPort implements AutomationPort {
      * @param actionExecutor the {@link ActionExecutor} this port calls back into to actually apply
      *     each action; must not be {@code null}
      * @param properties this adapter's webhook retry configuration; must not be {@code null}
+     * @param triggerEvaluator the port an object-lifecycle, timer, or signal entry is routed to
+     *     after any recompute; must not be {@code null}
+     * @param derivationRecomputer the port an object-lifecycle entry's recompute is routed to,
+     *     under {@code recomputeMode}; must not be {@code null}
+     * @param recomputeMode which {@link InProcessRecomputeProperties.Mode} to apply around every
+     *     {@code derivationRecomputer.recompute} call; must not be {@code null}
+     * @param timerScheduler the scheduler {@code TimerScheduled}/{@code TimerCancelled} entries are
+     *     routed to; must not be {@code null}
      */
-    public InProcessAutomationPort(ActionExecutor actionExecutor, InProcessAutomationProperties properties) {
+    public InProcessAutomationPort(
+            ActionExecutor actionExecutor,
+            InProcessAutomationProperties properties,
+            TriggerEvaluator triggerEvaluator,
+            DerivationRecomputer derivationRecomputer,
+            InProcessRecomputeProperties.Mode recomputeMode,
+            InProcessTimerScheduler timerScheduler) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor, "actionExecutor must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
+        this.recomputeCoordinator =
+            new RecomputeCoordinator(
+                Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null"),
+                Objects.requireNonNull(recomputeMode, "recomputeMode must not be null"));
+        this.timerScheduler = Objects.requireNonNull(timerScheduler, "timerScheduler must not be null");
         this.httpClient = HttpClient.newHttpClient();
     }
 
@@ -77,15 +112,28 @@ public final class InProcessAutomationPort implements AutomationPort {
     public void dispatch(Scope scope, OutboxEntry entry) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(entry, "entry must not be null");
-        if (!entry.kind().equals(OutboxEntry.KIND_ACTION_REQUEST)) {
-            throw new IllegalArgumentException(
-                "OutboxEntry kind must be '" + OutboxEntry.KIND_ACTION_REQUEST + "', was '" + entry.kind() + "'");
-        }
 
         if (!dispatched.add(entry.id())) {
             return;
         }
 
+        switch (entry.kind()) {
+            case OutboxEntry.KIND_ACTION_REQUEST -> dispatchActionRequest(scope, entry);
+            case OutboxEntry.KIND_OBJECT_CREATED,
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                OutboxEntry.KIND_OBJECT_DELETED -> {
+                recomputeCoordinator.recompute(scope, entry);
+                triggerEvaluator.onChange(scope, entry);
+            }
+            case OutboxEntry.KIND_TIMER_SCHEDULED -> timerScheduler.schedule(scope, entry);
+            case OutboxEntry.KIND_TIMER_CANCELLED -> timerScheduler.cancel(entry);
+            case OutboxEntry.KIND_SIGNAL_RECEIVED -> triggerEvaluator.onSignal(scope, entry);
+            default -> throw new IllegalArgumentException(
+                "Unsupported OutboxEntry kind for dispatch: " + entry.kind());
+        }
+    }
+
+    private void dispatchActionRequest(Scope scope, OutboxEntry entry) {
         String actionKind = (String) entry.payload().get("actionKind");
         switch (actionKind) {
             case ACTION_KIND_SET_PROPERTY -> actionExecutor.applySetProperty(scope, entry);

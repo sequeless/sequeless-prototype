@@ -129,9 +129,23 @@ public class OutboxRelay {
     }
 
     /**
-     * Reconstructs the {@link Scope} an {@code ActionRequest} row's action must be dispatched
-     * under, from {@code tenantId} (handed back raw by {@link OutboxPort}, by design — see its
-     * javadoc) and the payload's own {@code principalId}.
+     * The placeholder principal id/display name used to dispatch an object-lifecycle
+     * ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}) outbox row, whose payload
+     * — unlike {@code ActionRequest}, {@code TimerScheduled}, and {@code SignalReceived} — carries
+     * no {@code principalId} at all (verified against {@code DefaultBusinessObjectService}/{@code
+     * DefaultActionExecutor}'s shared {@code outboxPayload} helper). There is no richer identity to
+     * recover from that frozen payload, and {@code Principal}'s compact constructor rejects a
+     * blank/{@code null} id outright, so a placeholder is required, not merely convenient. Safe
+     * because the only place {@link Scope#principal()} is read for these three kinds is as an audit
+     * "updated by" stamp ({@code DefaultDerivationRecomputer}'s commit path) — never for an
+     * authorization decision.
+     */
+    private static final String LIFECYCLE_EVENT_PRINCIPAL_ID = "system";
+
+    /**
+     * Reconstructs the {@link Scope} an outbox row's dispatch must run under, from {@code tenantId}
+     * (handed back raw by {@link OutboxPort}, by design — see its javadoc) and the payload's own
+     * {@code principalId} where one is present.
      *
      * <p>{@code principalId} is used as both {@link Principal#id()} and {@link
      * Principal#displayName()}: there is no richer identity to recover from the frozen outbox
@@ -139,9 +153,16 @@ public class OutboxRelay {
      * the empty set — safe because {@code DefaultActionExecutor}, the {@link
      * org.sequeless.spi.automation.ActionExecutor} implementation every automation adapter calls
      * back into, performs no {@link org.sequeless.spi.authz.AuthorizationPort} check of its own.
+     *
+     * <p>The three object-lifecycle kinds carry no {@code principalId} in their payload at all —
+     * {@link #LIFECYCLE_EVENT_PRINCIPAL_ID} stands in for it in that case, since {@link Principal}'s
+     * compact constructor rejects a blank id and there is nothing else to reconstruct it from.
      */
     private static Scope buildScope(String tenantId, OutboxEntry entry) {
         String principalId = (String) entry.payload().get("principalId");
+        if (principalId == null) {
+            principalId = LIFECYCLE_EVENT_PRINCIPAL_ID;
+        }
         Principal principal = new Principal(principalId, principalId, Set.of());
         return new Scope(new TenantId(tenantId), principal);
     }
