@@ -10,6 +10,7 @@ import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -45,6 +46,21 @@ public class InProcessAutomationAutoConfiguration {
      *
      * @return a new daemon-thread-backed single-thread {@link ScheduledExecutorService}
      */
+    /**
+     * The {@link Clock} {@link #timerScheduler}'s {@link InProcessTimerScheduler} measures "now"
+     * against. {@code @ConditionalOnMissingBean} so production behaviour is completely unchanged
+     * (still real UTC) while a test can register its own {@code @Primary} {@link Clock} bean (a
+     * mutable fake) to make a timer's {@code sq:after} duration fire deterministically without
+     * sleeping real wall-clock time.
+     *
+     * @return {@link Clock#systemUTC()}
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public Clock clock() {
+        return Clock.systemUTC();
+    }
+
     @Bean(destroyMethod = "shutdownNow")
     public ScheduledExecutorService timerTickExecutor() {
         return Executors.newSingleThreadScheduledExecutor(
@@ -68,15 +84,18 @@ public class InProcessAutomationAutoConfiguration {
      *     short enough that a test relying on the real production tick (rather than {@code
      *     advanceTime}'s synchronous sweep) would not need to wait long, while still cheap enough
      *     to run forever in production
-     * @return a new {@link InProcessTimerScheduler} over {@link Clock#systemUTC()}, with its sweep
-     *     already scheduled at a fixed delay on {@code timerTickExecutor}
+     * @param clock the {@link #clock()} bean this scheduler measures "now" against; real UTC in
+     *     production, a test-registered {@code @Primary} mutable fake in tests
+     * @return a new {@link InProcessTimerScheduler} over {@code clock}, with its sweep already
+     *     scheduled at a fixed delay on {@code timerTickExecutor}
      */
     @Bean
     public InProcessTimerScheduler timerScheduler(
             TriggerEvaluator triggerEvaluator,
             ScheduledExecutorService timerTickExecutor,
-            @Value("${sequeless.automation.inprocess.timer-tick-ms:100}") long tickMillis) {
-        InProcessTimerScheduler scheduler = new InProcessTimerScheduler(Clock.systemUTC(), triggerEvaluator);
+            @Value("${sequeless.automation.inprocess.timer-tick-ms:100}") long tickMillis,
+            Clock clock) {
+        InProcessTimerScheduler scheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
         timerTickExecutor.scheduleWithFixedDelay(
             scheduler::sweep, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
         return scheduler;
