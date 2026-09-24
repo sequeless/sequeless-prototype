@@ -305,11 +305,13 @@ final class SnapshotMapper {
             return Optional.empty();
         }
 
-        Optional<String> xsdIri = property.ranges()
+        List<String> candidateXsdIris = property.ranges()
             .filter(Resource::isURIResource)
             .map(Resource::getURI)
+            .distinct()
             .sorted()
-            .findFirst();
+            .toList();
+        Optional<String> xsdIri = mostSpecificXsdIri(candidateXsdIris);
         Datatype datatype = xsdIri.flatMap(Datatype::fromXsd).orElse(null);
         if (datatype == null) {
             datatype = Datatype.STRING;
@@ -490,6 +492,43 @@ final class SnapshotMapper {
             .toList();
         List<OntClass> pool = leaves.isEmpty() ? named : leaves;
         return pool.stream().map(OntClass::getURI).min(Comparator.naturalOrder());
+    }
+
+    /**
+     * Picks the most specific candidate {@code xsd:} range IRI among {@code candidateXsdIris},
+     * exactly the same domain/range-closure leakage {@link #mostSpecificNamed} handles for class
+     * hierarchies — verified empirically that an {@code owl} reasoner materialises {@code
+     * xsd:decimal} as an inferred supertype range alongside a property's own asserted {@code
+     * xsd:integer}, since {@code xsd:integer} is a restriction of {@code xsd:decimal} in XSD's own
+     * built-in numeric facet hierarchy. That hierarchy is not expressed as ontology {@code
+     * rdfs:subClassOf} triples this class's generic "leaf of chain" walk can traverse, so this is a
+     * small, explicit narrowing instead of a reuse of {@link #mostSpecificNamed}: among the {@link
+     * Datatype} values {@link Datatype#fromXsd} recognises, an integral type ({@link
+     * Datatype#INTEGER}/{@link Datatype#LONG}) is always more specific than a floating-point one
+     * ({@link Datatype#DECIMAL}/{@link Datatype#DOUBLE}) — the only subsumption relationship XSD's
+     * built-in numeric datatypes create between the values this SPI recognises. {@code
+     * candidateXsdIris} is expected pre-sorted (by IRI) for deterministic tie-breaking, matching
+     * {@link #dataPropertyMeta}'s one caller.
+     *
+     * @param candidateXsdIris every {@code xsd:} range IRI a property declares or a reasoner
+     *     infers for it, in a fixed (IRI-sorted) order; must not be {@code null}
+     * @return the most specific IRI to resolve a {@link Datatype} from, or {@link
+     *     Optional#empty()} if {@code candidateXsdIris} itself is empty
+     */
+    private static Optional<String> mostSpecificXsdIri(List<String> candidateXsdIris) {
+        if (candidateXsdIris.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<String, Datatype> recognised = new LinkedHashMap<>();
+        for (String iri : candidateXsdIris) {
+            Datatype.fromXsd(iri).ifPresent(datatype -> recognised.put(iri, datatype));
+        }
+        return recognised.entrySet().stream()
+            .filter(entry -> entry.getValue() == Datatype.INTEGER || entry.getValue() == Datatype.LONG)
+            .map(Map.Entry::getKey)
+            .findFirst()
+            .or(() -> recognised.keySet().stream().findFirst())
+            .or(() -> candidateXsdIris.stream().findFirst());
     }
 
     /**
