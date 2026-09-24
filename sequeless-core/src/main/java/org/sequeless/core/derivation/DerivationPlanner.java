@@ -117,12 +117,7 @@ public final class DerivationPlanner {
             List<PropertyDefinition> properties = entry.getValue();
             Set<ObjectId> targetIds = targetIdsByRule.get(rule);
 
-            Map<ObjectId, Value> values =
-                switch (rule) {
-                    case RollupRule rollup -> resolveRollup(scope, snapshot, rollup, targetIds);
-                    case PluginRule pluginRule ->
-                        resolvePlugin(scope, snapshot, pluginRule, targetIds, objects);
-                };
+            Map<ObjectId, Value> values = computeRule(scope, snapshot, rule, targetIds, objects);
 
             for (PropertyDefinition property : properties) {
                 computedByPropertyIri.put(property.iri(), values);
@@ -134,6 +129,39 @@ public final class DerivationPlanner {
             result.add(merge(object, typeByObjectId.get(object.id()), computedByPropertyIri));
         }
         return result;
+    }
+
+    /**
+     * Computes a single {@link DerivationRule}'s value for {@code targetIds}, dispatching to {@link
+     * #resolveRollup} or {@link #resolvePlugin} exactly as {@link #apply}'s per-rule loop did before
+     * this method was extracted from it — {@code apply} now simply calls this once per distinct rule
+     * on its page. Extracted so {@link DefaultDerivationRecomputer} (reacting to individual domain
+     * events rather than a request's whole page) can share this exact one-rule aggregate code path
+     * instead of re-implementing the {@code RollupRule}/{@code PluginRule} dispatch.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
+     *     null}
+     * @param snapshot the type system {@code rule} and {@code targetIds} are resolved against; must
+     *     not be {@code null}
+     * @param rule the rule to compute; must not be {@code null}
+     * @param targetIds the ids to compute {@code rule}'s value for; must not be {@code null}
+     * @param objects the objects {@code targetIds} may be drawn from, needed only for a {@link
+     *     PluginRule} (a {@link RollupRule} never inspects this list); must not be {@code null}
+     * @return the computed value per target id, per {@link AggregateResult}'s density contract for a
+     *     {@link RollupRule}, or whatever {@link org.sequeless.spi.derivation.DerivationPlugin#derive}
+     *     returns for a {@link PluginRule}
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    public Map<ObjectId, Value> computeRule(
+        Scope scope,
+        MetaModelSnapshot snapshot,
+        DerivationRule rule,
+        Set<ObjectId> targetIds,
+        List<BusinessObject> objects) {
+        return switch (rule) {
+            case RollupRule rollup -> resolveRollup(scope, snapshot, rollup, targetIds);
+            case PluginRule pluginRule -> resolvePlugin(scope, snapshot, pluginRule, targetIds, objects);
+        };
     }
 
     private static TypeDefinition resolveType(MetaModelSnapshot snapshot, BusinessObject object) {

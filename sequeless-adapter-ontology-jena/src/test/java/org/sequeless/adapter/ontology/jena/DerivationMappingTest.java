@@ -246,7 +246,11 @@ class DerivationMappingTest {
     }
 
     @Test
-    void pluginWithMaterialisedTrueIsHonoured() {
+    void pluginWithMaterialisedTrueIsError() {
+        // A materialised sq:Plugin cannot be generically recomputed: unlike a sq:Rollup it carries
+        // no sq:over/sq:via, so DefaultDerivationRecomputer (T5) has no generic way to discover which
+        // targets a changed object affects. Rejecting the combination here, at mapping time, keeps
+        // that gap from ever reaching a MetaModelSnapshot.
         MappingResult result = mapTurtle(
             """
             ex:workload
@@ -255,11 +259,7 @@ class DerivationMappingTest {
                 rdfs:range xsd:decimal ;
                 sq:derivedBy [ a sq:Plugin ; sq:pluginName "workload" ; sq:materialised true ] .
             """);
-        assertThat(errors(result)).isEmpty();
-
-        PluginRule rule =
-            (PluginRule) attribute(result, REF_NS + "Person", REF_NS + "workload").derivation().orElseThrow();
-        assertThat(rule.materialised()).isTrue();
+        assertSingleError(result, REF_NS + "workload", "sq:materialised true");
     }
 
     // -- Rule-shape validation --------------------------------------------------------------------

@@ -592,6 +592,18 @@ final class SnapshotMapper {
             return Optional.empty();
         }
         boolean materialised = SqAnnotations.bool(ruleNode, SqVocabulary.MATERIALISED, false);
+        if (materialised) {
+            // A materialised PluginRule cannot be generically recomputed: unlike a RollupRule, it
+            // carries no sourceTypeIri/viaIri, so there is no generic way for DefaultDerivationRecomputer
+            // to discover "which targets does this changed object affect" for a plug-in-backed
+            // property. Rejecting this combination at mapping time keeps that gap from ever reaching
+            // a MetaModelSnapshot rather than silently accepting a rule core can never keep correct.
+            issues.add(error(propertyIri,
+                "sq:derivedBy on " + propertyIri + " is a sq:Plugin with sq:materialised true, which is"
+                    + " not supported: a sq:Plugin rule cannot be generically recomputed from domain"
+                    + " events"));
+            return Optional.empty();
+        }
         return Optional.of(new PluginRule(nameStmt.getString(), materialised));
     }
 

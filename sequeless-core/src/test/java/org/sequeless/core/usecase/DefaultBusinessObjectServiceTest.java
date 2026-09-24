@@ -22,6 +22,8 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.BrowseQuery;
 import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.derivation.DerivationPlanner;
+import org.sequeless.core.derivation.DerivationPluginRegistry;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.Principal;
@@ -589,6 +591,40 @@ class DefaultBusinessObjectServiceTest {
 
         assertThat(queryPort.aggregateRequests).hasSize(2);
         assertThat(result.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI));
+    }
+
+    /**
+     * T5 extracted {@code DerivationPlanner.computeRule} out of {@code apply}'s inline {@code
+     * switch} over {@link RollupRule}/{@code PluginRule}, so {@code
+     * org.sequeless.core.derivation.DefaultDerivationRecomputer} could share the exact same
+     * aggregate resolution. This test proves that extraction is bit-identical: calling {@code
+     * computeRule} directly with the same {@link RollupRule} and target id that {@link
+     * #readComputesRollupsWithExactlyTwoAggregateCallsSameAsBrowse} exercises via {@code read}
+     * produces the very same {@link AggregateRequest} shape and the very same computed value.
+     */
+    @Test
+    void computeRuleProducesTheSameValueAndRequestShapeAsReadsInlineDispatchDid() {
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DerivationPlanner planner =
+            new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
+        ObjectId projectId = ObjectId.random();
+        BusinessObject project =
+            new BusinessObject(
+                projectId, new TypeRef(PROJECT_IRI), ALICE.tenantId(), 1, Optional.empty(), Map.of(),
+                new Audit(NOW, "alice", NOW, "alice"), false);
+        RollupRule rule = (RollupRule) OPEN_TASK_COUNT.derivation().orElseThrow();
+
+        Map<ObjectId, Value> values =
+            planner.computeRule(ALICE, SNAPSHOT, rule, Set.of(projectId), List.of(project));
+
+        assertThat(queryPort.aggregateRequests).hasSize(1);
+        AggregateRequest request = queryPort.aggregateRequests.get(0);
+        assertThat(request.sourceTypes()).containsExactly(TASK_IRI);
+        assertThat(request.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
+        assertThat(request.function()).isEqualTo(AggregateFunction.COUNT);
+        assertThat(request.targetIds()).containsExactly(projectId);
+        // FakeQueryPort's aggregate() returns a canned 0 for COUNT, per its own javadoc.
+        assertThat(values.get(projectId)).isEqualTo(new IntegerValue(0));
     }
 
     @Test

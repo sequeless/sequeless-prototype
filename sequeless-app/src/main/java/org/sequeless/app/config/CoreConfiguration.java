@@ -1,6 +1,7 @@
 package org.sequeless.app.config;
 
 import java.time.Clock;
+import java.time.Duration;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
 import org.sequeless.core.api.OntologyAdministration;
@@ -8,6 +9,9 @@ import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.api.WhoAmI;
 import org.sequeless.core.automation.DefaultActionExecutor;
 import org.sequeless.core.automation.DefaultTriggerEvaluator;
+import org.sequeless.core.derivation.DefaultDerivationRecomputer;
+import org.sequeless.core.derivation.DerivationPlanner;
+import org.sequeless.core.derivation.DerivationPluginRegistry;
 import org.sequeless.core.usecase.DefaultBusinessObjectService;
 import org.sequeless.core.usecase.DefaultMetaModelService;
 import org.sequeless.core.usecase.DefaultOntologyAdministration;
@@ -15,12 +19,14 @@ import org.sequeless.core.usecase.DefaultTransitionService;
 import org.sequeless.core.usecase.DefaultWhoAmI;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.validation.ValidationPort;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -100,6 +106,29 @@ public class CoreConfiguration {
     }
 
     /**
+     * Builds the {@link DerivationPlanner} shared by {@link #businessObjectService} (recomputing
+     * every derived property a {@code read}/{@code browse} response returns) and {@link
+     * #derivationRecomputer} (recomputing a single materialised rule for a single target off a
+     * domain event) — one instance, so both callers resolve {@code sq:Rollup}/{@code sq:Plugin}
+     * rules through the exact same code path rather than two independently constructed planners
+     * drifting apart. Previously {@link DefaultBusinessObjectService} built its own {@code
+     * DerivationPlanner} inline in its convenience constructor; extracting it to a bean here is what
+     * lets {@link #derivationRecomputer} reuse it instead of constructing a second, divergent one.
+     *
+     * <p>{@code queryPort} is {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above.
+     *
+     * @param queryPort the lazily-resolved query port adapter, used both to resolve rollups and to
+     *     hand to plug-ins
+     * @return a {@link DerivationPlanner} backed by every {@link
+     *     org.sequeless.spi.derivation.DerivationPlugin} on the classpath
+     */
+    @Bean
+    public DerivationPlanner derivationPlanner(@Lazy QueryPort queryPort) {
+        return new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
+    }
+
+    /**
      * Builds the {@link BusinessObjectService} use case around whichever {@link OntologyPort},
      * {@link ObjectStorePort}, {@link ValidationPort}, {@link AuthorizationPort}, and {@link
      * QueryPort} adapters are configured.
@@ -117,6 +146,8 @@ public class CoreConfiguration {
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
      * @param queryPort the lazily-resolved query port adapter
+     * @param derivationPlanner the {@link DerivationPlanner} bean built above, shared with {@link
+     *     #derivationRecomputer}
      * @return a {@link DefaultBusinessObjectService} consulting all five ports on every call, with
      *     its clock drawn from {@link Clock#systemUTC()}
      */
@@ -126,10 +157,11 @@ public class CoreConfiguration {
             @Lazy ObjectStorePort objectStorePort,
             @Lazy ValidationPort validationPort,
             @Lazy AuthorizationPort authorizationPort,
-            @Lazy QueryPort queryPort) {
+            @Lazy QueryPort queryPort,
+            DerivationPlanner derivationPlanner) {
         return new DefaultBusinessObjectService(
             ontologyPort, objectStorePort, validationPort, authorizationPort, queryPort,
-            Clock.systemUTC());
+            Clock.systemUTC(), derivationPlanner);
     }
 
     /**
@@ -240,5 +272,49 @@ public class CoreConfiguration {
             @Lazy ObjectStorePort objectStorePort,
             TransitionService transitionService) {
         return new DefaultTriggerEvaluator(ontologyPort, objectStorePort, transitionService);
+    }
+
+    /**
+     * Builds the {@link DerivationRecomputer} implementation an automation adapter calls back into
+     * once an {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event might have
+     * invalidated a materialised derived property. Exactly the same reasoning as {@link
+     * #actionExecutor} and {@link #triggerEvaluator} applies here: {@code DerivationRecomputer} is
+     * not consumed by a REST controller in this module, it is consumed by whichever automation
+     * adapter is configured, and neither adapter module may depend on {@code sequeless-core} (the
+     * {@code noAdapterDependsOnCore} architecture rule) — this bean is that unavoidable wiring seam.
+     *
+     * <p>{@link DefaultDerivationRecomputer} takes the {@link #derivationPlanner} bean built above
+     * rather than constructing its own, so a recompute driven by a domain event resolves {@code
+     * sq:Rollup} rules through the exact same code path {@link #businessObjectService}'s read/browse
+     * path already uses.
+     *
+     * <p>Both port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above. {@code maxAttempts}/{@code baseDelay} are ordinary {@code
+     * @Value}-annotated bean-method parameters, not port slots, so they need no such treatment; the
+     * defaults (8 attempts, a 20ms jittered base delay) match this phase's design document.
+     *
+     * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
+     * javadoc for why {@link Clock#systemUTC()} is called inline here too.
+     *
+     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param objectStorePort the lazily-resolved object store port adapter
+     * @param derivationPlanner the {@link DerivationPlanner} bean built above
+     * @param maxAttempts the maximum number of commit attempts per recompute before a stale-version
+     *     conflict is allowed to propagate, from {@code
+     *     sequeless.automation.recompute.retry.max-attempts}, defaulting to 8
+     * @param baseDelay the base of the jittered retry backoff, from {@code
+     *     sequeless.automation.recompute.retry.base-delay}, defaulting to 20ms
+     * @return a {@link DefaultDerivationRecomputer} consulting both ports and {@code
+     *     derivationPlanner} on every call
+     */
+    @Bean
+    public DerivationRecomputer derivationRecomputer(
+            @Lazy OntologyPort ontologyPort,
+            @Lazy ObjectStorePort objectStorePort,
+            DerivationPlanner derivationPlanner,
+            @Value("${sequeless.automation.recompute.retry.max-attempts:8}") int maxAttempts,
+            @Value("${sequeless.automation.recompute.retry.base-delay:PT0.02S}") Duration baseDelay) {
+        return new DefaultDerivationRecomputer(
+            ontologyPort, objectStorePort, derivationPlanner, maxAttempts, baseDelay, Clock.systemUTC());
     }
 }
