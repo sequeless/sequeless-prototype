@@ -191,6 +191,17 @@ Notes:
   asserted on. Marking a rule materialised never changes what a `GET`/browse response returns for
   that property — it is always the freshly recomputed aggregate — it only makes the stored value
   exist so `QueryPort` can filter and sort on it.
+- `sq:materialised true` on a `sq:Plugin` node is a mapping **error**, not merely unsupported:
+  `SnapshotMapper.pluginRuleOf` rejects it outright. A `RollupRule` recomputes by re-running its
+  `sq:over`/`sq:via`/`sq:of`/`sq:filter` aggregate against fresh source data, but a `PluginRule` has
+  no `sourceTypeIri`/`viaIri` of its own for `DerivationRecomputer` to resolve affected targets
+  from — there is no generic way to know which objects to recompute when *something* changes. Every
+  materialised derivation rule in a valid snapshot is therefore guaranteed to be a `RollupRule`.
+- Outside the ontology, `TriggerKind`'s enum constant names double as the REST wire format:
+  `TransitionSummaryResponse.trigger` (see `automation.md` §12) serializes as the raw
+  `TriggerKind.name()` — SCREAMING_SNAKE_CASE (`"USER_ACTION"`, `"ON_CHANGE"`, `"TIMER"`,
+  `"EXTERNAL_SIGNAL"`) — the same casing this table's individuals are matched against on the way
+  in, not a separately chosen client-facing spelling.
 
 ## Two terms added beyond the brief
 

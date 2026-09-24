@@ -300,15 +300,42 @@ coercion always short-circuits first.
 
 ## Known limitations
 
-- **No materialised values.** Every derived property is recomputed on every read/browse; `sq:
-  materialised` stays reserved and unimplemented. A page of many objects sharing a roll-up still
-  costs one aggregate query per rule per request — cheap relative to a naive per-object query, but
-  not free, and not cached across requests.
-- **No filtering, sorting, or faceting on derived properties.** `Query`/`Criterion`/`Sort`/
-  `facetProperties` only ever address stored properties; a derived property cannot appear on either
-  side of a `filter[...]`, `sort=`, or `facets=` request parameter. This mirrors Phase 3's existing
-  "multi-valued properties are out of scope for filter/sort/facet/index" limitation in spirit: both
-  are values `QueryPort.query` cannot resolve as a plain JSONB expression.
+- **Materialised rollups exist (Phase 6 / DR-11), but only for `RollupRule`.** A rollup marked
+  `sq:materialised true` is kept correct in `sq_object.props` from domain events — see
+  `automation.md` §11 for the full recompute design — but `sq:materialised true` on a `sq:Plugin`
+  node is a mapping *error*: a `PluginRule` has no `sourceTypeIri`/`viaIri` a recomputer could use
+  to resolve which objects are affected by a given change, so there is no generic way to recompute
+  it. A materialised derivation rule is therefore always a `RollupRule`.
+- **Materialisation never changes what a read returns.** `GET`/browse still always return the
+  freshly recomputed aggregate, by design, exactly as before Phase 6 — a materialised value's stored
+  copy exists purely so `QueryPort` can filter and sort on it, never as a cache a read path
+  consults. A page of many objects sharing a roll-up still costs one aggregate query per rule per
+  request when read, same as an unmaterialised one.
+- **Recompute is commit-only-if-changed, with retry on staleness.** A materialised value is kept
+  correct by re-reading and re-aggregating from scratch on every relevant domain event, committing
+  only when the freshly computed value differs from what's stored (both a correctness guarantee
+  under concurrency and the mechanism that terminates the recompute-triggers-another-recompute
+  loop), and retrying the whole read-recompute-commit cycle on a `StaleObjectException` (default 8
+  attempts, ~20ms base delay, both configurable — `sequeless.automation.recompute.retry.*`). See
+  `automation.md` §11 for the full design, including the three configurable concurrency modes
+  (`retry-only`/`serialize`/`coalesce`, in-process default `coalesce`) and the Temporal adapter's
+  deliberate `retry-only`-only scope reduction.
+- **Filtering, sorting, or faceting on a *non*-materialised derived property is now a `400`, not a
+  silent no-match.** `Query`/`Criterion`/`Sort`/`facetProperties` still only ever address stored
+  properties, but as of Phase 6 naming an unmaterialised derived property on either side of a
+  `filter[...]`, `sort=`, or `facets=` request parameter is rejected outright with a `400`, rather
+  than the pre-Phase-6 behaviour of silently matching nothing. Marking the property
+  `sq:materialised true` (§ "Materialised rollups exist" above) is what makes it queryable; there is
+  no other way to opt a derived property into filter/sort/facet support.
+- **Known-but-out-of-scope defect, unrelated to Phase 6: `ex:totalEstimatedHours` crashes on a
+  Task with no `estimatedHours` set.** `ex:totalEstimatedHours` is a non-materialised `sq:sum`
+  Rollup (Phase 4 vintage). When a `Project`'s Tasks include one with no `estimatedHours` value,
+  Postgres's `SUM()` over an all-`NULL` group returns SQL `NULL`, and `DecimalValue`'s constructor
+  rejects `null`, so `GET /objects/Project/{id}` throws a `NullPointerException`. This predates
+  Phase 6 and was found (not fixed) while building Phase 6's end-to-end/load tests, which had to
+  deliberately set `estimatedHours` on every Task they created to avoid tripping it. A real fix
+  would either have `SUM` coalesce `NULL` to `0`, or have the aggregate omit the key entirely from
+  the response rather than crash — left as follow-up work, not addressed by Phase 6.
 - **Plug-ins must self-bound their own `QueryPort` usage.** Nothing in `DerivationPlanner` or
   `DerivationContext` prevents a plug-in from issuing one query per object, or from loading an
   unbounded working set into memory instead of pushing the aggregation down to `QueryPort`. The
