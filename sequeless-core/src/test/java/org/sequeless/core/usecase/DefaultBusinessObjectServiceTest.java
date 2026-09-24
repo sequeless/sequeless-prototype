@@ -144,7 +144,8 @@ class DefaultBusinessObjectServiceTest {
                     TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(),
                     List.of(
                         new Criterion(
-                            STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))))),
+                            STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))),
+                    true)),
             Datatype.INTEGER);
     /**
      * {@code sq:Rollup}-derived: {@code sum} of {@code estimatedHours} over {@code Task} via
@@ -158,7 +159,7 @@ class DefaultBusinessObjectServiceTest {
             Optional.of(
                 new RollupRule(
                     TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM,
-                    Optional.of(HOURS_IRI), List.of())),
+                    Optional.of(HOURS_IRI), List.of(), false)),
             Datatype.DECIMAL);
 
     private static final TypeDefinition WORK_ITEM =

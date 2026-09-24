@@ -105,7 +105,8 @@ class ValueCoercerTest {
                     Optional.empty(),
                     List.of(
                         new Criterion(
-                            STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))))),
+                            STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+                    false)),
             Datatype.INTEGER);
 
     private static final TypeDefinition TASK =

@@ -7,6 +7,7 @@ import org.sequeless.core.api.OntologyAdministration;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.api.WhoAmI;
 import org.sequeless.core.automation.DefaultActionExecutor;
+import org.sequeless.core.automation.DefaultTriggerEvaluator;
 import org.sequeless.core.usecase.DefaultBusinessObjectService;
 import org.sequeless.core.usecase.DefaultMetaModelService;
 import org.sequeless.core.usecase.DefaultOntologyAdministration;
@@ -14,6 +15,7 @@ import org.sequeless.core.usecase.DefaultTransitionService;
 import org.sequeless.core.usecase.DefaultWhoAmI;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.ontology.OntologyPort;
@@ -206,5 +208,37 @@ public class CoreConfiguration {
             @Lazy ExpressionPort expressionPort) {
         return new DefaultTransitionService(
             ontologyPort, objectStorePort, authorizationPort, expressionPort, Clock.systemUTC());
+    }
+
+    /**
+     * Builds the {@link TriggerEvaluator} implementation an automation adapter calls back into once
+     * an {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event, an elapsed timer,
+     * or a signal might make an {@code OnChange}/{@code Timer}/{@code ExternalSignal}-triggered
+     * transition available. Exactly the same reasoning as {@link #actionExecutor} applies here:
+     * {@code TriggerEvaluator} is not consumed by a REST controller in this module, it is consumed
+     * by whichever automation adapter is configured, and neither adapter module may depend on {@code
+     * sequeless-core} — this bean is that unavoidable wiring seam.
+     *
+     * <p>{@link DefaultTriggerEvaluator} takes the already-built {@link TransitionService} bean
+     * above (an ordinary intra-configuration reference, not a port, so it needs no {@code @Lazy})
+     * rather than duplicating {@link DefaultTransitionService}'s own constructor dependencies — every
+     * actual state move, including guard evaluation and the commit, is {@link
+     * TransitionService#fireAutomated}'s job, not this class's.
+     *
+     * <p>Both port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above.
+     *
+     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param objectStorePort the lazily-resolved object store port adapter
+     * @param transitionService the {@link TransitionService} bean built above
+     * @return a {@link DefaultTriggerEvaluator} consulting both ports and {@code transitionService}
+     *     on every call
+     */
+    @Bean
+    public TriggerEvaluator triggerEvaluator(
+            @Lazy OntologyPort ontologyPort,
+            @Lazy ObjectStorePort objectStorePort,
+            TransitionService transitionService) {
+        return new DefaultTriggerEvaluator(ontologyPort, objectStorePort, transitionService);
     }
 }
