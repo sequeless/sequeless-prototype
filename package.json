@@ -1,0 +1,21 @@
+{
+  "name": "sequeless",
+  "version": "0.1.0",
+  "private": true,
+  "description": "This root package is deliberately not an npm workspace because npm workspace hoisting would lift node_modules to the repo root and break the Angular CLI's resolution of its own builder plugins, which must resolve next to sequeless-ui/angular.json.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix sequeless-ui install",
+    "start": "npm --prefix sequeless-ui start",
+    "start:api": "mvn -pl sequeless-app spring-boot:run",
+    "build:ui": "npm --prefix sequeless-ui run build",
+    "build": "npm run build:ui && mvn -B -ntp package",
+    "build:fast": "npm run build:ui && mvn -B -ntp package -DskipTests",
+    "verify": "npm run build:ui && npm --prefix sequeless-ui test -- --run && mvn -B -ntp verify",
+    "test:ui": "npm --prefix sequeless-ui test",
+    "lint:ui": "npm --prefix sequeless-ui run lint",
+    "e2e": "npm --prefix sequeless-ui run e2e"
+  }
+}
