@@ -1,0 +1,82 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "paths": {
+      "@sequeless/core-api": ["./projects/core-api/src/public-api.ts"],
+      "@sequeless/rdf": ["./projects/rdf/src/public-api.ts"],
+      "@sequeless/ui-kit": ["./projects/ui-kit/src/public-api.ts"],
+      "@sequeless/objects": ["./projects/objects/src/public-api.ts"],
+      "@sequeless/ontology": ["./projects/ontology/src/public-api.ts"],
+      "@sequeless/automation": ["./projects/automation/src/public-api.ts"],
+      "@sequeless/testing": ["./projects/testing/src/public-api.ts"]
+    },
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "preserve"
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./projects/sequeless-shell/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/sequeless-shell/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/core-api/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/core-api/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/rdf/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/rdf/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/ui-kit/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/ui-kit/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/objects/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/objects/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/ontology/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/ontology/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/automation/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/automation/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/testing/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/testing/tsconfig.spec.json"
+    }
+  ]
+}

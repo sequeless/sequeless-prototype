@@ -1,0 +1,20 @@
+<mat-sidenav-container class="shell">
+  <mat-sidenav mode="side" opened class="shell-sidenav">
+    <mat-nav-list>
+      @for (link of navLinks; track link.path) {
+        <a mat-list-item [routerLink]="link.path" routerLinkActive="active-link">
+          <mat-icon matListItemIcon>{{ link.icon }}</mat-icon>
+          <span matListItemTitle>{{ link.label }}</span>
+        </a>
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+  <mat-sidenav-content>
+    <mat-toolbar color="primary" class="shell-toolbar">
+      Sequeless
+    </mat-toolbar>
+    <div class="shell-content">
+      <router-outlet />
+    </div>
+  </mat-sidenav-content>
+</mat-sidenav-container>
