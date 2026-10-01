@@ -151,7 +151,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         // the ObjectUpdated event that recomputes openTaskCount back to 0 and re-evaluates onChange.
         BusinessObjectResponse doneTask =
                 client.put()
-                        .uri("/objects/Task/" + task.id())
+                        .uri("/api/objects/Task/" + task.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(
                                 Map.of(
@@ -267,7 +267,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         fireTransition(client, project.id(), "close", activated.version());
 
         client.post()
-                .uri("/objects/Project/" + project.id() + "/signals/reopen")
+                .uri("/api/objects/Project/" + project.id() + "/signals/reopen")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of())
                 .exchange()
@@ -285,7 +285,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
             String title,
             BusinessObjectResponse owner) {
         client.put()
-                .uri("/objects/Project/" + project.id())
+                .uri("/api/objects/Project/" + project.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(
                         Map.of(
@@ -305,7 +305,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     private BusinessObjectResponse fireTransition(
             RestTestClient client, UUID objectId, String name, long expectedVersion) {
         return client.post()
-                .uri("/objects/Project/" + objectId + "/transitions/" + name)
+                .uri("/api/objects/Project/" + objectId + "/transitions/" + name)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("expectedVersion", expectedVersion))
                 .exchange()
@@ -318,7 +318,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 
     private BusinessObjectResponse createProject(RestTestClient client, String title) {
         return client.post()
-                .uri("/objects/Project")
+                .uri("/api/objects/Project")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of("title", List.of(title))))
                 .exchange()
@@ -331,7 +331,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 
     private BusinessObjectResponse createPerson(RestTestClient client, String name) {
         return client.post()
-                .uri("/objects/Person")
+                .uri("/api/objects/Person")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of("name", name)))
                 .exchange()
@@ -345,7 +345,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     private BusinessObjectResponse createTask(
             RestTestClient client, String title, String belongsToProjectId, String status) {
         return client.post()
-                .uri("/objects/Task")
+                .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(
                         Map.of(
@@ -402,7 +402,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     private String currentState(RestTestClient client, UUID objectId) {
         BusinessObjectResponse response =
                 client.get()
-                        .uri("/objects/Project/" + objectId)
+                        .uri("/api/objects/Project/" + objectId)
                         .exchange()
                         .expectStatus()
                         .isOk()

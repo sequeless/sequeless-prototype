@@ -5,6 +5,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +20,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * Boots the real Spring Boot application on a random port, wired to its shipped {@code
- * application.yaml} defaults, and proves {@code /objects} end to end against a real Postgres
+ * application.yaml} defaults, and proves {@code /api/objects} end to end against a real Postgres
  * container: create, read, browse, update (both the happy path and its two precondition failure
  * modes), and delete.
  *
@@ -70,7 +71,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse read =
                 restTestClient
                         .get()
-                        .uri("/objects/Task/" + created.id())
+                        .uri("/api/objects/Task/" + created.id())
                         .exchange()
                         .expectStatus()
                         .isOk()
@@ -82,7 +83,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         assertThat(read).isEqualTo(created);
 
-        JsonNode page = fetchAsJson("/objects/Task?page=0&size=20");
+        JsonNode page = fetchAsJson("/api/objects/Task?page=0&size=20");
         assertThat(page.get("page").asInt()).isEqualTo(0);
         assertThat(page.get("size").asInt()).isEqualTo(20);
         assertThat(page.get("totalItems").asLong()).isGreaterThanOrEqualTo(1L);
@@ -95,13 +96,33 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
         assertThat(present).as("created task appears in browse").isTrue();
     }
 
+    /**
+     * {@code POST /api/objects/Task} answers 201 with a {@code Location} header naming the created
+     * object's own {@code /api}-prefixed resource path, plus the initial {@code ETag}.
+     *
+     * <p><b>Why the prefix is asserted here, not just the request path.</b> {@code ObjectsController}
+     * used to hard-code the header as {@code URI.create("/objects/" + type + "/" + id)}. The
+     * {@code /api} prefix is applied by {@code ApiPathPrefixConfiguration}'s {@code
+     * PathMatchConfigurer#addPathPrefix} scoped to {@code org.sequeless.app.rest} ({@code
+     * sequeless.api.base-path}), which changes which request paths route to a controller but never
+     * touches a string the controller builds itself — so the hard-coded form kept advertising the
+     * old, now-unrouted {@code /objects/...} path. The header must instead be derived from the
+     * request path the object was actually created through, so it follows whatever prefix is
+     * configured.
+     *
+     * <p><b>Why it must stay a bare path (no scheme/host).</b> The Angular dev-server proxy
+     * ({@code sequeless-ui}) forwards {@code /api} to this app and passes {@code Location} through
+     * untouched; an absolute {@code http://localhost:<app-port>/...} URL would point the browser
+     * past the proxy at the backend's own origin. A root-relative path resolves against whichever
+     * origin the client actually spoke to.
+     */
     @Test
-    void createReturnsLocationAndETag() {
+    void createReturnsApiPrefixedRelativeLocationAndETag() {
         Map<String, Object> body = Map.of("properties", Map.of("title", List.of("Ship it")));
         var response =
                 restTestClient
                         .post()
-                        .uri("/objects/Task")
+                        .uri("/api/objects/Task")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .exchange()
@@ -114,7 +135,14 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         response
                 .expectHeader()
-                .value("Location", location -> assertThat(location).isEqualTo("/objects/Task/" + created.id()))
+                .value(
+                        "Location",
+                        location -> {
+                            assertThat(location).isEqualTo("/api/objects/Task/" + created.id());
+                            URI locationUri = URI.create(location);
+                            assertThat(locationUri.getScheme()).as("Location scheme").isNull();
+                            assertThat(locationUri.getHost()).as("Location host").isNull();
+                        })
                 .expectHeader()
                 .valueEquals("ETag", "\"1\"");
     }
@@ -129,7 +157,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse updated =
                 restTestClient
                         .put()
-                        .uri("/objects/Task/" + created.id())
+                        .uri("/api/objects/Task/" + created.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(updateBody)
                         .exchange()
@@ -155,7 +183,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(updateBody)
                 .exchange()
@@ -177,7 +205,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(updateBody)
                 .exchange()
@@ -196,7 +224,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("If-Match", "\"2\"")
                 .body(updateBody)
@@ -215,7 +243,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("If-Match", "\"1\"")
                 .body(updateBody)
@@ -232,19 +260,19 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .delete()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .exchange()
                 .expectStatus()
                 .isNoContent();
 
         restTestClient
                 .get()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .exchange()
                 .expectStatus()
                 .isNotFound();
 
-        JsonNode page = fetchAsJson("/objects/Task?page=0&size=200");
+        JsonNode page = fetchAsJson("/api/objects/Task?page=0&size=200");
         for (JsonNode item : page.get("items")) {
             assertThat(item.get("id").asText()).isNotEqualTo(created.id().toString());
         }
@@ -254,7 +282,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
         Map<String, Object> body = Map.of("properties", properties);
         return restTestClient
                 .post()
-                .uri("/objects/Task")
+                .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()

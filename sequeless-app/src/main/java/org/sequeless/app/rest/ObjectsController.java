@@ -47,6 +47,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
  * Exposes {@link BusinessObjectService} over HTTP: browse/read/add/edit/delete against {@code
@@ -296,7 +297,13 @@ public class ObjectsController {
         Scope scope = currentScope();
         BusinessObject created = businessObjectService.add(scope, type, request.properties());
         TypeDefinition requestType = metaModelService.describeType(scope, type);
-        URI location = URI.create("/objects/" + type + "/" + created.id().value());
+        URI location =
+                URI.create(
+                        ServletUriComponentsBuilder.fromCurrentRequestUri()
+                                .path("/" + created.id().value())
+                                .build()
+                                .toUri()
+                                .getPath());
         return ResponseEntity.created(location)
                 .eTag(Long.toString(created.version()))
                 .body(ObjectPropertyMapper.toResponse(created, requestType));

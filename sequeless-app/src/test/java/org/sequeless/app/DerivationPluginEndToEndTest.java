@@ -79,7 +79,7 @@ class DerivationPluginEndToEndTest extends PostgresTestcontainersSupport {
                         "estimatedHours", 6,
                         "assignedTo", personId));
 
-        JsonNode read = fetchAsJson("/objects/Person/" + personId);
+        JsonNode read = fetchAsJson("/api/objects/Person/" + personId);
         assertThat(read.get("properties").get("workload").decimalValue())
                 .isEqualByComparingTo(BigDecimal.valueOf(10));
     }
@@ -88,7 +88,7 @@ class DerivationPluginEndToEndTest extends PostgresTestcontainersSupport {
         Map<String, Object> body = Map.of("properties", properties);
         return restTestClient
                 .post()
-                .uri("/objects/" + type)
+                .uri("/api/objects/" + type)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()

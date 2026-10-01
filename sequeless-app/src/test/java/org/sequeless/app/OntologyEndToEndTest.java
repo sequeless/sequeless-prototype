@@ -16,9 +16,9 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * Boots the real Spring Boot application on a random port, wired to its shipped {@code
- * application.yaml} defaults, and proves {@code /ontology} end to end against a real Postgres
+ * application.yaml} defaults, and proves {@code /api/ontology} end to end against a real Postgres
  * container: export, a consistent replace-import that is reflected both in a later export and in
- * {@code GET /types}, and a rejected import for an inconsistent document.
+ * {@code GET /api/types}, and a rejected import for an inconsistent document.
  *
  * <p>Extends {@link PostgresTestcontainersSupport} for the same reason {@code ObjectsEndToEndTest}
  * does: {@code sequeless.persistence.adapter=postgres} is baked into {@code application.yaml}, so
@@ -102,7 +102,7 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
         byte[] responseBody =
                 restTestClient
                         .post()
-                        .uri("/ontology")
+                        .uri("/api/ontology")
                         .contentType(MediaType.valueOf("text/turtle"))
                         .body(modified)
                         .exchange()
@@ -138,7 +138,7 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .get()
-                .uri("/types")
+                .uri("/api/types")
                 .exchange()
                 .expectStatus()
                 .isOk()
@@ -153,7 +153,7 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
     void importOfAnInconsistentDocumentIs422() {
         restTestClient
                 .post()
-                .uri("/ontology")
+                .uri("/api/ontology")
                 .contentType(MediaType.valueOf("text/turtle"))
                 .body(INCONSISTENT_TURTLE)
                 .exchange()
@@ -170,7 +170,7 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
         byte[] body =
                 restTestClient
                         .get()
-                        .uri("/ontology")
+                        .uri("/api/ontology")
                         .exchange()
                         .expectStatus()
                         .isOk()

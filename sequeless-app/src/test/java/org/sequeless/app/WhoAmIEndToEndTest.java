@@ -13,7 +13,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * Boots the real Spring Boot application on a random port and proves the Application phase's
- * headline acceptance criterion end to end: a correctly configured app serves {@code /whoami} and
+ * headline acceptance criterion end to end: a correctly configured app serves {@code /api/whoami} and
  * reports itself healthy over Actuator.
  *
  * <p>{@code sequeless.authz.adapter=permit-all} is set explicitly via {@code properties} rather
@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  *
  * <p>Extends {@link PostgresTestcontainersSupport}: {@code sequeless.persistence.adapter=postgres}
  * is baked into {@code application.yaml}, so every context this module boots needs a reachable
- * Postgres, even a context that never touches {@code /objects}. See that class's javadoc.
+ * Postgres, even a context that never touches {@code /api/objects}. See that class's javadoc.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.authz.adapter=permit-all")
 class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
@@ -46,7 +46,7 @@ class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
     void whoAmiReportsDefaultTenantAndAnonymousPrincipal() {
         restTestClient
             .get()
-            .uri("/whoami")
+            .uri("/api/whoami")
             .exchange()
             .expectStatus()
             .isOk()

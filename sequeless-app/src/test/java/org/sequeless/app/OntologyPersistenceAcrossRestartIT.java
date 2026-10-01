@@ -11,12 +11,12 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * Proves plan.md §9's ontology-persistence-across-restart acceptance criterion: an ontology
- * imported via {@code POST /ontology} is still visible through {@code GET /types} after the
+ * imported via {@code POST /api/ontology} is still visible through {@code GET /api/types} after the
  * importing application context is closed and a brand-new one is started against the same
  * Postgres — even when that second context's {@code sequeless.ontology.source} points at a file
  * that does not exist, which would fail startup if the new context ever fell back to reading it.
  * This proves the new type is served from {@code sq_ontology_document}, not from any file on disk
- * (F43: {@code POST /ontology} persists via {@code PostgresOntologyDocumentStore.activate} before
+ * (F43: {@code POST /api/ontology} persists via {@code PostgresOntologyDocumentStore.activate} before
  * ever swapping the in-memory model, and {@code JenaOntologyPort#fromStore} only reads {@code
  * sequeless.ontology.source} when the store has no active document yet for the tenant).
  *
@@ -51,7 +51,7 @@ class OntologyPersistenceAcrossRestartIT extends PostgresTestcontainersSupport {
                     new String(
                             clientA
                                     .get()
-                                    .uri("/ontology")
+                                    .uri("/api/ontology")
                                     .exchange()
                                     .expectStatus()
                                     .isOk()
@@ -66,7 +66,7 @@ class OntologyPersistenceAcrossRestartIT extends PostgresTestcontainersSupport {
 
             clientA
                     .post()
-                    .uri("/ontology")
+                    .uri("/api/ontology")
                     .contentType(MediaType.valueOf("text/turtle"))
                     .body(modified)
                     .exchange()
@@ -95,7 +95,7 @@ class OntologyPersistenceAcrossRestartIT extends PostgresTestcontainersSupport {
 
             clientB
                     .get()
-                    .uri("/types")
+                    .uri("/api/types")
                     .exchange()
                     .expectStatus()
                     .isOk()

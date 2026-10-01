@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 /**
  * Proves the Ontology phase's reasoner-setting acceptance criterion end to end (criterion 3): with
  * {@code sequeless.ontology.reasoner=none} overriding {@code application.yaml}'s {@code owl}
- * default, {@code GET /types/Task} reports only {@code Task}'s <em>directly asserted</em> supertype
+ * default, {@code GET /api/types/Task} reports only {@code Task}'s <em>directly asserted</em> supertype
  * ({@code WorkItem}); the transitively inherited {@code Deliverable} — visible under the shipped
  * {@code owl} default, per {@link TypesEndToEndTest#taskShowsPropertiesInOrderWithFlags()} — is
  * absent because no reasoner ran to compute superclass closure.
@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  *
  * <p>Extends {@link PostgresTestcontainersSupport}: {@code sequeless.persistence.adapter=postgres}
  * is baked into {@code application.yaml}, so every context this module boots needs a reachable
- * Postgres, even a context that never touches {@code /objects}. See that class's javadoc.
+ * Postgres, even a context that never touches {@code /api/objects}. See that class's javadoc.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.ontology.reasoner=none")
 class ReasonerSwitchEndToEndTest extends PostgresTestcontainersSupport {
@@ -50,7 +50,7 @@ class ReasonerSwitchEndToEndTest extends PostgresTestcontainersSupport {
         byte[] body =
                 restTestClient
                         .get()
-                        .uri("/types/Task")
+                        .uri("/api/types/Task")
                         .exchange()
                         .expectStatus()
                         .isOk()

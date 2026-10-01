@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * the invalid-query 400 shape. {@code QueryContract} (spi-testkit) and the Postgres adapter's own
  * {@code EXPLAIN} index-usage test already prove the underlying {@code QueryPort} contract and
  * index usage directly against Postgres; this class's job is only to prove the same behaviour is
- * reachable through {@code GET /objects/{type}} end to end.
+ * reachable through {@code GET /api/objects/{type}} end to end.
  *
  * <p>Extends {@link PostgresTestcontainersSupport} for the same reason every other {@code
  * @SpringBootTest} in this module does. {@code sequeless.ontology.reasoner=owl} is set explicitly
@@ -81,7 +81,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         byte[] exported =
                 restTestClient
                         .get()
-                        .uri("/ontology")
+                        .uri("/api/ontology")
                         .exchange()
                         .expectStatus()
                         .isOk()
@@ -93,7 +93,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
         restTestClient
                 .post()
-                .uri("/ontology")
+                .uri("/api/ontology")
                 .contentType(MediaType.valueOf("text/turtle"))
                 .body(turtle)
                 .exchange()
@@ -127,7 +127,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         Map<String, Object> body = Map.of("properties", properties);
         return restTestClient
                 .post()
-                .uri("/objects/" + type)
+                .uri("/api/objects/" + type)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()
@@ -201,7 +201,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void facetCountsForStatusAndAssignedToMatchFixtureIncludingDisplayLabel() {
-        JsonNode baseline = fetchAsJson("/objects/Task?facets=status,assignedTo&size=1");
+        JsonNode baseline = fetchAsJson("/api/objects/Task?facets=status,assignedTo&size=1");
         Map<String, Long> statusBaseline = facetCounts(baseline, "status");
         Map<String, Long> assignedToBaseline = facetCounts(baseline, "assignedTo");
 
@@ -210,7 +210,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         createTask(Map.of("title", List.of("Facet fixture open unassigned"), "status", "OPEN"));
         createTask(Map.of("title", List.of("Facet fixture closed assigned"), "status", "CLOSED"), ada.id());
 
-        JsonNode after = fetchAsJson("/objects/Task?facets=status,assignedTo&size=1");
+        JsonNode after = fetchAsJson("/api/objects/Task?facets=status,assignedTo&size=1");
         Map<String, Long> statusAfter = facetCounts(after, "status");
         Map<String, Long> assignedToAfter = facetCounts(after, "assignedTo");
 
@@ -235,7 +235,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse assigned = createTask(Map.of("title", List.of("Ref filter assigned")), person.id());
         BusinessObjectResponse unassigned = createTask(Map.of("title", List.of("Ref filter unassigned")));
 
-        JsonNode result = fetchAsJson("/objects/Task?filter[assignedTo][eq]=" + person.id() + "&size=200");
+        JsonNode result = fetchAsJson("/api/objects/Task?filter[assignedTo][eq]=" + person.id() + "&size=200");
         Set<String> ids = idsOf(result);
         assertThat(ids).contains(assigned.id().toString());
         assertThat(ids).doesNotContain(unassigned.id().toString());
@@ -256,7 +256,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
         JsonNode result =
                 fetchAsJson(
-                        "/objects/Task?filter[dueDate][gte]=2026-02-01&filter[dueDate][lte]=2026-09-01&size=200");
+                        "/api/objects/Task?filter[dueDate][gte]=2026-02-01&filter[dueDate][lte]=2026-09-01&size=200");
         Set<String> ids = idsOf(result);
         assertThat(ids).contains(mid.id().toString());
         assertThat(ids).doesNotContain(early.id().toString(), late.id().toString());
@@ -270,13 +270,13 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse p3 = createTask(Map.of("title", List.of("Numeric sort fixture C"), "priority", 3));
         Set<String> fixtureIds = Set.of(p2.id().toString(), p10.id().toString(), p3.id().toString());
 
-        JsonNode ascResult = fetchAsJson("/objects/Task?sort=priority&size=200");
+        JsonNode ascResult = fetchAsJson("/api/objects/Task?sort=priority&size=200");
         List<String> ascOrder = orderedIdsAmong(ascResult, fixtureIds);
         assertThat(ascOrder)
                 .as("ascending priority sort is numeric")
                 .containsExactly(p2.id().toString(), p3.id().toString(), p10.id().toString());
 
-        JsonNode descResult = fetchAsJson("/objects/Task?sort=-priority&size=200");
+        JsonNode descResult = fetchAsJson("/api/objects/Task?sort=-priority&size=200");
         List<String> descOrder = orderedIdsAmong(descResult, fixtureIds);
         assertThat(descOrder)
                 .as("descending priority sort is numeric")
@@ -289,7 +289,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse task = createTask(Map.of("title", List.of(tag + " Task")));
         BusinessObjectResponse project = createProject(Map.of("title", List.of(tag + " Project")));
 
-        JsonNode result = fetchAsJson("/objects/WorkItem?size=200");
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?size=200");
         JsonNode taskItem = findItem(result, task.id().toString());
         JsonNode projectItem = findItem(result, project.id().toString());
 
@@ -313,7 +313,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
                                 "title", List.of("Other project"),
                                 "description", List.of("Unrelated project description")));
 
-        JsonNode result = fetchAsJson("/objects/WorkItem?q=" + token + "&size=200");
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?q=" + token + "&size=200");
         List<String> order = orderedIdsAmong(result, Set.of(task.id().toString(), project.id().toString()));
 
         assertThat(order).as("the matching Task is present").contains(task.id().toString());
@@ -326,7 +326,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     void invalidFilterPropertyReturns400WithViolations() {
         restTestClient
                 .get()
-                .uri("/objects/Task?filter[nonexistentProperty][eq]=x")
+                .uri("/api/objects/Task?filter[nonexistentProperty][eq]=x")
                 .exchange()
                 .expectStatus()
                 .isBadRequest()

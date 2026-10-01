@@ -22,7 +22,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * Proves, end to end against a real Postgres container, every {@code /objects} acceptance criterion
+ * Proves, end to end against a real Postgres container, every {@code /api/objects} acceptance criterion
  * plan.md §9 and the Verification section list that {@code ObjectsEndToEndTest} (T12's happy-path
  * and precondition-handling coverage) does not already exercise: the two rejection shapes
  * ({@code source=structural} and {@code source=shacl}), a reference pointing at the wrong type, a
@@ -68,7 +68,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         restTestClient
                 .post()
-                .uri("/objects/Task")
+                .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()
@@ -96,7 +96,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         restTestClient
                 .post()
-                .uri("/objects/Task")
+                .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()
@@ -125,7 +125,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         restTestClient
                 .post()
-                .uri("/objects/Task")
+                .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()
@@ -147,7 +147,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         // First edit lands and moves the object to version 2.
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("version", 1, "properties", Map.of("title", List.of("First edit"))))
                 .exchange()
@@ -157,7 +157,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         // Second edit reuses the now-stale version 1 and must be rejected with 409.
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("version", 1, "properties", Map.of("title", List.of("Second edit, stale"))))
                 .exchange()
@@ -176,14 +176,14 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         restTestClient
                 .delete()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .exchange()
                 .expectStatus()
                 .isNoContent();
 
         restTestClient
                 .get()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .exchange()
                 .expectStatus()
                 .isNotFound();
@@ -191,7 +191,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         var page =
                 restTestClient
                         .get()
-                        .uri("/objects/Task?page=0&size=200")
+                        .uri("/api/objects/Task?page=0&size=200")
                         .exchange()
                         .expectStatus()
                         .isOk()
@@ -219,7 +219,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         long beforeEdit = outboxCount();
         restTestClient
                 .put()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("version", 1, "properties", Map.of("title", List.of("Outbox edit"))))
                 .exchange()
@@ -230,7 +230,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         long beforeDelete = outboxCount();
         restTestClient
                 .delete()
-                .uri("/objects/Task/" + created.id())
+                .uri("/api/objects/Task/" + created.id())
                 .exchange()
                 .expectStatus()
                 .isNoContent();
@@ -239,7 +239,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         long beforeFailedAdd = outboxCount();
         restTestClient
                 .post()
-                .uri("/objects/Task")
+                .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of()))
                 .exchange()
@@ -274,12 +274,12 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
                         "estimatedHours", 2,
                         "belongsToProject", projectId));
 
-        JsonNode read = fetchAsJson("/objects/Project/" + projectId);
+        JsonNode read = fetchAsJson("/api/objects/Project/" + projectId);
         assertThat(read.get("properties").get("openTaskCount").asInt()).isEqualTo(2);
         assertThat(read.get("properties").get("totalEstimatedHours").decimalValue())
                 .isEqualByComparingTo(BigDecimal.valueOf(10));
 
-        JsonNode page = fetchAsJson("/objects/Project?page=0&size=200");
+        JsonNode page = fetchAsJson("/api/objects/Project?page=0&size=200");
         JsonNode browsedItem = null;
         for (JsonNode item : page.get("items")) {
             if (item.get("id").asText().equals(projectId)) {
@@ -316,7 +316,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         byte[] responseBody =
                 restTestClient
                         .put()
-                        .uri("/objects/Project/" + project.id())
+                        .uri("/api/objects/Project/" + project.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(updateBody)
                         .exchange()
@@ -381,7 +381,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         Map<String, Object> body = Map.of("properties", properties);
         return restTestClient
                 .post()
-                .uri("/objects/" + type)
+                .uri("/api/objects/" + type)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .exchange()

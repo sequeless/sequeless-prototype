@@ -265,7 +265,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     }
 
     private int countTasksTitled(String expectedTitle) {
-        JsonNode page = fetchAsJson("/objects/Task?page=0&size=200");
+        JsonNode page = fetchAsJson("/api/objects/Task?page=0&size=200");
         int count = 0;
         for (JsonNode item : page.get("items")) {
             JsonNode title = item.get("properties").get("title");
@@ -300,7 +300,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     private BusinessObjectResponse createProject(String title) {
         return restTestClient
                 .post()
-                .uri("/objects/Project")
+                .uri("/api/objects/Project")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of("title", List.of(title))))
                 .exchange()

@@ -110,20 +110,21 @@ final class TypeResponseMapper {
      * #toDetail(TypeDefinition)}'s identical reliance on {@link TypeDefinition#properties()}'s
      * pre-sorted order.
      *
-     * <p>{@code machine.transitions()} is filtered to {@link TriggerKind#USER_ACTION} transitions
-     * only before mapping: this descriptor backs {@code GET /types/{nameOrIri}}, a type-level view a
-     * client uses to learn which transitions it may itself call via {@code POST
-     * .../transitions/{name}} — a transition only {@code fireAutomated} can ever fire (phase 6's
-     * {@code ON_CHANGE}/{@code TIMER}/{@code EXTERNAL_SIGNAL} kinds) would otherwise appear
-     * indistinguishable from a callable one, mirroring {@link
-     * org.sequeless.app.rest.ObjectsController#transitions}'s identical {@code USER_ACTION}-only
-     * filtering of the per-object availability list.
+     * <p>{@code machine.transitions()} is rendered <em>un</em>filtered: every transition of every
+     * {@link TriggerKind} — {@code USER_ACTION}, {@code ON_CHANGE}, {@code TIMER}, {@code
+     * EXTERNAL_SIGNAL} — is mapped, because this descriptor backs {@code GET
+     * /types/{nameOrIri}}, a read-only type-level view a UI consumes to diagram the complete state
+     * machine, including the automated transitions a client can never itself fire. This is
+     * deliberately asymmetric with {@link
+     * org.sequeless.app.rest.ObjectsController#transitions}: that per-object endpoint still filters
+     * to {@code USER_ACTION}-only transitions, because it lists the transitions a client may
+     * actually fire via {@code POST .../transitions/{name}}, whereas the automated kinds can only
+     * ever be fired by the engine itself ({@code fireAutomated}).
      */
     private static StateMachineResponse toStateMachineResponse(StateMachineDefinition machine) {
         List<StateResponse> states = machine.states().stream().map(TypeResponseMapper::toState).toList();
         List<TransitionSummaryResponse> transitions =
                 machine.transitions().stream()
-                        .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
                         .map(TypeResponseMapper::toTransitionSummary)
                         .toList();
         return new StateMachineResponse(
