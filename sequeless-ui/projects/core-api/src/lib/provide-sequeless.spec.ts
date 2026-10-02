@@ -7,10 +7,12 @@
  */
 import { HttpInterceptorFn } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
+import type { RdfStore } from '@sequeless/rdf';
 
 import { provideDefaultApiBaseUrl, provideSequeless } from './provide-sequeless';
 import {
   FIELD_RENDERERS,
+  RDF_STORE_FACTORY,
   SEQUELESS_API_BASE_URL,
   SEQUELESS_CLOCK,
   SEQUELESS_ERROR_MAPPER,
@@ -117,6 +119,38 @@ describe('provideSequeless', () => {
     TestBed.configureTestingModule({ providers: [provideSequeless()] });
 
     expect(typeof TestBed.inject(SEQUELESS_ERROR_MAPPER)).toBe('function');
+  });
+
+  it('provides a default RDF_STORE_FACTORY that produces an empty RdfStore when no override is given', () => {
+    TestBed.configureTestingModule({ providers: [provideSequeless()] });
+    const factory = TestBed.inject(RDF_STORE_FACTORY);
+    const store = factory();
+
+    expect(store.size).toBe(0);
+    expect(typeof store.match).toBe('function');
+  });
+
+  it('calls the default RDF_STORE_FACTORY to produce a fresh store instance on every call', () => {
+    TestBed.configureTestingModule({ providers: [provideSequeless()] });
+    const factory = TestBed.inject(RDF_STORE_FACTORY);
+
+    const first = factory();
+    const second = factory();
+
+    expect(first).not.toBe(second);
+  });
+
+  it('uses config.rdfStoreFactory for RDF_STORE_FACTORY instead of the default when given', () => {
+    const customStore = { size: 0, match: () => [] } as unknown as RdfStore;
+    const rdfStoreFactory = () => customStore;
+    TestBed.configureTestingModule({
+      providers: [provideSequeless({ rdfStoreFactory })],
+    });
+
+    const factory = TestBed.inject(RDF_STORE_FACTORY);
+
+    expect(factory).toBe(rdfStoreFactory);
+    expect(factory()).toBe(customStore);
   });
 
   it('does not leak configuration between separate TestBeds', () => {
