@@ -6,10 +6,10 @@ and seven libraries, serving the same purpose the backend's own hexagon serves o
 a stable core, swappable adapters, and a generic surface driven by the ontology rather than
 per-type code.
 
-Each file below is one phase. Phases 1–3 are built and merged; their specs double as a record of
-what exists and why. Phases 4–8 are specified but not yet implemented — each is detailed enough to
-hand to an agent (or a person) as a standalone unit of work, the same way `docs/architecture/
-prompts/phase-*.md` serve the backend.
+Each file below is one phase. Phases 1–4 are built; their specs double as a record of what exists
+and why. Phase 4 landed on branch `phase-4-rdf` and is not yet merged. Phases 5–8 are specified but
+not yet implemented — each is detailed enough to hand to an agent (or a person) as a standalone
+unit of work, the same way `docs/architecture/prompts/phase-*.md` serve the backend.
 
 ## Phase order and status
 
@@ -18,7 +18,7 @@ prompts/phase-*.md` serve the backend.
 | 1 | [API prefix and SPA serving](phase-1-api-prefix-and-spa-serving.md) | **Done** |
 | 2 | [Angular workspace and shell](phase-2-angular-workspace-and-shell.md) | **Done** |
 | 3 | [core-api library](phase-3-core-api.md) | **Done** |
-| 4 | [rdf library — ontology round-trip](phase-4-rdf.md) | Not started |
+| 4 | [rdf library — ontology round-trip](phase-4-rdf.md) | **Done** |
 | 5 | [ui-kit library — presentational components](phase-5-ui-kit.md) | Not started |
 | 6 | [objects feature — generic BREAD](phase-6-objects.md) | Not started |
 | 7 | [ontology feature — authoring UI](phase-7-ontology.md) | Not started |
@@ -38,9 +38,8 @@ Phase 2 (workspace)──┘        │                 ├──► Phase 7 (on
 
 Phase 6 needs `core-api` (done) and `ui-kit` (not started). Phase 7 needs `core-api`, `rdf` and
 `ui-kit`. Phase 8 needs `core-api`, `rdf` and `ui-kit`. `ui-kit` itself only needs `core-api`'s
-model types, not `rdf`. `rdf` needs nothing from the other libraries. So after Phase 3, the two
-unblocked next steps are Phase 4 (`rdf`) and Phase 5 (`ui-kit`) — they can be built in either
-order, or in parallel.
+model types, not `rdf`. `rdf` is now done (on branch `phase-4-rdf`), so the remaining unblocked
+next step is Phase 5 (`ui-kit`); Phases 7 and 8 now wait only on it.
 
 ## Conventions every phase follows
 
