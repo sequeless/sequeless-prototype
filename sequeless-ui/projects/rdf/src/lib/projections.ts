@@ -8,6 +8,9 @@ import type {
   PropertyView,
   RelationshipPropertyView,
   StateMachineView,
+  StateView,
+  TransitionView,
+  TriggerView,
 } from './model';
 import type { RdfStore } from './store';
 import { OWL, RDF, RDFS, SQ, xsdToDatatype } from './vocabulary';
@@ -485,11 +488,167 @@ function localName(iri: string): string {
 }
 
 /**
- * Placeholder for the `sq:StateMachine` projection. Implemented in a follow-up task (B6c). The stub
- * returns `null` for the "no machine" case (which the spec asserts for most types) so the describe
- * callback does not throw at collection time; the state-machine-specific assertions will fail until
- * the real implementation lands, which is the expected state after task B6a.
+ * Reads the `sq:StateMachine` that applies to `typeIri` and projects it into a
+ * {@link StateMachineView}, following the OWL -> snapshot mapping table in
+ * `docs/architecture/sq-vocabulary.md`:
+ *
+ * - a type's machine is the named `sq:StateMachine` node whose `sq:appliesTo` names `typeIri`
+ *   (line "sq:appliesTo ... attaches StateMachineDefinition to that type"); `null` when no such
+ *   machine exists;
+ * - `initialStateIri` — the first named `sq:initialState` object, or `null`;
+ * - `states` — the named `sq:state` objects, each projected via its `sq:label` /
+ *   `sq:displayOrder`, sorted by `order` (missing last) then IRI;
+ * - `transitions` — the blank-node `sq:transition` objects, sorted by their `sq:name`
+ *   (nulls last), each projected per the transition rules below.
+ *
+ * A transition's `trigger` is derived from its `sq:trigger` object: `sq:UserAction` -> `USER_ACTION`,
+ * `sq:OnChange` -> `ON_CHANGE` (with `watchIris` from every named `sq:watch`), `sq:Timer` -> `TIMER`
+ * (with `after` the `sq:after` literal), `sq:ExternalSignal` -> `EXTERNAL_SIGNAL` (with `signalName`
+ * the `sq:signalName` literal). `guard` / `guardMessage` come from `sq:guard` / `sq:guardMessage`.
  */
-export function readStateMachine(_store: RdfStore, _typeIri: string): StateMachineView | null {
-  return null;
+export function readStateMachine(store: RdfStore, typeIri: string): StateMachineView | null {
+  const machineType = namedNode(SQ.StateMachine);
+  const typeSubject = namedNode(typeIri);
+
+  let machineNode: Term | null = null;
+  for (const q of store.match(null, namedNode(RDF.type), machineType)) {
+    if (q.subject.termType !== 'NamedNode') {
+      continue;
+    }
+    if (store.match(q.subject, namedNode(SQ.appliesTo), typeSubject).length > 0) {
+      machineNode = q.subject;
+      break;
+    }
+  }
+  if (machineNode === null) {
+    return null;
+  }
+
+  const initialStateIri = firstNamed(store, machineNode, namedNode(SQ.initialState));
+
+  const stateNodes: Term[] = [];
+  for (const q of store.match(machineNode, namedNode(SQ.state), null)) {
+    stateNodes.push(q.object);
+  }
+  const states = stateNodes
+    .map((node) => buildStateView(store, node))
+    .sort(compareOrderThenIri);
+
+  const transitionNodes: Term[] = [];
+  for (const q of store.match(machineNode, namedNode(SQ.transition), null)) {
+    transitionNodes.push(q.object);
+  }
+  const transitions = transitionNodes
+    .map((node) => buildTransitionView(store, node))
+    .sort(compareTransitionByName);
+
+  return {
+    iri: machineNode.value,
+    appliesToIri: typeIri,
+    initialStateIri,
+    states,
+    transitions,
+  };
 }
+
+/**
+ * Compares two state-like views by `order` (views without `sq:displayOrder` last), breaking ties by
+ * IRI. Mirrors the inline comparators `readClasses` / `readProperties` already use.
+ */
+function compareOrderThenIri(a: { order: number | null; iri: string }, b: { order: number | null; iri: string }): number {
+  if (a.order !== null && b.order !== null && a.order !== b.order) {
+    return a.order - b.order;
+  }
+  if (a.order !== null && b.order === null) {
+    return -1;
+  }
+  if (a.order === null && b.order !== null) {
+    return 1;
+  }
+  if (a.iri < b.iri) {
+    return -1;
+  }
+  if (a.iri > b.iri) {
+    return 1;
+  }
+  return 0;
+}
+
+/** Compares two transitions by their `sq:name` (un-named transitions last), breaking ties by node IRI. */
+function compareTransitionByName(a: TransitionView, b: TransitionView): number {
+  if (a.name !== null && b.name !== null && a.name !== b.name) {
+    return a.name < b.name ? -1 : 1;
+  }
+  if (a.name !== null && b.name === null) {
+    return -1;
+  }
+  if (a.name === null && b.name !== null) {
+    return 1;
+  }
+  return a.node.value < b.node.value ? -1 : a.node.value > b.node.value ? 1 : 0;
+}
+
+/** Builds the {@link StateView} for a single `sq:State` subject. */
+function buildStateView(store: RdfStore, node: Term): StateView {
+  const label =
+    firstLiteral(store, node, namedNode(SQ.label)) ??
+    firstLiteral(store, node, namedNode(RDFS.label));
+  return {
+    iri: node.value,
+    label,
+    order: readOrder(store, node),
+  };
+}
+
+/** Builds the {@link TransitionView} for a single `sq:Transition` blank node. */
+function buildTransitionView(store: RdfStore, node: Term): TransitionView {
+  const name = firstLiteral(store, node, namedNode(SQ.name));
+  const fromIri = firstNamed(store, node, namedNode(SQ.from)) ?? '';
+  const toIri = firstNamed(store, node, namedNode(SQ.to)) ?? '';
+  const guard = firstLiteral(store, node, namedNode(SQ.guard));
+  const guardMessage = firstLiteral(store, node, namedNode(SQ.guardMessage));
+
+  return {
+    node,
+    name,
+    fromIri,
+    toIri,
+    trigger: readTrigger(store, node),
+    guard,
+    guardMessage,
+  };
+}
+
+/**
+ * Derives the {@link TriggerView} for a transition from its `sq:trigger` object (a named `sq:`
+ * individual) together with the auxiliary literals that individual implies
+ * (`sq:watch`, `sq:after`, `sq:signalName`). An absent or unrecognised trigger falls back to
+ * `USER_ACTION`, matching the "unrecognised → fall back" stance used elsewhere in this file.
+ */
+function readTrigger(store: RdfStore, node: Term): TriggerView {
+  const triggerObj = firstObject(store, node, namedNode(SQ.trigger));
+  const triggerIri =
+    triggerObj !== null && triggerObj.termType === 'NamedNode' ? triggerObj.value : null;
+
+  if (triggerIri === SQ.OnChange) {
+    const watchIris: string[] = [];
+    for (const q of store.match(node, namedNode(SQ.watch), null)) {
+      if (q.object.termType === 'NamedNode') {
+        watchIris.push(q.object.value);
+      }
+    }
+    return { kind: 'ON_CHANGE', watchIris };
+  }
+
+  if (triggerIri === SQ.Timer) {
+    return { kind: 'TIMER', after: firstLiteral(store, node, namedNode(SQ.after)) ?? '' };
+  }
+
+  if (triggerIri === SQ.ExternalSignal) {
+    return { kind: 'EXTERNAL_SIGNAL', signalName: firstLiteral(store, node, namedNode(SQ.signalName)) ?? '' };
+  }
+
+  // UserAction (default and the unrecognised fallback).
+  return { kind: 'USER_ACTION' };
+}
+
