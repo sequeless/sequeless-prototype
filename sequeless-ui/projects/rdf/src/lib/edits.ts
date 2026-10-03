@@ -1,7 +1,7 @@
 import { DataFactory } from 'n3';
 import type { Quad_Predicate, Quad_Subject } from 'n3';
 import type { Quad, Term } from '@rdfjs/types';
-import type { AttributePropertySpec, QuadDelta, RelationshipPropertySpec, TriggerView } from './model';
+import type { AttributePropertySpec, DerivationSpec, QuadDelta, RelationshipPropertySpec, TriggerView } from './model';
 import type { RdfStore } from './store';
 import { DATATYPE_TO_XSD, OWL, RDF, RDFS, SQ, XSD } from './vocabulary';
 
@@ -290,5 +290,80 @@ export function setGuard(store: RdfStore, transition: Term, guard: string | null
   return {
     added: dropShared(additions, existing),
     removed: dropShared(existing, additions),
+  };
+}
+
+/**
+ * Replace a property's `sq:derivedBy` rule with `rule`, or remove the rule entirely when `rule`
+ * is `null`. Removes the existing `(propertyIri sq:derivedBy N)` edge, every triple whose subject
+ * is the old rule node `N`, and any RDF list / `sq:Criterion` blank nodes `N` owns (reached by
+ * following blank-object and blank-predicate edges transitively; shared named individuals are never
+ * "owned" and so are left untouched). When `rule` is non-null, mints a fresh, unrelated blank node
+ * carrying either the rollup shape — `rdf:type sq:Rollup`, `sq:function`, and `sq:over` / `sq:via`
+ * / `sq:of` / `sq:filter` each as present — or the plugin shape — `rdf:type sq:Plugin`,
+ * `sq:pluginName`. Never mutates `store`; no quad ends up in both `added` and `removed`.
+ */
+export function setDerivation(store: RdfStore, propertyIri: string, rule: DerivationSpec | null): QuadDelta {
+  const propertyNode = namedNode(propertyIri);
+  const derivedBy = namedNode(SQ.derivedBy);
+  const rdfType = namedNode(RDF.type);
+
+  // Collect the removed set: the `sq:derivedBy` edge(s) plus every triple on the old rule node (and
+  // any blank-node sub-node it owns). Deduped by `quadKey` since `store.match` returns fresh Quads.
+  const removedKeys = new Set<string>();
+  const removed: Quad[] = [];
+  const addRemoved = (q: Quad) => {
+    const key = quadKey(q);
+    if (!removedKeys.has(key)) {
+      removedKeys.add(key);
+      removed.push(q);
+    }
+  };
+
+  const visited = new Set<string>();
+  const visit = (node: Term) => {
+    const label = `${node.termType}:${node.value}`;
+    if (visited.has(label)) return;
+    visited.add(label);
+    for (const t of store.match(node, null, null)) {
+      addRemoved(t);
+      if (t.object.termType === 'BlankNode') visit(t.object);
+    }
+  };
+
+  for (const edge of store.match(propertyNode, derivedBy, null)) {
+    addRemoved(edge);
+    visit(edge.object);
+  }
+
+  // Build the added set from a freshly minted blank node.
+  const added: Quad[] = [];
+  if (rule !== null) {
+    const node = DataFactory.blankNode();
+    added.push(quad(propertyNode, derivedBy, node));
+    if (rule.kind === 'rollup') {
+      added.push(quad(node, rdfType, namedNode(SQ.Rollup)));
+      added.push(quad(node, namedNode(SQ.function), namedNode(SQ[rule.function as keyof typeof SQ])));
+      if (rule.overIri !== null) {
+        added.push(quad(node, namedNode(SQ.over), namedNode(rule.overIri)));
+      }
+      if (rule.viaIri !== null) {
+        added.push(quad(node, namedNode(SQ.via), namedNode(rule.viaIri)));
+      }
+      if (rule.ofIri !== null) {
+        added.push(quad(node, namedNode(SQ.of), namedNode(rule.ofIri)));
+      }
+      if (rule.filter !== null) {
+        added.push(quad(node, namedNode(SQ.filter), literal(rule.filter)));
+      }
+    } else {
+      added.push(quad(node, rdfType, namedNode(SQ.Plugin)));
+      added.push(quad(node, namedNode(SQ.pluginName), literal(rule.pluginName)));
+    }
+  }
+
+  return {
+    added: dropShared(added, removed),
+    removed: dropShared(removed, added),
   };
 }
