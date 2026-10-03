@@ -1,5 +1,5 @@
 import { DataFactory } from 'n3';
-import type { Quad_Subject } from 'n3';
+import type { Quad_Predicate, Quad_Subject } from 'n3';
 import type { Quad, Term } from '@rdfjs/types';
 import type { AttributePropertySpec, QuadDelta, RelationshipPropertySpec, TriggerView } from './model';
 import type { RdfStore } from './store';
@@ -141,6 +141,129 @@ export function setTransitionTrigger(store: RdfStore, transition: Term, trigger:
     added: dropShared(additions, existing),
     removed: dropShared(existing, additions),
   };
+}
+
+/** A stable key identifying a quad's (subject, predicate, object) triple, independent of blank-node labels. */
+function quadKey(q: Quad): string {
+  return [
+    `${q.subject.termType}:${q.subject.value}`,
+    `${q.predicate.termType}:${q.predicate.value}`,
+    `${q.object.termType}:${q.object.value}`,
+  ].join('|');
+}
+
+/**
+ * Set an `owl:Restriction`'s `owl:minCardinality` / `owl:maxCardinality` on a (type, property) pair as
+ * `xsd:nonNegativeInteger` bounds. A restriction node is any blank/node subject that a `typeIri
+ * rdfs:subClassOf` edge points at, typed `owl:Restriction`, with `owl:onProperty propertyIri`.
+ *
+ * `c.min` of `0` means no `owl:minCardinality`; `c.max` of `null` means no `owl:maxCardinality`. For a
+ * bound that is set, the literal is patched in place on the first node that already has that bound, else
+ * on the first matching node, minting a fresh blank node (plus its `rdfs:subClassOf` edge and
+ * `owl:onProperty` fact) only when none exists. A restriction node is removed (all its triples plus its
+ * `rdfs:subClassOf` edge) only when it is left with no `owl:*Cardinality` AND no other triple still
+ * references it. Never mutates `store`; no quad ends up in both `added` and `removed`.
+ */
+export function setCardinality(
+  store: RdfStore,
+  typeIri: string,
+  propertyIri: string,
+  c: { min: number; max: number | null },
+): QuadDelta {
+  const nonNegativeInteger = namedNode(XSD.nonNegativeInteger);
+  const minPredicate = namedNode(OWL.minCardinality);
+  const maxPredicate = namedNode(OWL.maxCardinality);
+  const onProperty = namedNode(OWL.onProperty);
+  const owlRestriction = namedNode(OWL.Restriction);
+  const rdfType = namedNode(RDF.type);
+  const subClassOf = namedNode(RDFS.subClassOf);
+  const typeNode = namedNode(typeIri);
+  const propertyNode = namedNode(propertyIri);
+
+  const nodes: Term[] = [];
+  for (const edge of store.match(typeNode, subClassOf, null)) {
+    const node = edge.object;
+    if (node.termType !== 'NamedNode' && node.termType !== 'BlankNode') continue;
+    if (store.match(node, onProperty, propertyNode).length === 0) continue;
+    if (store.match(node, rdfType, owlRestriction).length === 0) continue;
+    nodes.push(node);
+  }
+
+  const hasBound = (node: Term, predicate: Term) => store.match(node, predicate, null).length > 0;
+  const minTarget: Term | 'mint' | null =
+    c.min === 0 ? null : nodes.length > 0 ? (nodes.find((n) => hasBound(n, minPredicate)) ?? nodes[0]) : 'mint';
+  const maxTarget: Term | 'mint' | null =
+    c.max === null
+      ? null
+      : nodes.length > 0
+        ? (nodes.find((n) => hasBound(n, maxPredicate)) ?? nodes[0])
+        : 'mint';
+  const mintNode = minTarget === 'mint' || maxTarget === 'mint' ? DataFactory.blankNode() : null;
+  const minNode = minTarget === 'mint' ? mintNode! : minTarget;
+  const maxNode = maxTarget === 'mint' ? mintNode! : maxTarget;
+
+  // Track deltas by value (quadKey) since `store.match` returns fresh Quad objects each call.
+  const removedKeys = new Set<string>();
+  const removedQuads: Quad[] = [];
+  const addedQuads: Quad[] = [];
+  const addRemoved = (q: Quad) => {
+    const key = quadKey(q);
+    if (!removedKeys.has(key)) {
+      removedKeys.add(key);
+      removedQuads.push(q);
+    }
+  };
+  const addAdded = (q: Quad) => addedQuads.push(q);
+  const isRemoved = (q: Quad) => removedKeys.has(quadKey(q));
+
+  const scheduleBound = (node: Term | null, predicate: Quad_Predicate, value: number | null) => {
+    if (value === null) {
+      for (const n of nodes) for (const q of store.match(n, predicate, null)) addRemoved(q);
+      return;
+    }
+    if (node === null) return;
+    for (const q of store.match(node, predicate, null)) if (q.object.value !== String(value)) addRemoved(q);
+    const fresh = quad(node as Quad_Subject, predicate, literal(String(value), nonNegativeInteger));
+    if (!store.has(fresh)) addAdded(fresh);
+  };
+
+  if (mintNode) {
+    addAdded(quad(typeNode, subClassOf, mintNode));
+    addAdded(quad(mintNode, rdfType, owlRestriction));
+    addAdded(quad(mintNode, onProperty, propertyNode));
+  }
+
+  scheduleBound(minNode, minPredicate, c.min === 0 ? null : c.min);
+  scheduleBound(maxNode, maxPredicate, c.max);
+
+  // A triple that is removed *with* a node (rather than counting as an "other" reference keeping it
+  // alive): its own `rdf:type owl:Restriction` / `owl:onProperty` facts, or the `subClassOf` edge from
+  // the type (which sits in the node's object position).
+  const isStructuralEdge = (node: Term, q: Quad) => {
+    if (q.predicate.termType === 'NamedNode' && q.object.termType === 'NamedNode') {
+      if (q.predicate.value === RDF.type && q.object.value === OWL.Restriction) return true;
+      if (q.predicate.value === OWL.onProperty && q.object.value === propertyIri) return true;
+    }
+    return q.subject.equals(typeNode) && q.predicate.equals(subClassOf) && q.object.equals(node);
+  };
+  for (const node of nodes) {
+    if (node === minNode || node === maxNode) continue; // still carries a cardinality bound
+    // The node is left with no owl:*Cardinality bound. Remove it (all its triples plus its
+    // rdfs:subClassOf edge) only when no other *surviving* triple still references it in subject,
+    // object, or predicate position — excluding its own (also-removed) structural / edge triples.
+    const survivingReference =
+      store.match(node, null, null).some((q) => !isRemoved(q) && !isStructuralEdge(node, q)) ||
+      store.match(null, null, node).some((q) => !isRemoved(q) && !isStructuralEdge(node, q)) ||
+      store.match(null, node, null).some((q) => !isRemoved(q) && !isStructuralEdge(node, q));
+    if (survivingReference) continue;
+    for (const q of store.match(node, null, null)) addRemoved(q);
+    for (const q of store.match(typeNode, subClassOf, node)) addRemoved(q);
+  }
+
+  // No quad may appear in both `added` and `removed`.
+  const removedKeySet = new Set(removedQuads.map(quadKey));
+  const added = addedQuads.filter((q) => !removedKeySet.has(quadKey(q)));
+  return { added, removed: removedQuads };
 }
 
 /**
