@@ -7,6 +7,7 @@
  */
 import { HttpInterceptorFn } from '@angular/common/http';
 import { InjectionToken } from '@angular/core';
+import type { RdfStore } from '@sequeless/rdf';
 
 export const SEQUELESS_API_BASE_URL = new InjectionToken<string>('Sequeless api base URL');
 
@@ -14,7 +15,7 @@ export const SEQUELESS_HTTP_INTERCEPTORS = new InjectionToken<readonly HttpInter
   'Sequeless http interceptors',
 );
 
-export const RDF_STORE_FACTORY = new InjectionToken<() => unknown>(
+export const RDF_STORE_FACTORY = new InjectionToken<() => RdfStore>(
   'Sequeless RDF store factory',
 );
 

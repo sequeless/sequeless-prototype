@@ -8,6 +8,7 @@
  */
 import { HttpInterceptorFn } from '@angular/common/http';
 import { EnvironmentProviders, makeEnvironmentProviders } from '@angular/core';
+import { N3RdfStore, type RdfStore } from '@sequeless/rdf';
 
 import {
   FIELD_RENDERERS,
@@ -25,7 +26,7 @@ import {
 export interface SequelessConfig {
   apiBaseUrl?: string;
   authInterceptor?: HttpInterceptorFn;
-  rdfStoreFactory?: () => unknown;
+  rdfStoreFactory?: () => RdfStore;
   turtleEditor?: unknown;
   graphLayout?: unknown;
   errorMapper?: (error: unknown) => unknown;
@@ -46,8 +47,8 @@ function defaultErrorMapper(error: unknown): unknown {
   return error;
 }
 
-function defaultRdfStoreFactory(): unknown {
-  return null;
+function defaultRdfStoreFactory(): RdfStore {
+  return new N3RdfStore();
 }
 
 export function provideDefaultApiBaseUrl(): EnvironmentProviders {
