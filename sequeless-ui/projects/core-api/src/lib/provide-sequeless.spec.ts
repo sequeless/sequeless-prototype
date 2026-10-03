@@ -6,6 +6,7 @@
  * SequelessConfig without touching library code.
  */
 import { HttpInterceptorFn } from '@angular/common/http';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { RdfStore } from '@sequeless/rdf';
 
@@ -19,6 +20,9 @@ import {
   SEQUELESS_FEATURES,
   SEQUELESS_HTTP_INTERCEPTORS,
 } from './tokens';
+
+@Component({ selector: 'sq-test-widget', template: '' })
+class CustomWidget {}
 
 describe('provideSequeless', () => {
   afterEach(() => {
@@ -101,15 +105,14 @@ describe('provideSequeless', () => {
     expect(typeof defaults).toBe('object');
     TestBed.resetTestingModule();
 
-    const customRenderer = { kind: 'custom-widget-renderer' };
     TestBed.configureTestingModule({
-      providers: [provideSequeless({ fieldRenderers: { 'custom:widget': customRenderer } })],
+      providers: [provideSequeless({ fieldRenderers: { 'custom:widget': CustomWidget } })],
     });
     const renderers = TestBed.inject(FIELD_RENDERERS);
 
     expect(typeof renderers).toBe('object');
     expect(renderers).not.toBeNull();
-    expect(renderers['custom:widget']).toBe(customRenderer);
+    expect(renderers['custom:widget']).toBe(CustomWidget);
     for (const key of Object.keys(defaults)) {
       expect(renderers[key]).toBe(defaults[key]);
     }
@@ -161,7 +164,7 @@ describe('provideSequeless', () => {
           apiBaseUrl: 'https://api.example.test/v1',
           authInterceptor,
           features: { serverSideOntologyDiff: true },
-          fieldRenderers: { 'custom:widget': { kind: 'leaky' } },
+          fieldRenderers: { 'custom:widget': CustomWidget },
         }),
       ],
     });

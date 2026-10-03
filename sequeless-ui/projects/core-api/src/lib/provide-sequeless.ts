@@ -22,22 +22,21 @@ import {
   SEQUELESS_HTTP_INTERCEPTORS,
   TURTLE_EDITOR,
 } from './tokens';
+import type { FieldRendererMap, GraphLayout, TextEditorFactory } from './ui-contracts';
 
 export interface SequelessConfig {
   apiBaseUrl?: string;
   authInterceptor?: HttpInterceptorFn;
   rdfStoreFactory?: () => RdfStore;
-  turtleEditor?: unknown;
-  graphLayout?: unknown;
+  turtleEditor?: TextEditorFactory | null;
+  graphLayout?: GraphLayout | null;
   errorMapper?: (error: unknown) => unknown;
-  fieldRenderers?: Partial<Record<string, unknown>>;
+  fieldRenderers?: FieldRendererMap;
   clock?: () => Date;
   features?: Partial<SequelessFeatures>;
 }
 
-type DefaultFieldRenderers = Readonly<Record<string, unknown>>;
-
-const defaultFieldRenderers: DefaultFieldRenderers = Object.freeze({});
+const defaultFieldRenderers: FieldRendererMap = Object.freeze({});
 
 const defaultFeatures: Readonly<SequelessFeatures> = Object.freeze({
   serverSideOntologyDiff: false,
