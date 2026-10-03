@@ -1,3 +1,5 @@
+import type { Datatype } from './model';
+
 export const SQ_NS = 'https://sequeless.dev/ns/meta#';
 
 export const SQ = {
@@ -84,3 +86,68 @@ export const SQ = {
   Timer: 'https://sequeless.dev/ns/meta#Timer',
   ExternalSignal: 'https://sequeless.dev/ns/meta#ExternalSignal',
 } as const;
+
+export const OWL = {
+  Class: 'http://www.w3.org/2002/07/owl#Class',
+  DatatypeProperty: 'http://www.w3.org/2002/07/owl#DatatypeProperty',
+  ObjectProperty: 'http://www.w3.org/2002/07/owl#ObjectProperty',
+  Restriction: 'http://www.w3.org/2002/07/owl#Restriction',
+  onProperty: 'http://www.w3.org/2002/07/owl#onProperty',
+  cardinality: 'http://www.w3.org/2002/07/owl#cardinality',
+  minCardinality: 'http://www.w3.org/2002/07/owl#minCardinality',
+  maxCardinality: 'http://www.w3.org/2002/07/owl#maxCardinality',
+  inverseOf: 'http://www.w3.org/2002/07/owl#inverseOf',
+  TransitiveProperty: 'http://www.w3.org/2002/07/owl#TransitiveProperty',
+} as const;
+
+export const RDF = {
+  type: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type',
+} as const;
+
+export const RDFS = {
+  domain: 'http://www.w3.org/2000/01/rdf-schema#domain',
+  range: 'http://www.w3.org/2000/01/rdf-schema#range',
+  subClassOf: 'http://www.w3.org/2000/01/rdf-schema#subClassOf',
+  label: 'http://www.w3.org/2000/01/rdf-schema#label',
+} as const;
+
+export const XSD = {
+  nonNegativeInteger: 'http://www.w3.org/2001/XMLSchema#nonNegativeInteger',
+  string: 'http://www.w3.org/2001/XMLSchema#string',
+  boolean: 'http://www.w3.org/2001/XMLSchema#boolean',
+  integer: 'http://www.w3.org/2001/XMLSchema#integer',
+  long: 'http://www.w3.org/2001/XMLSchema#long',
+  decimal: 'http://www.w3.org/2001/XMLSchema#decimal',
+  double: 'http://www.w3.org/2001/XMLSchema#double',
+  date: 'http://www.w3.org/2001/XMLSchema#date',
+  time: 'http://www.w3.org/2001/XMLSchema#time',
+  dateTime: 'http://www.w3.org/2001/XMLSchema#dateTime',
+  duration: 'http://www.w3.org/2001/XMLSchema#duration',
+  anyURI: 'http://www.w3.org/2001/XMLSchema#anyURI',
+} as const;
+
+export const DATATYPE_TO_XSD: Readonly<Record<Datatype, string>> = {
+  STRING: 'http://www.w3.org/2001/XMLSchema#string',
+  BOOLEAN: 'http://www.w3.org/2001/XMLSchema#boolean',
+  INTEGER: 'http://www.w3.org/2001/XMLSchema#integer',
+  LONG: 'http://www.w3.org/2001/XMLSchema#long',
+  DECIMAL: 'http://www.w3.org/2001/XMLSchema#decimal',
+  DOUBLE: 'http://www.w3.org/2001/XMLSchema#double',
+  DATE: 'http://www.w3.org/2001/XMLSchema#date',
+  TIME: 'http://www.w3.org/2001/XMLSchema#time',
+  DATE_TIME: 'http://www.w3.org/2001/XMLSchema#dateTime',
+  DURATION: 'http://www.w3.org/2001/XMLSchema#duration',
+  ANY_URI: 'http://www.w3.org/2001/XMLSchema#anyURI',
+};
+
+const XSD_TO_DATATYPE: Record<string, Datatype> = (() => {
+  const result: Record<string, Datatype> = {};
+  for (const [datatype, iri] of Object.entries(DATATYPE_TO_XSD)) {
+    result[iri] = datatype as Datatype;
+  }
+  return result;
+})();
+
+export function xsdToDatatype(iri: string): Datatype {
+  return XSD_TO_DATATYPE[iri] ?? 'STRING';
+}
