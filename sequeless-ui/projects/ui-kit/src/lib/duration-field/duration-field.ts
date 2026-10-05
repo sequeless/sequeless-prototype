@@ -8,8 +8,6 @@ import {
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
 import {
   type DurationParts,
   formatIsoDuration,
@@ -38,7 +36,6 @@ const ZERO: DurationParts = { days: 0, hours: 0, minutes: 0, seconds: 0 };
   selector: 'sq-duration-field',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatFormField, MatLabel, MatInput],
   providers: [
     {
       provide: NG_VALUE_ACCESSOR,
@@ -48,10 +45,9 @@ const ZERO: DurationParts = { days: 0, hours: 0, minutes: 0, seconds: 0 };
   ],
   template: `
     @for (part of partNames; track part) {
-      <mat-form-field appearance="outline">
-        <mat-label>{{ labels[part] }}</mat-label>
+      <label class="sq-duration-part">
+        <span class="sq-duration-part-label">{{ labels[part] }}</span>
         <input
-          matInput
           type="number"
           min="0"
           [attr.data-part]="part"
@@ -59,7 +55,7 @@ const ZERO: DurationParts = { days: 0, hours: 0, minutes: 0, seconds: 0 };
           [disabled]="disabled()"
           (input)="onPart(part, $event)"
         />
-      </mat-form-field>
+      </label>
     }
   `,
 })
