@@ -109,11 +109,11 @@ function edgeGroup(fixture: { nativeElement: HTMLElement }, id: string): HTMLEle
 }
 
 describe('SqStateMachineGraph', () => {
-  let layoutFn: ReturnType<typeof vi.fn>;
+  let layoutFn: ReturnType<typeof vi.fn<(stateMachine: StateMachineResponse) => Promise<GraphLayoutResult>>>;
   let layout: GraphLayout;
 
   beforeEach(() => {
-    layoutFn = vi.fn().mockResolvedValue(RESULT);
+    layoutFn = vi.fn<(stateMachine: StateMachineResponse) => Promise<GraphLayoutResult>>().mockResolvedValue(RESULT);
     layout = { layout: layoutFn };
   });
 
