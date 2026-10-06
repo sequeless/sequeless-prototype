@@ -38,12 +38,10 @@ const findRelationship = (name: string): RelationshipPropertyResponse => {
   return property;
 };
 
-// title: attribute, STRING, hidden false, order 1 (first property overall)
 // status: attribute, STRING, hidden false, order 2 (first STRING after title/hasTask)
 // hasTask: relationship, order 2 (sits between title and status)
 // openTaskCount: attribute, INTEGER, order 3
 // owner: relationship, order 6
-const TITLE = findAttribute('title');
 const STATUS = findAttribute('status');
 const HAS_TASK = findRelationship('hasTask');
 const OPEN_TASK_COUNT = findAttribute('openTaskCount');
