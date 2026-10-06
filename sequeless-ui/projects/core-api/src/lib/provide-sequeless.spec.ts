@@ -21,7 +21,7 @@ import {
   SEQUELESS_HTTP_INTERCEPTORS,
 } from './tokens';
 
-@Component({ selector: 'sq-test-widget', template: '' })
+@Component({ selector: 'lib-test-widget', template: '' })
 class CustomWidget {}
 
 describe('provideSequeless', () => {
