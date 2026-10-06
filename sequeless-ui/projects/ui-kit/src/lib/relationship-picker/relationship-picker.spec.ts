@@ -28,7 +28,7 @@ import type {
 } from '@sequeless/core-api';
 import { isRelationshipProperty } from '@sequeless/core-api';
 import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
-import { of } from 'rxjs';
+import { type Observable, of } from 'rxjs';
 import { RELATIONSHIP_LOOKUP, type RelationshipLookup } from './relationship-lookup';
 import { SqRelationshipPicker } from './relationship-picker';
 
@@ -164,8 +164,8 @@ function chipEl(fixture: { nativeElement: HTMLElement }, id: string): HTMLElemen
 }
 
 describe('SqRelationshipPicker', () => {
-  let searchFn: ReturnType<typeof vi.fn>;
-  let targetTypeFn: ReturnType<typeof vi.fn>;
+  let searchFn: ReturnType<typeof vi.fn<(targetTypeIri: string, term: string) => Observable<readonly BusinessObjectResponse[]>>>;
+  let targetTypeFn: ReturnType<typeof vi.fn<(targetTypeIri: string) => Observable<TypeDetailResponse>>>;
   let lookup: RelationshipLookup;
 
   function createFixture(property: RelationshipPropertyResponse, control: FormControl<unknown>) {
@@ -180,10 +180,10 @@ describe('SqRelationshipPicker', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    targetTypeFn = vi.fn((iri: string) =>
+    targetTypeFn = vi.fn<(targetTypeIri: string) => Observable<TypeDetailResponse>>((iri: string) =>
       of(iri === OWNER.targetTypeIri ? PERSON_TYPE_DETAIL : TASK_TYPE_DETAIL),
     );
-    searchFn = vi.fn((iri: string) =>
+    searchFn = vi.fn<(targetTypeIri: string, term: string) => Observable<readonly BusinessObjectResponse[]>>((iri: string) =>
       of(iri === OWNER.targetTypeIri ? [ALICE, BOB] : [TASK_A, TASK_B]),
     );
     lookup = { targetType: targetTypeFn, search: searchFn };
@@ -237,8 +237,9 @@ describe('SqRelationshipPicker', () => {
       vi.advanceTimersByTime(300);
       await fixture.whenStable();
 
+      const host: HTMLElement = fixture.nativeElement;
       const optionLabels = Array.from(
-        fixture.nativeElement.querySelectorAll('mat-option'),
+        host.querySelectorAll<HTMLElement>('mat-option'),
       ).map((el) => el.textContent?.trim());
       expect(optionLabels).toContain('Alice');
       expect(optionLabels).toContain('Bob');
