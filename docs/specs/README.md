@@ -19,7 +19,7 @@ unit of work, the same way `docs/architecture/prompts/phase-*.md` serve the back
 | 2 | [Angular workspace and shell](phase-2-angular-workspace-and-shell.md) | **Done** |
 | 3 | [core-api library](phase-3-core-api.md) | **Done** |
 | 4 | [rdf library — ontology round-trip](phase-4-rdf.md) | **Done** |
-| 5 | [ui-kit library — presentational components](phase-5-ui-kit.md) | Not started |
+| 5 | [ui-kit library — presentational components](phase-5-ui-kit.md) | Done |
 | 6 | [objects feature — generic BREAD](phase-6-objects.md) | Not started |
 | 7 | [ontology feature — authoring UI](phase-7-ontology.md) | Not started |
 | 8 | [automation feature — triggers and signals](phase-8-automation.md) | Not started |
