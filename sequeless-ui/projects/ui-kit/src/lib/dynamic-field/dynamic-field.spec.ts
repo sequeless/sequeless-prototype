@@ -239,7 +239,8 @@ describe('SqDynamicField', () => {
       const fixture = createFixture(TITLE, array);
       await fixture.whenStable();
 
-      const addButton = fixture.nativeElement.querySelector<HTMLButtonElement>(
+      const host: HTMLElement = fixture.nativeElement;
+      const addButton = host.querySelector<HTMLButtonElement>(
         'button[data-action="add"]',
       );
       addButton?.click();
@@ -253,7 +254,8 @@ describe('SqDynamicField', () => {
       const fixture = createFixture(TITLE, array);
       await fixture.whenStable();
 
-      const removeButton = fixture.nativeElement.querySelector<HTMLButtonElement>(
+      const host: HTMLElement = fixture.nativeElement;
+      const removeButton = host.querySelector<HTMLButtonElement>(
         '[data-index="0"] button[data-action="remove"]',
       );
       removeButton?.click();
