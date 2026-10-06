@@ -96,7 +96,8 @@ describe('SqConflictDialog', () => {
     const fixture = createFixture(DATA);
     await fixture.whenStable();
 
-    const rows = Array.from(fixture.nativeElement.querySelectorAll('tr[data-key]'));
+    const host: HTMLElement = fixture.nativeElement;
+    const rows = Array.from(host.querySelectorAll<HTMLElement>('tr[data-key]'));
     expect(rows.map((r) => r.getAttribute('data-key')).sort()).toEqual(
       ['assignee', 'dueDate', 'meta', 'notes', 'status', 'title'].sort(),
     );
@@ -180,9 +181,8 @@ describe('SqConflictDialog', () => {
     const fixture = createFixture(DATA, closeSpy);
     await fixture.whenStable();
 
-    fixture.nativeElement
-      .querySelector<HTMLButtonElement>('[data-action="reapply"]')
-      ?.click();
+    const host: HTMLElement = fixture.nativeElement;
+    host.querySelector<HTMLButtonElement>('[data-action="reapply"]')?.click();
     await fixture.whenStable();
 
     const expected: ConflictResolution = {
@@ -205,9 +205,8 @@ describe('SqConflictDialog', () => {
     const fixture = createFixture(DATA, closeSpy);
     await fixture.whenStable();
 
-    fixture.nativeElement
-      .querySelector<HTMLButtonElement>('[data-action="discard"]')
-      ?.click();
+    const host: HTMLElement = fixture.nativeElement;
+    host.querySelector<HTMLButtonElement>('[data-action="discard"]')?.click();
     await fixture.whenStable();
 
     const expected: ConflictResolution = { action: 'discard', value: SERVER };
