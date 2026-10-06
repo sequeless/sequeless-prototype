@@ -135,12 +135,13 @@ describe('end-to-end smoke test: controlFor -> SqDynamicField -> typed wire valu
     fixture.componentRef.setInput('control', control);
     await fixture.whenStable();
 
-    fixture.nativeElement
+    const host: HTMLElement = fixture.nativeElement;
+    host
       .querySelector<HTMLButtonElement>('button[data-action="add"]')
       ?.click();
     await fixture.whenStable();
 
-    const input = fixture.nativeElement.querySelector<HTMLInputElement>(
+    const input = host.querySelector<HTMLInputElement>(
       `[data-index="0"] input[data-field="${property.name}"]`,
     );
     if (!input) {
