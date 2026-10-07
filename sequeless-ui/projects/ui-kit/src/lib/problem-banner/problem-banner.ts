@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   input,
 } from '@angular/core';
 import type { ApiError, OntologyIssue } from '@sequeless/core-api';
@@ -77,4 +78,19 @@ import { normalizeProblems } from '../util/problems';
 export class SqProblemBanner {
   readonly problems = input.required<ApiError | readonly OntologyIssue[]>();
   readonly items = computed(() => normalizeProblems(this.problems()));
+
+  constructor() {
+    effect(() => {
+      const v = this.problems();
+      // eslint-disable-next-line no-console
+      console.log(
+        '[DIAG] zone=',
+        typeof (globalThis as unknown as { Zone?: unknown }).Zone,
+        'problems=',
+        Array.isArray(v) ? v.length : 'obj',
+        'items=',
+        this.items().length,
+      );
+    });
+  }
 }
