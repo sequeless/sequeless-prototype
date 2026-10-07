@@ -14,4 +14,4 @@ target/
 .copilot-logs/
 .claude
 skills-lock.json
-agents
+/agents
