@@ -52,8 +52,7 @@ function isWellFormedUri(value: unknown): boolean {
     return false;
   }
   try {
-    // eslint-disable-next-line no-new
-    new URL(value);
+    void new URL(value);
     return true;
   } catch {
     return /^[A-Za-z][A-Za-z0-9+.-]*:/.test(value);
