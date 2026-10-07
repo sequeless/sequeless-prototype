@@ -76,7 +76,7 @@ export function fromWireValue(datatype: Datatype, wire: unknown): unknown {
   }
 
   switch (datatype) {
-    case 'DATE':
+    case 'DATE': {
       if (wire instanceof Date) {
         return wire;
       }
@@ -97,6 +97,7 @@ export function fromWireValue(datatype: Datatype, wire: unknown): unknown {
         return new Date(value);
       }
       return date;
+    }
 
     case 'DATE_TIME':
       if (wire instanceof Date) {
