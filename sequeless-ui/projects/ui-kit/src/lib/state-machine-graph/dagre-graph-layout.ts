@@ -24,14 +24,43 @@ import { edgeLabel } from '../util/edge-style';
 const NODE_WIDTH = 140;
 const NODE_HEIGHT = 40;
 
+/** Minimal structural slice of the `@dagrejs/dagre` value-level API this class consumes. */
+interface DagrePoint {
+  x: number;
+  y: number;
+}
+
+interface DagreNodeInfo extends DagrePoint {
+  width?: number;
+  height?: number;
+}
+
+interface DagreEdgeInfo {
+  points?: DagrePoint[];
+}
+
+interface DagreGraph {
+  setGraph(attrs: Record<string, number | string>): void;
+  setDefaultEdgeLabel(label: () => Record<string, unknown>): void;
+  setNode(id: string, attrs?: Record<string, number>): void;
+  setEdge(from: string, to: string, attrs?: Record<string, unknown>, name?: string): void;
+  node(id: string): DagreNodeInfo;
+  edge(from: string, to: string, name?: string): DagreEdgeInfo | undefined;
+  graph(): { width: number; height: number };
+}
+
 export class DagreGraphLayout implements GraphLayout {
   async layout(stateMachine: StateMachineResponse): Promise<GraphLayoutResult> {
     if (stateMachine.states.length === 0) {
       return { width: 0, height: 0, nodes: [], edges: [] };
     }
 
-    const dagre = (await import('@dagrejs/dagre')).default ?? await import('@dagrejs/dagre');
-    const g: any = new dagre.graphlib.Graph({ multigraph: true });
+    const dagreModule = (await import('@dagrejs/dagre')).default ?? await import('@dagrejs/dagre');
+    const dagre = dagreModule as unknown as {
+      graphlib: { Graph: new (opts: { multigraph: boolean }) => DagreGraph };
+      layout: (g: DagreGraph) => void;
+    };
+    const g = new dagre.graphlib.Graph({ multigraph: true });
     g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60, marginx: 20, marginy: 20 });
     g.setDefaultEdgeLabel(() => ({}));
 
@@ -50,7 +79,7 @@ export class DagreGraphLayout implements GraphLayout {
     dagre.layout(g);
 
     const nodes = stateMachine.states.map((state) => {
-      const placed: any = g.node(state.iri);
+      const placed = g.node(state.iri);
       return {
         id: state.iri,
         label: state.label,
@@ -65,8 +94,8 @@ export class DagreGraphLayout implements GraphLayout {
     const edges = stateMachine.transitions.map((transition: TransitionSummaryResponse) => {
       const from = iriByName.get(transition.from)?.iri ?? transition.from;
       const to = iriByName.get(transition.to)?.iri ?? transition.to;
-      const placed: any = g.edge(from, to, transition.name);
-      const points = (placed?.points ?? []).map((p: any) => ({ x: p.x, y: p.y }));
+      const placed = g.edge(from, to, transition.name);
+      const points = (placed?.points ?? []).map((p) => ({ x: p.x, y: p.y }));
       return {
         id: `${from}->${to}#${transition.name}`,
         from,
