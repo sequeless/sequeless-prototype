@@ -72,8 +72,8 @@ export class SqDurationField implements ControlValueAccessor {
 
   // CVA tracking.
   private _cvaActive = false;
-  private onChange: (value: string) => void = () => {};
-  private onTouched: () => void = () => {};
+  private onChange: (value: string) => void = () => undefined;
+  private onTouched: () => void = () => undefined;
 
   constructor() {
     // When driven by the `value` input (standalone mode), sync it to `parts`.
