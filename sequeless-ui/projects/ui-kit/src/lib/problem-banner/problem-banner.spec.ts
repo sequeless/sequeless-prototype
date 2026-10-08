@@ -11,7 +11,7 @@
  * `subject` is non-null, the `<li>` additionally contains a `<code>` element with the subject text;
  * when `subject` is null, no `<code>` is rendered for that item.
  */
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { ApiError, OntologyIssue } from '@sequeless/core-api';
 import { SqProblemBanner } from './problem-banner';
@@ -42,10 +42,10 @@ function makeApiError(overrides: Partial<ApiError> = {}): ApiError {
   selector: 'sq-test-host',
   standalone: true,
   imports: [SqProblemBanner],
-  template: `<sq-problem-banner [problems]="problems" />`,
+  template: `<sq-problem-banner [problems]="problems()" />`,
 })
 class TestHost {
-  problems: ApiError | readonly OntologyIssue[] = [];
+  problems = signal<ApiError | readonly OntologyIssue[]>([]);
 }
 
 function alertEl(fixture: { nativeElement: HTMLElement }): HTMLElement | null {
@@ -63,7 +63,7 @@ describe('SqProblemBanner', () => {
 
   it('renders nothing for an empty array of problems', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [];
+    fixture.componentInstance.problems.set([]);
     await fixture.whenStable();
 
     expect(alertEl(fixture)).toBeNull();
@@ -72,7 +72,7 @@ describe('SqProblemBanner', () => {
 
   it('renders an ApiError with only a detail as a single error item', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = makeApiError({ detail: 'Validation failed' });
+    fixture.componentInstance.problems.set(makeApiError({ detail: 'Validation failed' }));
     await fixture.whenStable();
 
     const alert = alertEl(fixture);
@@ -88,10 +88,10 @@ describe('SqProblemBanner', () => {
 
   it('renders an array of OntologyIssue with ERROR and WARNING as two items in order', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [
+    fixture.componentInstance.problems.set([
       makeIssue('ERROR', 'https://example.test/x', 'inconsistent axiom'),
       makeIssue('WARNING', 'https://example.test/y', 'deprecated property'),
-    ];
+    ]);
     await fixture.whenStable();
 
     const rows = items(fixture);
@@ -103,9 +103,9 @@ describe('SqProblemBanner', () => {
 
   it('renders the subject in a <code> element when present', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [
+    fixture.componentInstance.problems.set([
       makeIssue('ERROR', 'https://example.test/x', 'inconsistent axiom'),
-    ];
+    ]);
     await fixture.whenStable();
 
     const code = items(fixture)[0].querySelector('code');
@@ -115,7 +115,7 @@ describe('SqProblemBanner', () => {
 
   it('renders no <code> element when the subject is null', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [makeIssue('ERROR', null, 'inconsistent axiom')];
+    fixture.componentInstance.problems.set([makeIssue('ERROR', null, 'inconsistent axiom')]);
     await fixture.whenStable();
 
     expect(items(fixture)[0].querySelector('code')).toBeNull();
@@ -123,9 +123,9 @@ describe('SqProblemBanner', () => {
 
   it('maps a violation subject (property name) into the <code> element', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = makeApiError({
+    fixture.componentInstance.problems.set(makeApiError({
       violations: [{ property: 'status', propertyIri: 'status-iri', message: 'invalid value' }],
-    });
+    }));
     await fixture.whenStable();
 
     const rows = items(fixture);
@@ -137,11 +137,11 @@ describe('SqProblemBanner', () => {
 
   it('re-renders when the problems input is updated from empty to non-empty', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [];
+    fixture.componentInstance.problems.set([]);
     await fixture.whenStable();
     expect(alertEl(fixture)).toBeNull();
 
-    fixture.componentInstance.problems = [makeIssue('info', null, 'fyi')];
+    fixture.componentInstance.problems.set([makeIssue('info', null, 'fyi')]);
     await fixture.whenStable();
 
     expect(alertEl(fixture)).not.toBeNull();
@@ -151,11 +151,11 @@ describe('SqProblemBanner', () => {
 
   it('re-renders when the problems input is updated from non-empty to empty', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [makeIssue('error', null, 'one')];
+    fixture.componentInstance.problems.set([makeIssue('error', null, 'one')]);
     await fixture.whenStable();
     expect(alertEl(fixture)).not.toBeNull();
 
-    fixture.componentInstance.problems = [];
+    fixture.componentInstance.problems.set([]);
     await fixture.whenStable();
 
     expect(alertEl(fixture)).toBeNull();
@@ -163,11 +163,11 @@ describe('SqProblemBanner', () => {
 
   it('renders every item as a child of the single alert container', async () => {
     const fixture = TestBed.createComponent(TestHost);
-    fixture.componentInstance.problems = [
+    fixture.componentInstance.problems.set([
       makeIssue('ERROR', null, 'one'),
       makeIssue('WARNING', null, 'two'),
       makeIssue('other', null, 'three'),
-    ];
+    ]);
     await fixture.whenStable();
 
     const alert = alertEl(fixture);
