@@ -177,7 +177,8 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/ui-kit/tsconfig.spec.json"
+            "tsConfig": "projects/ui-kit/tsconfig.spec.json",
+            "runnerConfig": "projects/ui-kit/vitest.config.mts"
           }
         },
         "lint": {
