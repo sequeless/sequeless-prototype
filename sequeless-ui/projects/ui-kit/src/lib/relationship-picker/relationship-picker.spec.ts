@@ -18,8 +18,11 @@
  * the target type has no non-hidden STRING attribute property. In every case the control only
  * ever holds bare id string(s), never the `BusinessObjectResponse` itself.
  */
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { TestBed } from '@angular/core/testing';
 import { FormControl } from '@angular/forms';
+import { MatAutocompleteTrigger } from '@angular/material/autocomplete';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import type {
   BusinessObjectResponse,
@@ -272,6 +275,92 @@ describe('SqRelationshipPicker', () => {
       await fixture.whenStable();
 
       expect(control.value).toBe('person-2');
+    });
+  });
+
+  describe('selection', () => {
+    async function openPanelAndSearch(
+      fixture: ReturnType<typeof createFixture>,
+      propertyName: string,
+    ): Promise<void> {
+      const trigger = fixture.debugElement
+        .query(By.directive(MatAutocompleteTrigger))
+        .injector.get(MatAutocompleteTrigger);
+      trigger.openPanel();
+      fixture.detectChanges();
+      typeInto(inputEl(fixture, propertyName), 'x');
+      await vi.advanceTimersByTimeAsync(300);
+      fixture.detectChanges();
+    }
+
+    it('single-valued: clicking a mat-option in the overlay sets control.value to the chosen id', async () => {
+      const control = new FormControl<unknown>(null);
+      const fixture = createFixture(OWNER, control);
+      await fixture.whenStable();
+      const overlayContainer = TestBed.inject(OverlayContainer);
+      vi.useFakeTimers();
+
+      await openPanelAndSearch(fixture, 'owner');
+
+      const options = Array.from(
+        overlayContainer.getContainerElement().querySelectorAll<HTMLElement>('mat-option'),
+      );
+      const aliceOption = options.find((el) => el.textContent?.trim() === 'Alice');
+      expect(aliceOption).toBeDefined();
+
+      aliceOption!.click();
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.detectChanges();
+
+      expect(control.value).toBe('person-1');
+    });
+
+    it('repeatable: choosing two mat-options yields an array of both ids', async () => {
+      const control = new FormControl<unknown>([]);
+      const fixture = createFixture(HAS_TASK, control);
+      await fixture.whenStable();
+      const overlayContainer = TestBed.inject(OverlayContainer);
+      vi.useFakeTimers();
+
+      await openPanelAndSearch(fixture, 'hasTask');
+      const taskAOption = Array.from(
+        overlayContainer.getContainerElement().querySelectorAll<HTMLElement>('mat-option'),
+      ).find((el) => el.textContent?.trim() === 'task-1');
+      expect(taskAOption).toBeDefined();
+      taskAOption!.click();
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.detectChanges();
+
+      await openPanelAndSearch(fixture, 'hasTask');
+      const taskBOption = Array.from(
+        overlayContainer.getContainerElement().querySelectorAll<HTMLElement>('mat-option'),
+      ).find((el) => el.textContent?.trim() === 'task-2');
+      expect(taskBOption).toBeDefined();
+      taskBOption!.click();
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.detectChanges();
+
+      expect(control.value).toEqual(['task-1', 'task-2']);
+    });
+
+    it('each chip has a remove button; clicking it removes that id from control.value', async () => {
+      const control = new FormControl<unknown>(['task-1', 'task-2']);
+      const fixture = createFixture(HAS_TASK, control);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const host: HTMLElement = fixture.nativeElement;
+      const chip1 = host.querySelector<HTMLElement>('mat-chip-row[data-id="task-1"]');
+      expect(chip1).not.toBeNull();
+
+      const removeBtn = chip1!.querySelector<HTMLButtonElement>('[data-action="remove-chip"]');
+      expect(removeBtn).not.toBeNull();
+
+      removeBtn!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(control.value).toEqual(['task-2']);
     });
   });
 
