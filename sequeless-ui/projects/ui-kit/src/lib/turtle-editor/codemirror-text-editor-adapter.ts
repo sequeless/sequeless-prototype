@@ -4,17 +4,46 @@
  *
  * The `codemirror` packages are loaded only inside `mount()` via dynamic `import()` — no
  * top-level value imports — so CodeMirror stays out of the main bundle. Type-only imports
- * from codemirror packages are avoided entirely; value-level typing is `any`, mirroring the
- * convention in `dagre-graph-layout.ts`.
+ * from codemirror packages are avoided entirely; the value-level API surface this class
+ * consumes is described by a few minimal structural interfaces, mirroring the convention
+ * in `dagre-graph-layout.ts`.
  *
  * Pending values / diagnostics: `setValue` / `setDiagnostics` calls made before `mount()`
  * resolve are stored and applied as soon as the editor is attached.
  */
 import type { EditorDiagnostic, TextEditorAdapter } from '@sequeless/core-api';
 
+/** Minimal structural slice of the CodeMirror value-level API this class consumes. */
+interface CmText {
+  readonly length: number;
+  toString(): string;
+}
+
+interface CmEditorState {
+  readonly doc: CmText;
+}
+
+interface CmEditorView {
+  readonly state: CmEditorState;
+  dispatch(spec: unknown): void;
+  destroy(): void;
+}
+
+/** Mirrors the `EditorDiagnostic` shape consumed by `@codemirror/lint`. */
+interface CmDiagnostic {
+  from: number;
+  to: number;
+  message: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
+interface CmLintModule {
+  setDiagnostics(state: CmEditorState, diagnostics: readonly CmDiagnostic[]): unknown;
+}
+
 export class CodeMirrorTextEditorAdapter implements TextEditorAdapter {
-  private view: any;
-  private lint: any;
+  private view: CmEditorView | undefined;
+  private lint: CmLintModule | undefined;
   private pendingValue = '';
   private pendingDiagnostics: readonly EditorDiagnostic[] = [];
 
@@ -58,7 +87,10 @@ export class CodeMirrorTextEditorAdapter implements TextEditorAdapter {
   }
 
   getValue(): string {
-    return this.view?.state.doc.toString() ?? this.pendingValue;
+    if (!this.view) {
+      return this.pendingValue;
+    }
+    return this.view.state.doc.toString();
   }
 
   setValue(value: string): void {
@@ -87,6 +119,9 @@ export class CodeMirrorTextEditorAdapter implements TextEditorAdapter {
   }
 
   private applyDiagnostics(diagnostics: readonly EditorDiagnostic[]): unknown {
+    if (!this.view || !this.lint) {
+      return undefined;
+    }
     return this.lint.setDiagnostics(this.view.state, diagnostics.map((d) => ({
       from: d.from,
       to: d.to,
