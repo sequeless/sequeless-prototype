@@ -19,7 +19,7 @@
  * `<div data-index="i">`, plus a `<button data-action="add">` that pushes a new item control onto
  * the array and, per item, a `<button data-action="remove">` that removes just that element.
  */
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
 import type { Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { AbstractControl } from '@angular/forms';
@@ -100,8 +100,8 @@ const fakeLookup: RelationshipLookup = {
   template: '',
 })
 class OverrideStringField {
-  property!: PropertyResponse;
-  control!: AbstractControl;
+  property = input<unknown>();
+  control = input<unknown>();
 }
 
 function createFixture(
@@ -130,24 +130,28 @@ describe('SqDynamicField', () => {
       expect(fixture.nativeElement.querySelector('sq-field-boolean')).not.toBeNull();
     });
 
-    it('resolves INTEGER and LONG to sq-field-integer', async () => {
-      const integerFixture = createFixture(INTEGER_PROPERTY, new FormControl<unknown>(null));
-      await integerFixture.whenStable();
-      expect(integerFixture.nativeElement.querySelector('sq-field-integer')).not.toBeNull();
-
-      const longFixture = createFixture(LONG_PROPERTY, new FormControl<unknown>(null));
-      await longFixture.whenStable();
-      expect(longFixture.nativeElement.querySelector('sq-field-integer')).not.toBeNull();
+    it('resolves INTEGER to sq-field-integer', async () => {
+      const fixture = createFixture(INTEGER_PROPERTY, new FormControl<unknown>(null));
+      await fixture.whenStable();
+      expect(fixture.nativeElement.querySelector('sq-field-integer')).not.toBeNull();
     });
 
-    it('resolves DECIMAL and DOUBLE to sq-field-decimal', async () => {
-      const decimalFixture = createFixture(DECIMAL_PROPERTY, new FormControl<unknown>(null));
-      await decimalFixture.whenStable();
-      expect(decimalFixture.nativeElement.querySelector('sq-field-decimal')).not.toBeNull();
+    it('resolves LONG to sq-field-integer', async () => {
+      const fixture = createFixture(LONG_PROPERTY, new FormControl<unknown>(null));
+      await fixture.whenStable();
+      expect(fixture.nativeElement.querySelector('sq-field-integer')).not.toBeNull();
+    });
 
-      const doubleFixture = createFixture(DOUBLE_PROPERTY, new FormControl<unknown>(null));
-      await doubleFixture.whenStable();
-      expect(doubleFixture.nativeElement.querySelector('sq-field-decimal')).not.toBeNull();
+    it('resolves DECIMAL to sq-field-decimal', async () => {
+      const fixture = createFixture(DECIMAL_PROPERTY, new FormControl<unknown>(null));
+      await fixture.whenStable();
+      expect(fixture.nativeElement.querySelector('sq-field-decimal')).not.toBeNull();
+    });
+
+    it('resolves DOUBLE to sq-field-decimal', async () => {
+      const fixture = createFixture(DOUBLE_PROPERTY, new FormControl<unknown>(null));
+      await fixture.whenStable();
+      expect(fixture.nativeElement.querySelector('sq-field-decimal')).not.toBeNull();
     });
 
     it('resolves DATE to sq-field-date', async () => {
