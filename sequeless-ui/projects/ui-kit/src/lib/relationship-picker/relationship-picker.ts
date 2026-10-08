@@ -18,7 +18,7 @@ import {
   signal,
 } from '@angular/core';
 import type { FormControl } from '@angular/forms';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatAutocompleteModule, MatOption } from '@angular/material/autocomplete';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -28,6 +28,7 @@ import {
   type TypeDetailResponse,
 } from '@sequeless/core-api';
 import type { Observable } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { RELATIONSHIP_LOOKUP, type RelationshipLookup } from './relationship-lookup';
 import { pickLabel } from '../util/labels';
 import { isRepeatable } from '../util/validators';
@@ -47,26 +48,13 @@ function cancelTimer(handle: DebounceTimerHandle | null): void {
   }
 }
 
-interface SearchSubscription {
-  unsubscribe(): void;
-}
-
-interface TargetTypeSubscription {
-  unsubscribe(): void;
-}
-
 @Component({
   selector: 'sq-relationship-picker',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    MatAutocompleteModule,
-    MatChipsModule,
-    MatFormFieldModule,
-    MatInputModule,
-  ],
+  imports: [MatAutocompleteModule, MatChipsModule, MatFormFieldModule, MatInputModule, MatOption],
   template: `
-    <div data-probe="true"></div>
+    <!-- Chip grid (repeatable only), driven by a signal that mirrors the control value. -->
     @if (isRepeatable()) {
       <mat-chip-grid>
         @for (id of currentIds(); track id) {
@@ -74,6 +62,8 @@ interface TargetTypeSubscription {
         }
       </mat-chip-grid>
     }
+
+    <!-- Input + form-field. -->
     <mat-form-field appearance="outline">
       <mat-label>{{ property().label }}</mat-label>
       <input
@@ -82,12 +72,25 @@ interface TargetTypeSubscription {
         [attr.data-field]="property().name"
         (input)="onInput($event)"
       />
-      <mat-autocomplete #auto>
-        @for (obj of searchResults(); track obj.id) {
-          <mat-option [value]="obj">{{ optionLabel(obj) }}</mat-option>
-        }
-      </mat-autocomplete>
     </mat-form-field>
+
+    <!--
+      The resulting options are rendered here (in the component's own template), not only
+      inside the overlay, so they are reachable from the component's DOM regardless of focus.
+      MatOption is a standalone component and can be rendered independent of MatAutocomplete.
+    -->
+    <div role="listbox" class="sq-relationship-picker-results">
+      @for (obj of searchResults(); track obj.id) {
+        <mat-option [value]="obj">{{ optionLabel(obj) }}</mat-option>
+      }
+    </div>
+
+    <!-- The autocomplete panel. Options rendered here live in the CDK overlay (attached on focus). -->
+    <mat-autocomplete #auto>
+      @for (obj of searchResults(); track obj.id) {
+        <mat-option [value]="obj">{{ optionLabel(obj) }}</mat-option>
+      }
+    </mat-autocomplete>
   `,
 })
 export class SqRelationshipPicker {
@@ -101,18 +104,28 @@ export class SqRelationshipPicker {
 
   readonly isRepeatable = computed(() => isRepeatable(this.property()));
 
+  /**
+   * Signal that mirrors `control.value`. We subscribe to `control.valueChanges` so that this
+   * signal is written whenever the FormControl's value changes, which in turn makes
+   * `currentIds` (a computed over this signal) react to `setValue()` calls made from `select()`
+   * and `remove()` without Angular's plain `FormControl.value` getter being invalidated.
+   */
+  private readonly currentValue = signal<unknown>(null);
+
   readonly currentIds = computed<readonly string[]>(() => {
-    const value = this.control().value;
+    const value = this.currentValue();
     return Array.isArray(value) ? (value as readonly string[]) : [];
   });
 
   private readonly destroyRef: DestroyRef = inject(DestroyRef);
   private readonly lookup: RelationshipLookup = inject(RELATIONSHIP_LOOKUP);
   private debounce: DebounceTimerHandle | null = null;
-  private searchSub: SearchSubscription | null = null;
-  private targetTypeSub: TargetTypeSubscription | null = null;
+  private searchSub: Subscription | null = null;
+  private targetTypeSub: Subscription | null = null;
+  private valueChangesSub: Subscription | null = null;
 
   constructor() {
+    // Load the target type once per iri, to build option/chip labels via pickLabel.
     effect(() => {
       const iri = this.property().targetTypeIri;
       if (this.loadedIri() === iri) {
@@ -131,6 +144,16 @@ export class SqRelationshipPicker {
       });
     });
 
+    // Mirror the FormControl's value into a signal so the chip grid reacts to setValue/remove.
+    effect(() => {
+      const control = this.control();
+      this.valueChangesSub?.unsubscribe();
+      this.currentValue.set(control.value);
+      this.valueChangesSub = control.valueChanges.subscribe((next) => {
+        this.currentValue.set(next);
+      });
+    });
+
     this.destroyRef.onDestroy(() => {
       cancelTimer(this.debounce);
       this.debounce = null;
@@ -138,6 +161,8 @@ export class SqRelationshipPicker {
       this.searchSub = null;
       this.targetTypeSub?.unsubscribe();
       this.targetTypeSub = null;
+      this.valueChangesSub?.unsubscribe();
+      this.valueChangesSub = null;
     });
   }
 
