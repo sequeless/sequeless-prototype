@@ -179,7 +179,6 @@ describe('SqRelationshipPicker', () => {
   }
 
   beforeEach(() => {
-    vi.useFakeTimers();
     targetTypeFn = vi.fn<(targetTypeIri: string) => Observable<TypeDetailResponse>>((iri: string) =>
       of(iri === OWNER.targetTypeIri ? PERSON_TYPE_DETAIL : TASK_TYPE_DETAIL),
     );
@@ -205,6 +204,7 @@ describe('SqRelationshipPicker', () => {
     it('does not call search before 300ms have elapsed', async () => {
       const fixture = createFixture(OWNER, new FormControl<unknown>(null));
       await fixture.whenStable();
+      vi.useFakeTimers();
 
       typeInto(inputEl(fixture, 'owner'), 'ap');
       vi.advanceTimersByTime(200);
@@ -215,6 +215,7 @@ describe('SqRelationshipPicker', () => {
     it('calls search exactly once with the settled term after rapid typing within the debounce window', async () => {
       const fixture = createFixture(OWNER, new FormControl<unknown>(null));
       await fixture.whenStable();
+      vi.useFakeTimers();
 
       const input = inputEl(fixture, 'owner');
       typeInto(input, 'ap');
@@ -232,10 +233,11 @@ describe('SqRelationshipPicker', () => {
     it('renders autocomplete options labelled via pickLabel once search resolves', async () => {
       const fixture = createFixture(OWNER, new FormControl<unknown>(null));
       await fixture.whenStable();
+      vi.useFakeTimers();
 
       typeInto(inputEl(fixture, 'owner'), 'a');
-      vi.advanceTimersByTime(300);
-      await fixture.whenStable();
+      await vi.advanceTimersByTimeAsync(300);
+      fixture.detectChanges();
 
       const host: HTMLElement = fixture.nativeElement;
       const optionLabels = Array.from(
