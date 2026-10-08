@@ -82,7 +82,6 @@ export class SqProblemBanner {
   constructor() {
     effect(() => {
       const v = this.problems();
-      // eslint-disable-next-line no-console
       console.log(
         '[DIAG] zone=',
         typeof (globalThis as unknown as { Zone?: unknown }).Zone,
