@@ -11,11 +11,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import type { FormControl } from '@angular/forms';
 import { MatAutocompleteModule, MatOption } from '@angular/material/autocomplete';
@@ -58,7 +60,17 @@ function cancelTimer(handle: DebounceTimerHandle | null): void {
     @if (isRepeatable()) {
       <mat-chip-grid>
         @for (id of currentIds(); track id) {
-          <mat-chip-row [attr.data-id]="id">{{ labelForId(id) }}</mat-chip-row>
+          <mat-chip-row [attr.data-id]="id">
+            {{ labelForId(id) }}
+            <button
+              matChipRemove
+              data-action="remove-chip"
+              [attr.aria-label]="'Remove'"
+              (click)="$event.stopPropagation(); remove(id)"
+            >
+              ×
+            </button>
+          </mat-chip-row>
         }
       </mat-chip-grid>
     }
@@ -67,6 +79,7 @@ function cancelTimer(handle: DebounceTimerHandle | null): void {
     <mat-form-field appearance="outline">
       <mat-label>{{ property().label }}</mat-label>
       <input
+        #searchInput
         matInput
         [matAutocomplete]="auto"
         [attr.data-field]="property().name"
@@ -86,7 +99,7 @@ function cancelTimer(handle: DebounceTimerHandle | null): void {
     </div>
 
     <!-- The autocomplete panel. Options rendered here live in the CDK overlay (attached on focus). -->
-    <mat-autocomplete #auto>
+    <mat-autocomplete #auto (optionSelected)="select($event.option.value)">
       @for (obj of searchResults(); track obj.id) {
         <mat-option [value]="obj">{{ optionLabel(obj) }}</mat-option>
       }
@@ -96,6 +109,8 @@ function cancelTimer(handle: DebounceTimerHandle | null): void {
 export class SqRelationshipPicker {
   readonly property = input.required<RelationshipPropertyResponse>();
   readonly control = input.required<FormControl<unknown>>();
+
+  readonly searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
 
   readonly targetType = signal<TypeDetailResponse | null>(null);
   readonly loadedIri = signal<string | null>(null);
@@ -193,12 +208,17 @@ export class SqRelationshipPicker {
       if (!current.includes(obj.id)) {
         this.control().setValue([...current, obj.id]);
       }
-      if (!this.labelCache.has(obj.id)) {
-        this.labelCache.set(obj.id, this.optionLabel(obj));
-      }
     } else {
       this.control().setValue(obj.id);
     }
+    if (!this.labelCache.has(obj.id)) {
+      this.labelCache.set(obj.id, this.optionLabel(obj));
+    }
+    this.clearSearchInput();
+  }
+
+  private clearSearchInput(): void {
+    this.searchInput().nativeElement.value = '';
   }
 
   remove(id: string): void {
