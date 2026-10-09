@@ -194,7 +194,7 @@
       "projectType": "library",
       "root": "projects/objects",
       "sourceRoot": "projects/objects/src",
-      "prefix": "lib",
+      "prefix": "sq",
       "architect": {
         "build": {
           "builder": "@angular/build:ng-packagr",
@@ -211,7 +211,8 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/objects/tsconfig.spec.json"
+            "tsConfig": "projects/objects/tsconfig.spec.json",
+            "runnerConfig": "projects/objects/vitest.config.mts"
           }
         },
         "lint": {
