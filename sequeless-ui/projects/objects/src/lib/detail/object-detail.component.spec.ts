@@ -6,10 +6,15 @@
  * - A successful save refetches the object (new ETag) rather than trusting the PUT response.
  */
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import type { ApiError, BusinessObjectResponse, TypeDetailResponse } from '@sequeless/core-api';
+import type {
+  ApiError,
+  BusinessObjectResponse,
+  TransitionResponse,
+  TypeDetailResponse,
+} from '@sequeless/core-api';
 import { ObjectsClient, TypesClient } from '@sequeless/core-api';
 import { provideUiKit } from '@sequeless/ui-kit';
 import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
@@ -56,7 +61,7 @@ function problem(slug: string, extra: Partial<ApiError> = {}): ApiError {
   };
 }
 
-const START = { name: 'close', available: true, reason: null };
+const START: TransitionResponse = { name: 'close', available: true, reason: null };
 
 function setup(dialogResult: unknown = undefined) {
   const objects = {
@@ -64,6 +69,7 @@ function setup(dialogResult: unknown = undefined) {
     update: vi.fn(() => of(objectBody(2, 'Closed'))),
     transitions: vi.fn(() => of([START])),
     fireTransition: vi.fn(() => of(objectBody(2))),
+    delete: vi.fn(() => of(undefined)),
   };
   const dialog = { open: vi.fn(() => ({ afterClosed: () => of(dialogResult) })) };
 
@@ -71,6 +77,7 @@ function setup(dialogResult: unknown = undefined) {
     providers: [
       provideUiKit(),
       provideNoopAnimations(),
+      provideRouter([]),
       { provide: ObjectsClient, useValue: objects },
       { provide: TypesClient, useValue: { describe: vi.fn(() => of(TYPE)) } },
       { provide: MatDialog, useValue: dialog },
@@ -81,8 +88,9 @@ function setup(dialogResult: unknown = undefined) {
     ],
   });
 
+  const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
   const fixture = TestBed.createComponent(SqObjectDetail);
-  return { fixture, component: fixture.componentInstance, objects, dialog };
+  return { fixture, component: fixture.componentInstance, objects, dialog, navigate };
 }
 
 async function loaded(setupResult: ReturnType<typeof setup>) {
@@ -151,5 +159,90 @@ describe('SqObjectDetail', () => {
 
     expect(ctx.objects.get.mock.calls.length).toBe(getCallsBefore + 1);
     expect(ctx.dialog.open).not.toHaveBeenCalled();
+  });
+
+  it('asks for confirmation before deleting', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const ctx = await loaded(setup());
+
+    await ctx.component.delete();
+
+    expect(confirm).toHaveBeenCalledWith('Delete this object?');
+    expect(ctx.objects.delete).toHaveBeenCalledWith('Project', OBJECT_ID);
+  });
+
+  it('navigates up after a confirmed delete', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const ctx = await loaded(setup());
+
+    await ctx.component.delete();
+
+    expect(ctx.navigate).toHaveBeenCalledTimes(1);
+    expect(ctx.navigate.mock.calls[0][0]).toEqual(['..']);
+  });
+
+  it('does nothing when the delete confirmation is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const ctx = await loaded(setup());
+
+    await ctx.component.delete();
+
+    expect(ctx.objects.delete).not.toHaveBeenCalled();
+    expect(ctx.navigate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the user on the page and surfaces the error when delete fails', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const ctx = await loaded(setup());
+    const failure = problem('object-in-use');
+    ctx.objects.delete.mockReturnValueOnce(throwError(() => failure));
+
+    await ctx.component.delete();
+
+    expect(ctx.navigate).not.toHaveBeenCalled();
+    expect(ctx.component.store.error()).toBe(failure);
+  });
+
+  it('renders the signals panel once loaded', async () => {
+    const ctx = await loaded(setup());
+    ctx.fixture.detectChanges();
+
+    const host: HTMLElement = ctx.fixture.nativeElement;
+    expect(host.querySelectorAll('sq-object-signals')).toHaveLength(1);
+  });
+
+  it('exposes the reason of an unavailable transition as its title', async () => {
+    const setupResult = setup();
+    setupResult.objects.transitions.mockReturnValue(
+      of([{ name: 'close', available: false, reason: 'Guard failed' }]),
+    );
+    const ctx = await loaded(setupResult);
+    ctx.fixture.detectChanges();
+
+    const button: HTMLButtonElement | null = ctx.fixture.nativeElement.querySelector(
+      '[data-transition="close"]',
+    );
+    expect(button?.disabled).toBe(true);
+    expect(button?.title).toBe('Guard failed');
+  });
+
+  it('shows the 409 transition-not-available detail inline', async () => {
+    const ctx = await loaded(setup());
+    ctx.objects.fireTransition.mockReturnValueOnce(
+      throwError(() =>
+        problem('transition-not-available', {
+          transitionName: 'close',
+          detail: 'Cannot close from Draft',
+        }),
+      ),
+    );
+
+    await ctx.component.fire('close');
+    ctx.fixture.detectChanges();
+
+    const inline: HTMLElement | null = ctx.fixture.nativeElement.querySelector(
+      '[data-transition-error]',
+    );
+    expect(inline?.textContent).toContain('Cannot close from Draft');
   });
 });

@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormGroup } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   ApiError,
   ObjectsClient,
@@ -12,20 +12,25 @@ import {
 import { openConflictDialog, SqProblemBanner } from '@sequeless/ui-kit';
 import { firstValueFrom } from 'rxjs';
 
+import { SqObjectSignals } from '../signals/object-signals';
 import { buildObjectForm, formToProperties, SqObjectForm } from './object-form';
 import { ObjectDetailStore } from './object-detail.store';
 
 /** View and edit one object. Concurrency conflicts are surfaced, never silently retried. */
 @Component({
   selector: 'sq-object-detail',
-  imports: [MatButtonModule, SqObjectForm, SqProblemBanner],
+  imports: [MatButtonModule, SqObjectForm, SqObjectSignals, SqProblemBanner],
   providers: [ObjectDetailStore],
   template: `
-    @if (store.object()) {
+    @if (store.object(); as object) {
       <h2>{{ typeName() }}</h2>
       @if (store.type(); as type) {
         <sq-object-form [type]="type" [form]="form()" />
         <button mat-raised-button type="button" (click)="save()">Save</button>
+        <button mat-stroked-button type="button" data-action="delete" (click)="delete()">
+          Delete
+        </button>
+        <sq-object-signals [type]="type" [object]="object" (refresh)="store.refetch()" />
       }
       <div class="transitions">
         @for (transition of transitions(); track transition.name) {
@@ -34,12 +39,16 @@ import { ObjectDetailStore } from './object-detail.store';
             type="button"
             [disabled]="!transition.available"
             [attr.data-transition]="transition.name"
+            [attr.title]="transition.reason"
             (click)="fire(transition.name)"
           >
             {{ transition.name }}
           </button>
         }
       </div>
+      @if (transitionError(); as detail) {
+        <p role="alert" data-transition-error>{{ detail }}</p>
+      }
     }
     @if (store.error(); as error) {
       <sq-problem-banner [problems]="error" />
@@ -48,6 +57,7 @@ import { ObjectDetailStore } from './object-detail.store';
 })
 export class SqObjectDetail implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly objects = inject(ObjectsClient);
   private readonly dialog = inject(MatDialog);
   readonly store = inject(ObjectDetailStore);
@@ -58,6 +68,7 @@ export class SqObjectDetail implements OnInit {
 
   readonly form = signal<FormGroup>(new FormGroup({}));
   protected readonly transitions = signal<readonly TransitionResponse[]>([]);
+  protected readonly transitionError = signal<string | null>(null);
   private loadedProperties: Record<string, unknown> = {};
 
   async ngOnInit(): Promise<void> {
@@ -81,7 +92,21 @@ export class SqObjectDetail implements OnInit {
     }
   }
 
+  async delete(): Promise<void> {
+    if (!window.confirm('Delete this object?')) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.objects.delete(this.typeName(), this.objectId()));
+    } catch (err) {
+      this.store.error.set(err as ApiError);
+      return;
+    }
+    await this.router.navigate(['..'], { relativeTo: this.route });
+  }
+
   async fire(name: string): Promise<void> {
+    this.transitionError.set(null);
     try {
       await firstValueFrom(this.objects.fireTransition(this.typeName(), this.objectId(), name));
       await this.store.refetch();
@@ -90,6 +115,7 @@ export class SqObjectDetail implements OnInit {
       const error = err as ApiError;
       if (error.transitionName !== null) {
         await this.loadTransitions();
+        this.transitionError.set(error.detail);
       } else if (error.slug === 'stale-object') {
         // The transition POST carries If-Match, so a concurrent edit can reject it. Refresh and
         // report; never retry the transition silently.
