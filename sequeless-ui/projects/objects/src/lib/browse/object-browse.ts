@@ -1,5 +1,6 @@
 import { Component, computed, effect, inject, OnInit, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { FormControl } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -13,12 +14,14 @@ import {
   FacetBucketResponse,
   FilterClause,
   FilterOperator,
+  isRelationshipProperty,
   ObjectsClient,
   queryCapabilities,
+  RelationshipPropertyResponse,
   TypeDetailResponse,
   TypesClient,
 } from '@sequeless/core-api';
-import { SqProblemBanner } from '@sequeless/ui-kit';
+import { SqProblemBanner, SqRelationshipPicker } from '@sequeless/ui-kit';
 import { firstValueFrom, map } from 'rxjs';
 
 import { facetableProperties, operatorsFor, PAGE_SIZE_OPTIONS, visibleColumns } from './browse-columns';
@@ -42,6 +45,7 @@ const VALUELESS_OPERATORS: readonly FilterOperator[] = ['isnull', 'notnull'];
     MatTableModule,
     RouterLink,
     SqProblemBanner,
+    SqRelationshipPicker,
   ],
   providers: [BrowseQueryStateService],
   template: `
@@ -88,7 +92,11 @@ const VALUELESS_OPERATORS: readonly FilterOperator[] = ['isnull', 'notnull'];
           <option [value]="op">{{ op }}</option>
         }
       </select>
-      <input data-add-value [value]="newValue()" (input)="newValue.set(valueOf($event))" />
+      @if (relationshipProperty(); as property) {
+        <sq-relationship-picker [property]="property" [control]="relationshipControl" data-add-relationship />
+      } @else {
+        <input data-add-value [value]="newValue()" (input)="newValue.set(valueOf($event))" />
+      }
       <button type="button" data-add-filter [disabled]="!canAddFilter()" (click)="addCustomFilter()">
         Add filter
       </button>
@@ -164,9 +172,34 @@ export class SqObjectBrowse implements OnInit {
     const column = this.columns().find((c) => c.name === this.newProperty());
     return column ? operatorsFor(column) : [];
   });
-  readonly canAddFilter = computed(
-    () => VALUELESS_OPERATORS.includes(this.newOperator()) || this.newValue().length > 0,
-  );
+  /** The chosen property when it is a relationship; `in` needs a multi-select picker, so it is shown unbounded. */
+  readonly relationshipProperty = computed<RelationshipPropertyResponse | null>(() => {
+    const column = this.columns().find((c) => c.name === this.newProperty());
+    if (column === undefined || !isRelationshipProperty(column)) {
+      return null;
+    }
+    return this.newOperator() === 'in' ? { ...column, cardinalityMax: null } : column;
+  });
+  readonly relationshipControl = new FormControl<string[]>([], { nonNullable: true });
+  private readonly relationshipValue = toSignal(this.relationshipControl.valueChanges, {
+    initialValue: this.relationshipControl.value,
+  });
+  /** The picker holds a bare id for a single-valued property and an array for a repeatable one. */
+  private readonly relationshipIds = computed<readonly string[]>(() => {
+    const value: unknown = this.relationshipValue();
+    if (Array.isArray(value)) {
+      return value as string[];
+    }
+    return typeof value === 'string' && value.length > 0 ? [value] : [];
+  });
+  readonly canAddFilter = computed(() => {
+    if (VALUELESS_OPERATORS.includes(this.newOperator())) {
+      return true;
+    }
+    return this.relationshipProperty() !== null
+      ? this.relationshipIds().length > 0
+      : this.newValue().length > 0;
+  });
   readonly canAddRange = computed(() => this.newOperators().includes('gte'));
   readonly canSubmitRange = computed(() => this.rangeFrom().length > 0 && this.rangeTo().length > 0);
 
@@ -207,6 +240,7 @@ export class SqObjectBrowse implements OnInit {
   onPropertyChange(name: string): void {
     const column = this.columns().find((c) => c.name === name);
     this.newProperty.set(name);
+    this.relationshipControl.setValue([]);
     this.newOperator.set(column ? (operatorsFor(column)[0] ?? 'eq') : 'eq');
   }
 
@@ -239,6 +273,10 @@ export class SqObjectBrowse implements OnInit {
     const value = this.newValue();
     if (VALUELESS_OPERATORS.includes(op)) {
       this.addClause({ property: this.newProperty(), op });
+    } else if (this.relationshipProperty() !== null) {
+      const ids = this.relationshipIds();
+      this.addClause({ property: this.newProperty(), op, value: op === 'eq' ? ids[0] : ids.join(',') });
+      this.relationshipControl.setValue([]);
     } else {
       this.addClause({ property: this.newProperty(), op, value });
       this.newValue.set('');

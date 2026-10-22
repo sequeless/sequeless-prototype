@@ -18,7 +18,7 @@ import type {
 } from '@sequeless/core-api';
 import { ObjectsClient, TypesClient } from '@sequeless/core-api';
 import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
-import { provideUiKit } from '@sequeless/ui-kit';
+import { provideUiKit, RELATIONSHIP_LOOKUP } from '@sequeless/ui-kit';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 
 import { operatorsFor, visibleColumns } from './browse-columns';
@@ -35,7 +35,7 @@ const RESULT: QueryResultResponse = {
   facets: { status: [{ value: 'Open', count: 3 }, { value: 'Closed', count: 1 }] },
 };
 
-function setup(initialParams: Record<string, string> = {}, browseError?: ApiError) {
+function setup(initialParams: Record<string, string> = {}, browseError?: ApiError, withLookup = false) {
   const objects = {
     browse: vi.fn<(type: string, state: BrowseQueryState) => Observable<QueryResultResponse>>(() =>
       browseError ? throwError(() => browseError) : of(RESULT),
@@ -50,6 +50,14 @@ function setup(initialParams: Record<string, string> = {}, browseError?: ApiErro
       provideRouter([]),
       { provide: ObjectsClient, useValue: objects },
       { provide: TypesClient, useValue: { describe: vi.fn(() => of(TYPE)) } },
+      ...(withLookup
+        ? [
+            {
+              provide: RELATIONSHIP_LOOKUP,
+              useValue: { search: () => of([]), targetType: () => of(TYPE) },
+            },
+          ]
+        : []),
       {
         provide: ActivatedRoute,
         useValue: {
@@ -196,5 +204,94 @@ describe('SqObjectBrowse', () => {
 
     const openTaskCount = visibleColumns(TYPE).find((p) => p.name === 'openTaskCount')!;
     expect(operators).toEqual([...operatorsFor(openTaskCount)]);
+  });
+
+  describe('relationship filters', () => {
+    async function choose(ctx: ReturnType<typeof setup>, property: string, operator?: string) {
+      const select = ctx.host.querySelector('[data-add-property]') as HTMLSelectElement;
+      select.value = property;
+      select.dispatchEvent(new Event('change'));
+      ctx.fixture.detectChanges();
+      if (operator) {
+        const op = ctx.host.querySelector('[data-add-operator]') as HTMLSelectElement;
+        op.value = operator;
+        op.dispatchEvent(new Event('change'));
+        ctx.fixture.detectChanges();
+      }
+    }
+
+    function addButton(ctx: ReturnType<typeof setup>) {
+      return ctx.host.querySelector('[data-add-filter]') as HTMLButtonElement;
+    }
+
+    it('shows the relationship picker instead of the text input for a relationship property', async () => {
+      const ctx = await loaded(setup({}, undefined, true));
+      await choose(ctx, 'owner');
+
+      expect(ctx.host.querySelector('sq-relationship-picker')).not.toBeNull();
+      expect(ctx.host.querySelector('[data-add-value]')).toBeNull();
+    });
+
+    it('keeps the text input for a non-relationship property', async () => {
+      const ctx = await loaded(setup({}, undefined, true));
+      await choose(ctx, 'status');
+
+      expect(ctx.host.querySelector('[data-add-value]')).not.toBeNull();
+      expect(ctx.host.querySelector('sq-relationship-picker')).toBeNull();
+    });
+
+    it('eq writes the first selected id to the URL', async () => {
+      const ctx = await loaded(setup({}, undefined, true));
+      await choose(ctx, 'owner', 'eq');
+      ctx.fixture.componentInstance.relationshipControl.setValue(['person-1']);
+      ctx.fixture.detectChanges();
+
+      expect(addButton(ctx).disabled).toBe(false);
+      clickOn(ctx, '[data-add-filter]');
+
+      expect(queryParamsOfLastNavigation(ctx)).toEqual(
+        expect.objectContaining({ 'filter[owner][eq]': 'person-1' }),
+      );
+    });
+
+    it('eq accepts the bare id a single-valued picker writes', async () => {
+      const ctx = await loaded(setup({}, undefined, true));
+      await choose(ctx, 'owner', 'eq');
+      // A single-valued relationship picker writes the id itself, not an array (relationship-picker.ts select()).
+      ctx.fixture.componentInstance.relationshipControl.setValue('person-1' as unknown as string[]);
+      ctx.fixture.detectChanges();
+
+      expect(addButton(ctx).disabled).toBe(false);
+      clickOn(ctx, '[data-add-filter]');
+
+      expect(queryParamsOfLastNavigation(ctx)).toEqual(
+        expect.objectContaining({ 'filter[owner][eq]': 'person-1' }),
+      );
+    });
+
+    it('in writes all selected ids comma-joined to the URL', async () => {
+      const ctx = await loaded(setup({}, undefined, true));
+      await choose(ctx, 'hasTask', 'in');
+      ctx.fixture.componentInstance.relationshipControl.setValue(['a', 'b']);
+      ctx.fixture.detectChanges();
+
+      clickOn(ctx, '[data-add-filter]');
+
+      expect(queryParamsOfLastNavigation(ctx)).toEqual(
+        expect.objectContaining({ 'filter[hasTask][in]': 'a,b' }),
+      );
+    });
+
+    it('keeps the add-filter button disabled until an id is selected', async () => {
+      const ctx = await loaded(setup({}, undefined, true));
+      await choose(ctx, 'owner', 'eq');
+
+      expect(addButton(ctx).disabled).toBe(true);
+
+      ctx.fixture.componentInstance.relationshipControl.setValue(['person-1']);
+      ctx.fixture.detectChanges();
+
+      expect(addButton(ctx).disabled).toBe(false);
+    });
   });
 });
