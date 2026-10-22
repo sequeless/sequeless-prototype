@@ -206,6 +206,42 @@ describe('SqObjectBrowse', () => {
     expect(operators).toEqual([...operatorsFor(openTaskCount)]);
   });
 
+  describe('search box', () => {
+    function submitSearch(ctx: ReturnType<typeof setup>, term: string) {
+      const input = ctx.host.querySelector('[data-search]') as HTMLInputElement;
+      input.value = term;
+      (ctx.host.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      ctx.fixture.detectChanges();
+    }
+
+    it('submitting a term writes q to the URL and resets the page', async () => {
+      const ctx = await loaded(setup({ page: '2' }));
+
+      submitSearch(ctx, 'cat');
+
+      const params = queryParamsOfLastNavigation(ctx);
+      expect(params).toEqual(expect.objectContaining({ q: 'cat' }));
+      expect(params).not.toHaveProperty('page', '2');
+      expect(params['page']).toBeUndefined();
+    });
+
+    it('submitting an empty box removes q from the URL', async () => {
+      const ctx = await loaded(setup({ q: 'cat' }));
+
+      submitSearch(ctx, '');
+
+      expect(queryParamsOfLastNavigation(ctx)).not.toHaveProperty('q');
+    });
+
+    it('the box shows the q from the initial URL', async () => {
+      const ctx = await loaded(setup({ q: 'cat' }));
+
+      const input = ctx.host.querySelector('[data-search]') as HTMLInputElement;
+
+      expect(input.value).toBe('cat');
+    });
+  });
+
   describe('relationship filters', () => {
     async function choose(ctx: ReturnType<typeof setup>, property: string, operator?: string) {
       const select = ctx.host.querySelector('[data-add-property]') as HTMLSelectElement;

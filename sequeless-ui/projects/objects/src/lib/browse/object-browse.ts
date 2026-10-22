@@ -52,6 +52,11 @@ const VALUELESS_OPERATORS: readonly FilterOperator[] = ['isnull', 'notnull'];
     <h2>{{ typeName() }}</h2>
     <a mat-stroked-button [routerLink]="['/objects', typeName(), 'new']">New</a>
 
+    <form (submit)="submitSearch($event, search.value)">
+      <input #search data-search [value]="query.state().q ?? ''" />
+      <button type="submit" data-search-submit>Search</button>
+    </form>
+
     @for (name of facetNames(); track name) {
       <div class="facet" [attr.data-facet]="name">
         <span>{{ name }}</span>
@@ -297,6 +302,13 @@ export class SqObjectBrowse implements OnInit {
   removeFilter(index: number): void {
     const filters = this.query.state().filters.filter((_, i) => i !== index);
     void this.query.update({ filters });
+  }
+
+  /** An empty term yields q undefined, which removes q from the URL; a new term resets the page. */
+  submitSearch(event: Event, term: string): void {
+    event.preventDefault();
+    const trimmed = term.trim();
+    void this.query.update({ q: trimmed === '' ? undefined : trimmed });
   }
 
   onPage(event: PageEvent): void {
