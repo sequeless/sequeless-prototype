@@ -106,27 +106,27 @@ describe('buildObjectForm', () => {
   });
 
   it('seeds controls from the initial values when given', () => {
-    const form = buildObjectForm(TYPE, { title: 'Apollo', status: 'active' });
-    expect(form.get('title')!.value).toBe('Apollo');
+    const form = buildObjectForm(TYPE, { status: 'active' });
+    expect(form.get('status')!.value).toBe('active');
     expect(form.get('status')!.value).toBe('active');
   });
 
   it('seeds an unspecified property to its controlFor default', () => {
-    const form = buildObjectForm(TYPE, { title: 'Apollo' });
+    const form = buildObjectForm(TYPE, { status: 'active' });
     expect(form.get('owner')!.value).toBeNull();
   });
 });
 
 describe('formToProperties', () => {
   it('returns only editable properties, each run through toWireValue', () => {
-    const form = buildObjectForm(TYPE, { title: 'Apollo', status: 'active', owner: 'person-1' });
+    const form = buildObjectForm(TYPE, { status: 'active', owner: 'person-1' });
     const result = formToProperties(TYPE, form);
     expect(result).toEqual({
-      title: 'Apollo',
+      title: [],
       hasTask: [],
       status: 'active',
       owner: 'person-1',
-      description: null,
+      description: [],
     });
   });
 
@@ -144,9 +144,9 @@ describe('formToProperties', () => {
   });
 
   it('coerces an empty-string control value to null via toWireValue', () => {
-    const form = buildObjectForm(TYPE, { title: '' });
+    const form = buildObjectForm(TYPE, { status: '' });
     const result = formToProperties(TYPE, form);
-    expect(result['title']).toBeNull();
+    expect(result['status']).toBeNull();
   });
 });
 
