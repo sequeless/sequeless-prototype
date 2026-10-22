@@ -27,7 +27,14 @@ import { ObjectDetailStore } from './object-detail.store';
       <h2>{{ typeName() }}</h2>
       @if (store.type(); as type) {
         <sq-object-form [type]="type" [form]="form()" />
-        <button mat-raised-button type="button" (click)="save()">Save</button>
+        @if (editing()) {
+          <button mat-raised-button type="button" data-action="save" (click)="save()">Save</button>
+          <button mat-stroked-button type="button" data-action="cancel" (click)="cancel()">
+            Cancel
+          </button>
+        } @else {
+          <button mat-raised-button type="button" data-action="edit" (click)="edit()">Edit</button>
+        }
         <button mat-stroked-button type="button" data-action="delete" (click)="delete()">
           Delete
         </button>
@@ -69,6 +76,8 @@ export class SqObjectDetail implements OnInit {
   private readonly objectId = computed(() => this.params().get('id') ?? '');
 
   readonly form = signal<FormGroup>(new FormGroup({}));
+  /** View mode is `editing() === false`: the form is fully disabled and no Save or Cancel shows. */
+  readonly editing = signal(false);
   protected readonly transitions = signal<readonly TransitionResponse[]>([]);
   protected readonly transitionError = signal<string | null>(null);
   private loadedProperties: Record<string, unknown> = {};
@@ -77,6 +86,16 @@ export class SqObjectDetail implements OnInit {
     await this.store.load(this.typeName(), this.objectId());
     this.resetForm();
     await this.loadTransitions();
+  }
+
+  edit(): void {
+    this.editing.set(true);
+    this.rebuildForm(this.loadedProperties);
+  }
+
+  cancel(): void {
+    this.editing.set(false);
+    this.resetForm();
   }
 
   async save(): Promise<void> {
@@ -88,6 +107,7 @@ export class SqObjectDetail implements OnInit {
     try {
       await firstValueFrom(this.objects.update(this.typeName(), this.objectId(), local));
       await this.store.refetch();
+      this.editing.set(false);
       this.resetForm();
     } catch (err) {
       await this.onSaveError(err as ApiError, local);
@@ -170,7 +190,12 @@ export class SqObjectDetail implements OnInit {
   private rebuildForm(initial: Record<string, unknown>): void {
     const type = this.store.type();
     if (type !== null) {
-      this.form.set(buildObjectForm(type, initial));
+      const form = buildObjectForm(type, initial);
+      if (!this.editing()) {
+        // The single place view mode is enforced: every rebuild outside edit mode is disabled.
+        form.disable();
+      }
+      this.form.set(form);
     }
   }
 }

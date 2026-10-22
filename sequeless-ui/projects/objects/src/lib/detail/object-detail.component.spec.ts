@@ -106,6 +106,17 @@ async function loaded(setupResult: ReturnType<typeof setup>) {
   return setupResult;
 }
 
+function queryButton(ctx: ReturnType<typeof setup>, selector: string): HTMLButtonElement | null {
+  ctx.fixture.detectChanges();
+  return ctx.fixture.nativeElement.querySelector(selector);
+}
+
+async function clickEdit(ctx: ReturnType<typeof setup>): Promise<void> {
+  queryButton(ctx, '[data-action="edit"]')!.click();
+  ctx.fixture.detectChanges();
+  await ctx.fixture.whenStable();
+}
+
 describe('SqObjectDetail', () => {
   afterEach(() => {
     TestBed.resetTestingModule();
@@ -113,6 +124,7 @@ describe('SqObjectDetail', () => {
 
   it('on 409 stale-object opens the conflict dialog once and does not re-PUT on its own', async () => {
     const ctx = await loaded(setup());
+    await clickEdit(ctx);
     ctx.objects.update.mockReturnValueOnce(throwError(() => problem('stale-object')));
 
     await ctx.component.save();
@@ -123,6 +135,7 @@ describe('SqObjectDetail', () => {
 
   it('keeps the edited values in the form when the conflict dialog is dismissed', async () => {
     const ctx = await loaded(setup(undefined));
+    await clickEdit(ctx);
     ctx.objects.update.mockReturnValueOnce(throwError(() => problem('stale-object')));
     ctx.component.form().get('status')!.setValue('Closed');
 
@@ -158,6 +171,7 @@ describe('SqObjectDetail', () => {
 
   it('refetches the object after a successful save instead of trusting the PUT body', async () => {
     const ctx = await loaded(setup());
+    await clickEdit(ctx);
     const getCallsBefore = ctx.objects.get.mock.calls.length;
 
     await ctx.component.save();
@@ -259,5 +273,61 @@ describe('SqObjectDetail', () => {
       '[data-transition-error]',
     );
     expect(inline?.textContent).toContain('Cannot close from Draft');
+  });
+
+  it('opens in view mode with every control disabled and no Save button', async () => {
+    const ctx = await loaded(setup());
+    ctx.fixture.detectChanges();
+
+    const controls = Object.values(ctx.component.form().controls);
+    expect(controls.length).toBeGreaterThan(0);
+    expect(controls.every((control) => control.disabled)).toBe(true);
+    expect(queryButton(ctx, '[data-action="save"]')).toBeNull();
+    expect(queryButton(ctx, '[data-action="cancel"]')).toBeNull();
+  });
+
+  it('Edit enables the editable controls and keeps read-only controls disabled', async () => {
+    const ctx = await loaded(setup());
+    await clickEdit(ctx);
+
+    const form = ctx.component.form();
+    expect(form.get('title')!.enabled).toBe(true);
+    expect(form.get('status')!.enabled).toBe(true);
+    expect(form.get('openTaskCount')!.disabled).toBe(true);
+    expect(queryButton(ctx, '[data-action="save"]')).not.toBeNull();
+    expect(queryButton(ctx, '[data-action="cancel"]')).not.toBeNull();
+  });
+
+  it('Cancel discards the edits and returns to view mode', async () => {
+    const ctx = await loaded(setup());
+    await clickEdit(ctx);
+    ctx.component.form().get('status')!.setValue('Closed');
+
+    queryButton(ctx, '[data-action="cancel"]')!.click();
+    ctx.fixture.detectChanges();
+
+    expect(ctx.component.form().get('status')!.value).toBe('Open');
+    expect(ctx.component.form().disabled).toBe(true);
+    expect(queryButton(ctx, '[data-action="save"]')).toBeNull();
+  });
+
+  it('a successful save returns to view mode', async () => {
+    const ctx = await loaded(setup());
+    await clickEdit(ctx);
+    ctx.component.form().get('status')!.setValue('Closed');
+
+    await ctx.component.save();
+    ctx.fixture.detectChanges();
+
+    expect(ctx.component.form().disabled).toBe(true);
+    expect(queryButton(ctx, '[data-action="save"]')).toBeNull();
+  });
+
+  it('Delete and the transition buttons are available in view mode', async () => {
+    const ctx = await loaded(setup());
+    ctx.fixture.detectChanges();
+
+    expect(queryButton(ctx, '[data-action="delete"]')!.disabled).toBe(false);
+    expect(queryButton(ctx, '[data-transition="close"]')!.disabled).toBe(false);
   });
 });
