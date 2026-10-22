@@ -4,6 +4,7 @@
  * with no body and only ever reports it as dispatched: the server handles signals asynchronously,
  * so the panel never claims the transition happened.
  */
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import type {
@@ -16,7 +17,12 @@ import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
 import { provideUiKit } from '@sequeless/ui-kit';
 import { of, throwError } from 'rxjs';
 
-import { OBJECTS_SIGNAL_REFETCH_DELAY_MS, SqObjectSignals } from './object-signals';
+import { ObjectDetailStore } from '../detail/object-detail.store';
+import {
+  OBJECT_SIGNALS_PANEL,
+  OBJECTS_SIGNAL_REFETCH_DELAY_MS,
+  SqObjectSignals,
+} from './object-signals';
 
 const OBJECT_ID = '0b6f5c1e-7a0d-4d3e-9a51-2f8e4c6b9d10';
 
@@ -51,12 +57,18 @@ const OBJECT: BusinessObjectResponse = {
 
 function setup(delayMs?: number) {
   const objects = { signal: vi.fn(() => of(undefined)) };
+  const store = {
+    type: signal<TypeDetailResponse | null>(TYPE),
+    object: signal<BusinessObjectResponse | null>(OBJECT),
+    refetch: vi.fn(() => Promise.resolve(OBJECT)),
+  };
 
   TestBed.configureTestingModule({
     providers: [
       provideUiKit(),
       provideNoopAnimations(),
       { provide: ObjectsClient, useValue: objects },
+      { provide: ObjectDetailStore, useValue: store },
       ...(delayMs === undefined
         ? []
         : [{ provide: OBJECTS_SIGNAL_REFETCH_DELAY_MS, useValue: delayMs }]),
@@ -64,10 +76,8 @@ function setup(delayMs?: number) {
   });
 
   const fixture = TestBed.createComponent(SqObjectSignals);
-  fixture.componentRef.setInput('type', TYPE);
-  fixture.componentRef.setInput('object', OBJECT);
   fixture.detectChanges();
-  return { fixture, host: fixture.nativeElement as HTMLElement, objects };
+  return { fixture, host: fixture.nativeElement as HTMLElement, objects, store };
 }
 
 async function click(ctx: ReturnType<typeof setup>, name: string) {
@@ -139,6 +149,31 @@ describe('SqObjectSignals', () => {
     expect(ctx.fixture.componentInstance.error()?.status).toBe(500);
   });
 
+  it('resolves OBJECT_SIGNALS_PANEL to SqObjectSignals by default', () => {
+    expect(TestBed.inject(OBJECT_SIGNALS_PANEL)).toBe(SqObjectSignals);
+  });
+
+  it('renders no buttons while the store has no object or type', () => {
+    const ctx = setup();
+    ctx.store.object.set(null);
+    ctx.fixture.detectChanges();
+    expect(ctx.host.querySelectorAll('[data-signal]')).toHaveLength(0);
+
+    ctx.store.object.set(OBJECT);
+    ctx.store.type.set(null);
+    ctx.fixture.detectChanges();
+    expect(ctx.host.querySelectorAll('[data-signal]')).toHaveLength(0);
+  });
+
+  it('the Refresh button refetches immediately', () => {
+    const ctx = setup();
+    const refresh = [...ctx.host.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Refresh',
+    );
+    refresh?.click();
+    expect(ctx.store.refetch).toHaveBeenCalledTimes(1);
+  });
+
   describe('refetch after dispatch', () => {
     const problem = (overrides: Partial<ApiError>): ApiError => ({
       status: 500,
@@ -168,10 +203,9 @@ describe('SqObjectSignals', () => {
       expect(TestBed.inject(OBJECTS_SIGNAL_REFETCH_DELAY_MS)).toBe(1500);
     });
 
-    it('emits refresh once after the configured delay following a successful dispatch', async () => {
+    it('refetches the store once after the configured delay following a successful dispatch', async () => {
       const ctx = setup(1500);
-      const spy = vi.fn();
-      ctx.fixture.componentInstance.refresh.subscribe(spy);
+      const spy = ctx.store.refetch;
 
       await clickWithFakeTimers(ctx, 'approved');
       vi.advanceTimersByTime(1499);
@@ -184,10 +218,9 @@ describe('SqObjectSignals', () => {
       expect(spy).toHaveBeenCalledTimes(1);
     });
 
-    it('does not emit refresh when the dispatch fails', async () => {
+    it('does not refetch when the dispatch fails', async () => {
       const ctx = setup(1500);
-      const spy = vi.fn();
-      ctx.fixture.componentInstance.refresh.subscribe(spy);
+      const spy = ctx.store.refetch;
       ctx.objects.signal.mockReturnValueOnce(throwError(() => problem({})));
 
       await clickWithFakeTimers(ctx, 'approved');
@@ -196,10 +229,9 @@ describe('SqObjectSignals', () => {
       expect(spy).not.toHaveBeenCalled();
     });
 
-    it('cancels the pending refresh when the component is destroyed', async () => {
+    it('cancels the pending refetch when the component is destroyed', async () => {
       const ctx = setup(1500);
-      const spy = vi.fn();
-      ctx.fixture.componentInstance.refresh.subscribe(spy);
+      const spy = ctx.store.refetch;
 
       await clickWithFakeTimers(ctx, 'approved');
       ctx.fixture.destroy();

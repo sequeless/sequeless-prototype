@@ -5,6 +5,7 @@
  * - 409 transition-not-available refreshes the transitions list and opens no dialog.
  * - A successful save refetches the object (new ETag) rather than trusting the PUT response.
  */
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -20,7 +21,11 @@ import { provideUiKit } from '@sequeless/ui-kit';
 import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
 import { of, throwError } from 'rxjs';
 
+import { OBJECT_SIGNALS_PANEL } from '../signals/object-signals';
 import { SqObjectDetail } from './object-detail.component';
+
+@Component({ selector: 'sq-stub-panel', template: 'stub' })
+class StubPanel {}
 
 const OBJECT_ID = '0b6f5c1e-7a0d-4d3e-9a51-2f8e4c6b9d10';
 
@@ -209,6 +214,16 @@ describe('SqObjectDetail', () => {
 
     const host: HTMLElement = ctx.fixture.nativeElement;
     expect(host.querySelectorAll('sq-object-signals')).toHaveLength(1);
+  });
+
+  it('renders the panel bound to OBJECT_SIGNALS_PANEL instead of the default', async () => {
+    TestBed.overrideProvider(OBJECT_SIGNALS_PANEL, { useValue: StubPanel });
+    const ctx = await loaded(setup());
+    ctx.fixture.detectChanges();
+
+    const host: HTMLElement = ctx.fixture.nativeElement;
+    expect(host.querySelectorAll('sq-stub-panel')).toHaveLength(1);
+    expect(host.querySelectorAll('sq-object-signals')).toHaveLength(0);
   });
 
   it('exposes the reason of an unavailable transition as its title', async () => {

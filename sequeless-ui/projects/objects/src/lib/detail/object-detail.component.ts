@@ -1,3 +1,4 @@
+import { NgComponentOutlet } from '@angular/common';
 import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormGroup } from '@angular/forms';
@@ -12,17 +13,17 @@ import {
 import { openConflictDialog, SqProblemBanner } from '@sequeless/ui-kit';
 import { firstValueFrom } from 'rxjs';
 
-import { SqObjectSignals } from '../signals/object-signals';
+import { OBJECT_SIGNALS_PANEL } from '../signals/object-signals';
 import { buildObjectForm, formToProperties, SqObjectForm } from './object-form';
 import { ObjectDetailStore } from './object-detail.store';
 
 /** View and edit one object. Concurrency conflicts are surfaced, never silently retried. */
 @Component({
   selector: 'sq-object-detail',
-  imports: [MatButtonModule, SqObjectForm, SqObjectSignals, SqProblemBanner],
+  imports: [MatButtonModule, NgComponentOutlet, SqObjectForm, SqProblemBanner],
   providers: [ObjectDetailStore],
   template: `
-    @if (store.object(); as object) {
+    @if (store.object()) {
       <h2>{{ typeName() }}</h2>
       @if (store.type(); as type) {
         <sq-object-form [type]="type" [form]="form()" />
@@ -30,7 +31,7 @@ import { ObjectDetailStore } from './object-detail.store';
         <button mat-stroked-button type="button" data-action="delete" (click)="delete()">
           Delete
         </button>
-        <sq-object-signals [type]="type" [object]="object" (refresh)="store.refetch()" />
+        <ng-container *ngComponentOutlet="signalsPanel" />
       }
       <div class="transitions">
         @for (transition of transitions(); track transition.name) {
@@ -61,6 +62,7 @@ export class SqObjectDetail implements OnInit {
   private readonly objects = inject(ObjectsClient);
   private readonly dialog = inject(MatDialog);
   readonly store = inject(ObjectDetailStore);
+  protected readonly signalsPanel = inject(OBJECT_SIGNALS_PANEL);
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly typeName = computed(() => this.params().get('type') ?? '');

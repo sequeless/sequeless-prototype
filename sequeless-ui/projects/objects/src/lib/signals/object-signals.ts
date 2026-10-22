@@ -4,20 +4,15 @@ import {
   InjectionToken,
   computed,
   inject,
-  input,
-  output,
   signal,
+  Type,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import {
-  ApiError,
-  BusinessObjectResponse,
-  ObjectsClient,
-  TypeDetailResponse,
-} from '@sequeless/core-api';
+import { ApiError, ObjectsClient } from '@sequeless/core-api';
 import { SqProblemBanner } from '@sequeless/ui-kit';
 import { firstValueFrom } from 'rxjs';
 
+import { ObjectDetailStore } from '../detail/object-detail.store';
 import { knownSignals } from './known-signals';
 
 /** Signals are handled asynchronously (202), so the object is refetched this long after a dispatch. */
@@ -25,6 +20,15 @@ export const OBJECTS_SIGNAL_REFETCH_DELAY_MS = new InjectionToken<number>(
   'OBJECTS_SIGNAL_REFETCH_DELAY_MS',
   { providedIn: 'root', factory: () => 1500 },
 );
+
+/**
+ * The component the object detail view renders as its signals panel. Any component bound to it
+ * must need NO inputs or outputs: it gets everything by injecting `ObjectDetailStore`.
+ */
+export const OBJECT_SIGNALS_PANEL = new InjectionToken<Type<unknown>>('OBJECT_SIGNALS_PANEL', {
+  providedIn: 'root',
+  factory: () => SqObjectSignals,
+});
 
 /**
  * Fires the signals that the object's type says apply from its current state. The catalogue of all
@@ -49,7 +53,7 @@ export const OBJECTS_SIGNAL_REFETCH_DELAY_MS = new InjectionToken<number>(
         <sq-problem-banner [problems]="error" />
       }
     }
-    <button mat-button type="button" (click)="refresh.emit()">Refresh</button>
+    <button mat-button type="button" (click)="refetch()">Refresh</button>
   `,
 })
 export class SqObjectSignals {
@@ -57,33 +61,44 @@ export class SqObjectSignals {
   private readonly refetchDelayMs = inject(OBJECTS_SIGNAL_REFETCH_DELAY_MS);
   private refetchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  readonly type = input.required<TypeDetailResponse>();
-  readonly object = input.required<BusinessObjectResponse>();
-  readonly refresh = output<void>();
+  private readonly store = inject(ObjectDetailStore);
 
   readonly dispatched = signal<string | null>(null);
   readonly error = signal<ApiError | null>(null);
 
-  protected readonly signalNames = computed(() => knownSignals(this.type(), this.object().state));
+  protected readonly signalNames = computed(() => {
+    const type = this.store.type();
+    const object = this.store.object();
+    return type === null || object === null ? [] : knownSignals(type, object.state);
+  });
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.cancelRefetch());
   }
 
   async fire(name: string): Promise<void> {
+    const type = this.store.type();
+    const object = this.store.object();
+    if (type === null || object === null) {
+      return;
+    }
     this.cancelRefetch();
     this.dispatched.set(null);
     this.error.set(null);
     try {
-      await firstValueFrom(this.objects.signal(this.type().name, this.object().id, name));
+      await firstValueFrom(this.objects.signal(type.name, object.id, name));
       this.dispatched.set(name);
       this.refetchTimer = setTimeout(() => {
         this.refetchTimer = null;
-        this.refresh.emit();
+        this.refetch();
       }, this.refetchDelayMs);
     } catch (err) {
       this.error.set(err as ApiError);
     }
+  }
+
+  protected refetch(): void {
+    void this.store.refetch();
   }
 
   private cancelRefetch(): void {
