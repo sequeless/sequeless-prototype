@@ -51,9 +51,13 @@ const VALUELESS_OPERATORS: readonly FilterOperator[] = ['isnull', 'notnull'];
     @for (name of facetNames(); track name) {
       <div class="facet" [attr.data-facet]="name">
         <span>{{ name }}</span>
-        <mat-chip-listbox>
+        <mat-chip-listbox
+          multiple
+          [value]="selectedFacetValues(name)"
+          (change)="onFacetChange(name, $event.value)"
+        >
           @for (bucket of facetBuckets(name); track bucket.value) {
-            <mat-chip-option [attr.data-value]="bucket.value" (click)="addFilter(name, bucket.value)">
+            <mat-chip-option [value]="bucket.value" [attr.data-value]="bucket.value">
               {{ bucket.value }} ({{ bucket.count }})
             </mat-chip-option>
           }
@@ -85,7 +89,16 @@ const VALUELESS_OPERATORS: readonly FilterOperator[] = ['isnull', 'notnull'];
         }
       </select>
       <input data-add-value [value]="newValue()" (input)="newValue.set(valueOf($event))" />
-      <button type="button" (click)="addCustomFilter()">Add filter</button>
+      <button type="button" data-add-filter [disabled]="!canAddFilter()" (click)="addCustomFilter()">
+        Add filter
+      </button>
+      @if (canAddRange()) {
+        <input data-range-from [value]="rangeFrom()" (input)="rangeFrom.set(valueOf($event))" />
+        <input data-range-to [value]="rangeTo()" (input)="rangeTo.set(valueOf($event))" />
+        <button type="button" data-add-range [disabled]="!canSubmitRange()" (click)="addRange()">
+          Add range
+        </button>
+      }
     </div>
 
     <table mat-table [dataSource]="rows()" matSort [matSortActive]="activeSort()" (matSortChange)="onSort($event)">
@@ -134,6 +147,8 @@ export class SqObjectBrowse implements OnInit {
   readonly newProperty = signal('');
   readonly newOperator = signal<FilterOperator>('eq');
   readonly newValue = signal('');
+  readonly rangeFrom = signal('');
+  readonly rangeTo = signal('');
 
   readonly columns = computed(() => {
     const type = this.type();
@@ -149,6 +164,11 @@ export class SqObjectBrowse implements OnInit {
     const column = this.columns().find((c) => c.name === this.newProperty());
     return column ? operatorsFor(column) : [];
   });
+  readonly canAddFilter = computed(
+    () => VALUELESS_OPERATORS.includes(this.newOperator()) || this.newValue().length > 0,
+  );
+  readonly canAddRange = computed(() => this.newOperators().includes('gte'));
+  readonly canSubmitRange = computed(() => this.rangeFrom().length > 0 && this.rangeTo().length > 0);
 
   constructor() {
     // Reload whenever the type or the URL-backed browse state changes; facets need the type first.
@@ -197,19 +217,43 @@ export class SqObjectBrowse implements OnInit {
     }
   }
 
-  addFilter(property: string, value: string): void {
-    this.addClause({ property, op: 'eq', value });
+  selectedFacetValues(name: string): string[] {
+    return this.query
+      .state()
+      .filters.filter((c) => c.property === name && c.op === 'eq')
+      .map((c) => String(c.value));
+  }
+
+  /** The listbox is the selection source: the eq clauses for this facet mirror what is selected. */
+  onFacetChange(name: string, values: readonly string[]): void {
+    const others = this.query.state().filters.filter((c) => !(c.property === name && c.op === 'eq'));
+    const selected = values.map((value): FilterClause => ({ property: name, op: 'eq', value }));
+    void this.query.update({ filters: [...others, ...selected] });
   }
 
   addCustomFilter(): void {
+    if (!this.canAddFilter()) {
+      return;
+    }
     const op = this.newOperator();
     const value = this.newValue();
     if (VALUELESS_OPERATORS.includes(op)) {
       this.addClause({ property: this.newProperty(), op });
-    } else if (value.length > 0) {
+    } else {
       this.addClause({ property: this.newProperty(), op, value });
       this.newValue.set('');
     }
+  }
+
+  /** A range is one control that emits the gte and lte pair on the same property. */
+  addRange(): void {
+    const property = this.newProperty();
+    this.addClauses([
+      { property, op: 'gte', value: this.rangeFrom() },
+      { property, op: 'lte', value: this.rangeTo() },
+    ]);
+    this.rangeFrom.set('');
+    this.rangeTo.set('');
   }
 
   removeFilter(index: number): void {
@@ -227,7 +271,11 @@ export class SqObjectBrowse implements OnInit {
   }
 
   private addClause(clause: FilterClause): void {
-    void this.query.update({ filters: [...this.query.state().filters, clause] });
+    this.addClauses([clause]);
+  }
+
+  private addClauses(clauses: readonly FilterClause[]): void {
+    void this.query.update({ filters: [...this.query.state().filters, ...clauses] });
   }
 
   private async load(state: BrowseQueryState): Promise<void> {

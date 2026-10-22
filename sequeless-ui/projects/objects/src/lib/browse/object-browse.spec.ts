@@ -6,6 +6,8 @@
  * property's datatype (operatorsFor). All state changes go through the URL, never local state.
  */
 import { TestBed } from '@angular/core/testing';
+import { MatChipOption } from '@angular/material/chips';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import type {
@@ -106,7 +108,13 @@ describe('SqObjectBrowse', () => {
   it('selecting a facet bucket writes an eq filter clause to the URL', async () => {
     const ctx = await loaded(setup());
 
-    clickOn(ctx, '[data-facet="status"] [data-value="Open"]');
+    // selectViaInteraction is the user-originated path, which makes the listbox emit change.
+    const option = ctx.fixture.debugElement
+      .queryAll(By.directive(MatChipOption))
+      .map((d) => d.componentInstance as MatChipOption)
+      .find((o) => o.value === 'Open')!;
+    option.selectViaInteraction();
+    ctx.fixture.detectChanges();
 
     expect(queryParamsOfLastNavigation(ctx)).toEqual(
       expect.objectContaining({ 'filter[status][eq]': 'Open' }),
@@ -144,6 +152,35 @@ describe('SqObjectBrowse', () => {
 
     const chip = ctx.host.querySelector('[data-filter-index="0"]') as HTMLElement;
     expect(chip.textContent).toContain('bad operator');
+  });
+
+  it('adding a range writes a gte and lte pair on the same property', async () => {
+    const ctx = await loaded(setup());
+    const select = ctx.host.querySelector('[data-add-property]') as HTMLSelectElement;
+    select.value = 'openTaskCount';
+    select.dispatchEvent(new Event('change'));
+    ctx.fixture.detectChanges();
+    const from = ctx.host.querySelector('[data-range-from]') as HTMLInputElement;
+    const to = ctx.host.querySelector('[data-range-to]') as HTMLInputElement;
+    from.value = '1';
+    from.dispatchEvent(new Event('input'));
+    to.value = '5';
+    to.dispatchEvent(new Event('input'));
+    ctx.fixture.detectChanges();
+
+    clickOn(ctx, '[data-add-range]');
+
+    expect(queryParamsOfLastNavigation(ctx)).toEqual(
+      expect.objectContaining({ 'filter[openTaskCount][gte]': '1', 'filter[openTaskCount][lte]': '5' }),
+    );
+  });
+
+  it('the add-filter button stays disabled until a value is entered', async () => {
+    const ctx = await loaded(setup());
+
+    const button = ctx.host.querySelector('[data-add-filter]') as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
   });
 
   it('offers the operators for the chosen property datatype', async () => {
