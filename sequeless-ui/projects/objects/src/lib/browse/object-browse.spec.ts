@@ -1,0 +1,163 @@
+/**
+ * Contract [OBJ-BROWSE] (lib/browse/object-browse.ts, `SqObjectBrowse`): one facet group per
+ * facetable property, requested via `facets=`; selecting a facet bucket or adding a filter writes
+ * a `filter[p][op]` clause to the URL; removing a chip removes its clause; a 400 invalid-query
+ * violation is shown on the chip it refers to; the add-filter operator menu follows the chosen
+ * property's datatype (operatorsFor). All state changes go through the URL, never local state.
+ */
+import { TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import type {
+  ApiError,
+  BrowseQueryState,
+  QueryResultResponse,
+  TypeDetailResponse,
+} from '@sequeless/core-api';
+import { ObjectsClient, TypesClient } from '@sequeless/core-api';
+import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
+import { provideUiKit } from '@sequeless/ui-kit';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+
+import { operatorsFor, visibleColumns } from './browse-columns';
+import { SqObjectBrowse } from './object-browse';
+
+const TYPE: TypeDetailResponse = PROJECT_TYPE_DETAIL;
+
+const RESULT: QueryResultResponse = {
+  items: [],
+  page: 0,
+  size: 20,
+  totalItems: 0,
+  totalPages: 0,
+  facets: { status: [{ value: 'Open', count: 3 }, { value: 'Closed', count: 1 }] },
+};
+
+function setup(initialParams: Record<string, string> = {}, browseError?: ApiError) {
+  const objects = {
+    browse: vi.fn<(type: string, state: BrowseQueryState) => Observable<QueryResultResponse>>(() =>
+      browseError ? throwError(() => browseError) : of(RESULT),
+    ),
+  };
+  const queryParamMap = new BehaviorSubject(convertToParamMap(initialParams));
+
+  TestBed.configureTestingModule({
+    providers: [
+      provideUiKit(),
+      provideNoopAnimations(),
+      provideRouter([]),
+      { provide: ObjectsClient, useValue: objects },
+      { provide: TypesClient, useValue: { describe: vi.fn(() => of(TYPE)) } },
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          paramMap: of(convertToParamMap({ type: 'Project' })),
+          queryParamMap,
+        },
+      },
+    ],
+  });
+
+  const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+  const fixture = TestBed.createComponent(SqObjectBrowse);
+  return { fixture, host: fixture.nativeElement as HTMLElement, objects, navigate };
+}
+
+async function loaded(ctx: ReturnType<typeof setup>) {
+  ctx.fixture.detectChanges();
+  await ctx.fixture.whenStable();
+  await new Promise((resolve) => setTimeout(resolve));
+  ctx.fixture.detectChanges();
+  return ctx;
+}
+
+function clickOn(ctx: ReturnType<typeof setup>, selector: string) {
+  (ctx.host.querySelector(selector) as HTMLElement).click();
+}
+
+function queryParamsOfLastNavigation(ctx: ReturnType<typeof setup>): Record<string, unknown> {
+  const [, extras] = ctx.navigate.mock.calls.at(-1) as unknown as [unknown, { queryParams: Record<string, unknown> }];
+  return extras.queryParams;
+}
+
+describe('SqObjectBrowse', () => {
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('renders one facet group per facetable property', async () => {
+    const ctx = await loaded(setup());
+
+    const facets = [...ctx.host.querySelectorAll('[data-facet]')].map((el) =>
+      el.getAttribute('data-facet'),
+    );
+
+    expect(facets).toEqual(['status']);
+  });
+
+  it('requests facets for every facetable property', async () => {
+    const ctx = await loaded(setup());
+
+    const state = ctx.objects.browse.mock.calls.at(-1)![1] as BrowseQueryState;
+
+    expect(state.facets).toEqual(['status']);
+  });
+
+  it('selecting a facet bucket writes an eq filter clause to the URL', async () => {
+    const ctx = await loaded(setup());
+
+    clickOn(ctx, '[data-facet="status"] [data-value="Open"]');
+
+    expect(queryParamsOfLastNavigation(ctx)).toEqual(
+      expect.objectContaining({ 'filter[status][eq]': 'Open' }),
+    );
+  });
+
+  it('removing a filter chip removes its clause from the URL', async () => {
+    const ctx = await loaded(setup({ 'filter[status][eq]': 'Open' }));
+
+    clickOn(ctx, '[data-filter-index="0"] [data-remove]');
+
+    expect(queryParamsOfLastNavigation(ctx)).not.toHaveProperty('filter[status][eq]');
+  });
+
+  it('shows a 400 invalid-query violation on the chip it refers to', async () => {
+    const ctx = await loaded(
+      setup(
+        { 'filter[status][eq]': 'Open' },
+        {
+          status: 400,
+          kind: 'problem',
+          title: 'Invalid query',
+          detail: null,
+          slug: 'invalid-query',
+          violations: [{ property: 'status', propertyIri: null, message: 'bad operator' }],
+          issues: [],
+          expectedVersion: null,
+          transitionName: null,
+          typeIri: null,
+          signalName: null,
+          raw: null,
+        },
+      ),
+    );
+
+    const chip = ctx.host.querySelector('[data-filter-index="0"]') as HTMLElement;
+    expect(chip.textContent).toContain('bad operator');
+  });
+
+  it('offers the operators for the chosen property datatype', async () => {
+    const ctx = await loaded(setup());
+    const select = ctx.host.querySelector('[data-add-property]') as HTMLSelectElement;
+    select.value = 'openTaskCount';
+    select.dispatchEvent(new Event('change'));
+    ctx.fixture.detectChanges();
+
+    const operators = [...ctx.host.querySelectorAll('[data-add-operator] option')].map(
+      (o) => (o as HTMLOptionElement).value,
+    );
+
+    const openTaskCount = visibleColumns(TYPE).find((p) => p.name === 'openTaskCount')!;
+    expect(operators).toEqual([...operatorsFor(openTaskCount)]);
+  });
+});
