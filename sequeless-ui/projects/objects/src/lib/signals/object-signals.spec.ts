@@ -16,7 +16,7 @@ import { PROJECT_TYPE_DETAIL } from '@sequeless/testing';
 import { provideUiKit } from '@sequeless/ui-kit';
 import { of, throwError } from 'rxjs';
 
-import { SqObjectSignals } from './object-signals';
+import { OBJECTS_SIGNAL_REFETCH_DELAY_MS, SqObjectSignals } from './object-signals';
 
 const OBJECT_ID = '0b6f5c1e-7a0d-4d3e-9a51-2f8e4c6b9d10';
 
@@ -49,7 +49,7 @@ const OBJECT: BusinessObjectResponse = {
   },
 };
 
-function setup() {
+function setup(delayMs?: number) {
   const objects = { signal: vi.fn(() => of(undefined)) };
 
   TestBed.configureTestingModule({
@@ -57,6 +57,9 @@ function setup() {
       provideUiKit(),
       provideNoopAnimations(),
       { provide: ObjectsClient, useValue: objects },
+      ...(delayMs === undefined
+        ? []
+        : [{ provide: OBJECTS_SIGNAL_REFETCH_DELAY_MS, useValue: delayMs }]),
     ],
   });
 
@@ -70,6 +73,12 @@ function setup() {
 async function click(ctx: ReturnType<typeof setup>, name: string) {
   (ctx.host.querySelector(`[data-signal="${name}"]`) as HTMLButtonElement).click();
   await ctx.fixture.whenStable();
+  ctx.fixture.detectChanges();
+}
+
+async function clickWithFakeTimers(ctx: ReturnType<typeof setup>, name: string) {
+  (ctx.host.querySelector(`[data-signal="${name}"]`) as HTMLButtonElement).click();
+  await vi.advanceTimersByTimeAsync(0);
   ctx.fixture.detectChanges();
 }
 
@@ -128,5 +137,90 @@ describe('SqObjectSignals', () => {
 
     expect(ctx.host.textContent ?? '').not.toContain('dispatched');
     expect(ctx.fixture.componentInstance.error()?.status).toBe(500);
+  });
+
+  describe('refetch after dispatch', () => {
+    const problem = (overrides: Partial<ApiError>): ApiError => ({
+      status: 500,
+      kind: 'unknown',
+      title: 'Server error',
+      detail: null,
+      slug: null,
+      violations: [],
+      issues: [],
+      expectedVersion: null,
+      transitionName: null,
+      typeIri: null,
+      signalName: null,
+      raw: null,
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('defaults the refetch delay to 1500 ms', () => {
+      expect(TestBed.inject(OBJECTS_SIGNAL_REFETCH_DELAY_MS)).toBe(1500);
+    });
+
+    it('emits refresh once after the configured delay following a successful dispatch', async () => {
+      const ctx = setup(1500);
+      const spy = vi.fn();
+      ctx.fixture.componentInstance.refresh.subscribe(spy);
+
+      await clickWithFakeTimers(ctx, 'approved');
+      vi.advanceTimersByTime(1499);
+      expect(spy).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(5000);
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not emit refresh when the dispatch fails', async () => {
+      const ctx = setup(1500);
+      const spy = vi.fn();
+      ctx.fixture.componentInstance.refresh.subscribe(spy);
+      ctx.objects.signal.mockReturnValueOnce(throwError(() => problem({})));
+
+      await clickWithFakeTimers(ctx, 'approved');
+      vi.advanceTimersByTime(10000);
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('cancels the pending refresh when the component is destroyed', async () => {
+      const ctx = setup(1500);
+      const spy = vi.fn();
+      ctx.fixture.componentInstance.refresh.subscribe(spy);
+
+      await clickWithFakeTimers(ctx, 'approved');
+      ctx.fixture.destroy();
+      vi.advanceTimersByTime(10000);
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('shows the detail of an unknown-signal 400 inline', async () => {
+      const ctx = setup(1500);
+      ctx.objects.signal.mockReturnValueOnce(
+        throwError(() =>
+          problem({ status: 400, kind: 'problem', slug: 'unknown-signal', detail: 'No such signal' }),
+        ),
+      );
+
+      await clickWithFakeTimers(ctx, 'approved');
+
+      const inline = ctx.host.querySelector('[data-signal-error]');
+      expect(inline?.textContent).toContain('No such signal');
+      expect(inline?.getAttribute('role')).toBe('alert');
+    });
   });
 });
