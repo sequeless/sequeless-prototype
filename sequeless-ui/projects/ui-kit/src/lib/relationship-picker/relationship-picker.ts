@@ -133,7 +133,8 @@ export class SqRelationshipPicker {
   });
 
   private readonly destroyRef: DestroyRef = inject(DestroyRef);
-  private readonly lookup: RelationshipLookup = inject(RELATIONSHIP_LOOKUP);
+  // Optional: without a lookup the picker renders its chips but cannot search or label options.
+  private readonly lookup: RelationshipLookup | null = inject(RELATIONSHIP_LOOKUP, { optional: true });
   private debounce: DebounceTimerHandle | null = null;
   private searchSub: Subscription | null = null;
   private targetTypeSub: Subscription | null = null;
@@ -144,6 +145,10 @@ export class SqRelationshipPicker {
     effect(() => {
       const iri = this.property().targetTypeIri;
       if (this.loadedIri() === iri) {
+        return;
+      }
+      if (this.lookup === null) {
+        this.loadedIri.set(iri);
         return;
       }
       const stream: Observable<TypeDetailResponse> = this.lookup.targetType(iri);
@@ -190,9 +195,12 @@ export class SqRelationshipPicker {
     cancelTimer(this.debounce);
     this.debounce = scheduleTimer(300, () => {
       this.debounce = null;
+      const lookup = this.lookup;
+      if (lookup === null) {
+        return;
+      }
       const iri = this.property().targetTypeIri;
-      const stream: Observable<readonly BusinessObjectResponse[]> =
-        this.lookup.search(iri, term);
+      const stream: Observable<readonly BusinessObjectResponse[]> = lookup.search(iri, term);
       this.searchSub?.unsubscribe();
       this.searchSub = stream.subscribe({
         next: (results) => {
