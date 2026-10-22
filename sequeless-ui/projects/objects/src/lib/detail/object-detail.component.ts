@@ -50,7 +50,7 @@ export class SqObjectDetail implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly objects = inject(ObjectsClient);
   private readonly dialog = inject(MatDialog);
-  protected readonly store = inject(ObjectDetailStore);
+  readonly store = inject(ObjectDetailStore);
 
   private readonly params = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly typeName = computed(() => this.params().get('type') ?? '');
@@ -90,6 +90,12 @@ export class SqObjectDetail implements OnInit {
       const error = err as ApiError;
       if (error.transitionName !== null) {
         await this.loadTransitions();
+      } else if (error.slug === 'stale-object') {
+        // The transition POST carries If-Match, so a concurrent edit can reject it. Refresh and
+        // report; never retry the transition silently.
+        await this.store.refetch();
+        await this.loadTransitions();
+        this.store.error.set(error);
       } else {
         this.store.error.set(error);
       }

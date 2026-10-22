@@ -130,6 +130,19 @@ describe('SqObjectDetail', () => {
     expect(ctx.dialog.open).not.toHaveBeenCalled();
   });
 
+  it('on 409 stale-object from a transition refetches the object and transitions and opens no dialog', async () => {
+    const ctx = await loaded(setup());
+    const getBefore = ctx.objects.get.mock.calls.length;
+    ctx.objects.fireTransition.mockReturnValueOnce(throwError(() => problem('stale-object')));
+
+    await ctx.component.fire('close');
+
+    expect(ctx.objects.get.mock.calls.length).toBe(getBefore + 1);
+    expect(ctx.objects.transitions).toHaveBeenCalledTimes(2);
+    expect(ctx.dialog.open).not.toHaveBeenCalled();
+    expect(ctx.component.store.error()?.slug).toBe('stale-object');
+  });
+
   it('refetches the object after a successful save instead of trusting the PUT body', async () => {
     const ctx = await loaded(setup());
     const getCallsBefore = ctx.objects.get.mock.calls.length;
