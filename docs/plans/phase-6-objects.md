@@ -1,5 +1,9 @@
 # Phase 6 plan — objects feature (generic BREAD)
 
+> **Status:** the spec is implemented. The plan items not built here (the `[OBJ-TRANSITIONS]` and
+> `[OBJ-FILTER]` extractions, the view mode in `[OBJ-DETAIL]`, the search box in `[OBJ-BROWSE]`) and a
+> first run against the real backend moved to `docs/plans/phase-6.5-objects-completion.md`.
+
 Branch: `phase-6-objects` (stacked on the Phase 5 ui-kit work). Spec: `docs/specs/phase-6-objects.md`.
 Execution: a queued batch of stateless `claude -p` calls (Phase A writes one spec file per call, Phase B
 writes one implementation file per call against it), each followed by a scoped commit. All paths below
