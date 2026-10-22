@@ -10,8 +10,10 @@ are relative to `sequeless-ui/`.
 - core-api has wire models, `toApiError`, `browse-query`, `query-capabilities`, `ETagRegistry` and
   `etagInterceptor`, but **no HTTP client at all**, and `public-api.ts` does not export the `query/*`
   and `http/*` files.
-- Nothing provides `HttpClient`; the shell's `app.config.ts` calls neither `provideHttpClient` nor
-  `provideUiKit()`, so `FIELD_RENDERERS` is `{}` at runtime.
+- The shell's `app.config.ts` never calls `provideSequelessHttp()`, so `etagInterceptor` is not registered and no
+  `If-Match` is ever sent. (Measured during implementation: `HttpClient` itself resolves by default in Angular 22, and
+  `SqDynamicField` merges `DEFAULT_FIELD_RENDERERS` itself, treating `FIELD_RENDERERS` as optional overrides. So
+  `provideUiKit()` is not needed for this feature.)
 - `objectsRoutes` is `[]`; the shell already lazy-loads it and must not change `app.routes.ts`.
 - Backend: `GET /api/types`, `GET /api/types/{nameOrIri}`, `GET|POST /api/objects/{type}`,
   `GET|PUT|DELETE /api/objects/{type}/{id}` (ETag = `"version"`, `If-Match` optional),
@@ -27,7 +29,7 @@ are relative to `sequeless-ui/`.
 | D1 | Shared HTTP clients (`TypesClient`, `ObjectsClient`) live in **core-api** as `@Injectable({providedIn:'root'})` classes. | Phases 7–8 reuse them; any consumer swaps them with `{provide: TypesClient, useClass: Fake}`. |
 | D2 | Clients rethrow errors as `SEQUELESS_ERROR_MAPPER(toApiError(err))`. The default mapper stays identity. | Error shaping is a DI token, as Phase 3 intended. |
 | D3 | New `provideSequelessHttp()` in core-api (HttpClient + `etagInterceptor` + every `SEQUELESS_HTTP_INTERCEPTORS` entry). `provideSequeless()` is untouched. | Additive; the shell opts in with one line. |
-| D4 | The shell's `app.config.ts` adds `provideSequelessHttp()` and `provideUiKit()`. `app.routes.ts` is unchanged. | One line each. |
+| D4 | The shell's `app.config.ts` adds `provideSequelessHttp()` only. `provideUiKit()` is deliberately not applied at the root: measured with production builds it adds ~418 kB (the nine field renderers) to the eager bundle and breaks the 1 MB budget, and the objects feature does not need it. The editor and graph slots are provided at the route that needs them. `app.routes.ts` is unchanged. | One line. |
 | D5 | Detail panels share an `ObjectDetailStore` (component-scoped) instead of outputs. The signals panel is resolved through the `OBJECT_SIGNALS_PANEL` token (default `SqSignalsPanel`). | Phase 8 can plug in a richer panel with a single provider, and remove it the same way. |
 | D6 | The signal refetch delay is the `OBJECTS_SIGNAL_REFETCH_DELAY_MS` token (default 1500). | Configurable. |
 | D7 | Facets are always derived from the type (every facetable property) and never written to the URL. Page resets to 0 when filters, sort or q change. | Kept in one place (`BrowseQueryStateService`). |
@@ -222,7 +224,8 @@ export const objectsRoutes: Routes = [{ path: '', providers: [provideObjectsRela
 
 ### [SHELL-CONFIG]
 `projects/sequeless-shell/src/app/app.config.ts` keeps its providers and adds `provideSequelessHttp()`
-(core-api) and `provideUiKit()` (ui-kit).
+(core-api) only. A spec proves a PUT carries `If-Match` once a GET recorded the ETag. `provideUiKit()` is not applied
+at the root (see D4).
 
 ## Task order
 

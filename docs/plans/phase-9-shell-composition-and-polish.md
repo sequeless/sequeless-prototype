@@ -17,7 +17,8 @@ Phase 6 tags (`[CORE-*]`, `[OBJ-*]`, `[SHELL-CONFIG]`) are defined in `docs/plan
 `SpaFallbackWithoutAssetsTest` exist in `sequeless-app/src/test/java/org/sequeless/app/`.
 
 **Left (nothing below exists):**
-- Shell: `app.config.ts` has neither `provideSequelessHttp()`/`provideUiKit()` (Phase 6 `[SHELL-CONFIG]`) nor
+- Shell: `app.config.ts` has `provideSequelessHttp()` (Phase 6 `[SHELL-CONFIG]`, done; `provideUiKit()` is deliberately not
+  applied at the root, see Phase 6 D4) but not
   `provideAutomationEditors()`/`provideAutomationSignalsPanel()` (`[SHELL-AUTOMATION]`). Phase 7 needs **no** shell change
   (`[ONT-ROUTES]` provides `OntologySession`/`ImportFlow` at route level, `ObjectsRelationshipLookup` is route-level in `[OBJ-ROUTES]`).
   No `app.config.spec.ts` or routes spec exists yet (Phase 6 A20 / Phase 8 A18 create/append `app.config.spec.ts`; this phase must not rewrite it).
@@ -57,7 +58,7 @@ verifies/edits it if the composition spec is red):
 ```ts
 export const appConfig: ApplicationConfig = { providers: [
   provideBrowserGlobalErrorListeners(), provideRouter(routes), provideAnimationsAsync(), provideSequeless(),
-  provideSequelessHttp(), provideUiKit(),                     // Phase 6
+  provideSequelessHttp(),                                     // Phase 6 (no provideUiKit(): see Phase 6 D4)
   provideAutomationEditors(), provideAutomationSignalsPanel(), // Phase 8
 ] };
 ```
@@ -70,7 +71,7 @@ ontology → `OntologySession`, `ImportFlow`; automation → none.
 
 ### [SHELL-COMPOSITION-SPEC]
 `projects/sequeless-shell/src/app/app.composition.spec.ts` builds `TestBed` with `appConfig.providers` and asserts:
-`inject(HttpClient)` resolves; `inject(FIELD_RENDERERS)` is non-empty; `inject(OBJECT_SIGNALS_PANEL)` is `SqAutomationSignalsPanel`;
+`inject(HttpClient)` resolves and a PUT carries `If-Match` after a GET recorded the ETag; `inject(OBJECT_SIGNALS_PANEL)` is `SqAutomationSignalsPanel`;
 `panelsFor('transition-trigger')` includes id `automation.trigger` and `panelsFor('transition-guard')` includes `automation.guard`
 (slot names per `[AUT-EDITORS]`; use the exact slot strings from that plan).
 
