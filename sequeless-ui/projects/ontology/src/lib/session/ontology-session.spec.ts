@@ -114,6 +114,16 @@ describe('OntologySession', () => {
     expect(session.revision()).toBe(0);
   });
 
+  it('baseDocument() exposes the loaded document, whose base quads survive edits', async () => {
+    const session = setup();
+    expect(session.baseDocument()).toBeNull();
+    await session.load();
+    const before = session.baseDocument()!.baseQuads.length;
+    session.apply(relabel(session.store()!, A, 'Alpha'));
+    expect(session.baseDocument()!.baseQuads).toHaveLength(before);
+    expect(session.baseDocument()!.store).toBe(session.store());
+  });
+
   it('currentText() serialises the working store', async () => {
     const session = setup();
     await session.load();
