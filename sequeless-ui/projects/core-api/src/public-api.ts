@@ -16,3 +16,4 @@ export * from './lib/http/provide-sequeless-http';
 export * from './lib/clients/api-error-operator';
 export * from './lib/clients/types-client';
 export * from './lib/clients/objects-client';
+export * from './lib/clients/ontology-client';
