@@ -58,6 +58,23 @@ describe('ControlRegistry', () => {
     expect(two.errors).toEqual({ server: 'first; second' });
   });
 
+  it('reveals a control by scrolling its registered element into view', () => {
+    const registry = new ControlRegistry();
+    const control = new FormControl('');
+    const element = document.createElement('div');
+    element.scrollIntoView = vi.fn();
+    registry.register(A, control, element);
+    registry.reveal(control);
+    expect(element.scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' });
+  });
+
+  it('reveal() ignores controls registered without an element', () => {
+    const registry = new ControlRegistry();
+    const control = new FormControl('');
+    registry.register(A, control);
+    expect(() => registry.reveal(control)).not.toThrow();
+  });
+
   it('forgets controls after clear()', () => {
     const registry = new ControlRegistry();
     const control = new FormControl('');

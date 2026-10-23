@@ -4,8 +4,13 @@ import type { EditorDiagnostic, OntologyIssue } from '@sequeless/core-api';
 /** Maps the subject IRI a form control edits to that control, so a 422 report can be routed back onto it. */
 export class ControlRegistry {
   private readonly controls = new Map<string, AbstractControl[]>();
+  private readonly elements = new Map<AbstractControl, HTMLElement>();
 
-  register(subjectIri: string, control: AbstractControl): void {
+  /** `element`, when given, is what `reveal(control)` scrolls into view. */
+  register(subjectIri: string, control: AbstractControl, element?: HTMLElement): void {
+    if (element) {
+      this.elements.set(control, element);
+    }
     const existing = this.controls.get(subjectIri);
     if (existing) {
       existing.push(control);
@@ -16,6 +21,11 @@ export class ControlRegistry {
 
   clear(): void {
     this.controls.clear();
+    this.elements.clear();
+  }
+
+  reveal(control: AbstractControl): void {
+    this.elements.get(control)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   /**
