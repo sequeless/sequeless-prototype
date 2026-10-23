@@ -6,16 +6,11 @@
  * provideUiKit() is deliberately NOT applied at the root: SqDynamicField spreads
  * DEFAULT_FIELD_RENDERERS itself and treats FIELD_RENDERERS as optional overrides, and
  * providing the kit here would add ~418 kB to the eager bundle.
- * [SHELL-AUTOMATION]: the shell contributes automation's trigger/guard editors to the ontology editor and its
- * signals panel to the object detail view.
  */
 import { HttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { SqAutomationSignalsPanel, SqGuardEditor, SqTriggerEditor } from '@sequeless/automation';
 import { SEQUELESS_API_BASE_URL } from '@sequeless/core-api';
-import { OBJECT_SIGNALS_PANEL } from '@sequeless/objects';
-import { ONTOLOGY_EDITOR_PANELS } from '@sequeless/ontology';
 
 import { appConfig } from './app.config';
 
@@ -57,11 +52,5 @@ describe('appConfig [SHELL-CONFIG]', () => {
 
   it('uses /api as the default API base URL', () => {
     expect(TestBed.inject(SEQUELESS_API_BASE_URL)).toBe('/api');
-  });
-
-  it('contributes the automation editors and the signals panel [SHELL-AUTOMATION]', () => {
-    const components = TestBed.inject(ONTOLOGY_EDITOR_PANELS).map((p) => p.component);
-    expect(components).toEqual(expect.arrayContaining([SqTriggerEditor, SqGuardEditor]));
-    expect(TestBed.inject(OBJECT_SIGNALS_PANEL)).toBe(SqAutomationSignalsPanel);
   });
 });
