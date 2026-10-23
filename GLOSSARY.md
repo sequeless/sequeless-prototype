@@ -97,3 +97,21 @@ _Avoid_: connector, pipeline, sync
 **Side effect**:
 An action automation performs in reaction to an event: sending a Command to a Store or to something outside Sequeless, such as a webhook or a remote service. Store events are not Side effects; they feed Observables.
 _Avoid_: action, external call
+
+### Expressions
+
+**Expression**:
+A small formula authored in the Ontology that produces one value, such as a transition guard or the value a Side effect assigns to a property.
+_Avoid_: script, rule (when meaning an Expression)
+
+**Template**:
+Authored text with Expressions embedded in it, rendered into one output of a declared format (plain text, a URL or JSON), such as a webhook body or a log message.
+_Avoid_: expression (when meaning text with embedded Expressions), format string
+
+**Signature**:
+The names an Expression or Template may refer to at the place it is authored, such as the object being changed and the acting principal for a guard.
+_Avoid_: context, scope, bindings (when meaning what may be referred to)
+
+**Dialect**:
+The versioned definition of what Expressions and Templates may say and what they mean. Each Ontology version declares exactly one.
+_Avoid_: language version, JEXL version
