@@ -215,3 +215,33 @@ confirm the state changes only after a refetch, never on the 202.
 
 1. Whether browse accepts `state` as a filter property for the node-click shortcut (D10 degrades to plain navigation to browse if rejected).
 2. Whether `GET /api/types/{iri}` actually includes non-`USER_ACTION` transitions (spec says yes, architecture doc says no); decided in B1, UI stays correct either way via D8.
+
+## As built (deviations from the plan above)
+
+Executed interactively on branch `sequeless-prototype-ui` as a `test(...)` commit then a `feat(...)` commit per
+unit, instead of the Phase A / Phase B batch. Navigator-reviewed amendments:
+
+- **B1 settled:** `GET /api/types/{iri}` is unfiltered (`TypeResponseMapper.java:113`); `docs/architecture/automation.md`
+  section 12 is stale. D8's "server may be hiding transitions" hint stays as a safety net.
+- **Editors read `context.transition`**, the `TransitionView` Phase 7's `OntologyEditorPanelContext` already carries,
+  instead of re-reading `readStateMachine`. They still read the machine for the from-state label and signal collisions.
+- **Trigger editor draft:** every valid change is one `setTransitionTrigger` delta; an invalid one (timer with no
+  duration, blank signal name) applies nothing and shows `[data-error]`. The draft is reset only when the stored
+  trigger really changed, not on each re-parse.
+- **Text fields commit on `change`**, not per keystroke, so one edit is one undo step.
+- **State comparison:** the signals panel passes `object.state` to `signalsForState` unchanged, as Phase 6's
+  `knownSignals` does (both compare with a transition's `from`).
+- **Routes are flat** (`'' ` and `:type`), without the plan's wrapper route.
+- **[SHELL-AUTOMATION] changed (user-approved):** providing `provideAutomationEditors()` / `provideAutomationSignalsPanel()` in
+  `app.config.ts` pulled automation, ontology, objects and n3 into the initial bundle (1.46 MB, over the 1 MB budget; it was
+  750 kB). Instead `app.routes.ts` loads automation by dynamic import on the `ontology` and `objects` routes and attaches the
+  providers to a wrapper route there. `app.config.ts` is unchanged; Phase 9's plan and spec for `app.config` composition need
+  the same amendment.
+- `projects/automation/eslint.config.js` uses the `sq` selector prefix, like objects and ontology.
+
+## Verification result
+
+automation 97, ontology 149 tests pass; `ng lint automation` and `ng lint sequeless-shell` clean; production build succeeds,
+initial bundle 757.86 kB (was 750.61 kB; over the 500 kB warning, under the 1 MB error). Grep checks (`.transitions(`,
+`fireTransition`, `@sequeless/automation` under ontology, `types/reload`) are empty. Pre-existing, unchanged: the shell
+`app.spec.ts` failure and the objects test "Delete and the transition buttons are available in view mode".
