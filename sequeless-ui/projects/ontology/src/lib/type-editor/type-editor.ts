@@ -1,6 +1,8 @@
 import { NgComponentOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatTabsModule } from '@angular/material/tabs';
+import { ActivatedRoute } from '@angular/router';
 import { TypesClient } from '@sequeless/core-api';
 import type { ApiError, OntologyIssue } from '@sequeless/core-api';
 import { SqProblemBanner } from '@sequeless/ui-kit';
@@ -53,13 +55,17 @@ import { SqPropertyList } from './property-list';
         </mat-tab>
       </mat-tab-group>
     } @else if (resolved()) {
-      <p>Unknown type "{{ type() }}".</p>
+      <p>Unknown type "{{ name() }}".</p>
     }
   `,
 })
 export class SqTypeEditor {
-  /** The route's `:type` parameter. */
-  readonly type = input.required<string>();
+  /** Overrides the route's `:type` parameter; the shell does not bind route params to inputs. */
+  readonly type = input<string>();
+
+  private readonly params = inject(ActivatedRoute, { optional: true })?.paramMap;
+  private readonly routeType = this.params ? toSignal(this.params) : signal(null);
+  protected readonly name = computed(() => this.type() ?? this.routeType()?.get('type') ?? '');
 
   private readonly session = inject(OntologySession);
   private readonly registry = inject(ControlRegistry);
@@ -72,7 +78,7 @@ export class SqTypeEditor {
 
   constructor() {
     effect((onCleanup) => {
-      const type = this.type();
+      const type = this.name();
       let stale = false;
       onCleanup(() => (stale = true));
       this.registry.clear();
