@@ -225,3 +225,40 @@ No call to `/api/types/reload` and no dry-run call may exist (grep check).
 
 - Exact `GET /api/ontology` path and content type (plan assumes `text/turtle`; B1 verifies against the controller).
 - Whether the backend rejects a `POST` whose Turtle lacks the prefixes the original had (affects D3/`serializeOntology` reuse of captured prefixes).
+
+## As built (deviations from the plan above)
+
+Executed interactively on branch `sequeless-prototype-ui` as a `test(...)` commit then a `feat(...)` commit per
+unit, instead of the Phase A / Phase B batch. Navigator-reviewed amendments:
+
+- **Order:** `OntologySession` precedes `editor-panels` (the panel context types it); `import-flow`,
+  `import-bar` and `import-result` precede `type-list` (its toolbar hosts `sq-import-bar`). B-DEP was a no-op
+  (`@codemirror/merge` was already a dependency).
+- **Open question 1 settled:** `GET /api/ontology` produces `text/turtle` and `POST` consumes it
+  (`OntologyController.java`). Open question 2 (backend rejecting a POST that lacks the original prefixes) is
+  still untested against a live backend.
+- **`ControlRegistry` is provided on the route** with `OntologySession` and `ImportFlow`, not on
+  `SqTypeEditor`; the editor clears it when its type changes and on destroy. It gained an optional element on
+  `register` plus `reveal(control)` (scroll to the first routed issue) and `unregister(control)`.
+- **Who refetches types (D11):** `OntologySession.importSucceeded` rebases and bumps `importRevision`;
+  `SqOntologyTypeList` refetches `TypesClient.list()` when it changes. `lastImport` feeds the result dialog.
+  `ensureLoaded()` loads once, so moving between list, type and raw page keeps edits.
+- **`[ONT-PROPFORM]`:** `propertyToForm(p, cardinality)` and `diffPropertyForm(store, p, cardinality, value)`;
+  the rdf edits are functions of the store and `PropertyView` carries no cardinality. Datatype and display hints
+  are shown read-only; a rollup derivation can be cleared but not edited.
+- **`[ONT-EXT]`:** `OntologyEditorPanelContext` also carries `transition?: TransitionView` (the `Term` rdf's
+  `setTransitionTrigger` / `setGuard` need; most transitions are blank nodes). It is valid for one revision;
+  the state-machine editor re-resolves its selection by (name, from, to, guard) each revision.
+- **Routes:** a `raw` route (`SqRawTurtlePage`) precedes `:type`; `SqTypeEditor` reads the `:type` param from
+  `ActivatedRoute` because the shell does not enable component input binding.
+- `TEXT_DIFF_VIEW` lives in `diff-preview/text-diff-view.ts`; the `<pre>` fallback view was not built.
+- n3 labels blank nodes from a counter shared across parses, so `computeTextDelta` of unchanged text with blank
+  nodes is not empty; `applyText` skips text equal to what `currentText()` last returned.
+
+## Verification result
+
+core-api 188, ontology 149, ui-kit 394, rdf 121 tests pass; `ng lint ontology` clean; the production build
+succeeds with no `/types/reload` or dry-run call anywhere (grep). Initial bundle 750.61 kB (was 683.69 kB; under
+the 1 MB error budget, over the 500 kB warning). Pre-existing, unchanged: the four `no-empty-function` lint
+errors in `api-error-operator.spec.ts`, the shell `app.spec.ts` failure, and the objects test "Delete and the
+transition buttons are available in view mode" (fails at `ecc3b5a` too).
