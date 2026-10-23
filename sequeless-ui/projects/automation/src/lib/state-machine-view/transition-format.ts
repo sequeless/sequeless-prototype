@@ -2,7 +2,7 @@ import type { Params } from '@angular/router';
 import type { StateMachineResponse, TransitionSummaryResponse } from '@sequeless/core-api';
 import { parseIsoDuration } from '@sequeless/ui-kit';
 
-function compactDuration(iso: string): string {
+export function compactDuration(iso: string): string {
   try {
     const { days, hours, minutes, seconds } = parseIsoDuration(iso);
     const parts = [
