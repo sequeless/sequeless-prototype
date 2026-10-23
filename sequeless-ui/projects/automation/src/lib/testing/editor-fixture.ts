@@ -4,7 +4,6 @@ import { OntologyClient } from '@sequeless/core-api';
 import { ControlRegistry, OntologySession } from '@sequeless/ontology';
 import type { OntologyEditorPanelContext } from '@sequeless/ontology';
 import { readStateMachine } from '@sequeless/rdf';
-import type { TransitionView } from '@sequeless/rdf';
 import { of } from 'rxjs';
 
 /** A small ontology with one transition of each trigger kind, shared by the automation editor specs. */
