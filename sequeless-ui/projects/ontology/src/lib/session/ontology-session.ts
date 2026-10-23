@@ -119,6 +119,11 @@ export class OntologySession {
     return text;
   }
 
+  /** The loaded document, whose `baseQuads` are what the diff compares the working store against. */
+  baseDocument(): OntologyDocument | null {
+    return this.document;
+  }
+
   baseText(): string {
     return this.base;
   }
