@@ -28,7 +28,6 @@ async function setup(transition: string) {
     const options = [...TestBed.inject(OverlayContainer).getContainerElement().querySelectorAll<HTMLElement>('mat-option')];
     options.find((o) => o.textContent?.trim() === label)!.click();
     m.fixture.detectChanges();
-    m.refresh();
   };
   return { session, apply, chooseKind, ...m };
 }
@@ -63,8 +62,9 @@ describe('SqTriggerEditor', () => {
   });
 
   it('changes a valid kind with exactly one delta, and undo restores it', async () => {
-    const { session, apply, chooseKind, host } = await setup('complete');
+    const { session, apply, chooseKind, host, refresh } = await setup('complete');
     await chooseKind('On change');
+    refresh();
     expect(apply).toHaveBeenCalledTimes(1);
     expect(triggerOf(session, 'complete').trigger).toEqual({ kind: 'ON_CHANGE', watchIris: [] });
     expect(host.querySelector('sq-on-change-field')).not.toBeNull();
@@ -103,6 +103,7 @@ describe('SqTriggerEditor', () => {
     const { apply, host, refresh } = await setup('approve');
     const input = host.querySelector('sq-signal-field input') as HTMLInputElement;
     input.value = ' ';
+    input.dispatchEvent(new Event('input'));
     input.dispatchEvent(new Event('change'));
     refresh();
     expect(apply).not.toHaveBeenCalled();
