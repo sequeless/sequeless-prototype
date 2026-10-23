@@ -1,6 +1,8 @@
 import { InjectionToken } from '@angular/core';
 import type { Provider, Type } from '@angular/core';
 
+import type { TransitionView } from '@sequeless/rdf';
+
 import type { ControlRegistry } from '../issues/control-registry';
 import type { OntologySession } from '../session/ontology-session';
 
@@ -9,7 +11,14 @@ export interface OntologyEditorPanelContext {
   readonly typeIri: string;
   readonly session: OntologySession;
   readonly registry: ControlRegistry;
+  /** Set only when the transition is a named node; most are blank nodes, so prefer `transition`. */
   readonly transitionIri?: string;
+  /**
+   * The selected transition as read at the current session revision; `transition.node` is what rdf's
+   * `setTransitionTrigger` / `setGuard` take. It is only valid for that revision: the editor passes a fresh
+   * context after every revision bump.
+   */
+  readonly transition?: TransitionView;
 }
 
 /**
