@@ -5,22 +5,19 @@ import { FormGroup } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, Router } from '@angular/router';
-import {
-  ApiError,
-  ObjectsClient,
-  TransitionResponse,
-} from '@sequeless/core-api';
+import { ApiError, ObjectsClient } from '@sequeless/core-api';
 import { openConflictDialog, SqProblemBanner } from '@sequeless/ui-kit';
 import { firstValueFrom } from 'rxjs';
 
 import { OBJECT_SIGNALS_PANEL } from '../signals/object-signals';
 import { buildObjectForm, formToProperties, SqObjectForm } from './object-form';
 import { ObjectDetailStore } from './object-detail.store';
+import { SqTransitionsPanel } from './transitions-panel';
 
 /** View and edit one object. Concurrency conflicts are surfaced, never silently retried. */
 @Component({
   selector: 'sq-object-detail',
-  imports: [MatButtonModule, NgComponentOutlet, SqObjectForm, SqProblemBanner],
+  imports: [MatButtonModule, NgComponentOutlet, SqObjectForm, SqProblemBanner, SqTransitionsPanel],
   providers: [ObjectDetailStore],
   template: `
     @if (store.object()) {
@@ -40,23 +37,7 @@ import { ObjectDetailStore } from './object-detail.store';
         </button>
         <ng-container *ngComponentOutlet="signalsPanel" />
       }
-      <div class="transitions">
-        @for (transition of transitions(); track transition.name) {
-          <button
-            mat-stroked-button
-            type="button"
-            [disabled]="!transition.available"
-            [attr.data-transition]="transition.name"
-            [attr.title]="transition.reason"
-            (click)="fire(transition.name)"
-          >
-            {{ transition.name }}
-          </button>
-        }
-      </div>
-      @if (transitionError(); as detail) {
-        <p role="alert" data-transition-error>{{ detail }}</p>
-      }
+      <sq-transitions-panel />
     }
     @if (store.error(); as error) {
       <sq-problem-banner [problems]="error" />
@@ -78,14 +59,11 @@ export class SqObjectDetail implements OnInit {
   readonly form = signal<FormGroup>(new FormGroup({}));
   /** View mode is `editing() === false`: the form is fully disabled and no Save or Cancel shows. */
   readonly editing = signal(false);
-  protected readonly transitions = signal<readonly TransitionResponse[]>([]);
-  protected readonly transitionError = signal<string | null>(null);
   private loadedProperties: Record<string, unknown> = {};
 
   async ngOnInit(): Promise<void> {
     await this.store.load(this.typeName(), this.objectId());
     this.resetForm();
-    await this.loadTransitions();
   }
 
   edit(): void {
@@ -127,29 +105,6 @@ export class SqObjectDetail implements OnInit {
     await this.router.navigate(['..'], { relativeTo: this.route });
   }
 
-  async fire(name: string): Promise<void> {
-    this.transitionError.set(null);
-    try {
-      await firstValueFrom(this.objects.fireTransition(this.typeName(), this.objectId(), name));
-      await this.store.refetch();
-      await this.loadTransitions();
-    } catch (err) {
-      const error = err as ApiError;
-      if (error.transitionName !== null) {
-        await this.loadTransitions();
-        this.transitionError.set(error.detail);
-      } else if (error.slug === 'stale-object') {
-        // The transition POST carries If-Match, so a concurrent edit can reject it. Refresh and
-        // report; never retry the transition silently.
-        await this.store.refetch();
-        await this.loadTransitions();
-        this.store.error.set(error);
-      } else {
-        this.store.error.set(error);
-      }
-    }
-  }
-
   private async onSaveError(error: ApiError, local: Record<string, unknown>): Promise<void> {
     if (error.slug !== 'stale-object') {
       this.store.error.set(error);
@@ -174,12 +129,6 @@ export class SqObjectDetail implements OnInit {
       this.resetForm();
     }
     // A dismissed dialog keeps the user's edits in the form for another attempt.
-  }
-
-  private async loadTransitions(): Promise<void> {
-    this.transitions.set(
-      await firstValueFrom(this.objects.transitions(this.typeName(), this.objectId())),
-    );
   }
 
   private resetForm(): void {

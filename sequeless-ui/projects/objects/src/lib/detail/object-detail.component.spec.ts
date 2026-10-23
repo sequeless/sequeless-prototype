@@ -2,7 +2,6 @@
  * Contract [OBJ-DETAIL-409] (lib/detail/object-detail.component.ts, `SqObjectDetail`):
  * - 409 stale-object on save opens the conflict dialog exactly once and never re-PUTs on its own.
  * - Dismissing that dialog leaves the user's edited values in the form.
- * - 409 transition-not-available refreshes the transitions list and opens no dialog.
  * - A successful save refetches the object (new ETag) rather than trusting the PUT response.
  */
 import { Component } from '@angular/core';
@@ -144,31 +143,6 @@ describe('SqObjectDetail', () => {
     expect(ctx.component.form().get('status')!.value).toBe('Closed');
   });
 
-  it('on 409 transition-not-available refreshes transitions and opens no dialog', async () => {
-    const ctx = await loaded(setup());
-    ctx.objects.fireTransition.mockReturnValueOnce(
-      throwError(() => problem('transition-not-available', { transitionName: 'close' })),
-    );
-
-    await ctx.component.fire('close');
-
-    expect(ctx.objects.transitions).toHaveBeenCalledTimes(2);
-    expect(ctx.dialog.open).not.toHaveBeenCalled();
-  });
-
-  it('on 409 stale-object from a transition refetches the object and transitions and opens no dialog', async () => {
-    const ctx = await loaded(setup());
-    const getBefore = ctx.objects.get.mock.calls.length;
-    ctx.objects.fireTransition.mockReturnValueOnce(throwError(() => problem('stale-object')));
-
-    await ctx.component.fire('close');
-
-    expect(ctx.objects.get.mock.calls.length).toBe(getBefore + 1);
-    expect(ctx.objects.transitions).toHaveBeenCalledTimes(2);
-    expect(ctx.dialog.open).not.toHaveBeenCalled();
-    expect(ctx.component.store.error()?.slug).toBe('stale-object');
-  });
-
   it('refetches the object after a successful save instead of trusting the PUT body', async () => {
     const ctx = await loaded(setup());
     await clickEdit(ctx);
@@ -240,41 +214,6 @@ describe('SqObjectDetail', () => {
     expect(host.querySelectorAll('sq-object-signals')).toHaveLength(0);
   });
 
-  it('exposes the reason of an unavailable transition as its title', async () => {
-    const setupResult = setup();
-    setupResult.objects.transitions.mockReturnValue(
-      of([{ name: 'close', available: false, reason: 'Guard failed' }]),
-    );
-    const ctx = await loaded(setupResult);
-    ctx.fixture.detectChanges();
-
-    const button: HTMLButtonElement | null = ctx.fixture.nativeElement.querySelector(
-      '[data-transition="close"]',
-    );
-    expect(button?.disabled).toBe(true);
-    expect(button?.title).toBe('Guard failed');
-  });
-
-  it('shows the 409 transition-not-available detail inline', async () => {
-    const ctx = await loaded(setup());
-    ctx.objects.fireTransition.mockReturnValueOnce(
-      throwError(() =>
-        problem('transition-not-available', {
-          transitionName: 'close',
-          detail: 'Cannot close from Draft',
-        }),
-      ),
-    );
-
-    await ctx.component.fire('close');
-    ctx.fixture.detectChanges();
-
-    const inline: HTMLElement | null = ctx.fixture.nativeElement.querySelector(
-      '[data-transition-error]',
-    );
-    expect(inline?.textContent).toContain('Cannot close from Draft');
-  });
-
   it('opens in view mode with every control disabled and no Save button', async () => {
     const ctx = await loaded(setup());
     ctx.fixture.detectChanges();
@@ -321,6 +260,13 @@ describe('SqObjectDetail', () => {
 
     expect(ctx.component.form().disabled).toBe(true);
     expect(queryButton(ctx, '[data-action="save"]')).toBeNull();
+  });
+
+  it('renders the transitions panel once loaded', async () => {
+    const ctx = await loaded(setup());
+    ctx.fixture.detectChanges();
+
+    expect(ctx.fixture.nativeElement.querySelectorAll('sq-transitions-panel')).toHaveLength(1);
   });
 
   it('Delete and the transition buttons are available in view mode', async () => {
