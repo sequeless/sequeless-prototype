@@ -75,6 +75,21 @@ describe('ControlRegistry', () => {
     expect(() => registry.reveal(control)).not.toThrow();
   });
 
+  it('stops routing to a control after unregister()', () => {
+    const registry = new ControlRegistry();
+    const control = new FormControl('');
+    const other = new FormControl('');
+    registry.register(A, control);
+    registry.register(A, other);
+    registry.unregister(control);
+    const result = registry.routeIssues([issue(A, 'bad')]);
+    expect(control.errors).toBeNull();
+    expect(other.errors).toEqual({ server: 'bad' });
+    expect(result.matchedFirst).toBe(other);
+    registry.unregister(other);
+    expect(registry.routeIssues([issue(A)]).matchedFirst).toBeNull();
+  });
+
   it('forgets controls after clear()', () => {
     const registry = new ControlRegistry();
     const control = new FormControl('');

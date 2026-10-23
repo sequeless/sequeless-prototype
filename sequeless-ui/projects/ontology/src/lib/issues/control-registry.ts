@@ -24,6 +24,19 @@ export class ControlRegistry {
     this.elements.clear();
   }
 
+  /** Forget a control, e.g. when its form is destroyed. */
+  unregister(control: AbstractControl): void {
+    this.elements.delete(control);
+    for (const [iri, list] of this.controls) {
+      const rest = list.filter((c) => c !== control);
+      if (rest.length === 0) {
+        this.controls.delete(iri);
+      } else {
+        this.controls.set(iri, rest);
+      }
+    }
+  }
+
   reveal(control: AbstractControl): void {
     this.elements.get(control)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
