@@ -41,6 +41,7 @@ export class OntologySession {
   private journal: DeltaJournal | null = null;
   private base = '';
   private pendingImportText: string | null = null;
+  private loading: Promise<void> | null = null;
   private cachedText: { revision: number; text: string } | null = null;
 
   private readonly _store = signal<RdfStore | null>(null);
@@ -64,6 +65,15 @@ export class OntologySession {
   /** The response of the most recent accepted import. */
   readonly lastImport = this._lastImport.asReadonly();
   readonly lastRejection = this._lastRejection.asReadonly();
+
+  /** Loads the ontology unless it is loaded (or loading); never discards edits. */
+  ensureLoaded(): Promise<void> {
+    if (this._store()) {
+      return Promise.resolve();
+    }
+    this.loading ??= this.load().finally(() => (this.loading = null));
+    return this.loading;
+  }
 
   async load(): Promise<void> {
     this._loadError.set(null);

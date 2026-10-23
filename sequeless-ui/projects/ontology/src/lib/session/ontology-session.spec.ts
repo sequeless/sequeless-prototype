@@ -50,6 +50,32 @@ describe('OntologySession', () => {
     expect(session.loadError()).toBeNull();
   });
 
+  it('ensureLoaded() loads once and shares the in-flight request', async () => {
+    const load = vi.fn(() => of(TTL));
+    const session = setup({ load });
+    await Promise.all([session.ensureLoaded(), session.ensureLoaded()]);
+    await session.ensureLoaded();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it('ensureLoaded() keeps unsaved edits instead of reloading', async () => {
+    const session = setup();
+    await session.ensureLoaded();
+    session.apply(relabel(session.store()!, A, 'Alpha'));
+    await session.ensureLoaded();
+    expect(labelOf(session)).toBe('Alpha');
+  });
+
+  it('ensureLoaded() retries after a failed load', async () => {
+    let fail = true;
+    const session = setup({ load: () => (fail ? throwError(() => ({ status: 503, kind: 'network', issues: [] })) : of(TTL)) });
+    await session.ensureLoaded();
+    expect(session.store()).toBeNull();
+    fail = false;
+    await session.ensureLoaded();
+    expect(labelOf(session)).toBe('A');
+  });
+
   it('load() records an ApiError when the request fails', async () => {
     const error = { status: 503, kind: 'network', title: 'down', issues: [] };
     const session = setup({ load: () => throwError(() => error) });

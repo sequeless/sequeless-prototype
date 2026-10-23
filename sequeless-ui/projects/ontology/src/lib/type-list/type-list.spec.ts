@@ -27,7 +27,7 @@ async function setup(list: () => ReturnType<TypesClient['list']> = () => of(TYPE
   const session = {
     importRevision,
     loadError: signal(loadError),
-    load: vi.fn(() => Promise.resolve()),
+    ensureLoaded: vi.fn(() => Promise.resolve()),
     canUndo: signal(false),
     canRedo: signal(false),
     dirty: signal(false),
@@ -82,7 +82,7 @@ describe('SqOntologyTypeList', () => {
 
   it('loads the ontology into the session', async () => {
     const { session } = await setup();
-    expect(session.load).toHaveBeenCalledTimes(1);
+    expect(session.ensureLoaded).toHaveBeenCalledTimes(1);
   });
 
   it('shows an empty state when there are no types', async () => {

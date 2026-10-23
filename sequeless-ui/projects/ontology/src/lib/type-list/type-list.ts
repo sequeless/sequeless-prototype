@@ -60,7 +60,7 @@ export class SqOntologyTypeList implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
-    await Promise.all([this.session.load(), this.refresh()]);
+    await Promise.all([this.session.ensureLoaded(), this.refresh()]);
   }
 
   private async refresh(): Promise<void> {
