@@ -6,7 +6,7 @@ relationships, validation shapes and state machines, and the platform serves gen
 Read, Edit, Add and Delete behaviour for every type it describes — no per-type code. This
 repository is **phase 0**: a walking skeleton that proves the module boundaries, the port/adapter
 wiring, and the build/CI shape. It contains no ontology loading, no persistence, and no business
-object code — only a `/whoami` endpoint, Actuator health, and the port-registry machinery that
+object code — only a `/api/whoami` endpoint, Actuator health, and the port-registry machinery that
 later phases will hang real adapters off.
 
 See [docs/architecture/](docs/architecture/) for the full design; this file only covers building,
@@ -25,6 +25,24 @@ running, and swapping adapters.
 mvn -B verify
 ```
 
+`mvn -B verify` alone builds an API-only jar. To serve the UI from the same jar, build the UI first:
+
+```
+npm run build:ui && mvn -B verify
+```
+
+The full UI gate (clean install, lint, tests, shell build) is `npm run ci:ui`; `npm run ci:combined` runs it before `mvn verify`.
+
+## End-to-end tests
+
+The Playwright suite under `sequeless-ui/e2e` is opt-in and never runs in `verify` or CI. Its browsers must be
+pre-installed out of band; the config never downloads them. Set these to point it at a running stack:
+
+- `E2E_BASE_URL` (default `http://localhost:4200`; use `http://localhost:8080` for the fat jar)
+- `E2E_OBJECT_TYPE` (default `Project`), `E2E_SIGNAL_TYPE` (default `Project`), `E2E_SIGNAL_NAME` (default `reopen`)
+
+Run with `npm run e2e` from the repo root.
+
 ## Run
 
 ```
@@ -32,7 +50,7 @@ mvn -pl sequeless-app spring-boot:run
 ```
 
 ```
-$ curl localhost:8080/whoami
+$ curl localhost:8080/api/whoami
 {"tenant":"default","principal":"anonymous","displayName":"Anonymous","roles":[],"decision":{"allowed":true,"reason":"permit-all adapter: all requests are allowed"}}
 
 $ curl localhost:8080/actuator/health
