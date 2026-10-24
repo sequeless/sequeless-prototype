@@ -127,3 +127,36 @@ whole project, lint → driver re-verification → commit.
 `npx ng test objects --watch=false`, `npx ng lint objects`, `npx ng test core-api --watch=false`,
 `npx ng test sequeless-shell --watch=false`, `npx ng build sequeless-shell --configuration production`
 (the initial total must stay under the 1 MB error budget), then U6's runtime check.
+
+## How it was built
+
+All seven units are done. U1-U3 were committed before the final pass (`4f60e09`, `8811550`, `ecc3b5a`); U4 is
+`d771763`, U5 is `5deea0e`; U6 wrote no product code; U7 is this note.
+
+- **U4:** `SqFilterPanel` takes `type`, `filters`, `facets`, `errors` and emits `filtersChange`; it injects neither the
+  query service nor the router. Each facet is an expanded `mat-expansion-panel[data-facet]`, so facets stay visible as
+  before (E1). The add-filter and range state moved into the panel; browse keeps the search form, table, paging and the URL.
+  - **Contract change:** `errors` is `FilterErrors` (`byIndex` and `unmatched`), the type `violation-mapping` already
+    produces, instead of the plan's `ReadonlyMap<number, string>`. Browse still shows `unmatched` problems itself.
+  - **Tests moved** from `object-browse.spec.ts` to `filter-panel.spec.ts` with the same names: the facet-group test
+    (now asserts `mat-expansion-panel`), the range pair, add-filter disabled, operators by datatype and the five
+    relationship-filter tests (now asserting the emitted `filtersChange` instead of the URL). New in the panel spec:
+    deselecting a bucket, chip removal, the error on a chip, and "never navigates". Browse keeps the integration tests.
+- **U5 (user-approved):** `app.spec.ts` provides a router; `api-error-operator.spec.ts` uses `() => undefined` instead of
+  empty functions. The router fix exposed a second failure the plan did not foresee: `should render title` asserted an
+  `h1` ("Hello, sequeless-shell") from the Angular scaffold that the app never renders. The user chose to delete that test.
+- **The "view mode" test noted as failing in the Phase 7 and 8 plans passes** at HEAD; those notes were stale.
+- **U6 result (real run):** Postgres from `docker-compose.yml`, the Spring exec jar and `ng serve` with the proxy, driven
+  by Playwright Chromium. Passed: type list, browse, create (201), view mode read-only with no Save, edit, a second page
+  edits the same object, first save (200), second save returns 409 and the conflict dialog shows the field table,
+  "Reapply my changes" sends exactly one more PUT (200) and no third, delete (204). The filter panel also ran for real:
+  facet counts, a facet click writing `filter[status][eq]=Open`, chip removal and the add-filter form.
+  - To reach Postgres from this sandbox the app needed `SEQUELESS_PERSISTENCE_URL=jdbc:postgresql://host.docker.internal:5432/sequeless`.
+  - Observations, not bugs: the reference ontology's `title` and `description` have no maximum cardinality, so the form shows
+    them as a repeatable list with a bare "Add" button and no label, inside a collapsed "General" group. The dev form is unstyled.
+  - Screenshots are outside the repo.
+
+## Verification result
+
+objects 149 tests, core-api 188, sequeless-shell 8 pass; `ng lint` clean on objects, core-api and sequeless-shell;
+production build initial total 757.86 kB (under the 1 MB error budget, over the 500 kB warning).
