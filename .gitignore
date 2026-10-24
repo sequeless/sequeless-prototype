@@ -10,3 +10,8 @@ target/
 
 *.log
 .DS_Store
+
+.copilot-logs/
+.claude
+skills-lock.json
+/agents
