@@ -17,3 +17,36 @@ jobs:
           cache: maven
 
       - run: mvn -B -ntp verify
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: sequeless-ui/package-lock.json
+
+      - run: npm run ci:ui
+
+  combined:
+    if: ${{ vars.CI_COMBINED_JOB == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: sequeless-ui/package-lock.json
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - run: npm run ci:combined
