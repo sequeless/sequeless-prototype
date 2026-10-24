@@ -40,6 +40,12 @@ describe('routes [SHELL-AUTOMATION]', () => {
     expect(TestBed.inject(OBJECT_SIGNALS_PANEL)).not.toBe(SqAutomationSignalsPanel);
   });
 
+  it('redirects the root path to objects', () => {
+    const root = routes.find((r) => r.path === '');
+    expect(root?.redirectTo).toBe('objects');
+    expect(root?.pathMatch).toBe('full');
+  });
+
   it('still loads the automation routes', async () => {
     expect(await load('automation')).toBe(automationRoutes);
   });
