@@ -93,3 +93,25 @@ Decision: ontology documents are versioned; additive changes take effect on impo
 (property removed or retyped, cardinality tightened, state removed) are detected by diffing snapshots
 and require a recorded migration plan executed against JSONB data before the new version activates.
 Reversibility: moderate.
+
+### DR-17 API prefix and co-served SPA
+Decision: the REST API lives under `/api`, applied by `addPathPrefix` to the `org.sequeless.app.rest` package
+(`ApiPathPrefixConfiguration`; a blank property opts out). The Angular build is served from the same jar at `/`,
+with client-side deep links answered by `index.html` while real files and reserved server prefixes
+(`/api`, Actuator, springdoc) are never answered with the UI shell. Reversibility: easy.
+
+### DR-18 Client-side RDF authoring
+Decision: ontology edits round-trip Turtle in the browser (`projects/rdf`). Restriction edits mint blank nodes
+on the client (`edits.ts`); `POST /api/ontology` stays authoritative. Forward-compatible with backend Phase 7.
+Reversibility: moderate.
+
+### DR-19 Frontend pluggability
+Decision: UI extension points are DI tokens with defaults (`OBJECT_SIGNALS_PANEL`, `ONTOLOGY_EDITOR_PANELS`,
+`STATE_MACHINE_DIAGRAM`), composed by `provide*()` functions. This mirrors the backend adapter swap of DR-15.
+The shell adds automation to a route only when that route loads (`app.routes.ts`). Reversibility: easy.
+
+### DR-20 Hand-written wire models
+Decision: TypeScript wire models are hand-written, not OpenAPI-generated, for two reasons recorded in
+`docs/specs/phase-3-core-api.md` (Wire models, lines 54-60): `PropertyResponse` is a sealed interface with a
+plain `kind` discriminator that springdoc flattens, so a generator loses the discriminated union; and the
+`filter[x][y]` family is inexpressible in OpenAPI (`docs/architecture/query-port.md:341-347`). Reversibility: moderate.
