@@ -70,3 +70,5 @@ mapping, and the event publisher choice with justification, and confirm with me 
 implementing. Ask via AskUserQuestion when ambiguous. Verify current Spring Security and
 Keycloak Testcontainers module versions before pinning.
 ```
+
+> Note: new REST controllers under `org.sequeless.app.rest` are served under `/api`; `ApiPathPrefixConfiguration` applies the prefix, so write `/api/...` URLs.

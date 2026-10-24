@@ -46,13 +46,19 @@ ng test
 
 ## Running end-to-end tests
 
-For end-to-end (e2e) testing, run:
+The Playwright suite lives in `e2e/` and is opt-in: it is not part of `verify` or CI. Install nothing at run time;
+the browsers must already be present (Playwright never downloads them from this config). Start the stack, then run:
 
 ```bash
-ng e2e
+npm run e2e
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Set these to point the suite at a running stack:
+
+- `E2E_BASE_URL`: default `http://localhost:4200` (the `ng serve` proxy). Use `http://localhost:8080` for the fat jar.
+- `E2E_OBJECT_TYPE` (default `Project`), `E2E_SIGNAL_TYPE` (default `Project`), `E2E_SIGNAL_NAME` (default `reopen`).
+
+`E2E_SKIP_BROWSER_CHECK=1` skips the browser check; use it only for `npx playwright test --list`.
 
 ## Additional Resources
 

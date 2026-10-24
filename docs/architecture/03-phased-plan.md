@@ -9,7 +9,7 @@ adapter is tested against the same fixture.
 | Phase | Goal | Depends on |
 |---|---|---|
 | 0 | Walking skeleton: modules, boundaries, discovery, Compose, one real port | — |
-| 1 | Meta-model core: snapshot, `OntologyPort`, Jena adapter with reasoner, `/types` | 0 |
+| 1 | Meta-model core: snapshot, `OntologyPort`, Jena adapter with reasoner, `/api/types` | 0 |
 | 2 | BREAD over PostgreSQL with validation and ontology persistence | 1 |
 | 3 | Query, facets, text search, index hints | 2 |
 | 4 | Derived properties computed on read | 3 |
@@ -22,7 +22,7 @@ adapter is tested against the same fixture.
 Goal: a bootable multi-module build where the port-and-adapter mechanism is proven with one real port.
 In: parent POM, all module shells, `sequeless-spi` with `Scope`, `TenantId`, `Principal`,
 `AdapterDescriptor`, `SpiVersion`, `AuthorizationPort`; permit-all adapter with auto-configuration;
-testkit with `AuthorizationContract`; `sequeless-app` booting with Actuator health and a `/whoami`
+testkit with `AuthorizationContract`; `sequeless-app` booting with Actuator health and a `/api/whoami`
 endpoint that calls the port; ArchUnit rules; japicmp wired (baseline none); Docker Compose with
 PostgreSQL 18 and Temporal (not yet used); CI script (`mvn verify`).
 Out: ontology, persistence, any business object.
@@ -38,12 +38,12 @@ hints, facet and index hints, placeholders for state machine and derivation rule
 specification document (`docs/architecture/sq-vocabulary.md`); `OntologyPort`; Jena adapter using
 ontapi and the built-in OWL reasoner, selectable via `sequeless.ontology.reasoner=owl|rdfs|none`;
 Turtle loaded from a configured path or classpath; `OntologyContract` in the testkit; REST `GET
-/types` and `GET /types/{iri}` returning descriptors with display hints; snapshot caching and reload
+/api/types` and `GET /api/types/{iri}` returning descriptors with display hints; snapshot caching and reload
 endpoint.
 Out: persistence of the ontology, instances, validation.
 Exit criteria: snapshot for the reference ontology shows `Task` as a subclass of `WorkItem` via
 inference; inverse relationship inferred; an inconsistent test ontology is rejected with a report;
-`/types` lists Project, Task, Person with display hints; ArchUnit proves no `org.apache.jena` in core.
+`/api/types` lists Project, Task, Person with display hints; ArchUnit proves no `org.apache.jena` in core.
 Risks reduced: OWL-to-snapshot mapping; reasoner cost and behaviour.
 
 ### Phase 2 — BREAD over PostgreSQL
@@ -52,7 +52,7 @@ In: `BusinessObject`, `Value`, `ChangeSet`, `CommitResult` in SPI; `ObjectStoreP
 `ValidationPort` with SHACL adapter and core structural checks; PostgreSQL adapter with Flyway
 migrations for `sq_object`, `sq_ontology_document`, `sq_outbox` (written, not yet consumed);
 optimistic locking, soft delete, audit fields, tenant column; ontology stored in the database with
-`POST /ontology` import and `GET /ontology` export, snapshot rebuilt on import; use cases Browse
+`POST /api/ontology` import and `GET /api/ontology` export, snapshot rebuilt on import; use cases Browse
 (paging only), Read, Edit, Add, Delete; REST endpoints; `ObjectStoreContract`; Testcontainers
 end-to-end tests.
 Out: filtering, facets, derived values, state.
@@ -93,7 +93,7 @@ kinds `sq:SetProperty`, `sq:CreateObject`, `sq:Webhook`, `sq:Log`; `StateMachine
 snapshot; interpreter in core; `ExpressionPort` with JEXL adapter (sandboxed, no side effects);
 `ActionRequest` outbox rows; `AutomationPort`; Temporal adapter (outbox relay, one workflow per
 outbox entry keyed by entry id, activities calling core use cases, retry policy); in-process adapter
-for tests; REST `GET /objects/{type}/{id}/transitions` and `POST …/transitions/{name}`;
+for tests; REST `GET /api/objects/{type}/{id}/transitions` and `POST …/transitions/{name}`;
 `AutomationContract`; Temporal added to the Testcontainers setup.
 Out: on-change triggers, timers, external signals, Drools.
 Exit criteria: illegal transition returns 409 with the guard reason; a transition with a failing
@@ -106,7 +106,7 @@ Risks reduced: consistency between state and actions; Temporal operational fit.
 Goal: transitions can fire from data changes, timers and external signals, and derived values can be stored.
 In: `sq:OnChange`, `sq:Timer`, `sq:ExternalSignal` triggers; domain events for create, update,
 delete, transition in the outbox; Temporal workflows for timers (per object and state) and signals
-(`POST /objects/{type}/{id}/signals/{name}`); `sq:materialised true` on a derivation rule causing
+(`POST /api/objects/{type}/{id}/signals/{name}`); `sq:materialised true` on a derivation rule causing
 recompute on source events and storage in `props`; materialised derived values become filterable and
 sortable.
 Out: external publishing, meta-model change handling.
@@ -138,3 +138,10 @@ field marked `sq:permission "admin"` is hidden from a non-admin principal; the j
 on a deliberately breaking SPI change; the guide is enough for a fresh agent to write a compliant
 adapter (verified by a dry run).
 Risks reduced: hidden coupling to PostgreSQL; SPI stability.
+
+## UI track (parallel to Phases 7–8)
+
+The Angular frontend in `sequeless-ui/` is specified under `docs/specs/` and runs alongside the backend phases.
+Its phases are numbered separately: frontend Phase 9 covers shell composition, the e2e suite, CI and docs, and has
+no backend counterpart. The jar serves the UI at `/` and the API under `/api` (DR-17); the frontend's extension
+points follow the adapter-swap pattern of DR-19.

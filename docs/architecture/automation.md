@@ -57,7 +57,7 @@ see the javadoc for the exact field list of each):
   for any reason, whether the timer transition itself fired or some other transition departed
   first.
 - `OutboxEntry.KIND_SIGNAL_RECEIVED = "SignalReceived"` — recorded when `POST
-  /objects/{type}/{id}/signals/{name}` is called (§12).
+  /api/objects/{type}/{id}/signals/{name}` is called (§12).
 
 Together with the three pre-existing object-lifecycle kinds (`ObjectCreated`/`ObjectUpdated`/
 `ObjectDeleted`, in use since DR-12) and `ActionRequest`, that makes **seven dispatchable kinds**
@@ -400,7 +400,7 @@ adapter-specific quirk.
 ## 9. Trigger semantics (Phase 6 / DR-11)
 
 Through Phase 5, `sq:trigger` accepted exactly one legal value (`sq:UserAction`) and a transition
-could only ever fire from `POST /objects/{type}/{id}/transitions/{name}`. Phase 6 widens this to a
+could only ever fire from `POST /api/objects/{type}/{id}/transitions/{name}`. Phase 6 widens this to a
 sealed `TriggerSpec` hierarchy (`org.sequeless.spi.meta`) with a `TriggerKind kind()` discriminator
 — `USER_ACTION`, `ON_CHANGE`, `TIMER`, `EXTERNAL_SIGNAL` — so a transition can also fire from a
 data change, a timer, or an external signal, without becoming reachable from the REST fire
@@ -416,7 +416,7 @@ with the same `TransitionNotAvailableException`/409 an unavailable transition al
 - **`TimerTrigger`** carries `sq:after`, a strictly-positive ISO-8601 duration (`"PT72H"`), parsed
   via `Duration.parse`.
 - **`ExternalSignalTrigger`** carries `sq:signalName`, an arbitrary string matched against the name
-  in `POST /objects/{type}/{id}/signals/{name}` (§12).
+  in `POST /api/objects/{type}/{id}/signals/{name}` (§12).
 
 See `sq-vocabulary.md`'s "Terms in use (phase 6)" section for the full IRI/domain/range table; this
 section covers only the runtime *behaviour* those terms produce.
@@ -477,7 +477,7 @@ sequenceDiagram
     participant Trig as TriggerEvaluator<br/>(onChange / onTimerElapsed / onSignal)
     participant TS as TransitionService.fireAutomated
 
-    Client->>REST: PUT /objects/Task/{id} (status=done)
+    Client->>REST: PUT /api/objects/Task/{id} (status=done)
     REST->>Core: edit()
     Core->>DB: commit(Update) + ObjectUpdated outbox row
     Core-->>Client: 200 OK
@@ -600,7 +600,7 @@ class-hierarchy domain/range leakage, that prefers the most specific XSD candida
 
 ## 12. REST: the signal endpoint and the trigger wire format
 
-**`POST /objects/{type}/{id}/signals/{name}`** accepts an optional, arbitrary JSON request body
+**`POST /api/objects/{type}/{id}/signals/{name}`** accepts an optional, arbitrary JSON request body
 (treated as an opaque map, defaulting to empty if omitted) and returns **`202 Accepted` with no
 response body**. `404` if the object doesn't exist. `400` (`UnknownSignalException`, `ProblemDetail`
 type suffix `unknown-signal`, `typeIri`/`signalName` properties set) if no transition anywhere on
@@ -621,7 +621,7 @@ is deliberate: it's the same shape every other outbox-driven kind uses.
 
 **Wire-format convention: `trigger` is the raw `TriggerKind.name()`.** `TransitionSummaryResponse`
 (the DTO both the type descriptor's state-machine section and `GET
-/objects/{type}/{id}/transitions` use) gained `trigger`, `after`, `signalName`, `watch` fields
+/api/objects/{type}/{id}/transitions` use) gained `trigger`, `after`, `signalName`, `watch` fields
 alongside its Phase-5 `name`/`from`/`to`/`hasGuard`. `trigger` is serialized as `TriggerKind.name()`
 verbatim — SCREAMING_SNAKE_CASE (`"USER_ACTION"`, `"ON_CHANGE"`, `"TIMER"`, `"EXTERNAL_SIGNAL"`),
 not a lower-cased or hyphenated form — matching `sq-vocabulary.md`'s existing description of
@@ -630,7 +630,7 @@ names. `after`/`signalName`/`watch` are populated only for the trigger kind that
 `TIMER` transition has `after` but not `signalName`, and so on) — absent, not `null`, otherwise.
 
 **Both transition-listing endpoints filter to `USER_ACTION` only.** The type descriptor (`GET
-/types/{type}`) and the per-object transitions listing (`GET /objects/{type}/{id}/transitions`)
+/api/types/{type}`) and the per-object transitions listing (`GET /api/objects/{type}/{id}/transitions`)
 both filter their `TransitionSummaryResponse` lists down to `trigger().kind() == USER_ACTION` —
 the descriptor answers "what can a client fire directly," not "every transition this state machine
 defines." `StateMachineInterpreter.availableTransitions`, by contrast, stays deliberately

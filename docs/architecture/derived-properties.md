@@ -7,7 +7,7 @@ roll-up over a related type (`sq:Rollup`), or a named plug-in implemented in cod
 Every property a caller saw before this phase was a stored property — `ValueCoercer` coerced it in,
 `PostgresObjectStore` wrote it to `sq_object.props`, and reads handed it straight back. A derived
 property never goes through that path in either direction: it is computed fresh on every `GET
-/objects/{type}/{id}` and every page of `GET /objects/{type}`, and a write naming it is rejected
+/api/objects/{type}/{id}` and every page of `GET /api/objects/{type}`, and a write naming it is rejected
 before it ever reaches the store.
 
 The vocabulary terms this phase adds — `sq:derivedBy`, `sq:Rollup`, `sq:Plugin`, `sq:Criterion`,
@@ -242,7 +242,7 @@ by `DecimalValue` object equality.
 
 ## REST surface
 
-`GET /types/{name}` — `TypeResponseMapper` appends a `derivation` field as the last entry on each
+`GET /api/types/{name}` — `TypeResponseMapper` appends a `derivation` field as the last entry on each
 attribute/relationship property, `null` for an ordinary property or a `{"kind": ..., "summary":
 ...}` object for a derived one:
 
@@ -267,13 +267,13 @@ The criterion operator token inside a rollup summary uses the same mapping REST 
 isnull notnull`. `readOnly` required no mapper change beyond the existing pass-through, since a
 derived property's `PropertyDefinition.readOnly()` was already forced `true` at the snapshot level.
 
-`GET /objects/{type}/{id}` and `GET /objects/{type}` (browse) — object payload shape is unchanged:
+`GET /api/objects/{type}/{id}` and `GET /api/objects/{type}` (browse) — object payload shape is unchanged:
 merged derived values flow through `ObjectPropertyMapper` like any other property, keyed by short
 name, so a client cannot tell from the object payload alone whether a value was stored or computed.
 Nothing is ever present in `props` for a derived property's IRI; browsing or reading the same
 `Project` twice recomputes both roll-ups from the current state of its `Task`s each time.
 
-`POST`/`PUT /objects/{type}` — naming a derived property in the request body is rejected with a 400
+`POST`/`PUT /api/objects/{type}` — naming a derived property in the request body is rejected with a 400
 `ProblemDetail`, `source: "structural"` (the same `ValidationException.Source` a plain
 `readOnly=true` violation carries, since `ValueCoercer.coerce` is what raises this, not
 `StructuralValidator`), and a violation naming the property:
@@ -331,7 +331,7 @@ coercion always short-circuits first.
   Task with no `estimatedHours` set.** `ex:totalEstimatedHours` is a non-materialised `sq:sum`
   Rollup (Phase 4 vintage). When a `Project`'s Tasks include one with no `estimatedHours` value,
   Postgres's `SUM()` over an all-`NULL` group returns SQL `NULL`, and `DecimalValue`'s constructor
-  rejects `null`, so `GET /objects/Project/{id}` throws a `NullPointerException`. This predates
+  rejects `null`, so `GET /api/objects/Project/{id}` throws a `NullPointerException`. This predates
   Phase 6 and was found (not fixed) while building Phase 6's end-to-end/load tests, which had to
   deliberately set `estimatedHours` on every Task they created to avoid tripping it. A real fix
   would either have `SUM` coalesce `NULL` to `0`, or have the aggregate omit the key entirely from
