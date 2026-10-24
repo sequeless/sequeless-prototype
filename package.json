@@ -13,9 +13,11 @@
     "build:ui": "npm --prefix sequeless-ui run build",
     "build": "npm run build:ui && mvn -B -ntp package",
     "build:fast": "npm run build:ui && mvn -B -ntp package -DskipTests",
-    "verify": "npm run build:ui && npm --prefix sequeless-ui test -- --run && mvn -B -ntp verify",
+    "verify": "npm run build:ui && npm --prefix sequeless-ui test -- --watch=false && mvn -B -ntp verify",
     "test:ui": "npm --prefix sequeless-ui test",
     "lint:ui": "npm --prefix sequeless-ui run lint",
+    "ci:ui": "npm --prefix sequeless-ui ci && npm --prefix sequeless-ui run lint && npm --prefix sequeless-ui test -- --watch=false && npm --prefix sequeless-ui run build",
+    "ci:combined": "npm run ci:ui && mvn -B -ntp verify",
     "e2e": "npm --prefix sequeless-ui run e2e"
   }
 }
