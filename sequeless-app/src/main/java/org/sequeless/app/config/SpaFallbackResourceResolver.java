@@ -1,10 +1,13 @@
 package org.sequeless.app.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.servlet.resource.PathResourceResolver;
+import org.springframework.web.servlet.resource.ResourceResolverChain;
 
 /**
  * The {@link PathResourceResolver} subclass that {@code SpaWebConfiguration} installs on its
@@ -62,7 +65,8 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
  *       the UI shell, and {@code /apifoo} (a sibling, not a child) is NOT treated as reserved;
  *   <li>a path whose last segment contains a {@code .} is treated as an asset request and never
  *       answered with the index (the "dot guard");
- *   <li>otherwise the index is returned, provided it exists.
+ *   <li>otherwise the index is returned, provided it exists, unless the request asks for something
+ *       other than HTML (see {@link #resolveResource}): an API client gets a plain 404.
  * </ol>
  */
 public class SpaFallbackResourceResolver extends PathResourceResolver {
@@ -133,5 +137,33 @@ public class SpaFallbackResourceResolver extends PathResourceResolver {
 
         // Rule 5: the index, provided it exists (the "no UI built" state yields plain 404s).
         return index.exists() ? index : null;
+    }
+
+    /**
+     * Withdraws the index from requests that do not accept HTML. Browsers always send an
+     * {@code Accept} that names {@code text/html} or the any-type wildcard; a client that sends an
+     * {@code Accept} header naming neither (for example {@code application/json}) is an API client
+     * and gets the 404 the fallback would otherwise hide. A request with no {@code Accept} header
+     * at all is treated as a browser, so existing callers that send none keep the index.
+     *
+     * <p>The check needs the request, which {@link #getResource(String, Resource)} does not
+     * receive, so it lives here, on the public entry point, and only post-filters the index.
+     */
+    @Override
+    public Resource resolveResource(
+            HttpServletRequest request,
+            String requestPath,
+            List<? extends Resource> locations,
+            ResourceResolverChain chain) {
+        Resource resolved = super.resolveResource(request, requestPath, locations, chain);
+        if (resolved == index && isNonHtmlRequest(request)) {
+            return null;
+        }
+        return resolved;
+    }
+
+    private static boolean isNonHtmlRequest(HttpServletRequest request) {
+        String accept = request.getHeader(HttpHeaders.ACCEPT);
+        return accept != null && !accept.contains("text/html") && !accept.contains("*/*");
     }
 }

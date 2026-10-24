@@ -12,6 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 /**
  * Test-first unit specification of {@code SpaFallbackResourceResolver}: the {@link
@@ -163,6 +166,36 @@ class SpaFallbackResourceResolverTest {
     void deepLinkIsNotAnsweredWithTheIndexWhenTheFallbackIsDisabled() throws IOException {
         // Rule 2: sequeless.web.spa.enabled=false must switch the fallback off completely.
         assertThat(resolver(index, false).getResource("ontology/classes/Project", location)).isNull();
+    }
+
+    @Test
+    void apiClientAskingForJsonGetsNoIndexForADeepLink() throws IOException {
+        // The Accept rule: a client that names neither text/html nor */* is an API client and
+        // must get the 404, not the UI shell, even for a path the fallback would otherwise answer.
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+
+        assertThat(resolver(index, true)
+                        .resolveResource(request, "ontology/classes/Project", List.of(location), null))
+                .isNull();
+    }
+
+    @Test
+    void browserRequestStillGetsTheIndexForADeepLink() throws IOException {
+        // A browser navigation names text/html; a request with no Accept header at all is treated
+        // as a browser too, so callers that send none keep getting the index.
+        MockHttpServletRequest browser = new MockHttpServletRequest();
+        browser.addHeader(HttpHeaders.ACCEPT, "text/html,application/xhtml+xml,*/*;q=0.8");
+        MockHttpServletRequest noAccept = new MockHttpServletRequest();
+
+        for (MockHttpServletRequest request : List.of(browser, noAccept)) {
+            Resource resolved =
+                    resolver(index, true)
+                            .resolveResource(request, "ontology/classes/Project", List.of(location), null);
+
+            assertThat(resolved).isNotNull();
+            assertThat(resolved.getContentAsString(StandardCharsets.UTF_8)).contains(INDEX_MARKER);
+        }
     }
 
     @Test

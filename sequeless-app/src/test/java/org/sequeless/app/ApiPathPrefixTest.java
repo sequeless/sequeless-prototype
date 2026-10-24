@@ -14,6 +14,7 @@ import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.sequeless.testkit.Fixtures;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -90,9 +91,12 @@ class ApiPathPrefixTest extends PostgresTestcontainersSupport {
     void legacyUnprefixedPathsAreNoLongerServed() {
         // The prefix must be a move, not an addition: the old URLs must 404, otherwise clients
         // (and the existing tests' URLs) keep working invisibly against the pre-prefix layout.
+        // The request asks for JSON like an API client would: with the UI packaged, a browser
+        // request to an unknown path gets the SPA shell, which is deliberately not a 404.
         restTestClient
                 .get()
                 .uri("/whoami")
+                .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus()
                 .isNotFound();
@@ -100,6 +104,7 @@ class ApiPathPrefixTest extends PostgresTestcontainersSupport {
         restTestClient
                 .get()
                 .uri("/types")
+                .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus()
                 .isNotFound();
