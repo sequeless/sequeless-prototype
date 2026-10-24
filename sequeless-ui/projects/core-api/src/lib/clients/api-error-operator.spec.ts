@@ -58,7 +58,7 @@ describe('rethrowAsApiError', () => {
     const err = problemError();
     const mapper = vi.fn((e: unknown) => e);
 
-    await firstValueFrom(throwError(() => err).pipe(rethrowAsApiError(mapper))).catch(() => {});
+    await firstValueFrom(throwError(() => err).pipe(rethrowAsApiError(mapper))).catch(() => undefined);
 
     expect(mapper).toHaveBeenCalledTimes(1);
     const received = mapper.mock.calls[0][0];
@@ -70,7 +70,7 @@ describe('rethrowAsApiError', () => {
     const err = new HttpErrorResponse({ status: 0, statusText: '', url: '/api/objects/Task' });
     const mapper = vi.fn((e: unknown) => e);
 
-    await firstValueFrom(throwError(() => err).pipe(rethrowAsApiError(mapper))).catch(() => {});
+    await firstValueFrom(throwError(() => err).pipe(rethrowAsApiError(mapper))).catch(() => undefined);
 
     expect(mapper).toHaveBeenCalledWith(expect.objectContaining({ kind: 'network', status: 0 }));
   });
@@ -80,7 +80,7 @@ describe('rethrowAsApiError', () => {
     const mapper = vi.fn((e: unknown) => e);
 
     await firstValueFrom(throwError(() => original).pipe(rethrowAsApiError(mapper))).catch(
-      () => {},
+      () => undefined,
     );
 
     expect(mapper).toHaveBeenCalledWith(original);
@@ -91,7 +91,7 @@ describe('rethrowAsApiError', () => {
     const mapper = vi.fn((e: unknown) => e);
 
     await firstValueFrom(throwError(() => original).pipe(rethrowAsApiError(mapper))).catch(
-      () => {},
+      () => undefined,
     );
 
     expect(mapper).toHaveBeenCalledWith(original);
