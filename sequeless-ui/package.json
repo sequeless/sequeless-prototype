@@ -8,7 +8,8 @@
     "watch": "ng build sequeless-shell --configuration development --watch",
     "test": "ng test",
     "lint": "ng lint",
-    "api:types": "openapi-typescript http://localhost:8080/v3/api-docs -o .api-types/api-types.ts"
+    "api:types": "openapi-typescript http://localhost:8080/v3/api-docs -o .api-types/api-types.ts",
+    "e2e": "playwright test"
   },
   "private": true,
   "packageManager": "npm@11.19.0",
@@ -39,6 +40,7 @@
     "@angular/cli": "^22.2.0",
     "@angular/compiler-cli": "^22.2.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.64.1",
     "@rdfjs/types": "^2.0.1",
     "@types/n3": "^1.26.4",
     "angular-eslint": "22.5.0",
