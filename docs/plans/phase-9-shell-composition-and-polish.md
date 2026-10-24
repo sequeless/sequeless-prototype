@@ -141,7 +141,7 @@ extension points `[ONT-EXT]`, `OBJECT_SIGNALS_PANEL`, `STATE_MACHINE_DIAGRAM`.
 ## Task order
 
 **Phase A — tests/specs (written directly, one file per call, each states its target path; none depend on later tasks):**
-- A1 `sequeless-app/src/test/java/org/sequeless/app/FatJarServesUiAndApiIT.java` ([IT-FATJAR]). Run: `mvn -B -ntp -pl sequeless-app -am verify -Dit.test=FatJarServesUiAndApiIT -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false` (from repo root; clean `static/` first, see Part B).
+- A1 `sequeless-app/src/test/java/org/sequeless/app/FatJarServesUiAndApiIT.java` ([IT-FATJAR]). Run: `mvn -B -ntp -pl sequeless-app -am verify -Dit.test=FatJarServesUiAndApiIT -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false` (from repo root; clean `static/` first, see Part B).
 - A2 `projects/sequeless-shell/src/app/app.routes.spec.ts` ([SHELL-ROUTES-SPEC])
 - A3 `projects/sequeless-shell/src/app/app.composition.spec.ts` ([SHELL-COMPOSITION-SPEC])
 - A4 `e2e/deep-link.spec.ts` · A5 `e2e/objects-stale-conflict.spec.ts` · A6 `e2e/ontology-edit-import.spec.ts` · A7 `e2e/automation-signals.spec.ts` ([E2E-JOURNEYS]; authored, not run in CI)
