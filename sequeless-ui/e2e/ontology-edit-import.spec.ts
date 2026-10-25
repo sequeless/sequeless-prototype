@@ -12,6 +12,9 @@ async function ownerEditor(page: Page): Promise<Locator> {
   const index = await page.$$eval('sq-property-editor', (editors) =>
     editors.findIndex((e) => ((e.querySelector('[data-field="label"]') as { value?: string } | null)?.value ?? '').includes('Owner')),
   );
+  if (index < 0) {
+    throw new Error('no property editor on the Project class has a label containing "Owner"');
+  }
   return page.locator('sq-property-editor').nth(index);
 }
 
