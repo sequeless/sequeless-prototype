@@ -4,14 +4,14 @@ import { test, expect, e2eEnv } from './support/test';
 // UI until the delayed refetch (OBJECTS_SIGNAL_REFETCH_DELAY_MS, 1500 ms), then `reopen` is no longer offered
 // because the object is Active. reopen is offered only from Closed (known-signals.ts:11), so the fixture
 // walks a Project through activate and close first.
-// UNVERIFIED against a live run: the owner relationship value format and the transition response shape.
+// Verified against a live run: the owner is a bare Person id, and title is a list on the wire (a scalar is a 400).
 const env = e2eEnv();
 
 test('a dispatched signal changes the object only after the delayed refetch', async ({ page, request }) => {
   const person = await request.post(`/api/objects/Person`, { data: { properties: { name: 'E2E Owner' } } });
   const owner = (await person.json()).id;
   const project = await request.post(`/api/objects/${env.signalType}`, {
-    data: { properties: { title: `signal-${Date.now()}`, owner } },
+    data: { properties: { title: [`signal-${Date.now()}`], owner } },
   });
   const id = (await project.json()).id;
 
