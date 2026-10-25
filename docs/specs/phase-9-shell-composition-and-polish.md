@@ -1,8 +1,9 @@
 # Phase 9 — shell composition, e2e, CI, and the operating process
 
-**Status: partially done.** The shell's composition root, layout and lazy routing are built
-(Phase 2). Everything else below — end-to-end proof, CI wiring, and the documentation updates —
-is not started. This phase also carries **the process section**, which is not optional reading:
+**Status: done (2026-10-25).** The shell's composition root, layout and lazy routing were built
+in Phase 2; the end-to-end proof, the CI wiring and the documentation updates were completed under
+docs/plans/phase-9.5-shell-composition-completion.md. The live e2e run passed 6 of 6 and the R4
+gates passed; actionlint was not run because it is not installed, so the workflow is unvalidated. This phase also carries **the process section**, which is not optional reading:
 it's the distilled, empirically-learned protocol for driving the agentic CLI that built Phases
 1–3, and every one of Phases 4–8 should follow it rather than rediscovering the same failure
 modes.

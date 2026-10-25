@@ -20,10 +20,10 @@ unit of work, the same way `docs/architecture/prompts/phase-*.md` serve the back
 | 3 | [core-api library](phase-3-core-api.md) | **Done** |
 | 4 | [rdf library — ontology round-trip](phase-4-rdf.md) | **Done** |
 | 5 | [ui-kit library — presentational components](phase-5-ui-kit.md) | Done |
-| 6 | [objects feature — generic BREAD](phase-6-objects.md) | Not started |
-| 7 | [ontology feature — authoring UI](phase-7-ontology.md) | Not started |
-| 8 | [automation feature — triggers and signals](phase-8-automation.md) | Not started |
-| 9 | [Shell composition, e2e, CI, docs](phase-9-shell-composition-and-polish.md) | Partially done |
+| 6 | [objects feature — generic BREAD](phase-6-objects.md) | **Done** |
+| 7 | [ontology feature — authoring UI](phase-7-ontology.md) | **Done** |
+| 8 | [automation feature — triggers and signals](phase-8-automation.md) | **Done** |
+| 9 | [Shell composition, e2e, CI, docs](phase-9-shell-composition-and-polish.md) | **Done** |
 
 ## Dependency order
 
@@ -36,10 +36,9 @@ Phase 2 (workspace)──┘        │                 ├──► Phase 7 (on
                                     Phase 5 (ui-kit) ──► Phase 6, 7, 8
 ```
 
-Phase 6 needs `core-api` (done) and `ui-kit` (not started). Phase 7 needs `core-api`, `rdf` and
-`ui-kit`. Phase 8 needs `core-api`, `rdf` and `ui-kit`. `ui-kit` itself only needs `core-api`'s
-model types, not `rdf`. `rdf` is now done (on branch `phase-4-rdf`), so the remaining unblocked
-next step is Phase 5 (`ui-kit`); Phases 7 and 8 now wait only on it.
+Phases 1–9 are all built. Phase 9 closed on 2026-10-25: its live e2e run passed 6 of 6 and the R4
+verification gates passed, with `actionlint` not run (not installed; the workflow is unvalidated).
+See `docs/plans/phase-9.5-shell-composition-completion.md`.
 
 ## Conventions every phase follows
 
