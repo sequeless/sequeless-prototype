@@ -36,9 +36,9 @@ Phase 2 (workspace)──┘        │                 ├──► Phase 7 (on
                                     Phase 5 (ui-kit) ──► Phase 6, 7, 8
 ```
 
-Phases 1–9 are all built. Phase 9 closed on 2026-10-25: its live e2e run passed 6 of 6 and the R4
-verification gates passed, with `actionlint` not run (not installed; the workflow is unvalidated).
-See `docs/plans/phase-9.5-shell-composition-completion.md`.
+Phases 1–8 are built. Phase 9 is partially done: its live e2e run and R4 gates pass, but the README
+dev-mode section and the CI workflow validation are still open. See
+`docs/plans/phase-9.5-shell-composition-completion.md`.
 
 ## Conventions every phase follows
 

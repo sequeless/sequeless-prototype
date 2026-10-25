@@ -60,6 +60,16 @@ $ curl localhost:8080/actuator/health
 Phase 0 has no inbound identity provider, so every request is reported against the default tenant
 and an anonymous principal — that's expected, not a bug.
 
+### Develop the UI
+
+Run the API and the Angular dev server in two terminals. The dev server proxies `/api`, `/actuator`
+and `/v3/api-docs` to the API on port 8080 (`sequeless-ui/proxy.conf.json`):
+
+```
+npm start           # Angular dev server on http://localhost:4200
+npm run start:api   # the API on http://localhost:8080
+```
+
 ## Swapping an adapter by property
 
 Every outbound port is bound to exactly one adapter at startup by a `sequeless.<port>.adapter`
