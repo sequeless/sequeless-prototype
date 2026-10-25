@@ -62,8 +62,15 @@ and an anonymous principal — that's expected, not a bug.
 
 ### Develop the UI
 
-Run the API and the Angular dev server in two terminals. The dev server proxies `/api`, `/actuator`
-and `/v3/api-docs` to the API on port 8080 (`sequeless-ui/proxy.conf.json`):
+The API module depends on its sibling modules, so install them once before the first run:
+
+```
+mvn -B -DskipTests install
+```
+
+Then run the API and the Angular dev server in two terminals. The dev server proxies `/api`, `/actuator`
+and `/v3/api-docs` to the API on port 8080 (`sequeless-ui/proxy.conf.json`). The API needs PostgreSQL
+on `localhost:5432` (`docker compose up -d`):
 
 ```
 npm start           # Angular dev server on http://localhost:4200
