@@ -102,7 +102,15 @@ async function loaded(setupResult: ReturnType<typeof setup>) {
   await setupResult.fixture.whenStable();
   // ngOnInit awaits load() and loadTransitions(); let those chains settle before asserting.
   await new Promise((resolve) => setTimeout(resolve));
-  return setupResult;
+  // The transitions panel is created once the object loads, and its buttons render only after its own async load.
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (setupResult.fixture.nativeElement.querySelector('[data-transition]')) {
+      return setupResult;
+    }
+    await new Promise((resolve) => setTimeout(resolve));
+    setupResult.fixture.detectChanges();
+  }
+  throw new Error('transitions panel never rendered a button');
 }
 
 function queryButton(ctx: ReturnType<typeof setup>, selector: string): HTMLButtonElement | null {
