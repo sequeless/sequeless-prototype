@@ -23,7 +23,6 @@
     <spring-boot.version>4.1.1</spring-boot.version>
     <archunit.version>1.5.0</archunit.version>
     <japicmp.version>0.26.2</japicmp.version>
-    <lombok.version>1.18.48</lombok.version>
     <jena.version>6.1.0</jena.version>
     <jexl.version>3.6.2</jexl.version>
     <springdoc.version>3.1.1</springdoc.version>
@@ -81,12 +80,6 @@
         <version>2.50.0</version>
       </dependency>
 
-      <dependency>
-        <groupId>org.projectlombok</groupId>
-        <artifactId>lombok</artifactId>
-        <version>${lombok.version}</version>
-      </dependency>
-
       <!--
         Jena 6 for the default OntologyPort adapter. jena-ontapi transitively brings jena-arq,
         jena-core and jena-base; it does NOT bring Jackson (Jena 6 uses gson and titanium-json-ld),
@@ -109,6 +102,22 @@
       <dependency>
         <groupId>org.apache.jena</groupId>
         <artifactId>jena-shacl</artifactId>
+        <version>${jena.version}</version>
+      </dependency>
+
+      <!--
+        jena-core and jena-arq are used directly by sequeless-adapter-ontology-jena, but no BOM
+        manages them. Pinned here so the module can declare them without a version.
+      -->
+      <dependency>
+        <groupId>org.apache.jena</groupId>
+        <artifactId>jena-core</artifactId>
+        <version>${jena.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.jena</groupId>
+        <artifactId>jena-arq</artifactId>
         <version>${jena.version}</version>
       </dependency>
 
@@ -152,6 +161,16 @@
       <dependency>
         <groupId>io.temporal</groupId>
         <artifactId>temporal-testing</artifactId>
+        <version>${temporal.version}</version>
+      </dependency>
+
+      <!--
+        Used directly by sequeless-adapter-automation-temporal. No BOM manages it, so it is pinned
+        here at the same version as temporal-sdk.
+      -->
+      <dependency>
+        <groupId>io.temporal</groupId>
+        <artifactId>temporal-serviceclient</artifactId>
         <version>${temporal.version}</version>
       </dependency>
     </dependencies>
