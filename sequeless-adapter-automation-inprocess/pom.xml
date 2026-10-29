@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,10 +12,8 @@
   <artifactId>sequeless-adapter-automation-inprocess</artifactId>
 
   <name>sequeless-adapter-automation-inprocess</name>
-  <description>
-    The test/dev AutomationPort adapter: a synchronous executor over the outbox, used in place of
-    Temporal for tests and local development.
-  </description>
+  <description>The test/dev AutomationPort adapter: a synchronous executor over the outbox, used in place of
+    Temporal for tests and local development.</description>
 
   <dependencies>
     <dependency>

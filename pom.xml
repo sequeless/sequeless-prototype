@@ -1,37 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
+  <parent>
+    <groupId>org.sequeless</groupId>
+    <artifactId>sequeless-build-parent</artifactId>
+    <version>0.1.1</version>
+    <relativePath/>
+  </parent>
+
   <groupId>org.sequeless</groupId>
-  <artifactId>sequeless-parent</artifactId>
+  <artifactId>sequeless-prototype</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <name>sequeless-parent</name>
-  <description>
-    Root reactor POM for Sequeless. Deliberately has no Maven parent: it imports the Spring Boot
-    dependencies BOM and pins its own plugin versions, so sequeless-spi does not inherit Spring
-    Boot's build conventions (Lombok/Spring must stay out of the SPI and core modules).
-  </description>
+  <name>sequeless-prototype</name>
+  <description>Root reactor POM for Sequeless. Its parent is sequeless-build-parent, which has no Spring in it,
+    so sequeless-spi and sequeless-core still inherit no Spring Boot build conventions (Lombok and
+    Spring must stay out of the SPI and core modules). This root imports the Spring Boot dependencies
+    BOM for the adapters and the host.</description>
+
+  <modules>
+    <module>sequeless-spi</module>
+    <module>sequeless-spi-testkit</module>
+    <module>sequeless-core</module>
+    <module>sequeless-adapter-authz-permitall</module>
+    <module>sequeless-adapter-ontology-jena</module>
+    <module>sequeless-adapter-persistence-postgres</module>
+    <module>sequeless-adapter-expression-jexl</module>
+    <module>sequeless-adapter-automation-temporal</module>
+    <module>sequeless-adapter-automation-inprocess</module>
+    <module>sequeless-app</module>
+  </modules>
 
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- An app, so 25 (#17 section 1). The parent defaults to 21 for libraries. -->
     <maven.compiler.release>25</maven.compiler.release>
+    <sequeless.github.repository>sequeless-prototype</sequeless.github.repository>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <sonar.projectKey>sequeless_sequeless-prototype</sonar.projectKey>
+
+    <!-- Fallback until sequeless-build-parent 0.1.2 is released (spec 3 section 3.1). Remove both. -->
+    <!-- remove when sequeless-build-parent >= 0.1.2 -->
+    <maven-dependency-plugin.version>3.10.0</maven-dependency-plugin.version>
+    <!-- remove when sequeless-build-parent >= 0.1.2 -->
+    <jacoco.version>0.8.14</jacoco.version>
 
     <spring-boot.version>4.1.1</spring-boot.version>
-    <archunit.version>1.5.0</archunit.version>
     <japicmp.version>0.26.2</japicmp.version>
     <jena.version>6.1.0</jena.version>
     <jexl.version>3.6.2</jexl.version>
     <springdoc.version>3.1.1</springdoc.version>
     <temporal.version>1.39.0</temporal.version>
-
-    <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
-    <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
-    <maven-failsafe-plugin.version>3.6.0</maven-failsafe-plugin.version>
-    <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -48,12 +68,6 @@
         junit-jupiter, assertj-core, mockito and testcontainers versions come from the Spring Boot
         BOM above (imported as spring-boot-dependencies) and must NOT be repinned here.
       -->
-
-      <dependency>
-        <groupId>com.tngtech.archunit</groupId>
-        <artifactId>archunit-junit5</artifactId>
-        <version>${archunit.version}</version>
-      </dependency>
 
       <!--
         Convergence pins. Spring Boot's BOM does not manage these, and the dependency paths disagree.
@@ -176,47 +190,27 @@
     </dependencies>
   </dependencyManagement>
 
+  <!--
+    Maven resolves the parent before it reads the parent's own repositories, so the GitHub Packages
+    repository is repeated here. Consumers of sequeless-build-parent need a read:packages token.
+  -->
+  <repositories>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/sequeless/*</url>
+    </repository>
+  </repositories>
+
   <build>
     <pluginManagement>
       <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-compiler-plugin</artifactId>
-          <version>${maven-compiler-plugin.version}</version>
-          <configuration>
-            <release>25</release>
-          </configuration>
-        </plugin>
-
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-surefire-plugin</artifactId>
-          <version>${maven-surefire-plugin.version}</version>
-        </plugin>
-
-        <!--
-          Version only, no executions here: Failsafe is reserved for the Testcontainers
-          integration tests introduced in Phase 2.
-        -->
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-failsafe-plugin</artifactId>
-          <version>${maven-failsafe-plugin.version}</version>
-        </plugin>
-
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-enforcer-plugin</artifactId>
-          <version>${maven-enforcer-plugin.version}</version>
-        </plugin>
-
         <!--
           Full japicmp configuration lives here so a bare <plugin> declaration in a module's own
           <build><plugins> (e.g. sequeless-spi) inherits both this configuration and the
           japicmp-verify execution bound to the verify phase. No sequeless-spi artifact has ever
           been published, so oldVersion RELEASE fails to resolve; ignoreMissingOldVersion makes
           that a skipped no-op today. This becomes a real compatibility gate once an SPI GA is
-          published.
+          published. The parent has no japicmp, so this stays here.
         -->
         <plugin>
           <groupId>com.github.siom79.japicmp</groupId>
@@ -245,10 +239,10 @@
           <executions>
             <execution>
               <id>japicmp-verify</id>
-              <phase>verify</phase>
               <goals>
                 <goal>cmp</goal>
               </goals>
+              <phase>verify</phase>
             </execution>
           </executions>
         </plugin>
@@ -256,67 +250,26 @@
     </pluginManagement>
 
     <!--
-      Inherited by every module. japicmp and the bannedDependencies enforcer execution are
-      deliberately NOT declared here - they are activated per-module (sequeless-spi and
-      sequeless-core) once those modules exist.
+      The parent binds dependency:analyze-only to verify, with failOnWarning. Spring Boot starters
+      carry auto-configuration and are never named in code, so they are ignored as unused
+      (spec 3 section 3.2a, rule 2).
     -->
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
+        <artifactId>maven-dependency-plugin</artifactId>
         <executions>
           <execution>
-            <id>enforce-versions</id>
-            <phase>validate</phase>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
+            <id>analyze-only</id>
             <configuration>
-              <rules>
-                <requireMavenVersion>
-                  <version>[3.9,)</version>
-                </requireMavenVersion>
-                <requireJavaVersion>
-                  <version>[25,)</version>
-                </requireJavaVersion>
-              </rules>
+              <ignoredUnusedDeclaredDependencies>
+                <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter*</ignoredUnusedDeclaredDependency>
+              </ignoredUnusedDeclaredDependencies>
             </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <!--
-        Executions declared here (not in pluginManagement, which only pins the version) so every
-        reactor module inherits them: any module with a class matching Failsafe's default
-        **/*IT.java pattern automatically runs it during mvn verify. Surefire's own default
-        excludes already skip **/*IT.java, so there is no double-run risk.
-      -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-failsafe-plugin</artifactId>
-        <executions>
-          <execution>
-            <goals>
-              <goal>integration-test</goal>
-              <goal>verify</goal>
-            </goals>
           </execution>
         </executions>
       </plugin>
     </plugins>
   </build>
-
-  <modules>
-    <module>sequeless-spi</module>
-    <module>sequeless-spi-testkit</module>
-    <module>sequeless-core</module>
-    <module>sequeless-adapter-authz-permitall</module>
-    <module>sequeless-adapter-ontology-jena</module>
-    <module>sequeless-adapter-persistence-postgres</module>
-    <module>sequeless-adapter-expression-jexl</module>
-    <module>sequeless-adapter-automation-temporal</module>
-    <module>sequeless-adapter-automation-inprocess</module>
-    <module>sequeless-app</module>
-  </modules>
 
 </project>

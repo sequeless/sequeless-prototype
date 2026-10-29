@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,12 +12,15 @@
   <artifactId>sequeless-spi</artifactId>
 
   <name>sequeless-spi</name>
-  <description>
-    Outbound port interfaces and immutable value types (records) for Sequeless: SpiVersion,
+  <description>Outbound port interfaces and immutable value types (records) for Sequeless: SpiVersion,
     TenantId, Principal, Scope, AdapterDescriptor, AdapterDescriptorProvider, and per-port packages
     such as org.sequeless.spi.authz. Imports nothing outside the JDK; enforced both by Maven
-    (bannedDependencies below) and by ArchUnit in sequeless-app.
-  </description>
+    (bannedDependencies below) and by ArchUnit in sequeless-app.</description>
+
+  <properties>
+    <!-- Core modules: ban Spring, Jena and Lombok from the compile classpath. -->
+    <sequeless.enforcer.core.skip>false</sequeless.enforcer.core.skip>
+  </properties>
 
   <dependencies>
     <dependency>
@@ -59,31 +60,6 @@
         <artifactId>japicmp-maven-plugin</artifactId>
       </plugin>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>banned-dependencies</id>
-            <phase>validate</phase>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <bannedDependencies>
-                  <excludes>
-                    <exclude>org.springframework*</exclude>
-                    <exclude>org.projectlombok:lombok</exclude>
-                    <exclude>org.apache.jena:*</exclude>
-                  </excludes>
-                </bannedDependencies>
-              </rules>
-              <fail>true</fail>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
     </plugins>
   </build>
 
