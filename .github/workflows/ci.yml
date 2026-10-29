@@ -4,19 +4,14 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-
-      - run: mvn -B -ntp verify
+    uses: sequeless/sequeless-build/.github/workflows/maven-ci.yml@workflows-v0.1.0
+    secrets: inherit
 
   ui:
     runs-on: ubuntu-latest
@@ -48,5 +43,15 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+          server-id: github
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
 
       - run: npm run ci:combined
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
+
+  sonar:
+    uses: sequeless/sequeless-build/.github/workflows/maven-sonar.yml@workflows-v0.1.0
+    secrets: inherit
