@@ -38,7 +38,9 @@ available). It found three facts that change the work:
 3. **The conventions the parent turns on fail on today's prototype.** §3.2 gives the exact findings
    and fixes.
 
-With the overrides of §3.1 and the fixes of §3.2 applied, the trial passed a full `mvn -B -ntp verify`:
+With the overrides of §3.1, and with the parent's enforcer and Spotless checks skipped and
+dependency:analyze in warn-only mode, the trial passed a full `mvn -B -ntp verify`. The §3.2 fixes were
+not in that run. They are applied and verified on the branch:
 all 11 reactor projects built, 872 tests passed (unit tests and Testcontainers ITs, 0 failures), and
 JaCoCo wrote its reports. After `npm run build:ui`, `FatJarServesUiAndApiIT` also passed against an
 exec jar that contained the SPA (`BOOT-INF/classes/static/index.html` and 34 other assets).
@@ -177,7 +179,8 @@ pass for the whole reactor.
 `sequeless-app` resolves `commons-io` 2.20.0, `guava` 33.4.8-android and `error_prone_annotations`
 2.41.0, because Maven picks the nearest version. "Keep today's versions" is not an option, because
 the modules disagree today (jena alone resolves `commons-io` 2.22.0). The unit tests, the ITs and
-`FatJarServesUiAndApiIT` are the check. In the trial they passed with these exact versions.
+`FatJarServesUiAndApiIT` are the check. The trial never ran a full verify with these pins; it only
+checked them with `mvn validate`. The branch's full verify runs with them from commit 8652028 on.
 
 **c. Spotless.** `spotless:check` runs at `verify` (palantir-java-format, import order and sortPom).
 Running `spotless:apply` on `f1451a7` changes 204 of the 406 Java files and all 11 POMs (5,272 lines

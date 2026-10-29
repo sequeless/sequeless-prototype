@@ -33,6 +33,17 @@ npm run build:ui && mvn -B verify
 
 The full UI gate (clean install, lint, tests, shell build) is `npm run ci:ui`; `npm run ci:combined` runs it before `mvn verify`.
 
+### Build notes
+
+- The root POM's parent is `org.sequeless:sequeless-build-parent` (GitHub Packages). It is pinned to 0.1.1.
+  Two version overrides in the root (`maven-dependency-plugin`, `jacoco`) stay until 0.1.2 is released,
+  because 0.1.1 cannot read Java 25 class files. The root is `sequeless-prototype`, formerly `sequeless-parent`.
+- The prototype is not released or deployed (`maven.deploy.skip`).
+- `sequeless-app` skips `dependency:analyze`. It depends on its adapters only so their auto-configuration
+  runs, and no app code names them. Its boundaries are guarded by `ArchitectureTest`.
+- The root pins `commons-io`, `guava` and `error_prone_annotations`. Jena, Temporal and gRPC disagree on
+  these versions, so the pins move the host to 2.22.0, 33.6.0-jre and 2.50.0.
+
 ## End-to-end tests
 
 The Playwright suite under `sequeless-ui/e2e` is opt-in and never runs in `verify` or CI. Its browsers must be
@@ -67,6 +78,24 @@ The API module depends on its sibling modules, so install them once before the f
 ```
 mvn -B -DskipTests install
 ```
+
+Maven reads the parent, `sequeless-build-parent`, from GitHub Packages. That needs a `read:packages` token
+even though the package is public. Add a `github` server entry to `~/.m2/settings.xml` once (skip this if
+you already have one):
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>YOUR_GITHUB_USER</username>
+      <password>YOUR_READ_PACKAGES_TOKEN</password>
+    </server>
+  </servers>
+</settings>
+```
+
+Without that entry, Maven cannot download the parent.
 
 Then run the API and the Angular dev server in two terminals. The dev server proxies `/api`, `/actuator`
 and `/v3/api-docs` to the API on port 8080 (`sequeless-ui/proxy.conf.json`). The API needs PostgreSQL
@@ -147,7 +176,7 @@ Set 'sequeless.authz.adapter' to one of: permit-all
 
 | Module | Responsibility | May depend on |
 |---|---|---|
-| `sequeless-parent` | Root POM: versions, plugin management, module list, ArchUnit/japicmp config | none |
+| `sequeless-prototype` | Root POM: parent `sequeless-build-parent`, versions, convergence pins, module list, japicmp config | none |
 | `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | nothing outside the JDK |
 | `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus the reference-domain ontology fixture | `sequeless-spi`, JUnit 5, AssertJ |
 | `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `sequeless-spi` |
