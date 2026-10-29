@@ -38,13 +38,11 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     @BeforeAll
     static void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        server.createContext(
-            "/hook",
-            exchange -> {
-                exchange.getRequestBody().readAllBytes();
-                exchange.sendResponseHeaders(200, -1);
-                exchange.close();
-            });
+        server.createContext("/hook", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
         server.start();
         webhookUrl = "http://localhost:" + server.getAddress().getPort() + "/hook";
     }
@@ -55,13 +53,12 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     }
 
     private final RecordingActionExecutor recorder =
-        new RecordingActionExecutor(new ResolvedWebhookRequest(webhookUrl, "POST", Optional.empty()));
+            new RecordingActionExecutor(new ResolvedWebhookRequest(webhookUrl, "POST", Optional.empty()));
     private final RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
     private final RecordingDerivationRecomputer derivationRecomputer = new RecordingDerivationRecomputer();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
     private final InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
-    private final AutomationPort port =
-        new InProcessAutomationPort(
+    private final AutomationPort port = new InProcessAutomationPort(
             recorder,
             new InProcessAutomationProperties(),
             triggerEvaluator,

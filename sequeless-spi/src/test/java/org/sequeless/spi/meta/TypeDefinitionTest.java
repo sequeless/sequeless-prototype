@@ -14,13 +14,13 @@ class TypeDefinitionTest {
 
     private static TypeDefinition sample(List<String> superTypes, List<PropertyDefinition> properties) {
         return new TypeDefinition(
-            "https://example.org/ns#Task",
-            "Task",
-            superTypes,
-            properties,
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+                "https://example.org/ns#Task",
+                "Task",
+                superTypes,
+                properties,
+                DisplayHints.none(),
+                false,
+                Optional.empty());
     }
 
     @Test
@@ -36,51 +36,64 @@ class TypeDefinitionTest {
     @Test
     void rejectsNullOrBlankIri() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new TypeDefinition(
-                null, "Task", List.of(), List.of(), DisplayHints.none(), false, Optional.empty()));
+                .isThrownBy(() -> new TypeDefinition(
+                        null, "Task", List.of(), List.of(), DisplayHints.none(), false, Optional.empty()));
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new TypeDefinition(
-                "  ", "Task", List.of(), List.of(), DisplayHints.none(), false, Optional.empty()));
+                .isThrownBy(() -> new TypeDefinition(
+                        "  ", "Task", List.of(), List.of(), DisplayHints.none(), false, Optional.empty()));
     }
 
     @Test
     void rejectsNullOrBlankLabel() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new TypeDefinition(
-                "https://example.org/ns#Task", null, List.of(), List.of(), DisplayHints.none(), false,
-                Optional.empty()));
+                .isThrownBy(() -> new TypeDefinition(
+                        "https://example.org/ns#Task",
+                        null,
+                        List.of(),
+                        List.of(),
+                        DisplayHints.none(),
+                        false,
+                        Optional.empty()));
     }
 
     @Test
     void rejectsNullSuperTypes() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new TypeDefinition(
-                "https://example.org/ns#Task", "Task", null, List.of(), DisplayHints.none(), false,
-                Optional.empty()));
+                .isThrownBy(() -> new TypeDefinition(
+                        "https://example.org/ns#Task",
+                        "Task",
+                        null,
+                        List.of(),
+                        DisplayHints.none(),
+                        false,
+                        Optional.empty()));
     }
 
     @Test
     void rejectsNullProperties() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new TypeDefinition(
-                "https://example.org/ns#Task", "Task", List.of(), null, DisplayHints.none(), false,
-                Optional.empty()));
+                .isThrownBy(() -> new TypeDefinition(
+                        "https://example.org/ns#Task",
+                        "Task",
+                        List.of(),
+                        null,
+                        DisplayHints.none(),
+                        false,
+                        Optional.empty()));
     }
 
     @Test
     void rejectsNullDisplayHints() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new TypeDefinition(
-                "https://example.org/ns#Task", "Task", List.of(), List.of(), null, false,
-                Optional.empty()));
+                .isThrownBy(() -> new TypeDefinition(
+                        "https://example.org/ns#Task", "Task", List.of(), List.of(), null, false, Optional.empty()));
     }
 
     @Test
     void rejectsNullStateMachineWrapper() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new TypeDefinition(
-                "https://example.org/ns#Task", "Task", List.of(), List.of(), DisplayHints.none(), false,
-                null));
+                .isThrownBy(() -> new TypeDefinition(
+                        "https://example.org/ns#Task", "Task", List.of(), List.of(), DisplayHints.none(), false, null));
     }
 
     @Test
@@ -88,8 +101,7 @@ class TypeDefinitionTest {
         List<String> superTypesWithNull = new ArrayList<>();
         superTypesWithNull.add(null);
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> sample(superTypesWithNull, List.of()));
+        assertThatNullPointerException().isThrownBy(() -> sample(superTypesWithNull, List.of()));
     }
 
     @Test

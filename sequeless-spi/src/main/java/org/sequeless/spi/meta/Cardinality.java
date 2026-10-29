@@ -24,7 +24,7 @@ public record Cardinality(int min, OptionalInt max) {
         }
         if (max.isPresent() && max.getAsInt() < min) {
             throw new IllegalArgumentException(
-                "Cardinality max (" + max.getAsInt() + ") must not be less than min (" + min + ")");
+                    "Cardinality max (" + max.getAsInt() + ") must not be less than min (" + min + ")");
         }
     }
 

@@ -49,10 +49,9 @@ final class FacetResponseMapper {
         for (Map.Entry<String, List<FacetBucket>> entry : facetsByIri.entrySet()) {
             String iri = entry.getKey();
             String name = namesByIri.getOrDefault(iri, shortName(iri));
-            List<FacetBucketResponse> buckets =
-                    entry.getValue().stream()
-                            .map(bucket -> new FacetBucketResponse(bucket.value(), bucket.count()))
-                            .toList();
+            List<FacetBucketResponse> buckets = entry.getValue().stream()
+                    .map(bucket -> new FacetBucketResponse(bucket.value(), bucket.count()))
+                    .toList();
             result.put(name, buckets);
         }
         return result;

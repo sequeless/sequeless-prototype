@@ -67,7 +67,8 @@ class SpaFallbackResourceResolverTest {
     private static final List<String> RESERVED_PREFIXES =
             List.of("/api", "/actuator", "/swagger-ui", "/v3/api-docs", "/error", "/webjars");
 
-    @TempDir Path webRoot;
+    @TempDir
+    Path webRoot;
 
     /**
      * The resolver's {@code location}. The trailing slash is load-bearing: {@code
@@ -150,7 +151,8 @@ class SpaFallbackResourceResolverTest {
     void actuatorPathIsNotAnsweredWithTheIndex() throws IOException {
         // Actuator is unprefixed (see ApiPathPrefixTest.swaggerUiAndActuatorAreNotPrefixed), so it
         // needs its own reserved entry; an unexposed endpoint must stay a 404 for probes/tooling.
-        assertThat(resolver(index, true).getResource("actuator/health", location)).isNull();
+        assertThat(resolver(index, true).getResource("actuator/health", location))
+                .isNull();
     }
 
     @Test
@@ -159,13 +161,15 @@ class SpaFallbackResourceResolverTest {
         // bundle hash that no longer exists. If the fallback answered that with index.html, the
         // browser would get HTML where it expected JavaScript and surface the baffling
         // "Unexpected token '<'" / strict-MIME-type error instead of an honest 404.
-        assertThat(resolver(index, true).getResource("assets/app-deadbeef.js", location)).isNull();
+        assertThat(resolver(index, true).getResource("assets/app-deadbeef.js", location))
+                .isNull();
     }
 
     @Test
     void deepLinkIsNotAnsweredWithTheIndexWhenTheFallbackIsDisabled() throws IOException {
         // Rule 2: sequeless.web.spa.enabled=false must switch the fallback off completely.
-        assertThat(resolver(index, false).getResource("ontology/classes/Project", location)).isNull();
+        assertThat(resolver(index, false).getResource("ontology/classes/Project", location))
+                .isNull();
     }
 
     @Test
@@ -175,8 +179,7 @@ class SpaFallbackResourceResolverTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 
-        assertThat(resolver(index, true)
-                        .resolveResource(request, "ontology/classes/Project", List.of(location), null))
+        assertThat(resolver(index, true).resolveResource(request, "ontology/classes/Project", List.of(location), null))
                 .isNull();
     }
 
@@ -190,8 +193,7 @@ class SpaFallbackResourceResolverTest {
 
         for (MockHttpServletRequest request : List.of(browser, noAccept)) {
             Resource resolved =
-                    resolver(index, true)
-                            .resolveResource(request, "ontology/classes/Project", List.of(location), null);
+                    resolver(index, true).resolveResource(request, "ontology/classes/Project", List.of(location), null);
 
             assertThat(resolved).isNotNull();
             assertThat(resolved.getContentAsString(StandardCharsets.UTF_8)).contains(INDEX_MARKER);

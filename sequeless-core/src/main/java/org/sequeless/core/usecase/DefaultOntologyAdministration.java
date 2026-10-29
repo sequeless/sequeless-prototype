@@ -43,10 +43,9 @@ public final class DefaultOntologyAdministration implements OntologyAdministrati
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultOntologyAdministration(
-        OntologyPort ontologyPort, AuthorizationPort authorizationPort, QueryPort queryPort) {
+            OntologyPort ontologyPort, AuthorizationPort authorizationPort, QueryPort queryPort) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.authorizationPort =
-            Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
         this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
     }
 
@@ -72,8 +71,7 @@ public final class DefaultOntologyAdministration implements OntologyAdministrati
     }
 
     private void authorize(Scope scope) {
-        AccessDecision decision =
-            authorizationPort.decide(scope, Operation.ADMIN, AuthorizationPort.EVERYTHING);
+        AccessDecision decision = authorizationPort.decide(scope, Operation.ADMIN, AuthorizationPort.EVERYTHING);
         if (!decision.allowed()) {
             throw new AuthorizationException(decision);
         }

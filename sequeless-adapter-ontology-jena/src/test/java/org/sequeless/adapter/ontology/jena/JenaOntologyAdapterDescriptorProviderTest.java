@@ -26,16 +26,15 @@ class JenaOntologyAdapterDescriptorProviderTest {
 
     @Test
     void isDiscoverableViaServiceLoaderAndDescribesItselfCorrectly() {
-        List<AdapterDescriptorProvider> providers =
-            ServiceLoader.load(AdapterDescriptorProvider.class).stream()
+        List<AdapterDescriptorProvider> providers = ServiceLoader.load(AdapterDescriptorProvider.class).stream()
                 .map(ServiceLoader.Provider::get)
                 .toList();
 
         AdapterDescriptor descriptor = providers.stream()
-            .map(AdapterDescriptorProvider::descriptor)
-            .filter(d -> d.name().equals("jena"))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No 'jena' AdapterDescriptorProvider registered"));
+                .map(AdapterDescriptorProvider::descriptor)
+                .filter(d -> d.name().equals("jena"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No 'jena' AdapterDescriptorProvider registered"));
 
         assertThat(descriptor.name()).isEqualTo("jena");
         assertThat(descriptor.port()).isEqualTo(OntologyPort.class);

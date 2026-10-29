@@ -27,15 +27,13 @@ public final class DefaultWhoAmI implements WhoAmI {
      * @throws NullPointerException if {@code authorizationPort} is {@code null}
      */
     public DefaultWhoAmI(AuthorizationPort authorizationPort) {
-        this.authorizationPort =
-            Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
     }
 
     @Override
     public WhoAmIResult whoAmI(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
-        AccessDecision decision =
-            authorizationPort.decide(scope, Operation.READ, AuthorizationPort.EVERYTHING);
+        AccessDecision decision = authorizationPort.decide(scope, Operation.READ, AuthorizationPort.EVERYTHING);
         if (!decision.allowed()) {
             throw new AuthorizationException(decision);
         }

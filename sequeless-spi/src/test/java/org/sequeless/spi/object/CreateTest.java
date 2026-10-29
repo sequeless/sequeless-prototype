@@ -15,8 +15,14 @@ class CreateTest {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         Audit audit = new Audit(now, "alice", now, "alice");
         return new BusinessObject(
-            ObjectId.random(), new TypeRef("https://example.org/ns#Task"), TenantId.DEFAULT, 1,
-            Optional.empty(), Map.of(), audit, false);
+                ObjectId.random(),
+                new TypeRef("https://example.org/ns#Task"),
+                TenantId.DEFAULT,
+                1,
+                Optional.empty(),
+                Map.of(),
+                audit,
+                false);
     }
 
     @Test

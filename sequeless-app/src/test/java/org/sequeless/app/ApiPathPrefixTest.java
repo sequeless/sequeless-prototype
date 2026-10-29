@@ -56,27 +56,29 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.expression.adapter=jexl")
 class ApiPathPrefixTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
     void whoAmiIsServedUnderTheApiPrefix() throws Exception {
-        String json =
-                restTestClient
-                        .get()
-                        .uri("/api/whoami")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String json = restTestClient
+                .get()
+                .uri("/api/whoami")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         // WhoAmIController is single-tenant in Phase 0: tenant is always TenantId.DEFAULT ("default"),
         // as WhoAmIEndToEndTest asserts for the unprefixed URL this test replaces.
@@ -124,12 +126,7 @@ class ApiPathPrefixTest extends PostgresTestcontainersSupport {
         // uri(URI) sends the given URI exactly as built, with no second encoding pass.
         URI encodedIriUri = URI.create("http://localhost:" + port + "/api/types/" + encodedIri);
 
-        restTestClient
-                .get()
-                .uri(encodedIriUri)
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient.get().uri(encodedIriUri).exchange().expectStatus().isOk();
     }
 
     @Test
@@ -143,30 +140,23 @@ class ApiPathPrefixTest extends PostgresTestcontainersSupport {
         // Pre-built java.net.URI for the same reason as resolvesByEncodedIri: uri(String, Object...)
         // would run the %5B/%5D through UriComponentsBuilder's own encoding pass and double-encode
         // them, defeating what this test exists to verify.
-        URI filteredBrowseUri =
-                URI.create("http://localhost:" + port + "/api/objects/Project"
-                        + "?filter%5BopenTaskCount%5D%5Bgte%5D=0");
+        URI filteredBrowseUri = URI.create(
+                "http://localhost:" + port + "/api/objects/Project" + "?filter%5BopenTaskCount%5D%5Bgte%5D=0");
 
-        restTestClient
-                .get()
-                .uri(filteredBrowseUri)
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient.get().uri(filteredBrowseUri).exchange().expectStatus().isOk();
     }
 
     @Test
     void generatedOpenApiDocumentUsesThePrefixedPaths() {
-        String body =
-                restTestClient
-                        .get()
-                        .uri("/v3/api-docs")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String body = restTestClient
+                .get()
+                .uri("/v3/api-docs")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         // springdoc must advertise the endpoints where the implementation will actually serve
         // them: every path key in the generated document carries the /api prefix.
@@ -187,18 +177,8 @@ class ApiPathPrefixTest extends PostgresTestcontainersSupport {
         // controllers live elsewhere and must keep their conventional unprefixed locations, so
         // tooling that hardcodes /v3/api-docs and /actuator/health keeps working. (Actuator
         // exposes only 'health'.)
-        restTestClient
-                .get()
-                .uri("/v3/api-docs")
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient.get().uri("/v3/api-docs").exchange().expectStatus().isOk();
 
-        restTestClient
-                .get()
-                .uri("/actuator/health")
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient.get().uri("/actuator/health").exchange().expectStatus().isOk();
     }
 }

@@ -53,8 +53,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
  */
 class TemporalAutomationAutoConfigurationTest {
 
-    private final ApplicationContextRunner runner =
-        new ApplicationContextRunner()
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(TemporalAutomationAutoConfiguration.class))
             .withBean(ActionExecutor.class, RecordingActionExecutor::new)
             .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
@@ -62,63 +61,51 @@ class TemporalAutomationAutoConfigurationTest {
 
     @Test
     void wiresAutomationPortWhenAdapterPropertySetAndActionExecutorPresent() {
-        runner
-            .withPropertyValues("sequeless.automation.adapter=temporal")
-            .run(
-                context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(AutomationPort.class);
-                    assertThat(context.getBean(AutomationPort.class)).isInstanceOf(TemporalAutomationPort.class);
-                    assertThat(context).hasSingleBean(WorkflowClient.class);
-                    assertThat(context).hasSingleBean(WorkflowServiceStubs.class);
-                    assertThat(context).hasSingleBean(WorkerFactory.class);
-                });
+        runner.withPropertyValues("sequeless.automation.adapter=temporal").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(AutomationPort.class);
+            assertThat(context.getBean(AutomationPort.class)).isInstanceOf(TemporalAutomationPort.class);
+            assertThat(context).hasSingleBean(WorkflowClient.class);
+            assertThat(context).hasSingleBean(WorkflowServiceStubs.class);
+            assertThat(context).hasSingleBean(WorkerFactory.class);
+        });
     }
 
     @Test
     void doesNotWireWhenAdapterPropertyAbsent() {
-        runner.run(
-            context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).doesNotHaveBean(AutomationPort.class);
-            });
+        runner.run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(AutomationPort.class);
+        });
     }
 
     @Test
     void doesNotWireWhenAdapterPropertyIsSomethingElse() {
-        runner
-            .withPropertyValues("sequeless.automation.adapter=other")
-            .run(
-                context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).doesNotHaveBean(AutomationPort.class);
-                });
+        runner.withPropertyValues("sequeless.automation.adapter=other").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(AutomationPort.class);
+        });
     }
 
     @Test
     void bindsRetryAndTaskQueuePropertiesWithDefaults() {
-        runner
-            .withPropertyValues("sequeless.automation.adapter=temporal")
-            .run(
-                context -> {
-                    assertThat(context).hasNotFailed();
-                    TemporalAutomationProperties props = context.getBean(TemporalAutomationProperties.class);
-                    assertThat(props.getTaskQueue()).isEqualTo("sequeless-actions");
-                    assertThat(props.getRetry().getMaximumAttempts()).isEqualTo(5);
-                });
+        runner.withPropertyValues("sequeless.automation.adapter=temporal").run(context -> {
+            assertThat(context).hasNotFailed();
+            TemporalAutomationProperties props = context.getBean(TemporalAutomationProperties.class);
+            assertThat(props.getTaskQueue()).isEqualTo("sequeless-actions");
+            assertThat(props.getRetry().getMaximumAttempts()).isEqualTo(5);
+        });
     }
 
     @Test
     void bindsCustomRetryAndTaskQueueProperties() {
-        runner
-            .withPropertyValues(
-                "sequeless.automation.adapter=temporal",
-                "sequeless.automation.temporal.task-queue=custom-queue",
-                "sequeless.automation.temporal.retry.initial-interval=2s",
-                "sequeless.automation.temporal.retry.backoff-coefficient=1.5",
-                "sequeless.automation.temporal.retry.maximum-attempts=7")
-            .run(
-                context -> {
+        runner.withPropertyValues(
+                        "sequeless.automation.adapter=temporal",
+                        "sequeless.automation.temporal.task-queue=custom-queue",
+                        "sequeless.automation.temporal.retry.initial-interval=2s",
+                        "sequeless.automation.temporal.retry.backoff-coefficient=1.5",
+                        "sequeless.automation.temporal.retry.maximum-attempts=7")
+                .run(context -> {
                     assertThat(context).hasNotFailed();
                     TemporalAutomationProperties props = context.getBean(TemporalAutomationProperties.class);
                     assertThat(props.getTaskQueue()).isEqualTo("custom-queue");

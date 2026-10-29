@@ -63,12 +63,11 @@ public class InProcessAutomationAutoConfiguration {
 
     @Bean(destroyMethod = "shutdownNow")
     public ScheduledExecutorService timerTickExecutor() {
-        return Executors.newSingleThreadScheduledExecutor(
-            runnable -> {
-                Thread thread = new Thread(runnable, "inprocess-timer-tick");
-                thread.setDaemon(true);
-                return thread;
-            });
+        return Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "inprocess-timer-tick");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /**
@@ -96,8 +95,7 @@ public class InProcessAutomationAutoConfiguration {
             @Value("${sequeless.automation.inprocess.timer-tick-ms:100}") long tickMillis,
             Clock clock) {
         InProcessTimerScheduler scheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
-        timerTickExecutor.scheduleWithFixedDelay(
-            scheduler::sweep, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
+        timerTickExecutor.scheduleWithFixedDelay(scheduler::sweep, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
         return scheduler;
     }
 
@@ -125,11 +123,11 @@ public class InProcessAutomationAutoConfiguration {
             InProcessRecomputeProperties recomputeProperties,
             InProcessTimerScheduler timerScheduler) {
         return new InProcessAutomationPort(
-            actionExecutor,
-            properties,
-            triggerEvaluator,
-            derivationRecomputer,
-            recomputeProperties.getMode(),
-            timerScheduler);
+                actionExecutor,
+                properties,
+                triggerEvaluator,
+                derivationRecomputer,
+                recomputeProperties.getMode(),
+                timerScheduler);
     }
 }

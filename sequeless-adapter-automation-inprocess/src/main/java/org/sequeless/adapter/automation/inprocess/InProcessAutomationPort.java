@@ -100,8 +100,7 @@ public final class InProcessAutomationPort implements AutomationPort {
         this.actionExecutor = Objects.requireNonNull(actionExecutor, "actionExecutor must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
-        this.recomputeCoordinator =
-            new RecomputeCoordinator(
+        this.recomputeCoordinator = new RecomputeCoordinator(
                 Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null"),
                 Objects.requireNonNull(recomputeMode, "recomputeMode must not be null"));
         this.timerScheduler = Objects.requireNonNull(timerScheduler, "timerScheduler must not be null");
@@ -119,17 +118,14 @@ public final class InProcessAutomationPort implements AutomationPort {
 
         switch (entry.kind()) {
             case OutboxEntry.KIND_ACTION_REQUEST -> dispatchActionRequest(scope, entry);
-            case OutboxEntry.KIND_OBJECT_CREATED,
-                OutboxEntry.KIND_OBJECT_UPDATED,
-                OutboxEntry.KIND_OBJECT_DELETED -> {
+            case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED -> {
                 recomputeCoordinator.recompute(scope, entry);
                 triggerEvaluator.onChange(scope, entry);
             }
             case OutboxEntry.KIND_TIMER_SCHEDULED -> timerScheduler.schedule(scope, entry);
             case OutboxEntry.KIND_TIMER_CANCELLED -> timerScheduler.cancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> triggerEvaluator.onSignal(scope, entry);
-            default -> throw new IllegalArgumentException(
-                "Unsupported OutboxEntry kind for dispatch: " + entry.kind());
+            default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }
 
@@ -143,8 +139,8 @@ public final class InProcessAutomationPort implements AutomationPort {
                 ResolvedWebhookRequest resolved = actionExecutor.resolveWebhook(scope, entry);
                 deliver(resolved);
             }
-            default -> throw new IllegalArgumentException(
-                "Unrecognized ActionRequest payload actionKind: " + actionKind);
+            default ->
+                throw new IllegalArgumentException("Unrecognized ActionRequest payload actionKind: " + actionKind);
         }
     }
 
@@ -160,11 +156,10 @@ public final class InProcessAutomationPort implements AutomationPort {
         int totalAttempts = properties.getRetryAttempts();
         Duration delay = properties.getRetryDelay();
 
-        HttpRequest.Builder requestBuilder =
-            HttpRequest.newBuilder(URI.create(resolved.url()))
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(resolved.url()))
                 .method(
-                    resolved.method(),
-                    resolved.body().map(BodyPublishers::ofString).orElseGet(BodyPublishers::noBody));
+                        resolved.method(),
+                        resolved.body().map(BodyPublishers::ofString).orElseGet(BodyPublishers::noBody));
         HttpRequest request = requestBuilder.build();
 
         Exception lastFailure = null;
@@ -181,8 +176,7 @@ public final class InProcessAutomationPort implements AutomationPort {
                 lastFailure = e;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new WebhookDeliveryException(
-                    "Webhook delivery to " + resolved.url() + " was interrupted", e);
+                throw new WebhookDeliveryException("Webhook delivery to " + resolved.url() + " was interrupted", e);
             }
 
             if (attempt < totalAttempts) {
@@ -190,15 +184,14 @@ public final class InProcessAutomationPort implements AutomationPort {
             }
         }
 
-        String message =
-            lastFailure != null
+        String message = lastFailure != null
                 ? "Webhook delivery to " + resolved.url() + " failed after " + totalAttempts + " attempts"
                 : "Webhook delivery to "
-                    + resolved.url()
-                    + " failed after "
-                    + totalAttempts
-                    + " attempts: last HTTP status was "
-                    + lastStatusCode;
+                        + resolved.url()
+                        + " failed after "
+                        + totalAttempts
+                        + " attempts: last HTTP status was "
+                        + lastStatusCode;
         throw new WebhookDeliveryException(message, lastFailure);
     }
 

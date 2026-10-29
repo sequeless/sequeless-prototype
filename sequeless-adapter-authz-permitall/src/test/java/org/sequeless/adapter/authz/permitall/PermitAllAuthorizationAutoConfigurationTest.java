@@ -23,7 +23,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 class PermitAllAuthorizationAutoConfigurationTest {
 
     private static final String IMPORTS_RESOURCE =
-        "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
+            "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
     @Test
     void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException, ClassNotFoundException {
@@ -33,8 +33,7 @@ class PermitAllAuthorizationAutoConfigurationTest {
         Class<?> autoConfigurationClass = Class.forName(classNames.get(0));
         assertThat(autoConfigurationClass).isEqualTo(PermitAllAuthorizationAutoConfiguration.class);
 
-        ConditionalOnProperty condition =
-            autoConfigurationClass.getAnnotation(ConditionalOnProperty.class);
+        ConditionalOnProperty condition = autoConfigurationClass.getAnnotation(ConditionalOnProperty.class);
         assertThat(condition).isNotNull();
         assertThat(condition.name()).containsExactly("sequeless.authz.adapter");
         assertThat(condition.havingValue()).isEqualTo("permit-all");
@@ -42,12 +41,10 @@ class PermitAllAuthorizationAutoConfigurationTest {
 
     private static List<String> readNonBlankLines(String resource) throws IOException {
         List<String> lines = new ArrayList<>();
-        try (InputStream in =
-                PermitAllAuthorizationAutoConfigurationTest.class
-                    .getClassLoader()
-                    .getResourceAsStream(resource);
-            BufferedReader reader =
-                new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+        try (InputStream in = PermitAllAuthorizationAutoConfigurationTest.class
+                        .getClassLoader()
+                        .getResourceAsStream(resource);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (!line.isBlank()) {

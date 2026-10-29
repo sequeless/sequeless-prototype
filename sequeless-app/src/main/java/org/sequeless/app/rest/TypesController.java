@@ -36,8 +36,7 @@ public class TypesController {
      * @throws NullPointerException if {@code metaModelService} is {@code null}
      */
     public TypesController(MetaModelService metaModelService) {
-        this.metaModelService =
-                Objects.requireNonNull(metaModelService, "metaModelService must not be null");
+        this.metaModelService = Objects.requireNonNull(metaModelService, "metaModelService must not be null");
     }
 
     /**

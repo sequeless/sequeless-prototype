@@ -40,13 +40,13 @@ import org.sequeless.spi.query.Criterion;
  *     new trailing argument
  */
 public record RollupRule(
-    String sourceTypeIri,
-    String viaIri,
-    AggregateFunction function,
-    Optional<String> ofPropertyIri,
-    List<Criterion> criteria,
-    boolean materialised)
-    implements DerivationRule {
+        String sourceTypeIri,
+        String viaIri,
+        AggregateFunction function,
+        Optional<String> ofPropertyIri,
+        List<Criterion> criteria,
+        boolean materialised)
+        implements DerivationRule {
 
     public RollupRule {
         if (sourceTypeIri == null || sourceTypeIri.isBlank()) {

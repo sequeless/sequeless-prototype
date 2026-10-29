@@ -35,28 +35,30 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.ontology.reasoner=none")
 class ReasonerSwitchEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
     void taskSuperTypesOmitDeliverableButContainWorkItem() throws Exception {
-        byte[] body =
-                restTestClient
-                        .get()
-                        .uri("/api/types/Task")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] body = restTestClient
+                .get()
+                .uri("/api/types/Task")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         JsonNode task = objectMapper.readTree(body);
 
         List<String> superTypes = new ArrayList<>();

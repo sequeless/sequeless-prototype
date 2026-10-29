@@ -109,7 +109,7 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
         payload.forEach((key, value) -> requireJsonCompatible(key, value));
         if (!(payload.get(OBJECT_ID_KEY) instanceof String)) {
             throw new IllegalArgumentException(
-                "OutboxEntry payload must contain a String '" + OBJECT_ID_KEY + "' entry");
+                    "OutboxEntry payload must contain a String '" + OBJECT_ID_KEY + "' entry");
         }
         payload = Map.copyOf(payload);
         Objects.requireNonNull(occurredAt, "occurredAt must not be null");
@@ -144,6 +144,6 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
             return;
         }
         throw new IllegalArgumentException(
-            "OutboxEntry payload value at '" + path + "' is not JSON-compatible: " + value.getClass());
+                "OutboxEntry payload value at '" + path + "' is not JSON-compatible: " + value.getClass());
     }
 }

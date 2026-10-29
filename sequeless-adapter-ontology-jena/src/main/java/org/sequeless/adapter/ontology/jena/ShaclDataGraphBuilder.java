@@ -7,8 +7,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.datatypes.TypeMapper;
+import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.Model;
@@ -68,14 +68,15 @@ final class ShaclDataGraphBuilder {
         }
 
         TypeDefinition typeDef = snapshot.type(object.type().iri())
-            .orElseThrow(() -> new IllegalArgumentException("Unknown type: " + object.type().iri()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Unknown type: " + object.type().iri()));
         Map<String, PropertyDefinition> byIri = new HashMap<>();
         for (PropertyDefinition def : typeDef.properties()) {
             byIri.put(def.iri(), def);
         }
 
-        object.properties().forEach((propRef, value) ->
-            addValue(model, subject, propRef.iri(), value, byIri.get(propRef.iri())));
+        object.properties()
+                .forEach((propRef, value) -> addValue(model, subject, propRef.iri(), value, byIri.get(propRef.iri())));
 
         return model.getGraph();
     }
@@ -114,15 +115,22 @@ final class ShaclDataGraphBuilder {
         switch (value) {
             case ListValue list -> list.values().forEach(v -> addValue(model, subject, propertyIri, v, def));
             case ReferenceValue ref ->
-                model.add(subject, predicate, model.createResource("urn:uuid:" + ref.target().value()));
+                model.add(
+                        subject,
+                        predicate,
+                        model.createResource("urn:uuid:" + ref.target().value()));
             case TextValue text -> model.add(subject, predicate, literal(model, text.value(), def));
             case IntegerValue integer -> model.add(subject, predicate, model.createTypedLiteral(integer.value()));
             case DecimalValue decimal -> model.add(subject, predicate, model.createTypedLiteral(decimal.value()));
             case BoolValue bool -> model.add(subject, predicate, model.createTypedLiteral(bool.value()));
             case DateTimeValue dt ->
-                model.add(subject, predicate, model.createTypedLiteral(dt.value().toString(), XSDDatatype.XSDdateTime));
+                model.add(
+                        subject, predicate, model.createTypedLiteral(dt.value().toString(), XSDDatatype.XSDdateTime));
             case DateValue date ->
-                model.add(subject, predicate, model.createTypedLiteral(date.value().toString(), XSDDatatype.XSDdate));
+                model.add(
+                        subject,
+                        predicate,
+                        model.createTypedLiteral(date.value().toString(), XSDDatatype.XSDdate));
         }
     }
 
@@ -132,7 +140,8 @@ final class ShaclDataGraphBuilder {
      *     as {@code xsd:string}, rather than making graph construction itself fail)
      */
     private static Literal literal(Model model, String lexical, PropertyDefinition def) {
-        String xsdIri = (def instanceof AttributeDefinition attr) ? attr.datatype().xsdIri() : Datatype.STRING.xsdIri();
+        String xsdIri =
+                (def instanceof AttributeDefinition attr) ? attr.datatype().xsdIri() : Datatype.STRING.xsdIri();
         return model.createTypedLiteral(lexical, TypeMapper.getInstance().getSafeTypeByName(xsdIri));
     }
 }

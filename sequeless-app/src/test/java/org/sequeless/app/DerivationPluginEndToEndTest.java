@@ -49,14 +49,17 @@ import org.springframework.test.web.servlet.client.RestTestClient;
         properties = "sequeless.ontology.source=classpath:ontology/reference-plugin.ttl")
 class DerivationPluginEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
@@ -66,22 +69,11 @@ class DerivationPluginEndToEndTest extends PostgresTestcontainersSupport {
 
         // WorkloadDerivationPlugin sums ex:estimatedHours over every ex:Task assigned to the
         // Person via ex:assignedTo (F29): 4 + 6 = 10.
-        create(
-                "Task",
-                Map.of(
-                        "title", List.of("First assignment"),
-                        "estimatedHours", 4,
-                        "assignedTo", personId));
-        create(
-                "Task",
-                Map.of(
-                        "title", List.of("Second assignment"),
-                        "estimatedHours", 6,
-                        "assignedTo", personId));
+        create("Task", Map.of("title", List.of("First assignment"), "estimatedHours", 4, "assignedTo", personId));
+        create("Task", Map.of("title", List.of("Second assignment"), "estimatedHours", 6, "assignedTo", personId));
 
         JsonNode read = fetchAsJson("/api/objects/Person/" + personId);
-        assertThat(read.get("properties").get("workload").decimalValue())
-                .isEqualByComparingTo(BigDecimal.valueOf(10));
+        assertThat(read.get("properties").get("workload").decimalValue()).isEqualByComparingTo(BigDecimal.valueOf(10));
     }
 
     private BusinessObjectResponse create(String type, Map<String, Object> properties) {
@@ -100,16 +92,15 @@ class DerivationPluginEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private JsonNode fetchAsJson(String uri) {
-        byte[] responseBody =
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {

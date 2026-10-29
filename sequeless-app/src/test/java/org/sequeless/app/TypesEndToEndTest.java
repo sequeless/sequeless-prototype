@@ -50,28 +50,30 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 class TypesEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
     void listsAllFiveTypes() {
-        List<TypeSummaryResponse> types =
-                restTestClient
-                        .get()
-                        .uri("/api/types")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(new ParameterizedTypeReference<List<TypeSummaryResponse>>() {})
-                        .returnResult()
-                        .getResponseBody();
+        List<TypeSummaryResponse> types = restTestClient
+                .get()
+                .uri("/api/types")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(new ParameterizedTypeReference<List<TypeSummaryResponse>>() {})
+                .returnResult()
+                .getResponseBody();
 
         assertThat(types).isNotNull();
         assertThat(types.stream().map(TypeSummaryResponse::name))
@@ -91,19 +93,12 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
         assertProperty(properties.get(0), "attribute", "title", 1, false, false, true, false, false);
         assertProperty(properties.get(1), "attribute", "status", 2, true, true, false, false, false);
         assertProperty(properties.get(2), "attribute", "priority", 3, false, false, false, false, false);
-        assertProperty(
-                properties.get(3), "relationship", "assignedTo", 4, true, false, false, false, false);
-        assertProperty(
-                properties.get(4), "relationship", "belongsToProject", 5, false, false, false, false,
-                false);
-        assertProperty(
-                properties.get(5), "attribute", "createdAt", 6, false, false, false, true, true);
-        assertProperty(
-                properties.get(6), "attribute", "estimatedHours", 7, false, false, false, false, false);
-        assertProperty(
-                properties.get(7), "attribute", "dueDate", 8, false, false, false, false, false);
-        assertProperty(
-                properties.get(8), "attribute", "description", 9, false, false, true, false, false);
+        assertProperty(properties.get(3), "relationship", "assignedTo", 4, true, false, false, false, false);
+        assertProperty(properties.get(4), "relationship", "belongsToProject", 5, false, false, false, false, false);
+        assertProperty(properties.get(5), "attribute", "createdAt", 6, false, false, false, true, true);
+        assertProperty(properties.get(6), "attribute", "estimatedHours", 7, false, false, false, false, false);
+        assertProperty(properties.get(7), "attribute", "dueDate", 8, false, false, false, false, false);
+        assertProperty(properties.get(8), "attribute", "description", 9, false, false, true, false, false);
     }
 
     @Test
@@ -112,7 +107,9 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
 
         JsonNode properties = project.get("properties");
         JsonNode openTaskCount = findProperty(properties, "openTaskCount");
-        assertThat(openTaskCount.get("readOnly").asBoolean()).as("openTaskCount readOnly").isTrue();
+        assertThat(openTaskCount.get("readOnly").asBoolean())
+                .as("openTaskCount readOnly")
+                .isTrue();
         JsonNode openTaskCountDerivation = openTaskCount.get("derivation");
         assertThat(openTaskCountDerivation.get("kind").asText()).isEqualTo("rollup");
         assertThat(openTaskCountDerivation.get("summary").asText())
@@ -128,7 +125,9 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
                 .isEqualTo("sum(Task via belongsToProject of estimatedHours)");
 
         JsonNode title = findProperty(properties, "title");
-        assertThat(title.get("derivation").isNull()).as("title derivation absent").isTrue();
+        assertThat(title.get("derivation").isNull())
+                .as("title derivation absent")
+                .isTrue();
     }
 
     /**
@@ -162,8 +161,7 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
         JsonNode transitions = stateMachine.get("transitions");
         assertThat(transitions).hasSize(7);
         assertThat(namesOf(transitions))
-                .containsExactlyInAnyOrder(
-                        "activate", "hold", "resume", "close", "autoClose", "expireHold", "reopen");
+                .containsExactlyInAnyOrder("activate", "hold", "resume", "close", "autoClose", "expireHold", "reopen");
         assertThat(findTransition(transitions, "activate").get("hasGuard").asBoolean())
                 .as("activate hasGuard")
                 .isTrue();
@@ -208,24 +206,30 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
      * filtered to {@code USER_ACTION} (see {@link #projectShowsStateMachineWithStatesAndTransitions}).
      */
     @Test
-    void projectStateMachineRendersTriggerKindAndTriggerSpecificFieldsForEveryTransition()
-            throws Exception {
-        JsonNode transitions = fetchAsJson("/api/types/Project").get("stateMachine").get("transitions");
+    void projectStateMachineRendersTriggerKindAndTriggerSpecificFieldsForEveryTransition() throws Exception {
+        JsonNode transitions =
+                fetchAsJson("/api/types/Project").get("stateMachine").get("transitions");
 
         JsonNode autoClose = findTransition(transitions, "autoClose");
         assertThat(autoClose.get("trigger").asText()).as("autoClose trigger").isEqualTo("ON_CHANGE");
         assertThat(autoClose.get("from").asText()).as("autoClose from").isEqualTo("Active");
         assertThat(autoClose.get("to").asText()).as("autoClose to").isEqualTo("Closed");
         assertThat(toList(autoClose.get("watch"))).as("autoClose watch").containsExactly("belongsToProject");
-        assertThat(autoClose.get("after").isNull()).as("autoClose after is null").isTrue();
-        assertThat(autoClose.get("signalName").isNull()).as("autoClose signalName is null").isTrue();
+        assertThat(autoClose.get("after").isNull())
+                .as("autoClose after is null")
+                .isTrue();
+        assertThat(autoClose.get("signalName").isNull())
+                .as("autoClose signalName is null")
+                .isTrue();
 
         JsonNode expireHold = findTransition(transitions, "expireHold");
         assertThat(expireHold.get("trigger").asText()).as("expireHold trigger").isEqualTo("TIMER");
         assertThat(expireHold.get("from").asText()).as("expireHold from").isEqualTo("OnHold");
         assertThat(expireHold.get("to").asText()).as("expireHold to").isEqualTo("Closed");
         assertThat(expireHold.get("after").asText()).as("expireHold after").isEqualTo("PT72H");
-        assertThat(expireHold.get("signalName").isNull()).as("expireHold signalName is null").isTrue();
+        assertThat(expireHold.get("signalName").isNull())
+                .as("expireHold signalName is null")
+                .isTrue();
         assertThat(expireHold.get("watch")).as("expireHold watch").isEmpty();
 
         JsonNode reopen = findTransition(transitions, "reopen");
@@ -239,7 +243,9 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
         JsonNode activate = findTransition(transitions, "activate");
         assertThat(activate.get("trigger").asText()).as("activate trigger").isEqualTo("USER_ACTION");
         assertThat(activate.get("after").isNull()).as("activate after is null").isTrue();
-        assertThat(activate.get("signalName").isNull()).as("activate signalName is null").isTrue();
+        assertThat(activate.get("signalName").isNull())
+                .as("activate signalName is null")
+                .isTrue();
         assertThat(activate.get("watch")).as("activate watch").isEmpty();
     }
 
@@ -272,23 +278,21 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
         assertThat(transitionNamesOf(project.id())).as("Draft").containsExactly("activate");
 
         BusinessObjectResponse owner = createPerson("Barbara Liskov");
-        BusinessObjectResponse withOwner =
-                restTestClient
-                        .put()
-                        .uri("/api/objects/Project/" + project.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(
-                                Map.of(
-                                        "version",
-                                        project.version(),
-                                        "properties",
-                                        Map.of("title", List.of(title), "owner", owner.id().toString())))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse withOwner = restTestClient
+                .put()
+                .uri("/api/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        project.version(),
+                        "properties",
+                        Map.of("title", List.of(title), "owner", owner.id().toString())))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(withOwner).isNotNull();
 
         BusinessObjectResponse active = fireTransition(project.id(), "activate", withOwner.version());
@@ -316,7 +320,9 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void taskShowsNoStateMachine() throws Exception {
         JsonNode task = fetchAsJson("/api/types/Task");
-        assertThat(task.get("stateMachine").isNull()).as("Task has no stateMachine").isTrue();
+        assertThat(task.get("stateMachine").isNull())
+                .as("Task has no stateMachine")
+                .isTrue();
     }
 
     @Test
@@ -356,11 +362,10 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
                 .expectStatus()
                 .isOk()
                 .expectBody(OntologyReportResponse.class)
-                .value(
-                        response -> {
-                            assertThat(response.consistent()).isTrue();
-                            assertThat(response.issues()).isEmpty();
-                        });
+                .value(response -> {
+                    assertThat(response.consistent()).isTrue();
+                    assertThat(response.issues()).isEmpty();
+                });
     }
 
     private BusinessObjectResponse createProject(String title) {
@@ -372,50 +377,47 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private BusinessObjectResponse createObject(String type, Map<String, Object> properties) {
-        BusinessObjectResponse created =
-                restTestClient
-                        .post()
-                        .uri("/api/objects/" + type)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("properties", properties))
-                        .exchange()
-                        .expectStatus()
-                        .isCreated()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse created = restTestClient
+                .post()
+                .uri("/api/objects/" + type)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("properties", properties))
+                .exchange()
+                .expectStatus()
+                .isCreated()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(created).isNotNull();
         return created;
     }
 
     private BusinessObjectResponse fireTransition(UUID projectId, String name, long expectedVersion) {
-        BusinessObjectResponse fired =
-                restTestClient
-                        .post()
-                        .uri("/api/objects/Project/" + projectId + "/transitions/" + name)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("expectedVersion", expectedVersion))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse fired = restTestClient
+                .post()
+                .uri("/api/objects/Project/" + projectId + "/transitions/" + name)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("expectedVersion", expectedVersion))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(fired).isNotNull();
         return fired;
     }
 
     private List<String> transitionNamesOf(UUID projectId) {
-        List<TransitionResponse> transitions =
-                restTestClient
-                        .get()
-                        .uri("/api/objects/Project/" + projectId + "/transitions")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(new ParameterizedTypeReference<List<TransitionResponse>>() {})
-                        .returnResult()
-                        .getResponseBody();
+        List<TransitionResponse> transitions = restTestClient
+                .get()
+                .uri("/api/objects/Project/" + projectId + "/transitions")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(new ParameterizedTypeReference<List<TransitionResponse>>() {})
+                .returnResult()
+                .getResponseBody();
         assertThat(transitions).isNotNull();
         return transitions.stream().map(TransitionResponse::name).toList();
     }
@@ -429,14 +431,12 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private JsonNode parse(RestTestClient.RequestHeadersSpec<?> request) throws Exception {
-        byte[] body =
-                request
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] body = request.exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         return objectMapper.readTree(body);
     }
 
@@ -487,7 +487,9 @@ class TypesEndToEndTest extends PostgresTestcontainersSupport {
         assertThat(property.get("order").asInt()).as("%s order", name).isEqualTo(order);
         assertThat(property.get("facet").asBoolean()).as("%s facet", name).isEqualTo(facet);
         assertThat(property.get("indexed").asBoolean()).as("%s indexed", name).isEqualTo(indexed);
-        assertThat(property.get("searchable").asBoolean()).as("%s searchable", name).isEqualTo(searchable);
+        assertThat(property.get("searchable").asBoolean())
+                .as("%s searchable", name)
+                .isEqualTo(searchable);
         assertThat(property.get("readOnly").asBoolean()).as("%s readOnly", name).isEqualTo(readOnly);
         assertThat(property.get("hidden").asBoolean()).as("%s hidden", name).isEqualTo(hidden);
     }

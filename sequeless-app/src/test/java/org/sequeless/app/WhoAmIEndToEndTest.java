@@ -33,26 +33,28 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.authz.adapter=permit-all")
 class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
     void whoAmiReportsDefaultTenantAndAnonymousPrincipal() {
         restTestClient
-            .get()
-            .uri("/api/whoami")
-            .exchange()
-            .expectStatus()
-            .isOk()
-            .expectBody(WhoAmIResponse.class)
-            .value(
-                response -> {
+                .get()
+                .uri("/api/whoami")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(WhoAmIResponse.class)
+                .value(response -> {
                     assertThat(response.tenant()).isEqualTo("default");
                     assertThat(response.principal()).isEqualTo("anonymous");
                     assertThat(response.displayName()).isEqualTo("Anonymous");
@@ -63,12 +65,12 @@ class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void actuatorHealthReportsUp() {
         restTestClient
-            .get()
-            .uri("/actuator/health")
-            .exchange()
-            .expectStatus()
-            .isOk()
-            .expectBody(String.class)
-            .value(body -> assertThat(body).contains("\"status\":\"UP\""));
+                .get()
+                .uri("/actuator/health")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"status\":\"UP\""));
     }
 }

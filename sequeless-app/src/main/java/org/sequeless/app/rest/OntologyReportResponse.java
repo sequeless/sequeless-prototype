@@ -30,15 +30,10 @@ public record OntologyReportResponse(boolean consistent, List<Issue> issues) {
      * @return the equivalent {@link OntologyReportResponse}
      */
     public static OntologyReportResponse from(OntologyReport report) {
-        List<Issue> issues =
-                report.issues().stream()
-                        .map(
-                                issue ->
-                                        new Issue(
-                                                issue.severity().name(),
-                                                issue.subjectIri().orElse(null),
-                                                issue.message()))
-                        .toList();
+        List<Issue> issues = report.issues().stream()
+                .map(issue ->
+                        new Issue(issue.severity().name(), issue.subjectIri().orElse(null), issue.message()))
+                .toList();
         return new OntologyReportResponse(report.consistent(), issues);
     }
 }

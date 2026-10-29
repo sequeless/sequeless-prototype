@@ -11,7 +11,6 @@ import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectNotFoundException;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
 
 /**
@@ -61,8 +60,7 @@ public interface TransitionService {
      *     that transition's guard currently evaluates to {@code false}
      * @throws StaleObjectException if the stored object is not currently at {@code expectedVersion}
      */
-    BusinessObject fire(
-        Scope scope, String type, ObjectId id, String transitionName, long expectedVersion);
+    BusinessObject fire(Scope scope, String type, ObjectId id, String transitionName, long expectedVersion);
 
     /**
      * Fires {@code transitionName} on {@code id} in response to an automation event — a change to
@@ -86,8 +84,7 @@ public interface TransitionService {
      *     evaluates {@code false}, or its trigger kind does not equal {@code expected}
      * @throws NullPointerException if any argument is {@code null}
      */
-    Optional<BusinessObject> fireAutomated(
-        Scope scope, ObjectId id, String transitionName, TriggerKind expected);
+    Optional<BusinessObject> fireAutomated(Scope scope, ObjectId id, String transitionName, TriggerKind expected);
 
     /**
      * Records an external signal for {@code id}, for {@code POST

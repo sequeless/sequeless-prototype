@@ -35,12 +35,12 @@ import org.sequeless.spi.object.ObjectId;
  *     cannot mutate this request after construction
  */
 public record AggregateRequest(
-    Set<String> sourceTypes,
-    String viaIri,
-    Set<ObjectId> targetIds,
-    AggregateFunction function,
-    Optional<String> ofPropertyIri,
-    List<Criterion> criteria) {
+        Set<String> sourceTypes,
+        String viaIri,
+        Set<ObjectId> targetIds,
+        AggregateFunction function,
+        Optional<String> ofPropertyIri,
+        List<Criterion> criteria) {
 
     public AggregateRequest {
         Objects.requireNonNull(sourceTypes, "sourceTypes must not be null");

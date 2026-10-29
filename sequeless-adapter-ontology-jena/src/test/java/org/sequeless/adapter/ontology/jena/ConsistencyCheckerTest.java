@@ -34,7 +34,8 @@ class ConsistencyCheckerTest {
         assertThat(report.issues()).isNotEmpty();
         assertThat(report.issues()).anyMatch(issue -> issue.severity() == Severity.ERROR);
         assertThat(report.issues())
-            .anyMatch(issue -> issue.subjectIri().map(iri -> iri.endsWith("Cyborg")).orElse(false));
+                .anyMatch(issue ->
+                        issue.subjectIri().map(iri -> iri.endsWith("Cyborg")).orElse(false));
     }
 
     @Test
@@ -76,11 +77,11 @@ class ConsistencyCheckerTest {
     private static OntModel buildModel(String turtle, ReasonerSetting reasoner) {
         Model rdfModel = ModelFactory.createDefaultModel();
         RDFDataMgr.read(
-            rdfModel,
-            new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
-            "urn:sequeless:test",
-            Lang.TURTLE);
+                rdfModel,
+                new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
+                "urn:sequeless:test",
+                Lang.TURTLE);
         return OntModelFactory.createModel(
-            rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
+                rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
     }
 }

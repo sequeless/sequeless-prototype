@@ -14,11 +14,6 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.jdbc.datasource.SimpleDriverDataSource;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.object.Audit;
@@ -34,6 +29,11 @@ import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.testkit.Fixtures;
 import org.sequeless.testkit.query.QueryFixtures;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.SimpleDriverDataSource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -61,8 +61,7 @@ class PostgresQueryStoreIndexUsageIT {
     private static final PropertyRef STATUS = new PropertyRef(Fixtures.STATUS_IRI);
     private static final PropertyRef DESCRIPTION = new PropertyRef(Fixtures.DESCRIPTION_IRI);
     private static final PropertyRef PRIORITY = new PropertyRef(Fixtures.PRIORITY_IRI);
-    private static final PropertyRef BELONGS_TO_PROJECT =
-        new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
+    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
 
     private static final int ROW_COUNT = 400;
 
@@ -74,8 +73,7 @@ class PostgresQueryStoreIndexUsageIT {
 
     @BeforeEach
     void setUp() {
-        dataSource =
-            new SimpleDriverDataSource(
+        dataSource = new SimpleDriverDataSource(
                 new org.postgresql.Driver(), POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         PostgresMigrations.migrate(dataSource);
 
@@ -89,10 +87,9 @@ class PostgresQueryStoreIndexUsageIT {
     @AfterEach
     void tearDown() {
         jdbcClient
-            .sql(
-                "TRUNCATE TABLE sq_object, sq_ontology_document, sq_outbox, sq_index_registry, "
-                    + "sq_searchable_property")
-            .update();
+                .sql("TRUNCATE TABLE sq_object, sq_ontology_document, sq_outbox, sq_index_registry, "
+                        + "sq_searchable_property")
+                .update();
     }
 
     /**
@@ -112,10 +109,8 @@ class PostgresQueryStoreIndexUsageIT {
 
         queryPort.ensureIndexes(scope, QueryFixtures.snapshot());
 
-        String indexName =
-            jdbcClient
-                .sql(
-                    "SELECT index_name FROM sq_index_registry WHERE tenant_id = :tenantId "
+        String indexName = jdbcClient
+                .sql("SELECT index_name FROM sq_index_registry WHERE tenant_id = :tenantId "
                         + "AND property_iri = :propertyIri")
                 .param("tenantId", tenantId)
                 .param("propertyIri", Fixtures.STATUS_IRI)
@@ -127,22 +122,19 @@ class PostgresQueryStoreIndexUsageIT {
         // castExpression's STRING-datatype cast is `props -> :propParam ->> 'text'`; the DDL-time
         // variant embeds the property IRI as a literal instead of a bind parameter (see
         // PostgresQueryStore.castExpressionLiteral), which is exactly what EXPLAIN needs here too.
-        String jsonPathExpression =
-            "props -> '" + Fixtures.STATUS_IRI.replace("'", "''") + "' ->> 'text'";
+        String jsonPathExpression = "props -> '" + Fixtures.STATUS_IRI.replace("'", "''") + "' ->> 'text'";
 
-        List<String> explainLines =
-            transactionTemplate.execute(status -> {
-                jdbcClient.sql("SET LOCAL enable_seqscan = OFF").update();
-                return jdbcClient
-                    .sql(
-                        "EXPLAIN SELECT id FROM sq_object WHERE tenant_id = :tenantId "
+        List<String> explainLines = transactionTemplate.execute(status -> {
+            jdbcClient.sql("SET LOCAL enable_seqscan = OFF").update();
+            return jdbcClient
+                    .sql("EXPLAIN SELECT id FROM sq_object WHERE tenant_id = :tenantId "
                             + "AND type_iri = :typeIri AND (" + jsonPathExpression + ") = :status")
                     .param("tenantId", tenantId)
                     .param("typeIri", Fixtures.TASK_IRI)
                     .param("status", "OPEN")
                     .query(String.class)
                     .list();
-            });
+        });
 
         String plan = String.join("\n", explainLines);
         assertThat(plan).contains("Index Scan");
@@ -173,8 +165,7 @@ class PostgresQueryStoreIndexUsageIT {
         List<ObjectId> projectIds = seedProjects(scope, projectCount);
         seedTasksForProjects(scope, ROW_COUNT, projectIds);
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.copyOf(projectIds),
@@ -187,22 +178,17 @@ class PostgresQueryStoreIndexUsageIT {
 
         // Reconstructs the exact SQL PostgresQueryStore.aggregate builds for this request: a single
         // GROUP BY over sq_object, no per-target correlated subquery.
-        List<String> explainLines =
-            transactionTemplate.execute(status ->
-                jdbcClient
-                    .sql(
-                        "EXPLAIN SELECT (props -> :via ->> 'ref')::uuid AS target_id, "
-                            + "COUNT(*) AS agg_value FROM sq_object WHERE tenant_id = :tenantId "
-                            + "AND type_iri IN (:sourceTypes) AND deleted_at IS NULL "
-                            + "AND (props -> :via ->> 'ref')::uuid IN (:targetIds) GROUP BY 1")
-                    .param("via", Fixtures.BELONGS_TO_PROJECT_IRI)
-                    .param("tenantId", tenantId)
-                    .param("sourceTypes", List.of(Fixtures.TASK_IRI))
-                    .param(
-                        "targetIds",
-                        projectIds.stream().map(ObjectId::value).toList())
-                    .query(String.class)
-                    .list());
+        List<String> explainLines = transactionTemplate.execute(status -> jdbcClient
+                .sql("EXPLAIN SELECT (props -> :via ->> 'ref')::uuid AS target_id, "
+                        + "COUNT(*) AS agg_value FROM sq_object WHERE tenant_id = :tenantId "
+                        + "AND type_iri IN (:sourceTypes) AND deleted_at IS NULL "
+                        + "AND (props -> :via ->> 'ref')::uuid IN (:targetIds) GROUP BY 1")
+                .param("via", Fixtures.BELONGS_TO_PROJECT_IRI)
+                .param("tenantId", tenantId)
+                .param("sourceTypes", List.of(Fixtures.TASK_IRI))
+                .param("targetIds", projectIds.stream().map(ObjectId::value).toList())
+                .query(String.class)
+                .list());
 
         String plan = String.join("\n", explainLines);
 
@@ -212,8 +198,8 @@ class PostgresQueryStoreIndexUsageIT {
             aggregateNodeCount++;
         }
         assertThat(aggregateNodeCount)
-            .as("exactly one aggregation node, plan:%n%s", plan)
-            .isEqualTo(1);
+                .as("exactly one aggregation node, plan:%n%s", plan)
+                .isEqualTo(1);
         assertThat(plan).as("plan:%n%s", plan).doesNotContain("SubPlan");
     }
 
@@ -228,11 +214,8 @@ class PostgresQueryStoreIndexUsageIT {
             Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
             ObjectId id = ObjectId.random();
             ids.add(id);
-            mutations.add(
-                new Create(
-                    new BusinessObject(
-                        id, PROJECT, scope.tenantId(), 1, Optional.empty(), properties, audit,
-                        false)));
+            mutations.add(new Create(
+                    new BusinessObject(id, PROJECT, scope.tenantId(), 1, Optional.empty(), properties, audit, false)));
         }
         store.commit(scope, new ChangeSet(mutations, List.of()));
         return ids;
@@ -246,16 +229,13 @@ class PostgresQueryStoreIndexUsageIT {
             Instant createdAt = base.plusSeconds(i);
             String status = i % 2 == 0 ? "OPEN" : "CLOSED";
             ObjectId project = projectIds.get(i % projectIds.size());
-            Map<PropertyRef, Value> properties =
-                Map.of(
+            Map<PropertyRef, Value> properties = Map.of(
                     TITLE, Value.text("Task " + i),
                     STATUS, Value.text(status),
                     BELONGS_TO_PROJECT, Value.ref(project));
             Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
-            BusinessObject object =
-                new BusinessObject(
-                    ObjectId.random(), TASK, scope.tenantId(), 1, Optional.empty(), properties,
-                    audit, false);
+            BusinessObject object = new BusinessObject(
+                    ObjectId.random(), TASK, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
             mutations.add(new Create(object));
         }
         int batchSize = 50;
@@ -272,17 +252,14 @@ class PostgresQueryStoreIndexUsageIT {
         for (int i = 0; i < count; i++) {
             Instant createdAt = base.plusSeconds(i);
             String status = i % 2 == 0 ? "OPEN" : "CLOSED";
-            Map<PropertyRef, Value> properties =
-                Map.of(
+            Map<PropertyRef, Value> properties = Map.of(
                     TITLE, Value.text("Task " + i),
                     DESCRIPTION, Value.text("Description of task " + i),
                     STATUS, Value.text(status),
                     PRIORITY, Value.integer(i % 10));
             Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
-            BusinessObject object =
-                new BusinessObject(
-                    ObjectId.random(), TASK, scope.tenantId(), 1, Optional.empty(), properties,
-                    audit, false);
+            BusinessObject object = new BusinessObject(
+                    ObjectId.random(), TASK, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
             mutations.add(new Create(object));
         }
         // A handful of large batches rather than one commit per row, and rather than one giant

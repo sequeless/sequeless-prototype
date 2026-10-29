@@ -60,7 +60,11 @@ final class TurtleExporter {
         sortedForWrite.add(sorted);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        RDFWriter.create().source(sortedForWrite).format(RDFFormat.TURTLE_FLAT).build().output(out);
+        RDFWriter.create()
+                .source(sortedForWrite)
+                .format(RDFFormat.TURTLE_FLAT)
+                .build()
+                .output(out);
 
         return new OntologyDocument(out.toString(StandardCharsets.UTF_8), OntologyFormat.TURTLE);
     }

@@ -62,7 +62,7 @@ class JenaOntologyPortTest {
         // genuinely valid, consistent ontology, so it doubles as a convenient fixture here without
         // needing a dedicated test-only resource.
         JenaOntologyPort port = JenaOntologyPort.fromSource(
-            "test.ontology.source", "classpath:ontology/sq-meta.ttl", ReasonerSetting.OWL);
+                "test.ontology.source", "classpath:ontology/sq-meta.ttl", ReasonerSetting.OWL);
 
         MetaModelSnapshot before = port.snapshot(SCOPE);
         assertThat(before.report().consistent()).isTrue();
@@ -77,12 +77,10 @@ class JenaOntologyPortTest {
         // A misconfigured sequeless.ontology.source is a startup-time configuration error, not an
         // "inconsistent ontology" -- it must fail fast, unlike F20's deferred-validation guarantee
         // for a document whose *content* is merely inconsistent.
-        assertThatThrownBy(
-                () ->
-                    JenaOntologyPort.fromSource(
+        assertThatThrownBy(() -> JenaOntologyPort.fromSource(
                         "test.ontology.source", "classpath:ontology/does-not-exist.ttl", ReasonerSetting.OWL))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("test.ontology.source");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("test.ontology.source");
     }
 
     @Test
@@ -90,9 +88,8 @@ class JenaOntologyPortTest {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
         MetaModelSnapshot before = port.snapshot(SCOPE);
 
-        assertThatThrownBy(
-                () -> port.importDocument(SCOPE, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
-            .isInstanceOf(OntologyException.class);
+        assertThatThrownBy(() -> port.importDocument(SCOPE, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
+                .isInstanceOf(OntologyException.class);
 
         assertThat(port.snapshot(SCOPE)).isEqualTo(before);
     }
@@ -102,8 +99,7 @@ class JenaOntologyPortTest {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
         MetaModelSnapshot before = port.snapshot(SCOPE);
 
-        ImportReport report =
-            port.importDocument(SCOPE, Fixtures.inverseTransitiveOntology(), ImportMode.REPLACE);
+        ImportReport report = port.importDocument(SCOPE, Fixtures.inverseTransitiveOntology(), ImportMode.REPLACE);
 
         assertThat(report.accepted()).isTrue();
         assertThat(report.report().consistent()).isTrue();

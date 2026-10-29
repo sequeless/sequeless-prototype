@@ -18,8 +18,7 @@ package org.sequeless.spi.meta;
  *
  * @see TriggerKind
  */
-public sealed interface TriggerSpec
-    permits UserActionTrigger, OnChangeTrigger, TimerTrigger, ExternalSignalTrigger {
+public sealed interface TriggerSpec permits UserActionTrigger, OnChangeTrigger, TimerTrigger, ExternalSignalTrigger {
 
     /**
      * @return the {@link TriggerKind} this instance is the payload for; never {@code null}, and in

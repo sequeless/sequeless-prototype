@@ -84,7 +84,7 @@ public class PostgresPersistenceAutoConfiguration {
     public ObjectStorePort objectStorePort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
-            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+                new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresObjectStore(jdbcClient, transactionManager);
     }
 
@@ -112,7 +112,7 @@ public class PostgresPersistenceAutoConfiguration {
     public QueryPort queryPort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
-            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+                new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresQueryStore(jdbcClient, transactionManager);
     }
 
@@ -137,7 +137,7 @@ public class PostgresPersistenceAutoConfiguration {
     public OutboxPort outboxPort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
-            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+                new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresOutboxPort(jdbcClient, transactionManager);
     }
 }

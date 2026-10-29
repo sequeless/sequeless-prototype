@@ -38,7 +38,8 @@ class TurtleExporterTest {
 
         OntModel reimported = buildModel(exported.content(), ReasonerSetting.OWL);
 
-        assertThat(reimported.getBaseModel().isIsomorphicWith(original.getBaseModel())).isTrue();
+        assertThat(reimported.getBaseModel().isIsomorphicWith(original.getBaseModel()))
+                .isTrue();
     }
 
     @Test
@@ -53,7 +54,8 @@ class TurtleExporterTest {
         // Re-importing an export of the *union* would have produced a base model at least as large
         // as the original union, not smaller than it.
         assertThat(reimported.getBaseModel().size()).isLessThan(original.size());
-        assertThat(reimported.getBaseModel().size()).isEqualTo(original.getBaseModel().size());
+        assertThat(reimported.getBaseModel().size())
+                .isEqualTo(original.getBaseModel().size());
     }
 
     @Test
@@ -82,11 +84,11 @@ class TurtleExporterTest {
     private static OntModel buildModel(String turtle, ReasonerSetting reasoner) {
         Model rdfModel = ModelFactory.createDefaultModel();
         RDFDataMgr.read(
-            rdfModel,
-            new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
-            "urn:sequeless:test",
-            Lang.TURTLE);
+                rdfModel,
+                new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
+                "urn:sequeless:test",
+                Lang.TURTLE);
         return OntModelFactory.createModel(
-            rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
+                rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
     }
 }

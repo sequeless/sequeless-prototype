@@ -36,36 +36,31 @@ class OntologyPersistenceAcrossRestartIT extends PostgresTestcontainersSupport {
 
     @Test
     void importedOntologySurvivesRestartWithoutRereadingAnyFile() {
-        ConfigurableApplicationContext contextA =
-                new SpringApplicationBuilder(SequelessApplication.class)
-                        .web(WebApplicationType.SERVLET)
-                        .run(
-                                "--server.port=0",
-                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                "--sequeless.persistence.password=" + POSTGRES.getPassword());
+        ConfigurableApplicationContext contextA = new SpringApplicationBuilder(SequelessApplication.class)
+                .web(WebApplicationType.SERVLET)
+                .run(
+                        "--server.port=0",
+                        "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                        "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                        "--sequeless.persistence.password=" + POSTGRES.getPassword());
         try {
             RestTestClient clientA = clientFor(contextA);
 
-            String currentTurtle =
-                    new String(
-                            clientA
-                                    .get()
-                                    .uri("/api/ontology")
-                                    .exchange()
-                                    .expectStatus()
-                                    .isOk()
-                                    .expectBody()
-                                    .returnResult()
-                                    .getResponseBody(),
-                            StandardCharsets.UTF_8);
+            String currentTurtle = new String(
+                    clientA.get()
+                            .uri("/api/ontology")
+                            .exchange()
+                            .expectStatus()
+                            .isOk()
+                            .expectBody()
+                            .returnResult()
+                            .getResponseBody(),
+                    StandardCharsets.UTF_8);
 
-            String modified =
-                    currentTurtle
-                            + "\nex:Milestone a owl:Class ; rdfs:subClassOf ex:Deliverable ; sq:label \"Milestone\" .\n";
+            String modified = currentTurtle
+                    + "\nex:Milestone a owl:Class ; rdfs:subClassOf ex:Deliverable ; sq:label \"Milestone\" .\n";
 
-            clientA
-                    .post()
+            clientA.post()
                     .uri("/api/ontology")
                     .contentType(MediaType.valueOf("text/turtle"))
                     .body(modified)
@@ -81,20 +76,18 @@ class OntologyPersistenceAcrossRestartIT extends PostgresTestcontainersSupport {
             contextA.close();
         }
 
-        ConfigurableApplicationContext contextB =
-                new SpringApplicationBuilder(SequelessApplication.class)
-                        .web(WebApplicationType.SERVLET)
-                        .run(
-                                "--server.port=0",
-                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                "--sequeless.persistence.password=" + POSTGRES.getPassword(),
-                                "--sequeless.ontology.source=classpath:does-not-exist.ttl");
+        ConfigurableApplicationContext contextB = new SpringApplicationBuilder(SequelessApplication.class)
+                .web(WebApplicationType.SERVLET)
+                .run(
+                        "--server.port=0",
+                        "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                        "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                        "--sequeless.persistence.password=" + POSTGRES.getPassword(),
+                        "--sequeless.ontology.source=classpath:does-not-exist.ttl");
         try {
             RestTestClient clientB = clientFor(contextB);
 
-            clientB
-                    .get()
+            clientB.get()
                     .uri("/api/types")
                     .exchange()
                     .expectStatus()

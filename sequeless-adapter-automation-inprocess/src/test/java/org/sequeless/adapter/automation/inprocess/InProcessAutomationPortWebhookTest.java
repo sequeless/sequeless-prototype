@@ -34,7 +34,7 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 class InProcessAutomationPortWebhookTest {
 
     private static final Scope SCOPE =
-        new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", java.util.Set.of()));
+            new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", java.util.Set.of()));
 
     private HttpServer server;
 
@@ -50,19 +50,17 @@ class InProcessAutomationPortWebhookTest {
         AtomicInteger requestCount = new AtomicInteger();
         StringBuilder lastRequestBody = new StringBuilder();
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        server.createContext(
-            "/hook",
-            exchange -> {
-                int count = requestCount.incrementAndGet();
-                byte[] body = exchange.getRequestBody().readAllBytes();
-                synchronized (lastRequestBody) {
-                    lastRequestBody.setLength(0);
-                    lastRequestBody.append(new String(body, java.nio.charset.StandardCharsets.UTF_8));
-                }
-                int status = count < 3 ? 500 : 200;
-                exchange.sendResponseHeaders(status, -1);
-                exchange.close();
-            });
+        server.createContext("/hook", exchange -> {
+            int count = requestCount.incrementAndGet();
+            byte[] body = exchange.getRequestBody().readAllBytes();
+            synchronized (lastRequestBody) {
+                lastRequestBody.setLength(0);
+                lastRequestBody.append(new String(body, java.nio.charset.StandardCharsets.UTF_8));
+            }
+            int status = count < 3 ? 500 : 200;
+            exchange.sendResponseHeaders(status, -1);
+            exchange.close();
+        });
         server.start();
 
         String url = "http://localhost:" + server.getAddress().getPort() + "/hook";
@@ -87,13 +85,11 @@ class InProcessAutomationPortWebhookTest {
     void givesUpAfterExactlyRetryAttemptsAndThrows() throws IOException {
         AtomicInteger requestCount = new AtomicInteger();
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        server.createContext(
-            "/hook",
-            exchange -> {
-                requestCount.incrementAndGet();
-                exchange.sendResponseHeaders(500, -1);
-                exchange.close();
-            });
+        server.createContext("/hook", exchange -> {
+            requestCount.incrementAndGet();
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
         server.start();
 
         String url = "http://localhost:" + server.getAddress().getPort() + "/hook";
@@ -107,8 +103,7 @@ class InProcessAutomationPortWebhookTest {
 
         OutboxEntry entry = webhookEntry();
 
-        assertThatThrownBy(() -> port.dispatch(SCOPE, entry))
-            .isInstanceOf(WebhookDeliveryException.class);
+        assertThatThrownBy(() -> port.dispatch(SCOPE, entry)).isInstanceOf(WebhookDeliveryException.class);
         assertThat(requestCount.get()).isEqualTo(3);
     }
 
@@ -116,12 +111,12 @@ class InProcessAutomationPortWebhookTest {
             RecordingActionExecutor recorder, InProcessAutomationProperties properties) {
         RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
         return new InProcessAutomationPort(
-            recorder,
-            properties,
-            triggerEvaluator,
-            new RecordingDerivationRecomputer(),
-            InProcessRecomputeProperties.Mode.RETRY_ONLY,
-            new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator));
+                recorder,
+                properties,
+                triggerEvaluator,
+                new RecordingDerivationRecomputer(),
+                InProcessRecomputeProperties.Mode.RETRY_ONLY,
+                new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator));
     }
 
     private static OutboxEntry webhookEntry() {

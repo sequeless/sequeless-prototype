@@ -53,11 +53,14 @@ public class JenaOntologyAutoConfiguration {
         ObjectStorePort store = objectStoreProvider.getIfAvailable();
         if (store == null) {
             return JenaOntologyPort.fromSource(
-                "sequeless.ontology.source", properties.getSource(), properties.getReasoner());
+                    "sequeless.ontology.source", properties.getSource(), properties.getReasoner());
         }
         Scope scope = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
         return JenaOntologyPort.fromStore(
-            store.ontologyDocuments(), scope, "sequeless.ontology.source", properties.getSource(),
-            properties.getReasoner());
+                store.ontologyDocuments(),
+                scope,
+                "sequeless.ontology.source",
+                properties.getSource(),
+                properties.getReasoner());
     }
 }

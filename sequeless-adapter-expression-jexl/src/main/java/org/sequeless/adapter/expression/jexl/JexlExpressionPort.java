@@ -82,15 +82,14 @@ public final class JexlExpressionPort implements ExpressionPort {
      * java.time.*} wildcard RESTRICTED lacks (needed for {@link DateValue}/{@link DateTimeValue}
      * unwrapping to {@link LocalDate}/{@link Instant}).
      */
-    private static final JexlPermissions PERMISSIONS =
-        JexlPermissions.parse(
+    private static final JexlPermissions PERMISSIONS = JexlPermissions.parse(
             "java.lang.*",
             "java.math.*",
             "java.text.*",
             "java.util.*",
             "java.time.*",
             "java.lang { Runtime{} System{} ProcessBuilder{} Process{} RuntimePermission{}"
-                + " SecurityManager{} Thread{} ThreadGroup{} Class{} ClassLoader{} }",
+                    + " SecurityManager{} Thread{} ThreadGroup{} Class{} ClassLoader{} }",
             "java.lang.annotation {}",
             "java.lang.instrument {}",
             "java.lang.invoke {}",
@@ -104,8 +103,11 @@ public final class JexlExpressionPort implements ExpressionPort {
     private final JxltEngine jxlt;
 
     public JexlExpressionPort() {
-        this.engine =
-            new JexlBuilder().permissions(PERMISSIONS).strict(true).silent(false).create();
+        this.engine = new JexlBuilder()
+                .permissions(PERMISSIONS)
+                .strict(true)
+                .silent(false)
+                .create();
         this.jxlt = engine.createJxltEngine();
     }
 
@@ -121,8 +123,7 @@ public final class JexlExpressionPort implements ExpressionPort {
             throw new ExpressionException("failed to evaluate expression: " + expression, e);
         }
         if (result == null) {
-            throw new ExpressionException(
-                "expression evaluated to null, which Value cannot represent: " + expression);
+            throw new ExpressionException("expression evaluated to null, which Value cannot represent: " + expression);
         }
         return toValue(result);
     }
@@ -140,8 +141,7 @@ public final class JexlExpressionPort implements ExpressionPort {
             throw new ExpressionException("failed to render template: " + template, e);
         }
         if (result == null) {
-            throw new ExpressionException(
-                "template evaluated to null, which Value cannot represent: " + template);
+            throw new ExpressionException("template evaluated to null, which Value cannot represent: " + template);
         }
         return result instanceof String text ? text : String.valueOf(result);
     }
@@ -213,7 +213,6 @@ public final class JexlExpressionPort implements ExpressionPort {
         if (result instanceof CharSequence text) {
             return Value.text(text.toString());
         }
-        throw new ExpressionException(
-            "cannot represent JEXL result of type " + result.getClass() + " as a Value");
+        throw new ExpressionException("cannot represent JEXL result of type " + result.getClass() + " as a Value");
     }
 }

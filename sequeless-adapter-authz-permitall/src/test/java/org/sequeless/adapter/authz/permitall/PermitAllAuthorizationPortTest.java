@@ -24,30 +24,25 @@ class PermitAllAuthorizationPortTest {
     void permitsEveryOperationAgainstEveryResource() {
         for (Operation operation : Operation.values()) {
             for (String resource :
-                new String[] {
-                    AuthorizationPort.EVERYTHING, Fixtures.OPAQUE_RESOURCE, "arbitrary-other-resource"
-                }) {
+                    new String[] {AuthorizationPort.EVERYTHING, Fixtures.OPAQUE_RESOURCE, "arbitrary-other-resource"}) {
                 AccessDecision decision = port.decide(Fixtures.defaultScope(), operation, resource);
                 assertThat(decision.allowed())
-                    .as("allowed() for %s against %s", operation, resource)
-                    .isTrue();
+                        .as("allowed() for %s against %s", operation, resource)
+                        .isTrue();
             }
         }
     }
 
     @Test
     void reasonIsTheFixedLiteral() {
-        AccessDecision decision =
-            port.decide(Fixtures.defaultScope(), Operation.READ, AuthorizationPort.EVERYTHING);
+        AccessDecision decision = port.decide(Fixtures.defaultScope(), Operation.READ, AuthorizationPort.EVERYTHING);
         assertThat(decision.reason()).isEqualTo(EXPECTED_REASON);
     }
 
     @Test
     void repeatCallsReturnTheSameReason() {
-        AccessDecision first =
-            port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
-        AccessDecision second =
-            port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
+        AccessDecision first = port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
+        AccessDecision second = port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
         assertThat(first.reason()).isEqualTo(EXPECTED_REASON);
         assertThat(second.reason()).isEqualTo(EXPECTED_REASON);
     }

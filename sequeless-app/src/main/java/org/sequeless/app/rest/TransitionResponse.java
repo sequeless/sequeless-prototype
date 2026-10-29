@@ -20,6 +20,8 @@ public record TransitionResponse(String name, boolean available, String reason) 
      */
     static TransitionResponse from(TransitionAvailability availability) {
         return new TransitionResponse(
-                availability.name(), availability.available(), availability.reason().orElse(null));
+                availability.name(),
+                availability.available(),
+                availability.reason().orElse(null));
     }
 }

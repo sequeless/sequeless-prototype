@@ -40,18 +40,19 @@ import org.sequeless.spi.query.QueryResult;
 class DefaultOntologyAdministrationTest {
 
     private static final Scope SCOPE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     private static final OntologyDocument DOCUMENT =
-        new OntologyDocument("@prefix sq: <https://sequeless.org/vocab/sq#> .", OntologyFormat.TURTLE);
+            new OntologyDocument("@prefix sq: <https://sequeless.org/vocab/sq#> .", OntologyFormat.TURTLE);
 
-    private static final ImportReport IMPORT_REPORT =
-        new ImportReport(true, new OntologyReport(true, List.of()), 3);
+    private static final ImportReport IMPORT_REPORT = new ImportReport(true, new OntologyReport(true, List.of()), 3);
 
     /** Minimal fixture snapshot: an empty types list is fine, only its identity is asserted on. */
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
-            "https://sequeless.dev/ns/admin#ontology", Optional.empty(), Map.of(), List.of(),
+    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+            "https://sequeless.dev/ns/admin#ontology",
+            Optional.empty(),
+            Map.of(),
+            List.of(),
             new OntologyReport(true, List.of()));
 
     private static AuthorizationPort permitAll() {
@@ -63,12 +64,12 @@ class DefaultOntologyAdministrationTest {
     }
 
     private static DefaultOntologyAdministration administration(
-        OntologyPort ontologyPort, AuthorizationPort authorizationPort) {
+            OntologyPort ontologyPort, AuthorizationPort authorizationPort) {
         return administration(ontologyPort, authorizationPort, new FakeQueryPort());
     }
 
     private static DefaultOntologyAdministration administration(
-        OntologyPort ontologyPort, AuthorizationPort authorizationPort, QueryPort queryPort) {
+            OntologyPort ontologyPort, AuthorizationPort authorizationPort, QueryPort queryPort) {
         return new DefaultOntologyAdministration(ontologyPort, authorizationPort, queryPort);
     }
 
@@ -77,8 +78,7 @@ class DefaultOntologyAdministrationTest {
     @Test
     void exportDelegatesToOntologyPortExportWithTurtleFormatOnPermit() {
         FakeOntologyPort ontologyPort = new FakeOntologyPort();
-        DefaultOntologyAdministration administration =
-            administration(ontologyPort, permitAll());
+        DefaultOntologyAdministration administration = administration(ontologyPort, permitAll());
 
         OntologyDocument result = administration.export(SCOPE);
 
@@ -90,14 +90,12 @@ class DefaultOntologyAdministrationTest {
     void exportConsultsPortWithAdminOperationAndEverythingResource() {
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOperations.add(operation);
-                capturedResources.add(resource);
-                return AccessDecision.permit("ok");
-            };
-        DefaultOntologyAdministration administration =
-            administration(new FakeOntologyPort(), authorizationPort);
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
+        DefaultOntologyAdministration administration = administration(new FakeOntologyPort(), authorizationPort);
 
         administration.export(SCOPE);
 
@@ -110,18 +108,17 @@ class DefaultOntologyAdministrationTest {
         FakeOntologyPort ontologyPort = new FakeOntologyPort();
         AccessDecision denial = AccessDecision.deny("no access");
         DefaultOntologyAdministration administration =
-            administration(ontologyPort, (scope, operation, resource) -> denial);
+                administration(ontologyPort, (scope, operation, resource) -> denial);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> administration.export(SCOPE))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> administration.export(SCOPE))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
         assertThat(ontologyPort.exportFormats).isEmpty();
     }
 
     @Test
     void exportRejectsNullScope() {
-        DefaultOntologyAdministration administration =
-            administration(new FakeOntologyPort(), permitAll());
+        DefaultOntologyAdministration administration = administration(new FakeOntologyPort(), permitAll());
 
         assertThatNullPointerException().isThrownBy(() -> administration.export(null));
     }
@@ -131,14 +128,13 @@ class DefaultOntologyAdministrationTest {
     @Test
     void importTurtleBuildsDocumentAndDelegatesWithReplaceModeOnPermit() {
         FakeOntologyPort ontologyPort = new FakeOntologyPort();
-        DefaultOntologyAdministration administration =
-            administration(ontologyPort, permitAll());
+        DefaultOntologyAdministration administration = administration(ontologyPort, permitAll());
 
         ImportReport result = administration.importTurtle(SCOPE, "@prefix sq: <urn:x> .");
 
         assertThat(result).isEqualTo(IMPORT_REPORT);
         assertThat(ontologyPort.importedDocuments)
-            .containsExactly(new OntologyDocument("@prefix sq: <urn:x> .", OntologyFormat.TURTLE));
+                .containsExactly(new OntologyDocument("@prefix sq: <urn:x> .", OntologyFormat.TURTLE));
         assertThat(ontologyPort.importedModes).containsExactly(ImportMode.REPLACE);
     }
 
@@ -146,14 +142,12 @@ class DefaultOntologyAdministrationTest {
     void importTurtleConsultsPortWithAdminOperationAndEverythingResource() {
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOperations.add(operation);
-                capturedResources.add(resource);
-                return AccessDecision.permit("ok");
-            };
-        DefaultOntologyAdministration administration =
-            administration(new FakeOntologyPort(), authorizationPort);
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
+        DefaultOntologyAdministration administration = administration(new FakeOntologyPort(), authorizationPort);
 
         administration.importTurtle(SCOPE, "@prefix sq: <urn:x> .");
 
@@ -167,11 +161,11 @@ class DefaultOntologyAdministrationTest {
         FakeQueryPort queryPort = new FakeQueryPort();
         AccessDecision denial = AccessDecision.deny("no access");
         DefaultOntologyAdministration administration =
-            administration(ontologyPort, (scope, operation, resource) -> denial, queryPort);
+                administration(ontologyPort, (scope, operation, resource) -> denial, queryPort);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> administration.importTurtle(SCOPE, "@prefix sq: <urn:x> ."))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> administration.importTurtle(SCOPE, "@prefix sq: <urn:x> ."))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
         assertThat(ontologyPort.importedDocuments).isEmpty();
         assertThat(queryPort.ensureIndexesScopes).isEmpty();
     }
@@ -180,8 +174,7 @@ class DefaultOntologyAdministrationTest {
     void importTurtleCallsEnsureIndexesWithFreshSnapshotAfterSuccessfulImport() {
         FakeOntologyPort ontologyPort = new FakeOntologyPort();
         FakeQueryPort queryPort = new FakeQueryPort();
-        DefaultOntologyAdministration administration =
-            administration(ontologyPort, permitAll(), queryPort);
+        DefaultOntologyAdministration administration = administration(ontologyPort, permitAll(), queryPort);
 
         administration.importTurtle(SCOPE, "@prefix sq: <urn:x> .");
 
@@ -191,13 +184,10 @@ class DefaultOntologyAdministrationTest {
 
     @Test
     void importTurtleRejectsNullArguments() {
-        DefaultOntologyAdministration administration =
-            administration(new FakeOntologyPort(), permitAll());
+        DefaultOntologyAdministration administration = administration(new FakeOntologyPort(), permitAll());
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> administration.importTurtle(null, "@prefix sq: <urn:x> ."));
-        assertThatNullPointerException()
-            .isThrownBy(() -> administration.importTurtle(SCOPE, null));
+        assertThatNullPointerException().isThrownBy(() -> administration.importTurtle(null, "@prefix sq: <urn:x> ."));
+        assertThatNullPointerException().isThrownBy(() -> administration.importTurtle(SCOPE, null));
     }
 
     // --- constructor ---
@@ -205,23 +195,19 @@ class DefaultOntologyAdministrationTest {
     @Test
     void constructorRejectsNullOntologyPort() {
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultOntologyAdministration(null, permitAll(), new FakeQueryPort()));
+                .isThrownBy(() -> new DefaultOntologyAdministration(null, permitAll(), new FakeQueryPort()));
     }
 
     @Test
     void constructorRejectsNullAuthorizationPort() {
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultOntologyAdministration(
-                    new FakeOntologyPort(), null, new FakeQueryPort()));
+                .isThrownBy(() -> new DefaultOntologyAdministration(new FakeOntologyPort(), null, new FakeQueryPort()));
     }
 
     @Test
     void constructorRejectsNullQueryPort() {
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultOntologyAdministration(new FakeOntologyPort(), permitAll(), null));
+                .isThrownBy(() -> new DefaultOntologyAdministration(new FakeOntologyPort(), permitAll(), null));
     }
 
     /**

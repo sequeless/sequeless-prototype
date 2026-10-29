@@ -26,8 +26,7 @@ public final class UnknownSignalException extends RuntimeException {
      * @throws NullPointerException if either argument is {@code null}
      */
     public UnknownSignalException(String typeIri, String signalName) {
-        super(
-            "No transition on type '" + Objects.requireNonNull(typeIri, "typeIri must not be null")
+        super("No transition on type '" + Objects.requireNonNull(typeIri, "typeIri must not be null")
                 + "' declares signal '"
                 + Objects.requireNonNull(signalName, "signalName must not be null") + "'");
         this.typeIri = typeIri;

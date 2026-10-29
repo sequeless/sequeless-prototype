@@ -53,7 +53,7 @@ import org.sequeless.spi.object.OutboxEntry;
 public abstract class AutomationContract {
 
     private static final Scope SCOPE =
-        new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", Set.of()));
+            new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", Set.of()));
 
     /**
      * @return the {@link AutomationPort} implementation under test, wired with {@link
@@ -102,40 +102,35 @@ public abstract class AutomationContract {
 
     @Test
     void dispatchRoutesSetPropertyToApplySetProperty() {
-        OutboxEntry entry =
-            actionRequestEntry(
-                "SetProperty",
-                Map.of("property", "http://example.org/owner", "expression", "'user-2'"));
+        OutboxEntry entry = actionRequestEntry(
+                "SetProperty", Map.of("property", "http://example.org/owner", "expression", "'user-2'"));
 
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_SET_PROPERTY))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
     void dispatchRoutesCreateObjectToApplyCreateObject() {
-        OutboxEntry entry =
-            actionRequestEntry(
-                "CreateObject",
-                Map.of("createType", "http://example.org/Task", "createProperties", Map.of()));
+        OutboxEntry entry = actionRequestEntry(
+                "CreateObject", Map.of("createType", "http://example.org/Task", "createProperties", Map.of()));
 
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_CREATE_OBJECT))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
     void dispatchRoutesWebhookToResolveWebhook() {
         OutboxEntry entry =
-            actionRequestEntry(
-                "Webhook", Map.of("url", "http://example.invalid/hook", "method", "POST"));
+                actionRequestEntry("Webhook", Map.of("url", "http://example.invalid/hook", "method", "POST"));
 
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_RESOLVE_WEBHOOK))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -145,7 +140,7 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_LOG))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -156,7 +151,7 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_LOG))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -180,7 +175,7 @@ public abstract class AutomationContract {
         payload.put("fromState", "Draft");
         payload.put("toState", "Active");
         OutboxEntry entry =
-            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
         assertThatIllegalArgumentException().isThrownBy(() -> port().dispatch(SCOPE, entry));
     }
@@ -193,7 +188,7 @@ public abstract class AutomationContract {
 
         assertThat(recordingDerivationRecomputer().calls()).hasSize(1);
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-            .isEqualTo(1);
+                .isEqualTo(1);
         assertRecomputeRanBeforeOnChange();
     }
 
@@ -205,7 +200,7 @@ public abstract class AutomationContract {
 
         assertThat(recordingDerivationRecomputer().calls()).hasSize(1);
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-            .isEqualTo(1);
+                .isEqualTo(1);
         assertRecomputeRanBeforeOnChange();
     }
 
@@ -214,19 +209,17 @@ public abstract class AutomationContract {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
         OutboxEntry entry =
-            timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
+                timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
 
         port().dispatch(SCOPE, entry);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(0);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(0);
 
         advanceTime(after);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(1);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
     }
 
     @Test
@@ -241,9 +234,8 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, cancelled);
         advanceTime(after);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(0);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(0);
     }
 
     @Test
@@ -253,7 +245,7 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_SIGNAL))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -261,15 +253,14 @@ public abstract class AutomationContract {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
         OutboxEntry entry =
-            timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
+                timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
 
         port().dispatch(SCOPE, entry);
         port().dispatch(SCOPE, entry);
         advanceTime(after);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(1);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
     }
 
     /**
@@ -282,8 +273,7 @@ public abstract class AutomationContract {
      */
     private void assertRecomputeRanBeforeOnChange() {
         long recomputeAt = recordingDerivationRecomputer().calls().get(0).sequenceNanos();
-        long onChangeAt =
-            recordingTriggerEvaluator().calls().stream()
+        long onChangeAt = recordingTriggerEvaluator().calls().stream()
                 .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
                 .findFirst()
                 .orElseThrow()
@@ -330,7 +320,7 @@ public abstract class AutomationContract {
      * (ISO-8601), and {@code timerKey}.
      */
     private static OutboxEntry timerScheduledEntry(
-        UUID objectId, String timerKey, String state, String transitionName, Duration after) {
+            UUID objectId, String timerKey, String state, String transitionName, Duration after) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", objectId.toString());
         payload.put("tenantId", SCOPE.tenantId().value());

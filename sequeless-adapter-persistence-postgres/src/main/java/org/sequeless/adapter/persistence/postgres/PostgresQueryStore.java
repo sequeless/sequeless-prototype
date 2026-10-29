@@ -18,9 +18,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
@@ -45,11 +42,13 @@ import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.query.Sort;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The PostgreSQL-backed {@link QueryPort}: filtered, sorted, paged, faceted, and free-text queries
@@ -85,13 +84,17 @@ public final class PostgresQueryStore implements QueryPort {
         String tenantId = scope.tenantId().value();
         Map<String, PropertyDefinition> propertyIndex = indexProperties(snapshot, query.types());
 
-        WhereClause mainWhere =
-            buildWhere(
-                tenantId, query.types(), query.criteria(), query.includeDeleted(), Optional.empty(),
-                query.text(), "", propertyIndex);
+        WhereClause mainWhere = buildWhere(
+                tenantId,
+                query.types(),
+                query.criteria(),
+                query.includeDeleted(),
+                Optional.empty(),
+                query.text(),
+                "",
+                propertyIndex);
 
-        long total =
-            jdbcClient
+        long total = jdbcClient
                 .sql("SELECT COUNT(*) FROM sq_object WHERE " + mainWhere.sql())
                 .params(mainWhere.params())
                 .query(Long.class)
@@ -104,10 +107,8 @@ public final class PostgresQueryStore implements QueryPort {
         itemParams.put("limit", query.page().size());
         itemParams.put("offset", query.page().number() * query.page().size());
 
-        List<BusinessObject> items =
-            jdbcClient
-                .sql(
-                    "SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
+        List<BusinessObject> items = jdbcClient
+                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
                         + "updated_at, updated_by, deleted_at FROM sq_object WHERE "
                         + mainWhere.sql()
                         + " ORDER BY "
@@ -119,8 +120,7 @@ public final class PostgresQueryStore implements QueryPort {
 
         Map<String, List<FacetBucket>> facets = new LinkedHashMap<>();
         for (String facetProperty : query.facetProperties()) {
-            facets.put(
-                facetProperty, computeFacet(tenantId, query, facetProperty, propertyIndex, snapshot));
+            facets.put(facetProperty, computeFacet(tenantId, query, facetProperty, propertyIndex, snapshot));
         }
 
         return new QueryResult(items, total, facets);
@@ -182,11 +182,10 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> propertyIndex =
-            indexProperties(snapshot, request.sourceTypes());
+        Map<String, PropertyDefinition> propertyIndex = indexProperties(snapshot, request.sourceTypes());
 
         Optional<AttributeDefinition> ofProperty =
-            request.ofPropertyIri().map(iri -> (AttributeDefinition) propertyIndex.get(iri));
+                request.ofPropertyIri().map(iri -> (AttributeDefinition) propertyIndex.get(iri));
 
         StringBuilder sql = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
@@ -197,31 +196,26 @@ public final class PostgresQueryStore implements QueryPort {
         if (request.function() == AggregateFunction.COUNT) {
             sql.append("COUNT(*) AS agg_value ");
         } else {
-            AttributeDefinition attribute =
-                ofProperty.orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "AggregateRequest.ofPropertyIri() is required for " + request.function()));
+            AttributeDefinition attribute = ofProperty.orElseThrow(() -> new IllegalArgumentException(
+                    "AggregateRequest.ofPropertyIri() is required for " + request.function()));
             String aggExpr = castExpression(attribute, "", "of");
             params.put("of", attribute.iri());
-            String aggFunction =
-                switch (request.function()) {
-                    case SUM -> "SUM";
-                    case MIN -> "MIN";
-                    case MAX -> "MAX";
-                    case AVG -> "AVG";
-                    case COUNT -> throw new IllegalStateException("unreachable");
-                };
+            String aggFunction = switch (request.function()) {
+                case SUM -> "SUM";
+                case MIN -> "MIN";
+                case MAX -> "MAX";
+                case AVG -> "AVG";
+                case COUNT -> throw new IllegalStateException("unreachable");
+            };
             sql.append(aggFunction).append('(').append(aggExpr).append(") AS agg_value ");
         }
 
         sql.append("FROM sq_object WHERE tenant_id = :tenantId AND type_iri IN (:sourceTypes) "
-            + "AND deleted_at IS NULL AND (props -> :via ->> 'ref')::uuid IN (:targetIds)");
+                + "AND deleted_at IS NULL AND (props -> :via ->> 'ref')::uuid IN (:targetIds)");
         params.put("tenantId", tenantId);
         params.put("sourceTypes", List.copyOf(request.sourceTypes()));
         params.put(
-            "targetIds",
-            request.targetIds().stream().map(ObjectId::value).toList());
+                "targetIds", request.targetIds().stream().map(ObjectId::value).toList());
 
         int i = 0;
         for (Criterion criterion : request.criteria()) {
@@ -237,8 +231,7 @@ public final class PostgresQueryStore implements QueryPort {
         sql.append(" GROUP BY 1");
 
         if (request.function() == AggregateFunction.COUNT) {
-            Map<ObjectId, Long> counts =
-                jdbcClient
+            Map<ObjectId, Long> counts = jdbcClient
                     .sql(sql.toString())
                     .params(params)
                     .query((rs, rowNum) -> Map.entry(objectIdOf(rs), rs.getLong("agg_value")))
@@ -254,15 +247,13 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         Datatype datatype = ofProperty.orElseThrow().datatype();
-        Map<ObjectId, Value> result =
-            jdbcClient
+        Map<ObjectId, Value> result = jdbcClient
                 .sql(sql.toString())
                 .params(params)
                 .query((rs, rowNum) -> Map.entry(objectIdOf(rs), aggregateValue(rs, datatype)))
                 .list()
                 .stream()
-                .collect(
-                    LinkedHashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), Map::putAll);
+                .collect(LinkedHashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), Map::putAll);
 
         return new AggregateResult(result);
     }
@@ -283,8 +274,7 @@ public final class PostgresQueryStore implements QueryPort {
             case DECIMAL, DOUBLE -> new DecimalValue(rs.getBigDecimal("agg_value"));
             case INTEGER, LONG -> new IntegerValue(rs.getLong("agg_value"));
             case STRING, ANY_URI, TIME, DURATION, BOOLEAN, DATE, DATE_TIME ->
-                throw new IllegalArgumentException(
-                    "Aggregate function is not supported for datatype " + datatype);
+                throw new IllegalArgumentException("Aggregate function is not supported for datatype " + datatype);
         };
     }
 
@@ -297,10 +287,8 @@ public final class PostgresQueryStore implements QueryPort {
     }
 
     private void ensureIndex(String tenantId, PropertyDefinition property) {
-        boolean alreadyRegistered =
-            jdbcClient
-                .sql(
-                    "SELECT 1 FROM sq_index_registry WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
+        boolean alreadyRegistered = jdbcClient
+                .sql("SELECT 1 FROM sq_index_registry WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
                 .param("tenantId", tenantId)
                 .param("propertyIri", property.iri())
                 .query()
@@ -313,19 +301,17 @@ public final class PostgresQueryStore implements QueryPort {
         }
         String indexName = indexNameFor(tenantId, property.iri());
         jdbcClient
-            .sql(
-                "CREATE INDEX IF NOT EXISTS " + indexName + " ON sq_object (("
-                    + castExpressionLiteral(property) + "))")
-            .update();
+                .sql("CREATE INDEX IF NOT EXISTS " + indexName + " ON sq_object ((" + castExpressionLiteral(property)
+                        + "))")
+                .update();
         jdbcClient
-            .sql(
-                "INSERT INTO sq_index_registry (tenant_id, property_iri, index_name, created_at) "
-                    + "VALUES (:tenantId, :propertyIri, :indexName, :createdAt)")
-            .param("tenantId", tenantId)
-            .param("propertyIri", property.iri())
-            .param("indexName", indexName)
-            .param("createdAt", Timestamp.from(Instant.now()))
-            .update();
+                .sql("INSERT INTO sq_index_registry (tenant_id, property_iri, index_name, created_at) "
+                        + "VALUES (:tenantId, :propertyIri, :indexName, :createdAt)")
+                .param("tenantId", tenantId)
+                .param("propertyIri", property.iri())
+                .param("indexName", indexName)
+                .param("createdAt", Timestamp.from(Instant.now()))
+                .update();
     }
 
     /**
@@ -337,8 +323,7 @@ public final class PostgresQueryStore implements QueryPort {
      */
     static String indexNameFor(String tenantId, String propertyIri) {
         try {
-            byte[] digest =
-                MessageDigest.getInstance("MD5")
+            byte[] digest = MessageDigest.getInstance("MD5")
                     .digest((tenantId + "|" + propertyIri).getBytes(StandardCharsets.UTF_8));
             return "sq_idx_" + HexFormat.of().formatHex(digest).substring(0, 16);
         } catch (NoSuchAlgorithmException e) {
@@ -347,10 +332,8 @@ public final class PostgresQueryStore implements QueryPort {
     }
 
     private boolean registerSearchable(String tenantId, PropertyDefinition property) {
-        boolean alreadyRegistered =
-            jdbcClient
-                .sql(
-                    "SELECT 1 FROM sq_searchable_property WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
+        boolean alreadyRegistered = jdbcClient
+                .sql("SELECT 1 FROM sq_searchable_property WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
                 .param("tenantId", tenantId)
                 .param("propertyIri", property.iri())
                 .query()
@@ -362,11 +345,10 @@ public final class PostgresQueryStore implements QueryPort {
             return false;
         }
         jdbcClient
-            .sql(
-                "INSERT INTO sq_searchable_property (tenant_id, property_iri) VALUES (:tenantId, :propertyIri)")
-            .param("tenantId", tenantId)
-            .param("propertyIri", property.iri())
-            .update();
+                .sql("INSERT INTO sq_searchable_property (tenant_id, property_iri) VALUES (:tenantId, :propertyIri)")
+                .param("tenantId", tenantId)
+                .param("propertyIri", property.iri())
+                .update();
         return true;
     }
 
@@ -386,25 +368,20 @@ public final class PostgresQueryStore implements QueryPort {
     // carries no scalar-cardinality requirement, unlike sq:facet/sq:indexed).
     private void backfillSearchVector(String tenantId) {
         jdbcClient
-            .sql(
-                "UPDATE sq_object o SET search_vector = ("
-                    + "SELECT to_tsvector('simple', COALESCE(string_agg(sq_extract_searchable_text(o.props, sp.property_iri), ' '), '')) "
-                    + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
-                    + "WHERE o.tenant_id = :tenantId")
-            .param("tenantId", tenantId)
-            .update();
+                .sql("UPDATE sq_object o SET search_vector = ("
+                        + "SELECT to_tsvector('simple', COALESCE(string_agg(sq_extract_searchable_text(o.props, sp.property_iri), ' '), '')) "
+                        + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
+                        + "WHERE o.tenant_id = :tenantId")
+                .param("tenantId", tenantId)
+                .update();
     }
 
     // -- Property resolution -----------------------------------------------------------------
 
-    private static Map<String, PropertyDefinition> indexProperties(
-        MetaModelSnapshot snapshot, Set<String> typeIris) {
+    private static Map<String, PropertyDefinition> indexProperties(MetaModelSnapshot snapshot, Set<String> typeIris) {
         Map<String, PropertyDefinition> result = new LinkedHashMap<>();
         for (String typeIri : typeIris) {
-            snapshot
-                .type(typeIri)
-                .ifPresent(
-                    type -> type.properties().forEach(p -> result.putIfAbsent(p.iri(), p)));
+            snapshot.type(typeIri).ifPresent(type -> type.properties().forEach(p -> result.putIfAbsent(p.iri(), p)));
         }
         return result;
     }
@@ -425,19 +402,21 @@ public final class PostgresQueryStore implements QueryPort {
      * @param tableAlias {@code ""} for a plain query, {@code "o."} for the reference-facet join
      */
     private WhereClause buildWhere(
-        String tenantId,
-        Set<String> typeIris,
-        List<Criterion> criteria,
-        boolean includeDeleted,
-        Optional<String> excludingProperty,
-        Optional<String> text,
-        String tableAlias,
-        Map<String, PropertyDefinition> propertyIndex) {
+            String tenantId,
+            Set<String> typeIris,
+            List<Criterion> criteria,
+            boolean includeDeleted,
+            Optional<String> excludingProperty,
+            Optional<String> text,
+            String tableAlias,
+            Map<String, PropertyDefinition> propertyIndex) {
         StringBuilder sql = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
 
-        sql.append(tableAlias).append("tenant_id = :tenantId AND ").append(tableAlias)
-            .append("type_iri IN (:types)");
+        sql.append(tableAlias)
+                .append("tenant_id = :tenantId AND ")
+                .append(tableAlias)
+                .append("type_iri IN (:types)");
         params.put("tenantId", tenantId);
         params.put("types", List.copyOf(typeIris));
 
@@ -462,16 +441,14 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         if (text.isPresent()) {
-            sql.append(" AND ").append(tableAlias)
-                .append("search_vector @@ plainto_tsquery('simple', :searchText)");
+            sql.append(" AND ").append(tableAlias).append("search_vector @@ plainto_tsquery('simple', :searchText)");
             params.put("searchText", text.get());
         }
 
         return new WhereClause(sql.toString(), params);
     }
 
-    private String criterionSql(
-        Criterion criterion, String expr, String valueParam, Map<String, Object> params) {
+    private String criterionSql(Criterion criterion, String expr, String valueParam, Map<String, Object> params) {
         return switch (criterion.operator()) {
             case EQ -> {
                 params.put(valueParam, toSqlParam(criterion.value().orElseThrow()));
@@ -485,7 +462,9 @@ public final class PostgresQueryStore implements QueryPort {
             }
             case IN -> {
                 ListValue list = (ListValue) criterion.value().orElseThrow();
-                List<Object> values = list.values().stream().map(PostgresQueryStore::toSqlParam).toList();
+                List<Object> values = list.values().stream()
+                        .map(PostgresQueryStore::toSqlParam)
+                        .toList();
                 params.put(valueParam, values);
                 yield expr + " IN (:" + valueParam + ")";
             }
@@ -535,14 +514,14 @@ public final class PostgresQueryStore implements QueryPort {
             case ReferenceValue ref -> ref.target().value();
             case ListValue list ->
                 throw new IllegalStateException(
-                    "ListValue must be unwrapped by the caller; only valid nested inside IN");
+                        "ListValue must be unwrapped by the caller; only valid nested inside IN");
         };
     }
 
     // -- ORDER BY building --------------------------------------------------------------------
 
     private static SqlFragment buildOrderBy(
-        List<Sort> sorts, Optional<String> text, Map<String, PropertyDefinition> propertyIndex) {
+            List<Sort> sorts, Optional<String> text, Map<String, PropertyDefinition> propertyIndex) {
         if (!sorts.isEmpty()) {
             Map<String, Object> params = new HashMap<>();
             List<String> parts = new ArrayList<>();
@@ -558,8 +537,8 @@ public final class PostgresQueryStore implements QueryPort {
         }
         if (text.isPresent()) {
             return new SqlFragment(
-                "ts_rank(search_vector, plainto_tsquery('simple', :searchText)) DESC, created_at, id",
-                Map.of("searchText", text.get()));
+                    "ts_rank(search_vector, plainto_tsquery('simple', :searchText)) DESC, created_at, id",
+                    Map.of("searchText", text.get()));
         }
         return new SqlFragment("created_at, id", Map.of());
     }
@@ -621,33 +600,37 @@ public final class PostgresQueryStore implements QueryPort {
     // -- Facet computation --------------------------------------------------------------------
 
     private List<FacetBucket> computeFacet(
-        String tenantId,
-        Query query,
-        String facetProperty,
-        Map<String, PropertyDefinition> propertyIndex,
-        MetaModelSnapshot snapshot) {
+            String tenantId,
+            Query query,
+            String facetProperty,
+            Map<String, PropertyDefinition> propertyIndex,
+            MetaModelSnapshot snapshot) {
         PropertyDefinition property = propertyIndex.get(facetProperty);
         return property instanceof RelationshipDefinition rel
-            ? computeReferenceFacet(tenantId, query, facetProperty, rel, snapshot, propertyIndex)
-            : computeScalarFacet(tenantId, query, facetProperty, (AttributeDefinition) property, propertyIndex);
+                ? computeReferenceFacet(tenantId, query, facetProperty, rel, snapshot, propertyIndex)
+                : computeScalarFacet(tenantId, query, facetProperty, (AttributeDefinition) property, propertyIndex);
     }
 
     private List<FacetBucket> computeScalarFacet(
-        String tenantId,
-        Query query,
-        String facetProperty,
-        AttributeDefinition attribute,
-        Map<String, PropertyDefinition> propertyIndex) {
-        WhereClause excluding =
-            buildWhere(
-                tenantId, query.types(), query.criteria(), query.includeDeleted(),
-                Optional.of(facetProperty), query.text(), "", propertyIndex);
+            String tenantId,
+            Query query,
+            String facetProperty,
+            AttributeDefinition attribute,
+            Map<String, PropertyDefinition> propertyIndex) {
+        WhereClause excluding = buildWhere(
+                tenantId,
+                query.types(),
+                query.criteria(),
+                query.includeDeleted(),
+                Optional.of(facetProperty),
+                query.text(),
+                "",
+                propertyIndex);
 
         String tag = tagFor(attribute.datatype());
         String valueExpr = "props -> :facetProp ->> '" + tag + "'";
 
-        String sql =
-            "SELECT (" + valueExpr + ") AS bucket_value, COUNT(*) AS bucket_count "
+        String sql = "SELECT (" + valueExpr + ") AS bucket_value, COUNT(*) AS bucket_count "
                 + "FROM sq_object WHERE "
                 + excluding.sql()
                 + " AND ("
@@ -658,32 +641,36 @@ public final class PostgresQueryStore implements QueryPort {
         params.put("facetProp", facetProperty);
 
         return jdbcClient
-            .sql(sql)
-            .params(params)
-            .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
-            .list();
+                .sql(sql)
+                .params(params)
+                .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
+                .list();
     }
 
     private List<FacetBucket> computeReferenceFacet(
-        String tenantId,
-        Query query,
-        String facetProperty,
-        RelationshipDefinition rel,
-        MetaModelSnapshot snapshot,
-        Map<String, PropertyDefinition> propertyIndex) {
-        WhereClause excluding =
-            buildWhere(
-                tenantId, query.types(), query.criteria(), query.includeDeleted(),
-                Optional.of(facetProperty), query.text(), "o.", propertyIndex);
+            String tenantId,
+            Query query,
+            String facetProperty,
+            RelationshipDefinition rel,
+            MetaModelSnapshot snapshot,
+            Map<String, PropertyDefinition> propertyIndex) {
+        WhereClause excluding = buildWhere(
+                tenantId,
+                query.types(),
+                query.criteria(),
+                query.includeDeleted(),
+                Optional.of(facetProperty),
+                query.text(),
+                "o.",
+                propertyIndex);
 
         Optional<AttributeDefinition> labelProperty = displayLabelProperty(snapshot, rel.targetTypeIri());
-        String valueExpr =
-            labelProperty.isPresent()
-                ? "target.props -> :labelProp ->> '" + tagFor(labelProperty.get().datatype()) + "'"
+        String valueExpr = labelProperty.isPresent()
+                ? "target.props -> :labelProp ->> '"
+                        + tagFor(labelProperty.get().datatype()) + "'"
                 : "target.id::text";
 
-        String sql =
-            "SELECT ("
+        String sql = "SELECT ("
                 + valueExpr
                 + ") AS bucket_value, COUNT(*) AS bucket_count "
                 + "FROM sq_object o "
@@ -698,19 +685,16 @@ public final class PostgresQueryStore implements QueryPort {
         labelProperty.ifPresent(p -> params.put("labelProp", p.iri()));
 
         return jdbcClient
-            .sql(sql)
-            .params(params)
-            .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
-            .list();
+                .sql(sql)
+                .params(params)
+                .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
+                .list();
     }
 
     private static Optional<AttributeDefinition> displayLabelProperty(
-        MetaModelSnapshot snapshot, String targetTypeIri) {
-        return snapshot
-            .type(targetTypeIri)
-            .flatMap(
-                type ->
-                    type.properties().stream()
+            MetaModelSnapshot snapshot, String targetTypeIri) {
+        return snapshot.type(targetTypeIri)
+                .flatMap(type -> type.properties().stream()
                         .filter(PropertyDefinition::displayLabel)
                         .filter(AttributeDefinition.class::isInstance)
                         .map(AttributeDefinition.class::cast)

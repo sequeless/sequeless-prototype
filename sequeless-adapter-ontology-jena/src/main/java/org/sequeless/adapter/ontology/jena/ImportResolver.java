@@ -42,18 +42,16 @@ final class ImportResolver {
     }
 
     private static Graph loadBundledMetaGraph() {
-        try (InputStream in =
-                ImportResolver.class.getClassLoader().getResourceAsStream(SQ_META_CLASSPATH_RESOURCE)) {
+        try (InputStream in = ImportResolver.class.getClassLoader().getResourceAsStream(SQ_META_CLASSPATH_RESOURCE)) {
             if (in == null) {
                 throw new IllegalStateException(
-                    "bundled resource missing from classpath: " + SQ_META_CLASSPATH_RESOURCE);
+                        "bundled resource missing from classpath: " + SQ_META_CLASSPATH_RESOURCE);
             }
             Model model = ModelFactory.createDefaultModel();
             RDFDataMgr.read(model, in, SQ_META_IRI, Lang.TURTLE);
             return model.getGraph();
         } catch (IOException e) {
-            throw new IllegalStateException(
-                "failed to read bundled resource: " + SQ_META_CLASSPATH_RESOURCE, e);
+            throw new IllegalStateException("failed to read bundled resource: " + SQ_META_CLASSPATH_RESOURCE, e);
         }
     }
 }

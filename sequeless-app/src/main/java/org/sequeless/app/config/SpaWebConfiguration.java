@@ -79,10 +79,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class SpaWebConfiguration implements WebMvcConfigurer {
 
     private static final String[] DEFAULT_STATIC_LOCATIONS = {
-            "classpath:/META-INF/resources/",
-            "classpath:/resources/",
-            "classpath:/static/",
-            "classpath:/public/"};
+        "classpath:/META-INF/resources/", "classpath:/resources/", "classpath:/static/", "classpath:/public/"
+    };
 
     private final WebProperties webProperties;
 
@@ -115,8 +113,7 @@ public class SpaWebConfiguration implements WebMvcConfigurer {
      *     SPA's {@code index.html} into a {@link Resource} without committing to one
      *     {@link org.springframework.core.io.Resource} implementation
      */
-    public SpaWebConfiguration(
-            WebProperties webProperties, ApplicationContext applicationContext) {
+    public SpaWebConfiguration(WebProperties webProperties, ApplicationContext applicationContext) {
         this.webProperties = webProperties;
         this.applicationContext = applicationContext;
     }
@@ -136,8 +133,7 @@ public class SpaWebConfiguration implements WebMvcConfigurer {
         // Join defensively: both the property's default (classpath:/static/) and the tests'
         // fixture paths (classpath:/test-spa/) already carry a trailing slash, so a plain "+"
         // would produce "...test-spa//index.html". Exactly one "/" is needed between the parts.
-        Resource index =
-                applicationContext.getResource(indexLocationPrefix(spaLocation) + spaIndex);
+        Resource index = applicationContext.getResource(indexLocationPrefix(spaLocation) + spaIndex);
 
         List<String> reservedPrefixes = new ArrayList<>();
         if (apiBasePath != null && !apiBasePath.isBlank()) {
@@ -149,12 +145,10 @@ public class SpaWebConfiguration implements WebMvcConfigurer {
         reservedPrefixes.add("/error");
         reservedPrefixes.add("/webjars");
 
-        registry
-                .addResourceHandler("/**")
+        registry.addResourceHandler("/**")
                 .addResourceLocations(locations)
                 .resourceChain(true)
-                .addResolver(
-                        new SpaFallbackResourceResolver(index, reservedPrefixes, spaEnabled));
+                .addResolver(new SpaFallbackResourceResolver(index, reservedPrefixes, spaEnabled));
     }
 
     /**

@@ -5,13 +5,13 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.sequeless.spi.Scope;
+import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.testkit.object.ObjectStoreContract;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.testkit.object.ObjectStoreContract;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -37,8 +37,7 @@ class PostgresObjectStoreContractIT extends ObjectStoreContract {
 
     @BeforeAll
     static void migrate() {
-        dataSource =
-            new SimpleDriverDataSource(
+        dataSource = new SimpleDriverDataSource(
                 new org.postgresql.Driver(), POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         PostgresMigrations.migrate(dataSource);
     }
@@ -46,8 +45,8 @@ class PostgresObjectStoreContractIT extends ObjectStoreContract {
     @AfterEach
     void truncateTables() {
         JdbcClient.create(dataSource)
-            .sql("TRUNCATE TABLE sq_object, sq_ontology_document, sq_outbox")
-            .update();
+                .sql("TRUNCATE TABLE sq_object, sq_ontology_document, sq_outbox")
+                .update();
     }
 
     @Override
@@ -59,9 +58,9 @@ class PostgresObjectStoreContractIT extends ObjectStoreContract {
     @Override
     protected List<UUID> persistedOutboxIds(Scope scope) {
         return JdbcClient.create(dataSource)
-            .sql("SELECT id FROM sq_outbox WHERE tenant_id = :tenantId")
-            .param("tenantId", scope.tenantId().value())
-            .query(UUID.class)
-            .list();
+                .sql("SELECT id FROM sq_outbox WHERE tenant_id = :tenantId")
+                .param("tenantId", scope.tenantId().value())
+                .query(UUID.class)
+                .list();
     }
 }

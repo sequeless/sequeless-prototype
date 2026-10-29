@@ -19,40 +19,35 @@ class ShaclValidationAutoConfigurationTest {
 
     private static final String ONTOLOGY_SOURCE = "classpath:ontology/reference.ttl";
 
-    private final ApplicationContextRunner runner =
-        new ApplicationContextRunner()
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(
-                AutoConfigurations.of(JenaOntologyAutoConfiguration.class, ShaclValidationAutoConfiguration.class));
+                    AutoConfigurations.of(JenaOntologyAutoConfiguration.class, ShaclValidationAutoConfiguration.class));
 
     @Test
     void wiresValidationPortWhenBothAdaptersAreConfigured() {
-        runner
-            .withPropertyValues(
-                "sequeless.ontology.adapter=jena",
-                "sequeless.ontology.source=" + ONTOLOGY_SOURCE,
-                "sequeless.validation.adapter=shacl")
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ValidationPort.class);
-                assertThat(context.getBean(ValidationPort.class)).isInstanceOf(ShaclValidationPort.class);
-            });
+        runner.withPropertyValues(
+                        "sequeless.ontology.adapter=jena",
+                        "sequeless.ontology.source=" + ONTOLOGY_SOURCE,
+                        "sequeless.validation.adapter=shacl")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ValidationPort.class);
+                    assertThat(context.getBean(ValidationPort.class)).isInstanceOf(ShaclValidationPort.class);
+                });
     }
 
     @Test
     void doesNotWireWhenValidationAdapterPropertyAbsent() {
-        runner
-            .withPropertyValues(
-                "sequeless.ontology.adapter=jena", "sequeless.ontology.source=" + ONTOLOGY_SOURCE)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).doesNotHaveBean(ValidationPort.class);
-            });
+        runner.withPropertyValues("sequeless.ontology.adapter=jena", "sequeless.ontology.source=" + ONTOLOGY_SOURCE)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).doesNotHaveBean(ValidationPort.class);
+                });
     }
 
     @Test
     void contextFailsWhenNoOntologyAdapterIsConfigured() {
-        runner
-            .withPropertyValues("sequeless.validation.adapter=shacl")
-            .run(context -> assertThat(context).hasFailed());
+        runner.withPropertyValues("sequeless.validation.adapter=shacl")
+                .run(context -> assertThat(context).hasFailed());
     }
 }

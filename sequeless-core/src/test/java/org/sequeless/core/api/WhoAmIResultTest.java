@@ -26,19 +26,16 @@ class WhoAmIResultTest {
 
     @Test
     void rejectsNullTenantId() {
-        assertThatNullPointerException()
-            .isThrownBy(() -> new WhoAmIResult(null, PRINCIPAL, DECISION));
+        assertThatNullPointerException().isThrownBy(() -> new WhoAmIResult(null, PRINCIPAL, DECISION));
     }
 
     @Test
     void rejectsNullPrincipal() {
-        assertThatNullPointerException()
-            .isThrownBy(() -> new WhoAmIResult(TENANT, null, DECISION));
+        assertThatNullPointerException().isThrownBy(() -> new WhoAmIResult(TENANT, null, DECISION));
     }
 
     @Test
     void rejectsNullDecision() {
-        assertThatNullPointerException()
-            .isThrownBy(() -> new WhoAmIResult(TENANT, PRINCIPAL, null));
+        assertThatNullPointerException().isThrownBy(() -> new WhoAmIResult(TENANT, PRINCIPAL, null));
     }
 }

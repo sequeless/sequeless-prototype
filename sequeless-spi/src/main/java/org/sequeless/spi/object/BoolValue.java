@@ -5,5 +5,4 @@ package org.sequeless.spi.object;
  *
  * @param value the boolean value
  */
-public record BoolValue(boolean value) implements Value {
-}
+public record BoolValue(boolean value) implements Value {}

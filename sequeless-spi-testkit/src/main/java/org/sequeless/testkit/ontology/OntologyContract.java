@@ -72,8 +72,7 @@ public abstract class OntologyContract {
     @Test
     void exportRejectsNullScope() {
         OntologyPort port = portFor(Fixtures.referenceOntology());
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.export(null, OntologyFormat.TURTLE));
+        assertThatNullPointerException().isThrownBy(() -> port.export(null, OntologyFormat.TURTLE));
     }
 
     @Test
@@ -86,28 +85,21 @@ public abstract class OntologyContract {
     void importDocumentRejectsNullScope() {
         OntologyPort port = portFor(Fixtures.referenceOntology());
         assertThatNullPointerException()
-            .isThrownBy(
-                () ->
-                    port.importDocument(
-                        null, Fixtures.referenceOntology(), ImportMode.REPLACE));
+                .isThrownBy(() -> port.importDocument(null, Fixtures.referenceOntology(), ImportMode.REPLACE));
     }
 
     @Test
     void importDocumentRejectsNullDocument() {
         OntologyPort port = portFor(Fixtures.referenceOntology());
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> port.importDocument(Fixtures.defaultScope(), null, ImportMode.REPLACE));
+                .isThrownBy(() -> port.importDocument(Fixtures.defaultScope(), null, ImportMode.REPLACE));
     }
 
     @Test
     void importDocumentRejectsNullMode() {
         OntologyPort port = portFor(Fixtures.referenceOntology());
         assertThatNullPointerException()
-            .isThrownBy(
-                () ->
-                    port.importDocument(
-                        Fixtures.defaultScope(), Fixtures.referenceOntology(), null));
+                .isThrownBy(() -> port.importDocument(Fixtures.defaultScope(), Fixtures.referenceOntology(), null));
     }
 
     @Test
@@ -131,11 +123,8 @@ public abstract class OntologyContract {
 
         MetaModelSnapshot before = port.snapshot(scope);
 
-        assertThatThrownBy(
-                () ->
-                    port.importDocument(
-                        scope, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
-            .isInstanceOf(OntologyException.class);
+        assertThatThrownBy(() -> port.importDocument(scope, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
+                .isInstanceOf(OntologyException.class);
 
         assertThat(port.snapshot(scope)).isEqualTo(before);
     }
@@ -169,13 +158,11 @@ public abstract class OntologyContract {
         Scope scope = Fixtures.defaultScope();
 
         assertThatThrownBy(() -> port.snapshot(scope))
-            .isInstanceOf(OntologyException.class)
-            .satisfies(
-                thrown -> {
+                .isInstanceOf(OntologyException.class)
+                .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;
                     assertThat(exception.report().consistent()).isFalse();
-                    assertThat(exception.report().issues())
-                        .anyMatch(issue -> issue.severity() == Severity.ERROR);
+                    assertThat(exception.report().issues()).anyMatch(issue -> issue.severity() == Severity.ERROR);
                 });
     }
 }

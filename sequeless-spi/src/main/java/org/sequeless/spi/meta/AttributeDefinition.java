@@ -24,18 +24,18 @@ import java.util.Optional;
  * @param datatype the scalar type this property's values hold; must not be {@code null}
  */
 public record AttributeDefinition(
-    String iri,
-    String label,
-    Cardinality cardinality,
-    boolean facet,
-    boolean indexed,
-    boolean searchable,
-    boolean readOnly,
-    boolean displayLabel,
-    DisplayHints displayHints,
-    Optional<DerivationRule> derivation,
-    Datatype datatype)
-    implements PropertyDefinition {
+        String iri,
+        String label,
+        Cardinality cardinality,
+        boolean facet,
+        boolean indexed,
+        boolean searchable,
+        boolean readOnly,
+        boolean displayLabel,
+        DisplayHints displayHints,
+        Optional<DerivationRule> derivation,
+        Datatype datatype)
+        implements PropertyDefinition {
 
     public AttributeDefinition {
         if (iri == null || iri.isBlank()) {

@@ -35,8 +35,7 @@ public final class TypeHierarchy {
      *     all — a dangling reference is not this method's problem to raise
      * @throws NullPointerException if any argument is {@code null}
      */
-    public static boolean isSubtypeOf(
-        MetaModelSnapshot snapshot, String candidateIri, String targetIri) {
+    public static boolean isSubtypeOf(MetaModelSnapshot snapshot, String candidateIri, String targetIri) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         Objects.requireNonNull(candidateIri, "candidateIri must not be null");
         Objects.requireNonNull(targetIri, "targetIri must not be null");
@@ -48,7 +47,7 @@ public final class TypeHierarchy {
     }
 
     private static boolean isSubtypeOf(
-        MetaModelSnapshot snapshot, String candidateIri, String targetIri, Set<String> visited) {
+            MetaModelSnapshot snapshot, String candidateIri, String targetIri, Set<String> visited) {
         if (!visited.add(candidateIri)) {
             return false;
         }

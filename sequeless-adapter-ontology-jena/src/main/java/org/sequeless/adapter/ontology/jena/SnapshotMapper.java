@@ -123,7 +123,7 @@ record MappingResult(List<TypeDefinition> types, List<OntologyIssue> issues) {}
 final class SnapshotMapper {
 
     private static final Set<String> BUILTIN_NAMESPACES =
-        Set.of(RDF.getURI(), RDFS.getURI(), OWL.getURI(), XSD.getURI(), SqVocabulary.NS);
+            Set.of(RDF.getURI(), RDFS.getURI(), OWL.getURI(), XSD.getURI(), SqVocabulary.NS);
 
     private static final int NO_DISPLAY_ORDER = DisplayHints.none().order();
 
@@ -140,23 +140,27 @@ final class SnapshotMapper {
         List<OntologyIssue> issues = new ArrayList<>();
 
         List<OntClass.Named> classes = model.classes()
-            .filter(SnapshotMapper::isNotBuiltin)
-            .sorted(Comparator.comparing(OntClass.Named::getURI))
-            .toList();
+                .filter(SnapshotMapper::isNotBuiltin)
+                .sorted(Comparator.comparing(OntClass.Named::getURI))
+                .toList();
         Map<String, OntClass.Named> classByIri =
-            classes.stream().collect(Collectors.toMap(OntClass.Named::getURI, c -> c));
+                classes.stream().collect(Collectors.toMap(OntClass.Named::getURI, c -> c));
 
         Map<String, List<PropertyMeta>> declaredByOwner = new HashMap<>();
         model.dataProperties()
-            .filter(SnapshotMapper::isNotBuiltin)
-            .map(p -> dataPropertyMeta(p, model, issues))
-            .flatMap(Optional::stream)
-            .forEach(meta -> declaredByOwner.computeIfAbsent(meta.ownerIri(), k -> new ArrayList<>()).add(meta));
+                .filter(SnapshotMapper::isNotBuiltin)
+                .map(p -> dataPropertyMeta(p, model, issues))
+                .flatMap(Optional::stream)
+                .forEach(meta -> declaredByOwner
+                        .computeIfAbsent(meta.ownerIri(), k -> new ArrayList<>())
+                        .add(meta));
         model.objectProperties()
-            .filter(SnapshotMapper::isNotBuiltin)
-            .map(p -> objectPropertyMeta(p, model, issues))
-            .flatMap(Optional::stream)
-            .forEach(meta -> declaredByOwner.computeIfAbsent(meta.ownerIri(), k -> new ArrayList<>()).add(meta));
+                .filter(SnapshotMapper::isNotBuiltin)
+                .map(p -> objectPropertyMeta(p, model, issues))
+                .flatMap(Optional::stream)
+                .forEach(meta -> declaredByOwner
+                        .computeIfAbsent(meta.ownerIri(), k -> new ArrayList<>())
+                        .add(meta));
 
         Map<String, LinkedHashMap<String, PropertyMeta>> memo = new HashMap<>();
 
@@ -170,11 +174,12 @@ final class SnapshotMapper {
         // sq:over class needs no special case: effectivePropertyMeta then returns an empty map, so
         // `via` is null below and the same "not found" error fires naturally.
         declaredByOwner.values().stream()
-            .flatMap(List::stream)
-            .forEach(meta -> meta.derivation()
-                .filter(RollupRule.class::isInstance)
-                .map(RollupRule.class::cast)
-                .ifPresent(rollup -> validateVia(meta.iri(), rollup, classByIri, declaredByOwner, memo, issues)));
+                .flatMap(List::stream)
+                .forEach(meta -> meta.derivation()
+                        .filter(RollupRule.class::isInstance)
+                        .map(RollupRule.class::cast)
+                        .ifPresent(
+                                rollup -> validateVia(meta.iri(), rollup, classByIri, declaredByOwner, memo, issues)));
 
         // Flat, global property-IRI lookup: sq:watch (unlike sq:via) has no single owner-side type
         // to resolve against — a sq:OnChange transition needs to know, given only the IRI, whether
@@ -183,19 +188,19 @@ final class SnapshotMapper {
         // require iterating every owner to find one property; this flattens it once for O(1) lookup
         // by IRI, mirroring classByIri's role for sq:appliesTo.
         Map<String, PropertyMeta> propertyByIri = declaredByOwner.values().stream()
-            .flatMap(List::stream)
-            .collect(Collectors.toMap(PropertyMeta::iri, meta -> meta, (a, b) -> a));
+                .flatMap(List::stream)
+                .collect(Collectors.toMap(PropertyMeta::iri, meta -> meta, (a, b) -> a));
 
         // Fourth pass: sq:StateMachine nodes, top-down (state machine -> its sq:appliesTo type)
         // rather than bottom-up like the sq:derivedBy passes above, since a state machine names
         // its target type instead of being discovered by walking that type's own properties.
         Map<String, StateMachineDefinition> stateMachineByTypeIri =
-            stateMachinesOf(model, classByIri, propertyByIri, issues);
+                stateMachinesOf(model, classByIri, propertyByIri, issues);
 
         List<TypeDefinition> types = classes.stream()
-            .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo, stateMachineByTypeIri))
-            .sorted(Comparator.comparing(TypeDefinition::iri))
-            .toList();
+                .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo, stateMachineByTypeIri))
+                .sorted(Comparator.comparing(TypeDefinition::iri))
+                .toList();
 
         return new MappingResult(types, List.copyOf(issues));
     }
@@ -218,13 +223,14 @@ final class SnapshotMapper {
             Map<String, LinkedHashMap<String, PropertyMeta>> memo,
             List<OntologyIssue> issues) {
         LinkedHashMap<String, PropertyMeta> sourceProperties =
-            effectivePropertyMeta(rollup.sourceTypeIri(), classByIri, declaredByOwner, memo);
+                effectivePropertyMeta(rollup.sourceTypeIri(), classByIri, declaredByOwner, memo);
         PropertyMeta via = sourceProperties.get(rollup.viaIri());
         if (via == null || !via.isObjectProperty()) {
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " has sq:via '" + rollup.viaIri()
-                    + "' which is not an object property effectively declared on sq:over type '"
-                    + rollup.sourceTypeIri() + "'"));
+            issues.add(error(
+                    propertyIri,
+                    "sq:derivedBy on " + propertyIri + " has sq:via '" + rollup.viaIri()
+                            + "' which is not an object property effectively declared on sq:over type '"
+                            + rollup.sourceTypeIri() + "'"));
         }
     }
 
@@ -235,27 +241,32 @@ final class SnapshotMapper {
             Map<String, LinkedHashMap<String, PropertyMeta>> memo,
             Map<String, StateMachineDefinition> stateMachineByTypeIri) {
         LinkedHashMap<String, PropertyMeta> effective =
-            effectivePropertyMeta(cls.getURI(), classByIri, declaredByOwner, memo);
+                effectivePropertyMeta(cls.getURI(), classByIri, declaredByOwner, memo);
 
         List<PropertyDefinition> properties = effective.values().stream()
-            .map(meta -> toPropertyDefinition(meta, cardinalityFor(cls, meta.property())))
-            .sorted(Comparator.comparingInt(PropertyDefinition::order).thenComparing(PropertyDefinition::iri))
-            .toList();
+                .map(meta -> toPropertyDefinition(meta, cardinalityFor(cls, meta.property())))
+                .sorted(Comparator.comparingInt(PropertyDefinition::order).thenComparing(PropertyDefinition::iri))
+                .toList();
 
         List<String> superTypes = cls.superClasses(false)
-            .filter(SnapshotMapper::isNotBuiltin)
-            .map(OntClass::getURI)
-            .distinct()
-            .sorted()
-            .toList();
+                .filter(SnapshotMapper::isNotBuiltin)
+                .map(OntClass::getURI)
+                .distinct()
+                .sorted()
+                .toList();
 
         String label = resolveLabel(cls);
         DisplayHints displayHints = displayHintsOf(cls);
         boolean isAbstract = SqAnnotations.bool(cls, SqVocabulary.ABSTRACT, false);
 
         return new TypeDefinition(
-            cls.getURI(), label, superTypes, properties, displayHints, isAbstract,
-            Optional.ofNullable(stateMachineByTypeIri.get(cls.getURI())));
+                cls.getURI(),
+                label,
+                superTypes,
+                properties,
+                displayHints,
+                isAbstract,
+                Optional.ofNullable(stateMachineByTypeIri.get(cls.getURI())));
     }
 
     /**
@@ -281,11 +292,11 @@ final class SnapshotMapper {
         OntClass.Named cls = classByIri.get(typeIri);
         if (cls != null) {
             List<String> superTypeIris = cls.superClasses(false)
-                .filter(SnapshotMapper::isNotBuiltin)
-                .map(OntClass::getURI)
-                .distinct()
-                .sorted()
-                .toList();
+                    .filter(SnapshotMapper::isNotBuiltin)
+                    .map(OntClass::getURI)
+                    .distinct()
+                    .sorted()
+                    .toList();
             for (String superTypeIri : superTypeIris) {
                 effective.putAll(effectivePropertyMeta(superTypeIri, classByIri, declaredByOwner, memo));
             }
@@ -306,42 +317,42 @@ final class SnapshotMapper {
         }
 
         List<String> candidateXsdIris = property.ranges()
-            .filter(Resource::isURIResource)
-            .map(Resource::getURI)
-            .distinct()
-            .sorted()
-            .toList();
+                .filter(Resource::isURIResource)
+                .map(Resource::getURI)
+                .distinct()
+                .sorted()
+                .toList();
         Optional<String> xsdIri = mostSpecificXsdIri(candidateXsdIris);
         Datatype datatype = xsdIri.flatMap(Datatype::fromXsd).orElse(null);
         if (datatype == null) {
             datatype = Datatype.STRING;
             issues.add(new OntologyIssue(
-                Severity.WARNING,
-                Optional.of(property.getURI()),
-                "Unrecognised datatype '" + xsdIri.orElse("(none declared)") + "' for property "
-                    + property.getURI() + "; defaulting to " + Datatype.STRING));
+                    Severity.WARNING,
+                    Optional.of(property.getURI()),
+                    "Unrecognised datatype '" + xsdIri.orElse("(none declared)") + "' for property " + property.getURI()
+                            + "; defaulting to " + Datatype.STRING));
         }
 
         Optional<DerivationRule> derivation = derivationOf(property, model, issues);
         boolean readOnly = derivation.isPresent() || SqAnnotations.bool(property, SqVocabulary.READ_ONLY, false);
 
         return Optional.of(new PropertyMeta(
-            property.getURI(),
-            ownerIri.get(),
-            false,
-            property,
-            resolveLabel(property),
-            SqAnnotations.bool(property, SqVocabulary.FACET, false),
-            SqAnnotations.bool(property, SqVocabulary.INDEXED, false),
-            SqAnnotations.bool(property, SqVocabulary.SEARCHABLE, false),
-            readOnly,
-            SqAnnotations.bool(property, SqVocabulary.DISPLAY_LABEL, false),
-            displayHintsOf(property),
-            null,
-            Optional.empty(),
-            false,
-            datatype,
-            derivation));
+                property.getURI(),
+                ownerIri.get(),
+                false,
+                property,
+                resolveLabel(property),
+                SqAnnotations.bool(property, SqVocabulary.FACET, false),
+                SqAnnotations.bool(property, SqVocabulary.INDEXED, false),
+                SqAnnotations.bool(property, SqVocabulary.SEARCHABLE, false),
+                readOnly,
+                SqAnnotations.bool(property, SqVocabulary.DISPLAY_LABEL, false),
+                displayHintsOf(property),
+                null,
+                Optional.empty(),
+                false,
+                datatype,
+                derivation));
     }
 
     private static Optional<PropertyMeta> objectPropertyMeta(
@@ -354,43 +365,58 @@ final class SnapshotMapper {
         Optional<String> targetTypeIri = mostSpecificNamed(property.ranges());
         if (targetTypeIri.isEmpty()) {
             issues.add(new OntologyIssue(
-                Severity.WARNING,
-                Optional.of(property.getURI()),
-                "Object property " + property.getURI() + " has no named rdfs:range; excluded from the snapshot"));
+                    Severity.WARNING,
+                    Optional.of(property.getURI()),
+                    "Object property " + property.getURI() + " has no named rdfs:range; excluded from the snapshot"));
             return Optional.empty();
         }
 
         Optional<String> inverseIri = property.inverseProperties()
-            .filter(OntObjectProperty::isURIResource)
-            .map(OntObjectProperty::getURI)
-            .sorted()
-            .findFirst();
+                .filter(OntObjectProperty::isURIResource)
+                .map(OntObjectProperty::getURI)
+                .sorted()
+                .findFirst();
 
         Optional<DerivationRule> derivation = derivationOf(property, model, issues);
         boolean readOnly = derivation.isPresent() || SqAnnotations.bool(property, SqVocabulary.READ_ONLY, false);
 
         return Optional.of(new PropertyMeta(
-            property.getURI(),
-            ownerIri.get(),
-            true,
-            property,
-            resolveLabel(property),
-            SqAnnotations.bool(property, SqVocabulary.FACET, false),
-            SqAnnotations.bool(property, SqVocabulary.INDEXED, false),
-            SqAnnotations.bool(property, SqVocabulary.SEARCHABLE, false),
-            readOnly,
-            SqAnnotations.bool(property, SqVocabulary.DISPLAY_LABEL, false),
-            displayHintsOf(property),
-            targetTypeIri.get(),
-            inverseIri,
-            property.isTransitive(),
-            null,
-            derivation));
+                property.getURI(),
+                ownerIri.get(),
+                true,
+                property,
+                resolveLabel(property),
+                SqAnnotations.bool(property, SqVocabulary.FACET, false),
+                SqAnnotations.bool(property, SqVocabulary.INDEXED, false),
+                SqAnnotations.bool(property, SqVocabulary.SEARCHABLE, false),
+                readOnly,
+                SqAnnotations.bool(property, SqVocabulary.DISPLAY_LABEL, false),
+                displayHintsOf(property),
+                targetTypeIri.get(),
+                inverseIri,
+                property.isTransitive(),
+                null,
+                derivation));
     }
 
     private static PropertyDefinition toPropertyDefinition(PropertyMeta meta, Cardinality cardinality) {
         if (meta.isObjectProperty()) {
             return new RelationshipDefinition(
+                    meta.iri(),
+                    meta.label(),
+                    cardinality,
+                    meta.facet(),
+                    meta.indexed(),
+                    meta.searchable(),
+                    meta.readOnly(),
+                    meta.displayLabel(),
+                    meta.displayHints(),
+                    meta.derivation(),
+                    meta.targetTypeIri(),
+                    meta.inverseIri(),
+                    meta.transitive());
+        }
+        return new AttributeDefinition(
                 meta.iri(),
                 meta.label(),
                 cardinality,
@@ -401,22 +427,7 @@ final class SnapshotMapper {
                 meta.displayLabel(),
                 meta.displayHints(),
                 meta.derivation(),
-                meta.targetTypeIri(),
-                meta.inverseIri(),
-                meta.transitive());
-        }
-        return new AttributeDefinition(
-            meta.iri(),
-            meta.label(),
-            cardinality,
-            meta.facet(),
-            meta.indexed(),
-            meta.searchable(),
-            meta.readOnly(),
-            meta.displayLabel(),
-            meta.displayHints(),
-            meta.derivation(),
-            meta.datatype());
+                meta.datatype());
     }
 
     /**
@@ -434,18 +445,22 @@ final class SnapshotMapper {
         int min = 0;
         OptionalInt max = OptionalInt.empty();
         List<OntClass.Restriction> restrictions =
-            property.referringRestrictions().filter(ancestors::contains).toList();
+                property.referringRestrictions().filter(ancestors::contains).toList();
 
         for (OntClass.Restriction restriction : restrictions) {
             if (restriction.canAs(OntClass.ObjectMinCardinality.class)) {
-                min = Math.max(min, restriction.as(OntClass.ObjectMinCardinality.class).getCardinality());
+                min = Math.max(
+                        min, restriction.as(OntClass.ObjectMinCardinality.class).getCardinality());
             } else if (restriction.canAs(OntClass.DataMinCardinality.class)) {
-                min = Math.max(min, restriction.as(OntClass.DataMinCardinality.class).getCardinality());
+                min = Math.max(
+                        min, restriction.as(OntClass.DataMinCardinality.class).getCardinality());
             }
             if (restriction.canAs(OntClass.ObjectMaxCardinality.class)) {
-                max = combineMax(max, restriction.as(OntClass.ObjectMaxCardinality.class).getCardinality());
+                max = combineMax(
+                        max, restriction.as(OntClass.ObjectMaxCardinality.class).getCardinality());
             } else if (restriction.canAs(OntClass.DataMaxCardinality.class)) {
-                max = combineMax(max, restriction.as(OntClass.DataMaxCardinality.class).getCardinality());
+                max = combineMax(
+                        max, restriction.as(OntClass.DataMaxCardinality.class).getCardinality());
             }
             if (restriction.canAs(OntClass.ObjectCardinality.class)) {
                 int exact = restriction.as(OntClass.ObjectCardinality.class).getCardinality();
@@ -480,16 +495,17 @@ final class SnapshotMapper {
      * phase-1 simplification per {@code step-plan-phase-3.md} §3.
      */
     private static Optional<String> mostSpecificNamed(Stream<OntClass> candidates) {
-        List<OntClass> named = candidates.filter(SnapshotMapper::isNotBuiltin).distinct().toList();
+        List<OntClass> named =
+                candidates.filter(SnapshotMapper::isNotBuiltin).distinct().toList();
         if (named.isEmpty()) {
             return Optional.empty();
         }
 
         List<OntClass> leaves = named.stream()
-            .filter(candidate -> named.stream()
-                .filter(other -> other != candidate)
-                .noneMatch(other -> other.superClasses(false).anyMatch(candidate::equals)))
-            .toList();
+                .filter(candidate -> named.stream()
+                        .filter(other -> other != candidate)
+                        .noneMatch(other -> other.superClasses(false).anyMatch(candidate::equals)))
+                .toList();
         List<OntClass> pool = leaves.isEmpty() ? named : leaves;
         return pool.stream().map(OntClass::getURI).min(Comparator.naturalOrder());
     }
@@ -524,11 +540,11 @@ final class SnapshotMapper {
             Datatype.fromXsd(iri).ifPresent(datatype -> recognised.put(iri, datatype));
         }
         return recognised.entrySet().stream()
-            .filter(entry -> entry.getValue() == Datatype.INTEGER || entry.getValue() == Datatype.LONG)
-            .map(Map.Entry::getKey)
-            .findFirst()
-            .or(() -> recognised.keySet().stream().findFirst())
-            .or(() -> candidateXsdIris.stream().findFirst());
+                .filter(entry -> entry.getValue() == Datatype.INTEGER || entry.getValue() == Datatype.LONG)
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .or(() -> recognised.keySet().stream().findFirst())
+                .or(() -> candidateXsdIris.stream().findFirst());
     }
 
     /**
@@ -539,8 +555,8 @@ final class SnapshotMapper {
      */
     private static String resolveLabel(Resource subject) {
         return SqAnnotations.string(subject, SqVocabulary.LABEL)
-            .or(() -> SqAnnotations.string(subject, RDFS.label))
-            .orElseGet(subject::getLocalName);
+                .or(() -> SqAnnotations.string(subject, RDFS.label))
+                .orElseGet(subject::getLocalName);
     }
 
     private static DisplayHints displayHintsOf(OntObject subject) {
@@ -559,17 +575,17 @@ final class SnapshotMapper {
      * name falls through to a clean "unknown operator" {@code ERROR} instead.
      */
     private static final Map<String, Operator> OPERATORS_BY_LOCAL_NAME = Map.ofEntries(
-        Map.entry("eq", Operator.EQ),
-        Map.entry("ne", Operator.NE),
-        Map.entry("in", Operator.IN),
-        Map.entry("lt", Operator.LT),
-        Map.entry("lte", Operator.LTE),
-        Map.entry("gt", Operator.GT),
-        Map.entry("gte", Operator.GTE),
-        Map.entry("contains", Operator.CONTAINS),
-        Map.entry("startsWith", Operator.STARTS_WITH),
-        Map.entry("isNull", Operator.IS_NULL),
-        Map.entry("notNull", Operator.NOT_NULL));
+            Map.entry("eq", Operator.EQ),
+            Map.entry("ne", Operator.NE),
+            Map.entry("in", Operator.IN),
+            Map.entry("lt", Operator.LT),
+            Map.entry("lte", Operator.LTE),
+            Map.entry("gt", Operator.GT),
+            Map.entry("gte", Operator.GTE),
+            Map.entry("contains", Operator.CONTAINS),
+            Map.entry("startsWith", Operator.STARTS_WITH),
+            Map.entry("isNull", Operator.IS_NULL),
+            Map.entry("notNull", Operator.NOT_NULL));
 
     /**
      * Parses {@code property}'s {@code sq:derivedBy}, if any, into a {@link DerivationRule}. Every
@@ -609,18 +625,16 @@ final class SnapshotMapper {
         boolean isRollup = ruleNode.hasProperty(RDF.type, SqVocabulary.ROLLUP);
         boolean isPlugin = ruleNode.hasProperty(RDF.type, SqVocabulary.PLUGIN);
         if (isRollup && isPlugin) {
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " is typed both sq:Rollup and sq:Plugin"));
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " is typed both sq:Rollup and sq:Plugin"));
             return Optional.empty();
         }
         if (!isRollup && !isPlugin) {
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " must be typed sq:Rollup or sq:Plugin"));
+            issues.add(error(propertyIri, "sq:derivedBy on " + propertyIri + " must be typed sq:Rollup or sq:Plugin"));
             return Optional.empty();
         }
         return isPlugin
-            ? pluginRuleOf(propertyIri, ruleNode, issues)
-            : rollupRuleOf(propertyIri, ruleNode, model, issues);
+                ? pluginRuleOf(propertyIri, ruleNode, issues)
+                : rollupRuleOf(propertyIri, ruleNode, model, issues);
     }
 
     private static Optional<DerivationRule> pluginRuleOf(
@@ -637,10 +651,11 @@ final class SnapshotMapper {
             // to discover "which targets does this changed object affect" for a plug-in-backed
             // property. Rejecting this combination at mapping time keeps that gap from ever reaching
             // a MetaModelSnapshot rather than silently accepting a rule core can never keep correct.
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " is a sq:Plugin with sq:materialised true, which is"
-                    + " not supported: a sq:Plugin rule cannot be generically recomputed from domain"
-                    + " events"));
+            issues.add(error(
+                    propertyIri,
+                    "sq:derivedBy on " + propertyIri + " is a sq:Plugin with sq:materialised true, which is"
+                            + " not supported: a sq:Plugin rule cannot be generically recomputed from domain"
+                            + " events"));
             return Optional.empty();
         }
         return Optional.of(new PluginRule(nameStmt.getString(), materialised));
@@ -658,8 +673,9 @@ final class SnapshotMapper {
         try {
             function = AggregateFunction.valueOf(functionLocalName.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " has unknown sq:function '" + functionLocalName + "'"));
+            issues.add(error(
+                    propertyIri,
+                    "sq:derivedBy on " + propertyIri + " has unknown sq:function '" + functionLocalName + "'"));
             return Optional.empty();
         }
 
@@ -679,17 +695,17 @@ final class SnapshotMapper {
 
         Statement ofStmt = ruleNode.getProperty(SqVocabulary.OF);
         Optional<String> ofPropertyIri = ofStmt != null && ofStmt.getObject().isURIResource()
-            ? Optional.of(ofStmt.getObject().asResource().getURI())
-            : Optional.empty();
+                ? Optional.of(ofStmt.getObject().asResource().getURI())
+                : Optional.empty();
         boolean requiresOf = function != AggregateFunction.COUNT;
         if (requiresOf && ofPropertyIri.isEmpty()) {
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " uses " + function + " but is missing sq:of"));
+            issues.add(error(
+                    propertyIri, "sq:derivedBy on " + propertyIri + " uses " + function + " but is missing sq:of"));
             return Optional.empty();
         }
         if (!requiresOf && ofPropertyIri.isPresent()) {
-            issues.add(error(propertyIri,
-                "sq:derivedBy on " + propertyIri + " uses sq:count but must not declare sq:of"));
+            issues.add(
+                    error(propertyIri, "sq:derivedBy on " + propertyIri + " uses sq:count but must not declare sq:of"));
             return Optional.empty();
         }
 
@@ -698,7 +714,8 @@ final class SnapshotMapper {
             return Optional.empty();
         }
         boolean materialised = SqAnnotations.bool(ruleNode, SqVocabulary.MATERIALISED, false);
-        return Optional.of(new RollupRule(sourceTypeIri, viaIri, function, ofPropertyIri, criteria.get(), materialised));
+        return Optional.of(
+                new RollupRule(sourceTypeIri, viaIri, function, ofPropertyIri, criteria.get(), materialised));
     }
 
     /**
@@ -751,8 +768,9 @@ final class SnapshotMapper {
         String operatorLocalName = operatorStmt.getObject().asResource().getLocalName();
         Operator operator = OPERATORS_BY_LOCAL_NAME.get(operatorLocalName);
         if (operator == null) {
-            issues.add(error(propertyIri,
-                "sq:filter criterion on " + propertyIri + " has unknown sq:operator '" + operatorLocalName + "'"));
+            issues.add(error(
+                    propertyIri,
+                    "sq:filter criterion on " + propertyIri + " has unknown sq:operator '" + operatorLocalName + "'"));
             return Optional.empty();
         }
 
@@ -760,8 +778,9 @@ final class SnapshotMapper {
         boolean noValueOperator = operator == Operator.IS_NULL || operator == Operator.NOT_NULL;
         if (noValueOperator) {
             if (valueStmt != null) {
-                issues.add(error(propertyIri,
-                    "sq:filter criterion on " + propertyIri + " must not declare sq:value for " + operator));
+                issues.add(error(
+                        propertyIri,
+                        "sq:filter criterion on " + propertyIri + " must not declare sq:value for " + operator));
                 return Optional.empty();
             }
             return Optional.of(new Criterion(criterionPropertyIri, operator, Optional.empty()));
@@ -770,8 +789,7 @@ final class SnapshotMapper {
             issues.add(error(propertyIri, "sq:filter criterion on " + propertyIri + " is missing sq:value"));
             return Optional.empty();
         }
-        Optional<Value> value =
-            criterionValue(propertyIri, criterionPropertyIri, valueStmt.getString(), model, issues);
+        Optional<Value> value = criterionValue(propertyIri, criterionPropertyIri, valueStmt.getString(), model, issues);
         return value.map(v -> new Criterion(criterionPropertyIri, operator, Optional.of(v)));
     }
 
@@ -795,7 +813,7 @@ final class SnapshotMapper {
             OntModel model,
             List<OntologyIssue> issues) {
         return resolveValueForProperty(
-            propertyIri, "sq:filter criterion on " + propertyIri, criterionPropertyIri, lexical, model, issues);
+                propertyIri, "sq:filter criterion on " + propertyIri, criterionPropertyIri, lexical, model, issues);
     }
 
     /**
@@ -836,33 +854,37 @@ final class SnapshotMapper {
             try {
                 return Optional.of(Value.ref(ObjectId.parse(lexical)));
             } catch (IllegalArgumentException e) {
-                issues.add(error(errorSubjectIri,
-                    context + " has sq:value '" + lexical
-                        + "' which is not a valid object id for object property " + targetPropertyIri));
+                issues.add(error(
+                        errorSubjectIri,
+                        context + " has sq:value '" + lexical + "' which is not a valid object id for object property "
+                                + targetPropertyIri));
                 return Optional.empty();
             }
         }
 
         OntDataProperty dataProperty = model.getDataProperty(targetPropertyIri);
         Optional<Datatype> datatype = dataProperty == null
-            ? Optional.empty()
-            : dataProperty.ranges()
-                .filter(Resource::isURIResource)
-                .map(Resource::getURI)
-                .sorted()
-                .findFirst()
-                .flatMap(Datatype::fromXsd);
+                ? Optional.empty()
+                : dataProperty
+                        .ranges()
+                        .filter(Resource::isURIResource)
+                        .map(Resource::getURI)
+                        .sorted()
+                        .findFirst()
+                        .flatMap(Datatype::fromXsd);
         if (datatype.isEmpty()) {
-            issues.add(error(errorSubjectIri,
-                context + " references sq:property '" + targetPropertyIri + "' with no resolvable datatype"));
+            issues.add(error(
+                    errorSubjectIri,
+                    context + " references sq:property '" + targetPropertyIri + "' with no resolvable datatype"));
             return Optional.empty();
         }
 
         Optional<Value> value = coerceLiteral(datatype.get(), lexical);
         if (value.isEmpty()) {
-            issues.add(error(errorSubjectIri,
-                context + " has sq:value '" + lexical + "' which is not a valid "
-                    + datatype.get() + " for property " + targetPropertyIri));
+            issues.add(error(
+                    errorSubjectIri,
+                    context + " has sq:value '" + lexical + "' which is not a valid " + datatype.get()
+                            + " for property " + targetPropertyIri));
         }
         return value;
     }
@@ -877,14 +899,15 @@ final class SnapshotMapper {
      */
     private static Optional<Value> coerceLiteral(Datatype datatype, String lexical) {
         try {
-            return Optional.of(switch (datatype) {
-                case STRING, ANY_URI, TIME, DURATION -> Value.text(lexical);
-                case INTEGER, LONG -> Value.integer(Long.parseLong(lexical));
-                case DECIMAL, DOUBLE -> Value.decimal(new BigDecimal(lexical));
-                case BOOLEAN -> Value.bool(parseStrictBoolean(lexical));
-                case DATE -> Value.date(LocalDate.parse(lexical));
-                case DATE_TIME -> Value.dateTime(Instant.parse(lexical));
-            });
+            return Optional.of(
+                    switch (datatype) {
+                        case STRING, ANY_URI, TIME, DURATION -> Value.text(lexical);
+                        case INTEGER, LONG -> Value.integer(Long.parseLong(lexical));
+                        case DECIMAL, DOUBLE -> Value.decimal(new BigDecimal(lexical));
+                        case BOOLEAN -> Value.bool(parseStrictBoolean(lexical));
+                        case DATE -> Value.date(LocalDate.parse(lexical));
+                        case DATE_TIME -> Value.dateTime(Instant.parse(lexical));
+                    });
         } catch (RuntimeException e) {
             return Optional.empty();
         }
@@ -920,10 +943,13 @@ final class SnapshotMapper {
             Map<String, PropertyMeta> propertyByIri,
             List<OntologyIssue> issues) {
         Map<String, StateMachineDefinition> byTypeIri = new LinkedHashMap<>();
-        List<Resource> nodes = model.listResourcesWithProperty(RDF.type, SqVocabulary.STATE_MACHINE).toList();
-        for (Resource node : nodes.stream().sorted(Comparator.comparing(SnapshotMapper::identifierOf)).toList()) {
+        List<Resource> nodes = model.listResourcesWithProperty(RDF.type, SqVocabulary.STATE_MACHINE)
+                .toList();
+        for (Resource node : nodes.stream()
+                .sorted(Comparator.comparing(SnapshotMapper::identifierOf))
+                .toList()) {
             stateMachineOf(node, model, classByIri, propertyByIri, issues)
-                .ifPresent(byType -> byTypeIri.put(byType.typeIri(), byType.definition()));
+                    .ifPresent(byType -> byTypeIri.put(byType.typeIri(), byType.definition()));
         }
         return byTypeIri;
     }
@@ -937,61 +963,69 @@ final class SnapshotMapper {
         String stateMachineIri = identifierOf(node);
 
         Statement appliesToStmt = node.getProperty(SqVocabulary.APPLIES_TO);
-        if (appliesToStmt == null || !appliesToStmt.getObject().isURIResource()
-                || !classByIri.containsKey(appliesToStmt.getObject().asResource().getURI())) {
-            issues.add(error(stateMachineIri,
-                "sq:StateMachine " + stateMachineIri + " must declare sq:appliesTo naming a named owl:Class"));
+        if (appliesToStmt == null
+                || !appliesToStmt.getObject().isURIResource()
+                || !classByIri.containsKey(
+                        appliesToStmt.getObject().asResource().getURI())) {
+            issues.add(error(
+                    stateMachineIri,
+                    "sq:StateMachine " + stateMachineIri + " must declare sq:appliesTo naming a named owl:Class"));
             return Optional.empty();
         }
         String typeIri = appliesToStmt.getObject().asResource().getURI();
 
         List<Statement> stateStmts = node.listProperties(SqVocabulary.STATE).toList();
         if (stateStmts.isEmpty()) {
-            issues.add(error(stateMachineIri,
-                "sq:StateMachine " + stateMachineIri + " must declare at least one sq:state"));
+            issues.add(error(
+                    stateMachineIri, "sq:StateMachine " + stateMachineIri + " must declare at least one sq:state"));
             return Optional.empty();
         }
         List<State> states = new ArrayList<>();
         for (Statement stmt : stateStmts) {
             RDFNode stateObject = stmt.getObject();
             if (!stateObject.isURIResource()) {
-                issues.add(error(stateMachineIri,
-                    "sq:StateMachine " + stateMachineIri + " has a sq:state that is not a named individual"));
+                issues.add(error(
+                        stateMachineIri,
+                        "sq:StateMachine " + stateMachineIri + " has a sq:state that is not a named individual"));
                 return Optional.empty();
             }
             Resource stateNode = stateObject.asResource();
             states.add(new State(
-                stateNode.getURI(),
-                resolveLabel(stateNode),
-                SqAnnotations.intValue(stateNode, SqVocabulary.DISPLAY_ORDER, NO_DISPLAY_ORDER)));
+                    stateNode.getURI(),
+                    resolveLabel(stateNode),
+                    SqAnnotations.intValue(stateNode, SqVocabulary.DISPLAY_ORDER, NO_DISPLAY_ORDER)));
         }
         states.sort(Comparator.comparingInt(State::displayOrder).thenComparing(State::iri));
         Set<String> stateIris = states.stream().map(State::iri).collect(Collectors.toSet());
 
         Statement initialStateStmt = node.getProperty(SqVocabulary.INITIAL_STATE);
-        if (initialStateStmt == null || !initialStateStmt.getObject().isURIResource()
+        if (initialStateStmt == null
+                || !initialStateStmt.getObject().isURIResource()
                 || !stateIris.contains(initialStateStmt.getObject().asResource().getURI())) {
-            issues.add(error(stateMachineIri,
-                "sq:StateMachine " + stateMachineIri
-                    + " sq:initialState must name one of its own sq:state values"));
+            issues.add(error(
+                    stateMachineIri,
+                    "sq:StateMachine " + stateMachineIri
+                            + " sq:initialState must name one of its own sq:state values"));
             return Optional.empty();
         }
         String initialStateIri = initialStateStmt.getObject().asResource().getURI();
         State initialState = states.stream()
-            .filter(s -> s.iri().equals(initialStateIri))
-            .findFirst()
-            .orElseThrow();
+                .filter(s -> s.iri().equals(initialStateIri))
+                .findFirst()
+                .orElseThrow();
 
-        List<Statement> transitionStmts = node.listProperties(SqVocabulary.TRANSITION).toList();
+        List<Statement> transitionStmts =
+                node.listProperties(SqVocabulary.TRANSITION).toList();
         List<Transition> transitions = new ArrayList<>();
         for (Statement stmt : transitionStmts) {
             if (!stmt.getObject().isResource()) {
-                issues.add(error(stateMachineIri,
-                    "sq:StateMachine " + stateMachineIri + " has a sq:transition that is not a node"));
+                issues.add(error(
+                        stateMachineIri,
+                        "sq:StateMachine " + stateMachineIri + " has a sq:transition that is not a node"));
                 return Optional.empty();
             }
             Optional<Transition> transition = transitionOf(
-                stateMachineIri, typeIri, stmt.getObject().asResource(), stateIris, propertyByIri, model, issues);
+                    stateMachineIri, typeIri, stmt.getObject().asResource(), stateIris, propertyByIri, model, issues);
             if (transition.isEmpty()) {
                 return Optional.empty();
             }
@@ -1000,10 +1034,11 @@ final class SnapshotMapper {
         transitions.sort(Comparator.comparing(Transition::name));
 
         try {
-            return Optional.of(
-                new StateMachineByType(typeIri, new StateMachineDefinition(stateMachineIri, states, initialState, transitions)));
+            return Optional.of(new StateMachineByType(
+                    typeIri, new StateMachineDefinition(stateMachineIri, states, initialState, transitions)));
         } catch (IllegalArgumentException e) {
-            issues.add(error(stateMachineIri, "sq:StateMachine " + stateMachineIri + " is malformed: " + e.getMessage()));
+            issues.add(
+                    error(stateMachineIri, "sq:StateMachine " + stateMachineIri + " is malformed: " + e.getMessage()));
             return Optional.empty();
         }
     }
@@ -1041,27 +1076,33 @@ final class SnapshotMapper {
         String name = nameStmt.getString();
 
         Statement fromStmt = node.getProperty(SqVocabulary.FROM);
-        if (fromStmt == null || !fromStmt.getObject().isURIResource()
+        if (fromStmt == null
+                || !fromStmt.getObject().isURIResource()
                 || !stateIris.contains(fromStmt.getObject().asResource().getURI())) {
-            issues.add(error(stateMachineIri, "transition '" + name + "' on " + stateMachineIri
-                + " sq:from must name one of the state machine's sq:state values"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + name + "' on " + stateMachineIri
+                            + " sq:from must name one of the state machine's sq:state values"));
             return Optional.empty();
         }
         String fromStateIri = fromStmt.getObject().asResource().getURI();
 
         Statement toStmt = node.getProperty(SqVocabulary.TO);
-        if (toStmt == null || !toStmt.getObject().isURIResource()
+        if (toStmt == null
+                || !toStmt.getObject().isURIResource()
                 || !stateIris.contains(toStmt.getObject().asResource().getURI())) {
-            issues.add(error(stateMachineIri, "transition '" + name + "' on " + stateMachineIri
-                + " sq:to must name one of the state machine's sq:state values"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + name + "' on " + stateMachineIri
+                            + " sq:to must name one of the state machine's sq:state values"));
             return Optional.empty();
         }
         String toStateIri = toStmt.getObject().asResource().getURI();
 
         Statement triggerStmt = node.getProperty(SqVocabulary.TRIGGER);
         String triggerUri = triggerStmt != null && triggerStmt.getObject().isURIResource()
-            ? triggerStmt.getObject().asResource().getURI()
-            : null;
+                ? triggerStmt.getObject().asResource().getURI()
+                : null;
         Optional<TriggerSpec> trigger;
         if (SqVocabulary.USER_ACTION.getURI().equals(triggerUri)) {
             trigger = Optional.of(new UserActionTrigger());
@@ -1072,8 +1113,10 @@ final class SnapshotMapper {
         } else if (SqVocabulary.EXTERNAL_SIGNAL.getURI().equals(triggerUri)) {
             trigger = externalSignalTriggerOf(stateMachineIri, name, node, issues);
         } else {
-            issues.add(error(stateMachineIri, "transition '" + name + "' on " + stateMachineIri
-                + " sq:trigger must be one of sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + name + "' on " + stateMachineIri
+                            + " sq:trigger must be one of sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal"));
             trigger = Optional.empty();
         }
         if (trigger.isEmpty()) {
@@ -1090,10 +1133,11 @@ final class SnapshotMapper {
 
         try {
             return Optional.of(
-                new Transition(name, fromStateIri, toStateIri, trigger.get(), guard, guardMessage, actions.get()));
+                    new Transition(name, fromStateIri, toStateIri, trigger.get(), guard, guardMessage, actions.get()));
         } catch (IllegalArgumentException e) {
-            issues.add(error(stateMachineIri,
-                "transition '" + name + "' on " + stateMachineIri + " is malformed: " + e.getMessage()));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + name + "' on " + stateMachineIri + " is malformed: " + e.getMessage()));
             return Optional.empty();
         }
     }
@@ -1117,21 +1161,27 @@ final class SnapshotMapper {
         List<String> watchIris = new ArrayList<>();
         for (Statement stmt : node.listProperties(SqVocabulary.WATCH).toList()) {
             if (!stmt.getObject().isURIResource()) {
-                issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                    + " has a sq:watch that is not a named property"));
+                issues.add(error(
+                        stateMachineIri,
+                        "transition '" + transitionName + "' on " + stateMachineIri
+                                + " has a sq:watch that is not a named property"));
                 return Optional.empty();
             }
             String watchIri = stmt.getObject().asResource().getURI();
             PropertyMeta watched = propertyByIri.get(watchIri);
             if (watched == null || !watched.isObjectProperty()) {
-                issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                    + " sq:watch '" + watchIri + "' is not an object property declared in this ontology"));
+                issues.add(error(
+                        stateMachineIri,
+                        "transition '" + transitionName + "' on " + stateMachineIri + " sq:watch '" + watchIri
+                                + "' is not an object property declared in this ontology"));
                 return Optional.empty();
             }
             if (!typeIri.equals(watched.targetTypeIri())) {
-                issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                    + " sq:watch '" + watchIri + "' has range '" + watched.targetTypeIri()
-                    + "' but must target " + typeIri));
+                issues.add(error(
+                        stateMachineIri,
+                        "transition '" + transitionName + "' on " + stateMachineIri
+                                + " sq:watch '" + watchIri + "' has range '" + watched.targetTypeIri()
+                                + "' but must target " + typeIri));
                 return Optional.empty();
             }
             watchIris.add(watchIri);
@@ -1150,8 +1200,10 @@ final class SnapshotMapper {
             String stateMachineIri, String transitionName, Resource node, List<OntologyIssue> issues) {
         Statement afterStmt = node.getProperty(SqVocabulary.AFTER);
         if (afterStmt == null || afterStmt.getString().isBlank()) {
-            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                + " sq:trigger sq:Timer requires sq:after"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + transitionName + "' on " + stateMachineIri
+                            + " sq:trigger sq:Timer requires sq:after"));
             return Optional.empty();
         }
         String lexical = afterStmt.getString();
@@ -1159,15 +1211,19 @@ final class SnapshotMapper {
         try {
             after = Duration.parse(lexical);
         } catch (DateTimeParseException e) {
-            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                + " sq:after '" + lexical + "' is not a valid ISO-8601 duration"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + transitionName + "' on " + stateMachineIri + " sq:after '" + lexical
+                            + "' is not a valid ISO-8601 duration"));
             return Optional.empty();
         }
         try {
             return Optional.of(new TimerTrigger(after));
         } catch (IllegalArgumentException e) {
-            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                + " sq:after '" + lexical + "' must be a positive duration"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + transitionName + "' on " + stateMachineIri + " sq:after '" + lexical
+                            + "' must be a positive duration"));
             return Optional.empty();
         }
     }
@@ -1179,8 +1235,10 @@ final class SnapshotMapper {
             String stateMachineIri, String transitionName, Resource node, List<OntologyIssue> issues) {
         Statement signalNameStmt = node.getProperty(SqVocabulary.SIGNAL_NAME);
         if (signalNameStmt == null || signalNameStmt.getString().isBlank()) {
-            issues.add(error(stateMachineIri, "transition '" + transitionName + "' on " + stateMachineIri
-                + " sq:trigger sq:ExternalSignal requires sq:signalName"));
+            issues.add(error(
+                    stateMachineIri,
+                    "transition '" + transitionName + "' on " + stateMachineIri
+                            + " sq:trigger sq:ExternalSignal requires sq:signalName"));
             return Optional.empty();
         }
         return Optional.of(new ExternalSignalTrigger(signalNameStmt.getString()));
@@ -1191,7 +1249,10 @@ final class SnapshotMapper {
      * ({@code []}), mirroring {@link #criteriaOf}'s handling of {@code sq:filter}.
      */
     private static Optional<List<Action>> actionsOf(
-            String stateMachineIri, String transitionName, Resource transitionNode, OntModel model,
+            String stateMachineIri,
+            String transitionName,
+            Resource transitionNode,
+            OntModel model,
             List<OntologyIssue> issues) {
         Statement actionStmt = transitionNode.getProperty(SqVocabulary.ACTION);
         if (actionStmt == null) {
@@ -1199,13 +1260,16 @@ final class SnapshotMapper {
         }
         RDFNode actionListObject = actionStmt.getObject();
         if (!actionListObject.isResource() || !actionListObject.asResource().canAs(RDFList.class)) {
-            issues.add(error(stateMachineIri, "sq:action on transition '" + transitionName + "' of "
-                + stateMachineIri + " must be a well-formed RDF list"));
+            issues.add(error(
+                    stateMachineIri,
+                    "sq:action on transition '" + transitionName + "' of " + stateMachineIri
+                            + " must be a well-formed RDF list"));
             return Optional.empty();
         }
 
         List<Action> actions = new ArrayList<>();
-        for (RDFNode actionNode : actionListObject.asResource().as(RDFList.class).asJavaList()) {
+        for (RDFNode actionNode :
+                actionListObject.asResource().as(RDFList.class).asJavaList()) {
             Optional<Action> action = actionOf(stateMachineIri, transitionName, actionNode, model, issues);
             if (action.isEmpty()) {
                 return Optional.empty();
@@ -1224,8 +1288,9 @@ final class SnapshotMapper {
     private static Optional<Action> actionOf(
             String stateMachineIri, String transitionName, RDFNode node, OntModel model, List<OntologyIssue> issues) {
         if (!node.isResource()) {
-            issues.add(error(stateMachineIri, "an action on transition '" + transitionName + "' of "
-                + stateMachineIri + " is not a node"));
+            issues.add(error(
+                    stateMachineIri,
+                    "an action on transition '" + transitionName + "' of " + stateMachineIri + " is not a node"));
             return Optional.empty();
         }
         Resource actionNode = node.asResource();
@@ -1236,18 +1301,22 @@ final class SnapshotMapper {
         boolean isLog = actionNode.hasProperty(RDF.type, SqVocabulary.LOG);
         int kindCount = (isSetProperty ? 1 : 0) + (isCreateObject ? 1 : 0) + (isWebhook ? 1 : 0) + (isLog ? 1 : 0);
         if (kindCount != 1) {
-            issues.add(error(stateMachineIri, "an action on transition '" + transitionName + "' of "
-                + stateMachineIri
-                + " must be typed exactly one of sq:SetProperty, sq:CreateObject, sq:Webhook, sq:Log"));
+            issues.add(error(
+                    stateMachineIri,
+                    "an action on transition '" + transitionName + "' of "
+                            + stateMachineIri
+                            + " must be typed exactly one of sq:SetProperty, sq:CreateObject, sq:Webhook, sq:Log"));
             return Optional.empty();
         }
 
         String context = "on transition '" + transitionName + "' of " + stateMachineIri;
         if (isSetProperty) {
-            return setPropertyActionOf(stateMachineIri, context, actionNode, model, issues).map(Action.class::cast);
+            return setPropertyActionOf(stateMachineIri, context, actionNode, model, issues)
+                    .map(Action.class::cast);
         }
         if (isCreateObject) {
-            return createObjectActionOf(stateMachineIri, context, actionNode, model, issues).map(Action.class::cast);
+            return createObjectActionOf(stateMachineIri, context, actionNode, model, issues)
+                    .map(Action.class::cast);
         }
         if (isWebhook) {
             return webhookActionOf(stateMachineIri, context, actionNode, issues).map(Action.class::cast);
@@ -1264,15 +1333,17 @@ final class SnapshotMapper {
         }
         String propertyIri = propertyStmt.getObject().asResource().getURI();
 
-        Optional<ValueOrExpression> valueOrExpression = valueOrExpressionOf(
-            stateMachineIri, "sq:SetProperty " + context, node, propertyIri, model, issues);
+        Optional<ValueOrExpression> valueOrExpression =
+                valueOrExpressionOf(stateMachineIri, "sq:SetProperty " + context, node, propertyIri, model, issues);
         if (valueOrExpression.isEmpty()) {
             return Optional.empty();
         }
 
         try {
             return Optional.of(new SetPropertyAction(
-                propertyIri, valueOrExpression.get().value(), valueOrExpression.get().expression()));
+                    propertyIri,
+                    valueOrExpression.get().value(),
+                    valueOrExpression.get().expression()));
         } catch (IllegalArgumentException e) {
             issues.add(error(stateMachineIri, "sq:SetProperty " + context + " is malformed: " + e.getMessage()));
             return Optional.empty();
@@ -1296,9 +1367,10 @@ final class SnapshotMapper {
                 issues.add(error(stateMachineIri, "sq:properties " + context + " must be a well-formed RDF list"));
                 return Optional.empty();
             }
-            for (RDFNode propertyNode : propertiesObject.asResource().as(RDFList.class).asJavaList()) {
+            for (RDFNode propertyNode :
+                    propertiesObject.asResource().as(RDFList.class).asJavaList()) {
                 Optional<PropertyAssignment> assignment =
-                    propertyAssignmentOf(stateMachineIri, context, propertyNode, model, issues);
+                        propertyAssignmentOf(stateMachineIri, context, propertyNode, model, issues);
                 if (assignment.isEmpty()) {
                     return Optional.empty();
                 }
@@ -1317,12 +1389,14 @@ final class SnapshotMapper {
     private static Optional<PropertyAssignment> propertyAssignmentOf(
             String stateMachineIri, String context, RDFNode node, OntModel model, List<OntologyIssue> issues) {
         if (!node.isResource()) {
-            issues.add(error(stateMachineIri, "sq:properties " + context + " contains a non-resource sq:PropertyAssignment"));
+            issues.add(error(
+                    stateMachineIri, "sq:properties " + context + " contains a non-resource sq:PropertyAssignment"));
             return Optional.empty();
         }
         Resource assignmentNode = node.asResource();
         if (!assignmentNode.hasProperty(RDF.type, SqVocabulary.PROPERTY_ASSIGNMENT)) {
-            issues.add(error(stateMachineIri, "sq:properties " + context + " contains a node not typed sq:PropertyAssignment"));
+            issues.add(error(
+                    stateMachineIri, "sq:properties " + context + " contains a node not typed sq:PropertyAssignment"));
             return Optional.empty();
         }
 
@@ -1334,14 +1408,16 @@ final class SnapshotMapper {
         String propertyIri = propertyStmt.getObject().asResource().getURI();
 
         Optional<ValueOrExpression> valueOrExpression = valueOrExpressionOf(
-            stateMachineIri, "sq:PropertyAssignment " + context, assignmentNode, propertyIri, model, issues);
+                stateMachineIri, "sq:PropertyAssignment " + context, assignmentNode, propertyIri, model, issues);
         if (valueOrExpression.isEmpty()) {
             return Optional.empty();
         }
 
         try {
             return Optional.of(new PropertyAssignment(
-                propertyIri, valueOrExpression.get().value(), valueOrExpression.get().expression()));
+                    propertyIri,
+                    valueOrExpression.get().value(),
+                    valueOrExpression.get().expression()));
         } catch (IllegalArgumentException e) {
             issues.add(error(stateMachineIri, "sq:PropertyAssignment " + context + " is malformed: " + e.getMessage()));
             return Optional.empty();
@@ -1357,8 +1433,8 @@ final class SnapshotMapper {
         }
         String url = urlStmt.getString();
         String method = SqAnnotations.string(node, SqVocabulary.METHOD)
-            .filter(m -> !m.isBlank())
-            .orElse("POST");
+                .filter(m -> !m.isBlank())
+                .orElse("POST");
         Optional<String> body = SqAnnotations.string(node, SqVocabulary.BODY);
 
         try {
@@ -1418,8 +1494,8 @@ final class SnapshotMapper {
             return Optional.of(new ValueOrExpression(Optional.empty(), Optional.of(expression)));
         }
 
-        Optional<Value> value =
-            resolveValueForProperty(stateMachineIri, context, targetPropertyIri, valueStmt.getString(), model, issues);
+        Optional<Value> value = resolveValueForProperty(
+                stateMachineIri, context, targetPropertyIri, valueStmt.getString(), model, issues);
         return value.map(v -> new ValueOrExpression(Optional.of(v), Optional.empty()));
     }
 
@@ -1469,20 +1545,20 @@ final class SnapshotMapper {
      * implementation detail local to one method's recursion, not a public SPI shape.
      */
     private record PropertyMeta(
-        String iri,
-        String ownerIri,
-        boolean isObjectProperty,
-        OntRelationalProperty property,
-        String label,
-        boolean facet,
-        boolean indexed,
-        boolean searchable,
-        boolean readOnly,
-        boolean displayLabel,
-        DisplayHints displayHints,
-        String targetTypeIri,
-        Optional<String> inverseIri,
-        boolean transitive,
-        Datatype datatype,
-        Optional<DerivationRule> derivation) {}
+            String iri,
+            String ownerIri,
+            boolean isObjectProperty,
+            OntRelationalProperty property,
+            String label,
+            boolean facet,
+            boolean indexed,
+            boolean searchable,
+            boolean readOnly,
+            boolean displayLabel,
+            DisplayHints displayHints,
+            String targetTypeIri,
+            Optional<String> inverseIri,
+            boolean transitive,
+            Datatype datatype,
+            Optional<DerivationRule> derivation) {}
 }

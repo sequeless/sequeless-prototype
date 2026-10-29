@@ -23,14 +23,14 @@ import org.sequeless.spi.TenantId;
  * @param deleted whether this object has been soft-deleted
  */
 public record BusinessObject(
-    ObjectId id,
-    TypeRef type,
-    TenantId tenant,
-    long version,
-    Optional<String> state,
-    Map<PropertyRef, Value> properties,
-    Audit audit,
-    boolean deleted) {
+        ObjectId id,
+        TypeRef type,
+        TenantId tenant,
+        long version,
+        Optional<String> state,
+        Map<PropertyRef, Value> properties,
+        Audit audit,
+        boolean deleted) {
 
     public BusinessObject {
         Objects.requireNonNull(id, "id must not be null");

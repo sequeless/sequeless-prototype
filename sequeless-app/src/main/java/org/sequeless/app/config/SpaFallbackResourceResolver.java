@@ -87,11 +87,9 @@ public class SpaFallbackResourceResolver extends PathResourceResolver {
      *     back into a plain {@code PathResourceResolver} (the {@code sequeless.web.spa.enabled}
      *     escape hatch)
      */
-    public SpaFallbackResourceResolver(
-            Resource index, List<String> reservedPrefixes, boolean enabled) {
+    public SpaFallbackResourceResolver(Resource index, List<String> reservedPrefixes, boolean enabled) {
         this.index = Objects.requireNonNull(index, "index");
-        this.reservedPrefixes =
-                List.copyOf(Objects.requireNonNull(reservedPrefixes, "reservedPrefixes"));
+        this.reservedPrefixes = List.copyOf(Objects.requireNonNull(reservedPrefixes, "reservedPrefixes"));
         this.enabled = enabled;
     }
 

@@ -5,5 +5,4 @@ package org.sequeless.spi.object;
  *
  * @param value the integral value
  */
-public record IntegerValue(long value) implements Value {
-}
+public record IntegerValue(long value) implements Value {}

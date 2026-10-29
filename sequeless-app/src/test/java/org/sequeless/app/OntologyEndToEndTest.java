@@ -39,13 +39,10 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * JenaOntologyPort#importDocument}), so it cannot affect the type count, but test execution order is
  * otherwise not guaranteed, and this test must not assume it runs first.
  */
-@SpringBootTest(
-        webEnvironment = RANDOM_PORT,
-        properties = "sequeless.validation.adapter=shacl")
+@SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.validation.adapter=shacl")
 class OntologyEndToEndTest extends PostgresTestcontainersSupport {
 
-    private static final String INCONSISTENT_TURTLE =
-            """
+    private static final String INCONSISTENT_TURTLE = """
             @prefix ex:  <https://sequeless.dev/ns/ref#> .
             @prefix owl: <http://www.w3.org/2002/07/owl#> .
             @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -69,14 +66,19 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
                 a ex:Cyborg .
             """;
 
-    @LocalServerPort private int port;
-    @Autowired private DataSource sequelessPersistenceDataSource;
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private DataSource sequelessPersistenceDataSource;
 
     private RestTestClient restTestClient;
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
@@ -89,51 +91,47 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void importOfAModifiedOntologyIsAcceptedAndPersistedAndVisibleAfterwards() {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
-        long rowsBefore =
-                jdbcClient.sql("SELECT COUNT(*) FROM sq_ontology_document WHERE tenant_id = 'default'")
-                        .query(Long.class)
-                        .single();
+        long rowsBefore = jdbcClient
+                .sql("SELECT COUNT(*) FROM sq_ontology_document WHERE tenant_id = 'default'")
+                .query(Long.class)
+                .single();
 
         String current = exportOntology();
         String modified =
-                current
-                        + "\nex:Milestone a owl:Class ; rdfs:subClassOf ex:Deliverable ; sq:label \"Milestone\" .\n";
+                current + "\nex:Milestone a owl:Class ; rdfs:subClassOf ex:Deliverable ; sq:label \"Milestone\" .\n";
 
-        byte[] responseBody =
-                restTestClient
-                        .post()
-                        .uri("/api/ontology")
-                        .contentType(MediaType.valueOf("text/turtle"))
-                        .body(modified)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
-                        .expectBody()
-                        .jsonPath("$.accepted")
-                        .isEqualTo(true)
-                        .jsonPath("$.consistent")
-                        .isEqualTo(true)
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .post()
+                .uri("/api/ontology")
+                .contentType(MediaType.valueOf("text/turtle"))
+                .body(modified)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .jsonPath("$.accepted")
+                .isEqualTo(true)
+                .jsonPath("$.consistent")
+                .isEqualTo(true)
+                .returnResult()
+                .getResponseBody();
         assertThat(responseBody).isNotNull();
 
         // Persisted to sq_ontology_document via the Postgres-backed OntologyDocumentStore, not just
         // swapped in-memory: a new active row for the default tenant, one more than before.
-        long rowsAfter =
-                jdbcClient.sql("SELECT COUNT(*) FROM sq_ontology_document WHERE tenant_id = 'default'")
-                        .query(Long.class)
-                        .single();
+        long rowsAfter = jdbcClient
+                .sql("SELECT COUNT(*) FROM sq_ontology_document WHERE tenant_id = 'default'")
+                .query(Long.class)
+                .single();
         assertThat(rowsAfter).isEqualTo(rowsBefore + 1);
 
-        boolean activeRowHasMilestone =
-                jdbcClient.sql(
-                                "SELECT content FROM sq_ontology_document "
-                                        + "WHERE tenant_id = 'default' AND active")
-                        .query(String.class)
-                        .single()
-                        .contains("Milestone");
+        boolean activeRowHasMilestone = jdbcClient
+                .sql("SELECT content FROM sq_ontology_document " + "WHERE tenant_id = 'default' AND active")
+                .query(String.class)
+                .single()
+                .contains("Milestone");
         assertThat(activeRowHasMilestone).isTrue();
 
         restTestClient
@@ -167,18 +165,17 @@ class OntologyEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private String exportOntology() {
-        byte[] body =
-                restTestClient
-                        .get()
-                        .uri("/api/ontology")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .contentTypeCompatibleWith(MediaType.valueOf("text/turtle"))
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] body = restTestClient
+                .get()
+                .uri("/api/ontology")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.valueOf("text/turtle"))
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         assertThat(body).isNotNull();
         return new String(body, java.nio.charset.StandardCharsets.UTF_8);
     }

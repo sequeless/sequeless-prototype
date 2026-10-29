@@ -43,10 +43,9 @@ public record QueryResultResponse(
      * @return the {@link QueryResultResponse} rendering of {@code result}
      */
     static QueryResultResponse from(QueryResult result, TypeDefinition requestType, int page, int size) {
-        List<BusinessObjectResponse> items =
-                result.items().stream()
-                        .map(object -> ObjectPropertyMapper.toResponse(object, requestType))
-                        .toList();
+        List<BusinessObjectResponse> items = result.items().stream()
+                .map(object -> ObjectPropertyMapper.toResponse(object, requestType))
+                .toList();
         long totalItems = result.total();
         int totalPages = size <= 0 ? 0 : (int) Math.ceil((double) totalItems / size);
         Map<String, List<FacetBucketResponse>> facetsByShortName =

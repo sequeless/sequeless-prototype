@@ -6,14 +6,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyFormat;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The PostgreSQL-backed {@link OntologyDocumentStore}, sharing the {@link JdbcClient} and {@link
@@ -35,12 +35,11 @@ final class PostgresOntologyDocumentStore implements OntologyDocumentStore {
     public Optional<StoredOntologyDocument> active(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
         return jdbcClient
-            .sql(
-                "SELECT id, version, format, content, created_at FROM sq_ontology_document "
-                    + "WHERE tenant_id = :tenantId AND active")
-            .param("tenantId", scope.tenantId().value())
-            .query(PostgresOntologyDocumentStore::mapRow)
-            .optional();
+                .sql("SELECT id, version, format, content, created_at FROM sq_ontology_document "
+                        + "WHERE tenant_id = :tenantId AND active")
+                .param("tenantId", scope.tenantId().value())
+                .query(PostgresOntologyDocumentStore::mapRow)
+                .optional();
     }
 
     @Override
@@ -54,19 +53,19 @@ final class PostgresOntologyDocumentStore implements OntologyDocumentStore {
             // same tenant across the deactivate/read-max/insert sequence below; PostgreSQL's default
             // READ COMMITTED isolation does not otherwise prevent two concurrent transactions from
             // computing the same "next version" for the same tenant.
-            jdbcClient.sql("SELECT pg_advisory_xact_lock(hashtext(:tenantId))")
-                .param("tenantId", tenantId)
-                .query()
-                .singleRow();
+            jdbcClient
+                    .sql("SELECT pg_advisory_xact_lock(hashtext(:tenantId))")
+                    .param("tenantId", tenantId)
+                    .query()
+                    .singleRow();
 
-            jdbcClient.sql("UPDATE sq_ontology_document SET active = false WHERE tenant_id = :tenantId AND active")
-                .param("tenantId", tenantId)
-                .update();
+            jdbcClient
+                    .sql("UPDATE sq_ontology_document SET active = false WHERE tenant_id = :tenantId AND active")
+                    .param("tenantId", tenantId)
+                    .update();
 
-            int nextVersion =
-                jdbcClient
-                    .sql(
-                        "SELECT COALESCE(MAX(version), 0) + 1 FROM sq_ontology_document "
+            int nextVersion = jdbcClient
+                    .sql("SELECT COALESCE(MAX(version), 0) + 1 FROM sq_ontology_document "
                             + "WHERE tenant_id = :tenantId")
                     .param("tenantId", tenantId)
                     .query(Integer.class)
@@ -76,16 +75,16 @@ final class PostgresOntologyDocumentStore implements OntologyDocumentStore {
             Instant createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
 
             jdbcClient
-                .sql(
-                    "INSERT INTO sq_ontology_document (id, tenant_id, version, format, content, active, created_at) "
-                        + "VALUES (:id, :tenantId, :version, :format, :content, true, :createdAt)")
-                .param("id", id)
-                .param("tenantId", tenantId)
-                .param("version", nextVersion)
-                .param("format", document.format().name())
-                .param("content", document.content())
-                .param("createdAt", Timestamp.from(createdAt))
-                .update();
+                    .sql(
+                            "INSERT INTO sq_ontology_document (id, tenant_id, version, format, content, active, created_at) "
+                                    + "VALUES (:id, :tenantId, :version, :format, :content, true, :createdAt)")
+                    .param("id", id)
+                    .param("tenantId", tenantId)
+                    .param("version", nextVersion)
+                    .param("format", document.format().name())
+                    .param("content", document.content())
+                    .param("createdAt", Timestamp.from(createdAt))
+                    .update();
 
             return new StoredOntologyDocument(id, nextVersion, document, createdAt);
         });

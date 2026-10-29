@@ -82,17 +82,17 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void inconsistentOntologyReportNamesTheOffendingClassProvingAcceptanceCriterion2() {
-        JenaOntologyPort port =
-            JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.OWL);
 
         assertThatThrownBy(() -> port.snapshot(SCOPE))
-            .isInstanceOf(OntologyException.class)
-            .satisfies(
-                thrown -> {
+                .isInstanceOf(OntologyException.class)
+                .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;
                     assertThat(exception.report().consistent()).isFalse();
                     assertThat(exception.report().issues())
-                        .anyMatch(issue -> issue.subjectIri().map(iri -> iri.endsWith("Cyborg")).orElse(false));
+                            .anyMatch(issue -> issue.subjectIri()
+                                    .map(iri -> iri.endsWith("Cyborg"))
+                                    .orElse(false));
                 });
     }
 
@@ -116,16 +116,17 @@ class JenaOntologyPortAcceptanceTest {
 
         TypeDefinition projectUnderOwl = type(owlPort.snapshot(SCOPE), Fixtures.PROJECT_IRI);
         assertThat(relationship(projectUnderOwl, Fixtures.HAS_TASK_IRI).inverseIri())
-            .contains(Fixtures.BELONGS_TO_PROJECT_IRI);
+                .contains(Fixtures.BELONGS_TO_PROJECT_IRI);
 
         TypeDefinition projectUnderNone = type(nonePort.snapshot(SCOPE), Fixtures.PROJECT_IRI);
-        assertThat(relationship(projectUnderNone, Fixtures.HAS_TASK_IRI).inverseIri()).isEmpty();
+        assertThat(relationship(projectUnderNone, Fixtures.HAS_TASK_IRI).inverseIri())
+                .isEmpty();
     }
 
     @Test
     void inverseTransitiveFixtureShowsTransitiveFlagAndReverseAssertedInverse() {
         JenaOntologyPort port =
-            JenaOntologyPort.fromDocument(Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL);
+                JenaOntologyPort.fromDocument(Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL);
         TypeDefinition component = type(port.snapshot(SCOPE), COMPONENT_IRI);
 
         RelationshipDefinition partOf = relationship(component, PART_OF_IRI);
@@ -192,8 +193,7 @@ class JenaOntologyPortAcceptanceTest {
         // "sq:<term> is reserved for Phase <N> (<topic>) and is not supported yet." Exercised here
         // through JenaOntologyPort.buildStateFrom (wired in T8, per finding F35), not just directly
         // against SqVocabulary as SnapshotMapperTest already does.
-        String turtle =
-            """
+        String turtle = """
             @prefix sq:   <https://sequeless.dev/ns/meta#> .
             @prefix owl:  <http://www.w3.org/2002/07/owl#> .
             @prefix ex:   <https://sequeless.dev/ns/ref#> .
@@ -203,20 +203,16 @@ class JenaOntologyPortAcceptanceTest {
             ex:Widget a owl:Class ; sq:permission true .
             """;
         JenaOntologyPort port =
-            JenaOntologyPort.fromDocument(new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL);
+                JenaOntologyPort.fromDocument(new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL);
 
         assertThatThrownBy(() -> port.snapshot(SCOPE))
-            .isInstanceOf(OntologyException.class)
-            .satisfies(
-                thrown -> {
+                .isInstanceOf(OntologyException.class)
+                .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;
                     assertThat(exception.report().consistent()).isFalse();
                     assertThat(exception.report().issues())
-                        .anyMatch(
-                            issue ->
-                                issue.message()
-                                    .equals(
-                                        "sq:permission is reserved for Phase 8 (authorisation)"
+                            .anyMatch(issue -> issue.message()
+                                    .equals("sq:permission is reserved for Phase 8 (authorisation)"
                                             + " and is not supported yet."));
                 });
     }
@@ -245,12 +241,12 @@ class JenaOntologyPortAcceptanceTest {
         assertThat(openTaskCountRule.function()).isEqualTo(AggregateFunction.COUNT);
         assertThat(openTaskCountRule.ofPropertyIri()).isEmpty();
         assertThat(openTaskCountRule.criteria())
-            .containsExactly(
-                new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
+                .containsExactly(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
 
         AttributeDefinition totalEstimatedHours = attribute(project, Fixtures.TOTAL_ESTIMATED_HOURS_IRI);
         assertThat(totalEstimatedHours.readOnly()).isTrue();
-        DerivationRule totalEstimatedHoursDerivation = totalEstimatedHours.derivation().orElseThrow();
+        DerivationRule totalEstimatedHoursDerivation =
+                totalEstimatedHours.derivation().orElseThrow();
         assertThat(totalEstimatedHoursDerivation).isInstanceOf(RollupRule.class);
         RollupRule totalEstimatedHoursRule = (RollupRule) totalEstimatedHoursDerivation;
         assertThat(totalEstimatedHoursRule.sourceTypeIri()).isEqualTo(Fixtures.TASK_IRI);
@@ -270,8 +266,7 @@ class JenaOntologyPortAcceptanceTest {
      */
     @Test
     void referencePluginFixtureActivatesCleanlyNowThatWorkloadIsRegistered() {
-        JenaOntologyPort port =
-            JenaOntologyPort.fromDocument(Fixtures.referencePluginOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referencePluginOntology(), ReasonerSetting.OWL);
         MetaModelSnapshot snapshot = port.snapshot(SCOPE);
 
         assertThat(snapshot.report().consistent()).isTrue();
@@ -287,7 +282,9 @@ class JenaOntologyPortAcceptanceTest {
 
     private static List<String> propertyIris(ReasonerSetting reasoner, String typeIri) {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), reasoner);
-        return type(port.snapshot(SCOPE), typeIri).properties().stream().map(PropertyDefinition::iri).toList();
+        return type(port.snapshot(SCOPE), typeIri).properties().stream()
+                .map(PropertyDefinition::iri)
+                .toList();
     }
 
     private static TypeDefinition type(MetaModelSnapshot snapshot, String iri) {
@@ -304,8 +301,8 @@ class JenaOntologyPortAcceptanceTest {
 
     private static PropertyDefinition property(TypeDefinition type, String propertyIri) {
         return type.properties().stream()
-            .filter(property -> property.iri().equals(propertyIri))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No property " + propertyIri + " on " + type.iri()));
+                .filter(property -> property.iri().equals(propertyIri))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No property " + propertyIri + " on " + type.iri()));
     }
 }

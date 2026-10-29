@@ -10,10 +10,10 @@ import org.sequeless.spi.Scope;
 import org.sequeless.spi.expression.ExpressionContext;
 import org.sequeless.spi.expression.ExpressionException;
 import org.sequeless.spi.expression.ExpressionPort;
+import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.StateMachineDefinition;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
@@ -42,8 +42,7 @@ public final class StateMachineInterpreter {
      * @throws NullPointerException if {@code expressionPort} is {@code null}
      */
     public StateMachineInterpreter(ExpressionPort expressionPort) {
-        this.expressionPort =
-            Objects.requireNonNull(expressionPort, "expressionPort must not be null");
+        this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
     }
 
     /**
@@ -61,13 +60,15 @@ public final class StateMachineInterpreter {
      *     unavailable result
      */
     public List<TransitionAvailability> availableTransitions(
-        Scope scope, MetaModelSnapshot snapshot, BusinessObject object) {
+            Scope scope, MetaModelSnapshot snapshot, BusinessObject object) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         Objects.requireNonNull(object, "object must not be null");
 
         Optional<TypeDefinition> type = snapshot.type(object.type().iri());
-        if (type.isEmpty() || type.get().stateMachine().isEmpty() || object.state().isEmpty()) {
+        if (type.isEmpty()
+                || type.get().stateMachine().isEmpty()
+                || object.state().isEmpty()) {
             return List.of();
         }
         StateMachineDefinition machine = type.get().stateMachine().get();
@@ -94,9 +95,7 @@ public final class StateMachineInterpreter {
             return new TransitionAvailability(transition.name(), true, Optional.empty());
         }
         String reason =
-            transition
-                .guardMessage()
-                .orElse("Guard for transition '" + transition.name() + "' was not satisfied");
+                transition.guardMessage().orElse("Guard for transition '" + transition.name() + "' was not satisfied");
         return new TransitionAvailability(transition.name(), false, Optional.of(reason));
     }
 
@@ -105,7 +104,8 @@ public final class StateMachineInterpreter {
         for (Map.Entry<PropertyRef, Value> entry : object.properties().entrySet()) {
             selfProperties.put(shortName(entry.getKey().iri()), entry.getValue());
         }
-        return new ExpressionContext(selfProperties, object.state(), scope.principal().id());
+        return new ExpressionContext(
+                selfProperties, object.state(), scope.principal().id());
     }
 
     /**

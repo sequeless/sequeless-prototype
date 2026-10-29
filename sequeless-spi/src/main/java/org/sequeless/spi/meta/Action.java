@@ -11,5 +11,4 @@ package org.sequeless.spi.meta;
  * lives in its own file, not nested inside this one; implicit permits only works for subtypes
  * nested in the sealed type's own file.
  */
-public sealed interface Action permits SetPropertyAction, CreateObjectAction, WebhookAction, LogAction {
-}
+public sealed interface Action permits SetPropertyAction, CreateObjectAction, WebhookAction, LogAction {}

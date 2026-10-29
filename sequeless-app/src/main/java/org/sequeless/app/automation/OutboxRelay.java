@@ -43,8 +43,7 @@ public class OutboxRelay {
 
     private static final Logger LOG = LoggerFactory.getLogger(OutboxRelay.class);
 
-    private static final Set<String> DISPATCHABLE_KINDS =
-        Set.of(
+    private static final Set<String> DISPATCHABLE_KINDS = Set.of(
             OutboxEntry.KIND_ACTION_REQUEST,
             OutboxEntry.KIND_OBJECT_CREATED,
             OutboxEntry.KIND_OBJECT_UPDATED,
@@ -66,12 +65,10 @@ public class OutboxRelay {
      *     class's javadoc for why this must not be collapsed into a plain constructor parameter
      * @throws NullPointerException if either argument is {@code null}
      */
-    public OutboxRelay(
-            @Lazy OutboxPort outboxPort, ObjectProvider<AutomationPort> automationPortProvider) {
+    public OutboxRelay(@Lazy OutboxPort outboxPort, ObjectProvider<AutomationPort> automationPortProvider) {
         this.outboxPort = Objects.requireNonNull(outboxPort, "outboxPort must not be null");
         this.automationPortProvider =
-            Objects.requireNonNull(
-                automationPortProvider, "automationPortProvider must not be null");
+                Objects.requireNonNull(automationPortProvider, "automationPortProvider must not be null");
     }
 
     /**
@@ -106,18 +103,15 @@ public class OutboxRelay {
         }
         while (true) {
             try {
-                Optional<Boolean> claimed =
-                    outboxPort.claimNext(
-                        DISPATCHABLE_KINDS,
-                        (tenantId, entry) -> {
-                            automationPort.dispatch(buildScope(tenantId, entry), entry);
-                            // Non-null sentinel: OutboxPort#claimNext returns
-                            // Optional.empty() both when no row was available AND (per its own
-                            // javadoc) if handler legitimately returned null, so the handler must
-                            // return a non-null value to make "a row was claimed and dispatched"
-                            // distinguishable from "the queue is empty".
-                            return Boolean.TRUE;
-                        });
+                Optional<Boolean> claimed = outboxPort.claimNext(DISPATCHABLE_KINDS, (tenantId, entry) -> {
+                    automationPort.dispatch(buildScope(tenantId, entry), entry);
+                    // Non-null sentinel: OutboxPort#claimNext returns
+                    // Optional.empty() both when no row was available AND (per its own
+                    // javadoc) if handler legitimately returned null, so the handler must
+                    // return a non-null value to make "a row was claimed and dispatched"
+                    // distinguishable from "the queue is empty".
+                    return Boolean.TRUE;
+                });
                 if (claimed.isEmpty()) {
                     break; // queue drained
                 }

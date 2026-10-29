@@ -53,26 +53,25 @@ public final class QueryFixtures {
      *     Deliverable.title} and {@code Person.name})
      */
     public static MetaModelSnapshot snapshot() {
-        List<TypeDefinition> types =
-            List.of(deliverable(), workItem(), task(), project(), person());
+        List<TypeDefinition> types = List.of(deliverable(), workItem(), task(), project(), person());
         return new MetaModelSnapshot(
-            Fixtures.REFERENCE_ONTOLOGY_IRI,
-            Optional.empty(),
-            Map.of("ex", Fixtures.REFERENCE_ONTOLOGY_IRI + "#", "sq", "https://sequeless.dev/ns/meta#"),
-            types,
-            new OntologyReport(true, List.of()));
+                Fixtures.REFERENCE_ONTOLOGY_IRI,
+                Optional.empty(),
+                Map.of("ex", Fixtures.REFERENCE_ONTOLOGY_IRI + "#", "sq", "https://sequeless.dev/ns/meta#"),
+                types,
+                new OntologyReport(true, List.of()));
     }
 
     /** {@code ex:Deliverable} — abstract, no supertypes, declares {@code title} and {@code createdAt}. */
     public static TypeDefinition deliverable() {
         return new TypeDefinition(
-            Fixtures.DELIVERABLE_IRI,
-            "Deliverable",
-            List.of(),
-            List.of(titleOptional(), createdAt()),
-            DisplayHints.none(),
-            true,
-            Optional.empty());
+                Fixtures.DELIVERABLE_IRI,
+                "Deliverable",
+                List.of(),
+                List.of(titleOptional(), createdAt()),
+                DisplayHints.none(),
+                true,
+                Optional.empty());
     }
 
     /**
@@ -82,13 +81,13 @@ public final class QueryFixtures {
      */
     public static TypeDefinition workItem() {
         return new TypeDefinition(
-            Fixtures.WORK_ITEM_IRI,
-            "Work Item",
-            List.of(Fixtures.DELIVERABLE_IRI),
-            List.of(titleOptional(), createdAt(), status(), description()),
-            DisplayHints.none(),
-            true,
-            Optional.empty());
+                Fixtures.WORK_ITEM_IRI,
+                "Work Item",
+                List.of(Fixtures.DELIVERABLE_IRI),
+                List.of(titleOptional(), createdAt(), status(), description()),
+                DisplayHints.none(),
+                true,
+                Optional.empty());
     }
 
     /**
@@ -99,22 +98,22 @@ public final class QueryFixtures {
      */
     public static TypeDefinition task() {
         return new TypeDefinition(
-            Fixtures.TASK_IRI,
-            "Task",
-            List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
-            List.of(
-                titleRequired(),
-                createdAt(),
-                status(),
-                description(),
-                priority(),
-                assignedTo(),
-                belongsToProject(),
-                estimatedHours(),
-                dueDate()),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+                Fixtures.TASK_IRI,
+                "Task",
+                List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
+                List.of(
+                        titleRequired(),
+                        createdAt(),
+                        status(),
+                        description(),
+                        priority(),
+                        assignedTo(),
+                        belongsToProject(),
+                        estimatedHours(),
+                        dueDate()),
+                DisplayHints.none(),
+                false,
+                Optional.empty());
     }
 
     /**
@@ -126,70 +125,96 @@ public final class QueryFixtures {
      */
     public static TypeDefinition project() {
         return new TypeDefinition(
-            Fixtures.PROJECT_IRI,
-            "Project",
-            List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
-            List.of(
-                titleOptional(),
-                createdAt(),
-                status(),
-                description(),
-                hasTask(),
-                openTaskCount(),
-                totalEstimatedHours()),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+                Fixtures.PROJECT_IRI,
+                "Project",
+                List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
+                List.of(
+                        titleOptional(),
+                        createdAt(),
+                        status(),
+                        description(),
+                        hasTask(),
+                        openTaskCount(),
+                        totalEstimatedHours()),
+                DisplayHints.none(),
+                false,
+                Optional.empty());
     }
 
     /** {@code ex:Person} — concrete, standalone, declares {@code name} (required) and {@code email}. */
     public static TypeDefinition person() {
         return new TypeDefinition(
-            Fixtures.PERSON_IRI,
-            "Person",
-            List.of(),
-            List.of(name(), email()),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+                Fixtures.PERSON_IRI,
+                "Person",
+                List.of(),
+                List.of(name(), email()),
+                DisplayHints.none(),
+                false,
+                Optional.empty());
     }
 
     // -- Attribute definitions -------------------------------------------------------------
 
     private static AttributeDefinition titleOptional() {
         return attribute(
-            Fixtures.TITLE_IRI, "Title", Cardinality.optional(), false, false, true, false, true,
-            Datatype.STRING);
+                Fixtures.TITLE_IRI, "Title", Cardinality.optional(), false, false, true, false, true, Datatype.STRING);
     }
 
     private static AttributeDefinition titleRequired() {
         return attribute(
-            Fixtures.TITLE_IRI, "Title", Cardinality.required(), false, false, true, false, true,
-            Datatype.STRING);
+                Fixtures.TITLE_IRI, "Title", Cardinality.required(), false, false, true, false, true, Datatype.STRING);
     }
 
     private static AttributeDefinition status() {
         return attribute(
-            Fixtures.STATUS_IRI, "Status", Cardinality.optional(), true, true, false, false, false,
-            Datatype.STRING);
+                Fixtures.STATUS_IRI,
+                "Status",
+                Cardinality.optional(),
+                true,
+                true,
+                false,
+                false,
+                false,
+                Datatype.STRING);
     }
 
     private static AttributeDefinition description() {
         return attribute(
-            Fixtures.DESCRIPTION_IRI, "Description", Cardinality.optional(), false, false, true,
-            false, false, Datatype.STRING);
+                Fixtures.DESCRIPTION_IRI,
+                "Description",
+                Cardinality.optional(),
+                false,
+                false,
+                true,
+                false,
+                false,
+                Datatype.STRING);
     }
 
     private static AttributeDefinition createdAt() {
         return attribute(
-            Fixtures.CREATED_AT_IRI, "Created At", Cardinality.optional(), false, false, false,
-            true, false, Datatype.DATE_TIME);
+                Fixtures.CREATED_AT_IRI,
+                "Created At",
+                Cardinality.optional(),
+                false,
+                false,
+                false,
+                true,
+                false,
+                Datatype.DATE_TIME);
     }
 
     private static AttributeDefinition priority() {
         return attribute(
-            Fixtures.PRIORITY_IRI, "Priority", Cardinality.optional(), false, false, false, false,
-            false, Datatype.INTEGER);
+                Fixtures.PRIORITY_IRI,
+                "Priority",
+                Cardinality.optional(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                Datatype.INTEGER);
     }
 
     /**
@@ -200,8 +225,15 @@ public final class QueryFixtures {
      */
     private static AttributeDefinition estimatedHours() {
         return attribute(
-            Fixtures.ESTIMATED_HOURS_IRI, "Estimated Hours", Cardinality.atMost(1), false, false,
-            false, false, false, Datatype.DECIMAL);
+                Fixtures.ESTIMATED_HOURS_IRI,
+                "Estimated Hours",
+                Cardinality.atMost(1),
+                false,
+                false,
+                false,
+                false,
+                false,
+                Datatype.DECIMAL);
     }
 
     /**
@@ -213,26 +245,23 @@ public final class QueryFixtures {
      */
     private static AttributeDefinition openTaskCount() {
         return new AttributeDefinition(
-            Fixtures.OPEN_TASK_COUNT_IRI,
-            "Open Tasks",
-            Cardinality.atMost(1),
-            false,
-            false,
-            false,
-            true,
-            false,
-            DisplayHints.none(),
-            Optional.of(
-                new RollupRule(
-                    Fixtures.TASK_IRI,
-                    Fixtures.BELONGS_TO_PROJECT_IRI,
-                    AggregateFunction.COUNT,
-                    Optional.empty(),
-                    List.of(
-                        new Criterion(
-                            Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
-                    false)),
-            Datatype.INTEGER);
+                Fixtures.OPEN_TASK_COUNT_IRI,
+                "Open Tasks",
+                Cardinality.atMost(1),
+                false,
+                false,
+                false,
+                true,
+                false,
+                DisplayHints.none(),
+                Optional.of(new RollupRule(
+                        Fixtures.TASK_IRI,
+                        Fixtures.BELONGS_TO_PROJECT_IRI,
+                        AggregateFunction.COUNT,
+                        Optional.empty(),
+                        List.of(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+                        false)),
+                Datatype.INTEGER);
     }
 
     /**
@@ -244,94 +273,152 @@ public final class QueryFixtures {
      */
     private static AttributeDefinition totalEstimatedHours() {
         return new AttributeDefinition(
-            Fixtures.TOTAL_ESTIMATED_HOURS_IRI,
-            "Total Estimated Hours",
-            Cardinality.atMost(1),
-            false,
-            false,
-            false,
-            true,
-            false,
-            DisplayHints.none(),
-            Optional.of(
-                new RollupRule(
-                    Fixtures.TASK_IRI,
-                    Fixtures.BELONGS_TO_PROJECT_IRI,
-                    AggregateFunction.SUM,
-                    Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
-                    List.of(),
-                    false)),
-            Datatype.DECIMAL);
+                Fixtures.TOTAL_ESTIMATED_HOURS_IRI,
+                "Total Estimated Hours",
+                Cardinality.atMost(1),
+                false,
+                false,
+                false,
+                true,
+                false,
+                DisplayHints.none(),
+                Optional.of(new RollupRule(
+                        Fixtures.TASK_IRI,
+                        Fixtures.BELONGS_TO_PROJECT_IRI,
+                        AggregateFunction.SUM,
+                        Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                        List.of(),
+                        false)),
+                Datatype.DECIMAL);
     }
 
     private static AttributeDefinition dueDate() {
         return attribute(
-            Fixtures.DUE_DATE_IRI, "Due Date", Cardinality.optional(), false, false, false, false,
-            false, Datatype.DATE);
+                Fixtures.DUE_DATE_IRI,
+                "Due Date",
+                Cardinality.optional(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                Datatype.DATE);
     }
 
     private static AttributeDefinition name() {
         return attribute(
-            Fixtures.NAME_IRI, "Name", Cardinality.required(), false, false, false, false, true,
-            Datatype.STRING);
+                Fixtures.NAME_IRI, "Name", Cardinality.required(), false, false, false, false, true, Datatype.STRING);
     }
 
     private static AttributeDefinition email() {
         return attribute(
-            Fixtures.EMAIL_IRI, "Email", Cardinality.optional(), false, false, false, false, false,
-            Datatype.STRING);
+                Fixtures.EMAIL_IRI,
+                "Email",
+                Cardinality.optional(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                Datatype.STRING);
     }
 
     private static AttributeDefinition attribute(
-        String iri,
-        String label,
-        Cardinality cardinality,
-        boolean facet,
-        boolean indexed,
-        boolean searchable,
-        boolean readOnly,
-        boolean displayLabel,
-        Datatype datatype) {
+            String iri,
+            String label,
+            Cardinality cardinality,
+            boolean facet,
+            boolean indexed,
+            boolean searchable,
+            boolean readOnly,
+            boolean displayLabel,
+            Datatype datatype) {
         return new AttributeDefinition(
-            iri, label, cardinality, facet, indexed, searchable, readOnly, displayLabel,
-            DisplayHints.none(), Optional.empty(), datatype);
+                iri,
+                label,
+                cardinality,
+                facet,
+                indexed,
+                searchable,
+                readOnly,
+                displayLabel,
+                DisplayHints.none(),
+                Optional.empty(),
+                datatype);
     }
 
     // -- Relationship definitions ------------------------------------------------------------
 
     private static RelationshipDefinition assignedTo() {
         return relationship(
-            Fixtures.ASSIGNED_TO_IRI, "Assigned To", Cardinality.atMost(1), true, false, false,
-            false, false, Fixtures.PERSON_IRI, Optional.empty(), false);
+                Fixtures.ASSIGNED_TO_IRI,
+                "Assigned To",
+                Cardinality.atMost(1),
+                true,
+                false,
+                false,
+                false,
+                false,
+                Fixtures.PERSON_IRI,
+                Optional.empty(),
+                false);
     }
 
     private static RelationshipDefinition belongsToProject() {
         return relationship(
-            Fixtures.BELONGS_TO_PROJECT_IRI, "Belongs To Project", Cardinality.atMost(1), false,
-            false, false, false, false, Fixtures.PROJECT_IRI, Optional.of(Fixtures.HAS_TASK_IRI),
-            false);
+                Fixtures.BELONGS_TO_PROJECT_IRI,
+                "Belongs To Project",
+                Cardinality.atMost(1),
+                false,
+                false,
+                false,
+                false,
+                false,
+                Fixtures.PROJECT_IRI,
+                Optional.of(Fixtures.HAS_TASK_IRI),
+                false);
     }
 
     private static RelationshipDefinition hasTask() {
         return relationship(
-            Fixtures.HAS_TASK_IRI, "Has Task", Cardinality.optional(), false, false, false, false,
-            false, Fixtures.TASK_IRI, Optional.empty(), false);
+                Fixtures.HAS_TASK_IRI,
+                "Has Task",
+                Cardinality.optional(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                Fixtures.TASK_IRI,
+                Optional.empty(),
+                false);
     }
 
     private static RelationshipDefinition relationship(
-        String iri,
-        String label,
-        Cardinality cardinality,
-        boolean facet,
-        boolean indexed,
-        boolean searchable,
-        boolean readOnly,
-        boolean displayLabel,
-        String targetTypeIri,
-        Optional<String> inverseIri,
-        boolean transitive) {
+            String iri,
+            String label,
+            Cardinality cardinality,
+            boolean facet,
+            boolean indexed,
+            boolean searchable,
+            boolean readOnly,
+            boolean displayLabel,
+            String targetTypeIri,
+            Optional<String> inverseIri,
+            boolean transitive) {
         return new RelationshipDefinition(
-            iri, label, cardinality, facet, indexed, searchable, readOnly, displayLabel,
-            DisplayHints.none(), Optional.empty(), targetTypeIri, inverseIri, transitive);
+                iri,
+                label,
+                cardinality,
+                facet,
+                indexed,
+                searchable,
+                readOnly,
+                displayLabel,
+                DisplayHints.none(),
+                Optional.empty(),
+                targetTypeIri,
+                inverseIri,
+                transitive);
     }
 }

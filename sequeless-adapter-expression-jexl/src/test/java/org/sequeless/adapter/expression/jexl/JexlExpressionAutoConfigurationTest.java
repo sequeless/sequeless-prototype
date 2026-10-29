@@ -14,19 +14,16 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
  */
 class JexlExpressionAutoConfigurationTest {
 
-    private final ApplicationContextRunner runner =
-        new ApplicationContextRunner()
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(JexlExpressionAutoConfiguration.class));
 
     @Test
     void wiresExpressionPortWhenAdapterPropertySet() {
-        runner
-            .withPropertyValues("sequeless.expression.adapter=jexl")
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ExpressionPort.class);
-                assertThat(context.getBean(ExpressionPort.class)).isInstanceOf(JexlExpressionPort.class);
-            });
+        runner.withPropertyValues("sequeless.expression.adapter=jexl").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(ExpressionPort.class);
+            assertThat(context.getBean(ExpressionPort.class)).isInstanceOf(JexlExpressionPort.class);
+        });
     }
 
     @Test
@@ -39,11 +36,9 @@ class JexlExpressionAutoConfigurationTest {
 
     @Test
     void doesNotWireWhenAdapterPropertyIsSomethingElse() {
-        runner
-            .withPropertyValues("sequeless.expression.adapter=other")
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).doesNotHaveBean(ExpressionPort.class);
-            });
+        runner.withPropertyValues("sequeless.expression.adapter=other").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(ExpressionPort.class);
+        });
     }
 }

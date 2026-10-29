@@ -26,7 +26,6 @@ import org.sequeless.spi.Scope;
 import org.sequeless.spi.TenantId;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.expression.ExpressionContext;
 import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.meta.AttributeDefinition;
@@ -34,14 +33,14 @@ import org.sequeless.spi.meta.Cardinality;
 import org.sequeless.spi.meta.CreateObjectAction;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DisplayHints;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.LogAction;
 import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.OnChangeTrigger;
 import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.State;
 import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.OnChangeTrigger;
 import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TriggerKind;
@@ -102,13 +101,20 @@ class DefaultTransitionServiceTest {
     /** The only guard expression these fixtures use; {@link FakeExpressionPort} special-cases it. */
     private static final String OWNER_GUARD = "self.owner != null";
 
-    private static final String ACTIVATE_GUARD_MESSAGE =
-        "Project must have an owner before it can be activated";
+    private static final String ACTIVATE_GUARD_MESSAGE = "Project must have an owner before it can be activated";
 
-    private static final AttributeDefinition OWNER =
-        new AttributeDefinition(
-            OWNER_IRI, "owner", Cardinality.atMost(1), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    private static final AttributeDefinition OWNER = new AttributeDefinition(
+            OWNER_IRI,
+            "owner",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Optional.empty(),
+            Datatype.STRING);
 
     private static final State DRAFT = new State(DRAFT_IRI, "Draft", 0);
     private static final State ACTIVE = new State(ACTIVE_IRI, "Active", 1);
@@ -116,57 +122,67 @@ class DefaultTransitionServiceTest {
     private static final State ARCHIVED = new State(ARCHIVED_IRI, "Archived", 3);
 
     private static final SetPropertyAction SET_PROPERTY_ACTION =
-        new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
-    private static final CreateObjectAction CREATE_OBJECT_ACTION =
-        new CreateObjectAction(
-            TASK_IRI,
-            List.of(new PropertyAssignment(TITLE_IRI, Optional.of(Value.text("Kickoff")), Optional.empty())));
+            new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
+    private static final CreateObjectAction CREATE_OBJECT_ACTION = new CreateObjectAction(
+            TASK_IRI, List.of(new PropertyAssignment(TITLE_IRI, Optional.of(Value.text("Kickoff")), Optional.empty())));
     private static final WebhookAction WEBHOOK_ACTION =
-        new WebhookAction("https://example.com/hook", "POST", Optional.of("${self.owner}"));
+            new WebhookAction("https://example.com/hook", "POST", Optional.of("${self.owner}"));
     private static final LogAction LOG_ACTION = new LogAction("Activated by ${self.owner}");
 
     /** Uses {@code expression}, not {@code value} — the mirror-image branch of {@link #SET_PROPERTY_ACTION}. */
     private static final SetPropertyAction SET_PROPERTY_EXPRESSION_ACTION =
-        new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.status"));
+            new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.status"));
     /** Has no {@code body} — the mirror-image branch of {@link #WEBHOOK_ACTION}. */
     private static final WebhookAction WEBHOOK_NO_BODY_ACTION =
-        new WebhookAction("https://example.com/reopen", "GET", Optional.empty());
+            new WebhookAction("https://example.com/reopen", "GET", Optional.empty());
 
-    private static final Transition ACTIVATE =
-        new Transition(
-            "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
+    private static final Transition ACTIVATE = new Transition(
+            "activate",
+            DRAFT_IRI,
+            ACTIVE_IRI,
+            new UserActionTrigger(),
+            Optional.of(OWNER_GUARD),
             Optional.of(ACTIVATE_GUARD_MESSAGE),
             List.of(SET_PROPERTY_ACTION, CREATE_OBJECT_ACTION, WEBHOOK_ACTION, LOG_ACTION));
     /** Guarded, but with no {@code guardMessage} — exercises the generic fallback text. */
-    private static final Transition ARCHIVE =
-        new Transition(
-            "archive", DRAFT_IRI, ARCHIVED_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
-            Optional.empty(), List.of());
+    private static final Transition ARCHIVE = new Transition(
+            "archive",
+            DRAFT_IRI,
+            ARCHIVED_IRI,
+            new UserActionTrigger(),
+            Optional.of(OWNER_GUARD),
+            Optional.empty(),
+            List.of());
     /** Unguarded — always available from {@code Active}. */
-    private static final Transition CLOSE =
-        new Transition(
-            "close", ACTIVE_IRI, CLOSED_IRI, new UserActionTrigger(), Optional.empty(),
-            Optional.empty(), List.of());
+    private static final Transition CLOSE = new Transition(
+            "close", ACTIVE_IRI, CLOSED_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty(), List.of());
     /** Unguarded, exercises the "omitted, not null" payload shapes {@link #ACTIVATE} does not. */
-    private static final Transition REOPEN =
-        new Transition(
-            "reopen", CLOSED_IRI, DRAFT_IRI, new UserActionTrigger(), Optional.empty(),
-            Optional.empty(), List.of(SET_PROPERTY_EXPRESSION_ACTION, WEBHOOK_NO_BODY_ACTION));
+    private static final Transition REOPEN = new Transition(
+            "reopen",
+            CLOSED_IRI,
+            DRAFT_IRI,
+            new UserActionTrigger(),
+            Optional.empty(),
+            Optional.empty(),
+            List.of(SET_PROPERTY_EXPRESSION_ACTION, WEBHOOK_NO_BODY_ACTION));
 
-    private static final StateMachineDefinition PROJECT_LIFECYCLE =
-        new StateMachineDefinition(
-            NS + "ProjectLifecycle", List.of(DRAFT, ACTIVE, CLOSED, ARCHIVED), DRAFT,
+    private static final StateMachineDefinition PROJECT_LIFECYCLE = new StateMachineDefinition(
+            NS + "ProjectLifecycle",
+            List.of(DRAFT, ACTIVE, CLOSED, ARCHIVED),
+            DRAFT,
             List.of(ACTIVATE, ARCHIVE, CLOSE, REOPEN));
 
-    private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false,
+    private static final TypeDefinition PROJECT = new TypeDefinition(
+            PROJECT_IRI,
+            "Project",
+            List.of(),
+            List.of(OWNER),
+            DisplayHints.none(),
+            false,
             Optional.of(PROJECT_LIFECYCLE));
 
-    private static final TypeDefinition NO_MACHINE_TYPE =
-        new TypeDefinition(
-            NS + "Widget", "Widget", List.of(), List.of(), DisplayHints.none(), false,
-            Optional.empty());
+    private static final TypeDefinition NO_MACHINE_TYPE = new TypeDefinition(
+            NS + "Widget", "Widget", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
 
     // --- a second, independent state machine dedicated to timer/fireAutomated tests, so its
     // fixtures never perturb the outbox sizes the Project-based tests above already assert on ---
@@ -184,69 +200,90 @@ class DefaultTransitionServiceTest {
     private static final State TW_DONE = new State(DONE_IRI, "Done", 3);
 
     /** Enters {@code Waiting}, which {@link #EXPIRE} departs via a timer — schedules on entry. */
-    private static final Transition ENTER_WAITING =
-        new Transition(
-            "enter", START_IRI, WAITING_IRI, new UserActionTrigger(), Optional.empty(),
-            Optional.empty(), List.of());
+    private static final Transition ENTER_WAITING = new Transition(
+            "enter", START_IRI, WAITING_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty(), List.of());
     /** The timer transition itself, departing {@code Waiting}. */
-    private static final Transition EXPIRE =
-        new Transition(
-            "expire", WAITING_IRI, DONE_IRI, new TimerTrigger(EXPIRE_AFTER), Optional.empty(),
-            Optional.empty(), List.of());
+    private static final Transition EXPIRE = new Transition(
+            "expire",
+            WAITING_IRI,
+            DONE_IRI,
+            new TimerTrigger(EXPIRE_AFTER),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
     /** Leaves {@code Waiting} by a different transition than {@link #EXPIRE} — cancels on exit. */
-    private static final Transition LEAVE_WAITING =
-        new Transition(
-            "leave", WAITING_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(),
-            Optional.empty(), List.of());
+    private static final Transition LEAVE_WAITING = new Transition(
+            "leave",
+            WAITING_IRI,
+            ELSEWHERE_IRI,
+            new UserActionTrigger(),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
     /** Neither endpoint has a timer transition departing it — no timer entries expected. */
-    private static final Transition NO_TIMER_TRANSITION =
-        new Transition(
-            "noop", START_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(),
-            Optional.empty(), List.of());
+    private static final Transition NO_TIMER_TRANSITION = new Transition(
+            "noop", START_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty(), List.of());
     /** Unguarded {@code OnChange} transition, with one action, for {@code fireAutomated}'s happy path. */
-    private static final Transition AUTO_ADVANCE =
-        new Transition(
-            "autoAdvance", START_IRI, DONE_IRI, new OnChangeTrigger(List.of()), Optional.empty(),
-            Optional.empty(), List.of(LOG_ACTION));
+    private static final Transition AUTO_ADVANCE = new Transition(
+            "autoAdvance",
+            START_IRI,
+            DONE_IRI,
+            new OnChangeTrigger(List.of()),
+            Optional.empty(),
+            Optional.empty(),
+            List.of(LOG_ACTION));
     /** Guarded {@code OnChange} transition; {@link #OWNER_GUARD} always fails on a TimerWidget. */
-    private static final Transition GUARDED_ON_CHANGE =
-        new Transition(
-            "guardedAdvance", START_IRI, DONE_IRI, new OnChangeTrigger(List.of()),
-            Optional.of(OWNER_GUARD), Optional.empty(), List.of());
+    private static final Transition GUARDED_ON_CHANGE = new Transition(
+            "guardedAdvance",
+            START_IRI,
+            DONE_IRI,
+            new OnChangeTrigger(List.of()),
+            Optional.of(OWNER_GUARD),
+            Optional.empty(),
+            List.of());
     /**
      * Departs {@code Done}, not {@code Start} — used to prove {@code signal} validates a signal
      * name against the whole state machine, not just the object's current state.
      */
     private static final String WAKE_SIGNAL = "wake";
-    private static final Transition WAKE =
-        new Transition(
-            "wake", DONE_IRI, START_IRI, new ExternalSignalTrigger(WAKE_SIGNAL), Optional.empty(),
-            Optional.empty(), List.of());
 
-    private static final StateMachineDefinition TIMER_WIDGET_LIFECYCLE =
-        new StateMachineDefinition(
-            NS + "TimerWidgetLifecycle", List.of(TW_START, TW_WAITING, TW_ELSEWHERE, TW_DONE),
+    private static final Transition WAKE = new Transition(
+            "wake",
+            DONE_IRI,
+            START_IRI,
+            new ExternalSignalTrigger(WAKE_SIGNAL),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
+
+    private static final StateMachineDefinition TIMER_WIDGET_LIFECYCLE = new StateMachineDefinition(
+            NS + "TimerWidgetLifecycle",
+            List.of(TW_START, TW_WAITING, TW_ELSEWHERE, TW_DONE),
             TW_START,
-            List.of(
-                ENTER_WAITING, EXPIRE, LEAVE_WAITING, NO_TIMER_TRANSITION, AUTO_ADVANCE,
-                GUARDED_ON_CHANGE, WAKE));
+            List.of(ENTER_WAITING, EXPIRE, LEAVE_WAITING, NO_TIMER_TRANSITION, AUTO_ADVANCE, GUARDED_ON_CHANGE, WAKE));
 
-    private static final TypeDefinition TIMER_WIDGET =
-        new TypeDefinition(
-            TIMER_WIDGET_IRI, "TimerWidget", List.of(), List.of(), DisplayHints.none(), false,
+    private static final TypeDefinition TIMER_WIDGET = new TypeDefinition(
+            TIMER_WIDGET_IRI,
+            "TimerWidget",
+            List.of(),
+            List.of(),
+            DisplayHints.none(),
+            false,
             Optional.of(TIMER_WIDGET_LIFECYCLE));
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
-            NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(),
-            List.of(PROJECT, NO_MACHINE_TYPE, TIMER_WIDGET), new OntologyReport(true, List.of()));
+    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+            NS.substring(0, NS.length() - 1),
+            Optional.empty(),
+            Map.of(),
+            List.of(PROJECT, NO_MACHINE_TYPE, TIMER_WIDGET),
+            new OntologyReport(true, List.of()));
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-01T00:00:00Z");
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");
@@ -256,23 +293,33 @@ class DefaultTransitionServiceTest {
         return (scope, operation, resource) -> AccessDecision.deny("nope");
     }
 
-    private static DefaultTransitionService service(
-        FakeObjectStorePort store, AuthorizationPort authorizationPort) {
+    private static DefaultTransitionService service(FakeObjectStorePort store, AuthorizationPort authorizationPort) {
         return new DefaultTransitionService(
-            new FakeOntologyPort(), store, authorizationPort, new FakeExpressionPort(), CLOCK);
+                new FakeOntologyPort(), store, authorizationPort, new FakeExpressionPort(), CLOCK);
     }
 
-    private static BusinessObject project(
-        ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
+    private static BusinessObject project(ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.of(state),
-            properties, new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.of(state),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static BusinessObject timerWidget(ObjectId id, long version, String state) {
         return new BusinessObject(
-            id, new TypeRef(TIMER_WIDGET_IRI), new TenantId("acme"), version, Optional.of(state),
-            Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(TIMER_WIDGET_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.of(state),
+                Map.of(),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     // --- happy path: guard passes, state moves, one TransitionFired + one ActionRequest per action ---
@@ -304,25 +351,25 @@ class DefaultTransitionServiceTest {
         OutboxEntry transitionFired = changeSet.outbox().get(0);
         assertThat(transitionFired.kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
         assertThat(transitionFired.payload())
-            .containsEntry("objectId", id.value().toString())
-            .containsEntry("tenantId", "acme")
-            .containsEntry("principalId", "alice")
-            .containsEntry("transitionName", "activate")
-            .containsEntry("fromState", DRAFT_IRI)
-            .containsEntry("toState", ACTIVE_IRI);
+                .containsEntry("objectId", id.value().toString())
+                .containsEntry("tenantId", "acme")
+                .containsEntry("principalId", "alice")
+                .containsEntry("transitionName", "activate")
+                .containsEntry("fromState", DRAFT_IRI)
+                .containsEntry("toState", ACTIVE_IRI);
 
         List<OutboxEntry> actionRequests = changeSet.outbox().subList(1, 5);
         for (int i = 0; i < actionRequests.size(); i++) {
             OutboxEntry entry = actionRequests.get(i);
             assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
             assertThat(entry.payload())
-                .containsEntry("objectId", id.value().toString())
-                .containsEntry("tenantId", "acme")
-                .containsEntry("principalId", "alice")
-                .containsEntry("transitionName", "activate")
-                .containsEntry("actionIndex", i)
-                .containsEntry("typeIri", PROJECT_IRI)
-                .containsEntry("state", ACTIVE_IRI);
+                    .containsEntry("objectId", id.value().toString())
+                    .containsEntry("tenantId", "acme")
+                    .containsEntry("principalId", "alice")
+                    .containsEntry("transitionName", "activate")
+                    .containsEntry("actionIndex", i)
+                    .containsEntry("typeIri", PROJECT_IRI)
+                    .containsEntry("state", ACTIVE_IRI);
             // The single most important assertion: self is keyed by SHORT NAME ("owner"), not IRI.
             @SuppressWarnings("unchecked")
             Map<String, Object> self = (Map<String, Object>) entry.payload().get("self");
@@ -343,8 +390,7 @@ class DefaultTransitionServiceTest {
         assertThat(createObjectPayload.get("actionKind")).isEqualTo("CreateObject");
         assertThat(createObjectPayload.get("createType")).isEqualTo(TASK_IRI);
         @SuppressWarnings("unchecked")
-        Map<String, Object> createProperties =
-            (Map<String, Object>) createObjectPayload.get("createProperties");
+        Map<String, Object> createProperties = (Map<String, Object>) createObjectPayload.get("createProperties");
         assertThat(createProperties).containsOnlyKeys(TITLE_IRI);
         assertThat(createProperties.get(TITLE_IRI)).isEqualTo(Map.of("value", Map.of("text", "Kickoff")));
 
@@ -372,7 +418,8 @@ class DefaultTransitionServiceTest {
         service.fire(ALICE, "Project", id, "reopen", 1);
 
         ChangeSet changeSet = store.commits.get(0);
-        List<OutboxEntry> actionRequests = changeSet.outbox().subList(1, changeSet.outbox().size());
+        List<OutboxEntry> actionRequests =
+                changeSet.outbox().subList(1, changeSet.outbox().size());
         assertThat(actionRequests).hasSize(2);
 
         Map<String, Object> setPropertyPayload = actionRequests.get(0).payload();
@@ -411,9 +458,8 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 1))
-            .satisfies(
-                exception -> {
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 1))
+                .satisfies(exception -> {
                     assertThat(exception.transitionName()).isEqualTo("activate");
                     assertThat(exception.reason()).isEqualTo(ACTIVATE_GUARD_MESSAGE);
                 });
@@ -429,11 +475,9 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, "archive", 1))
-            .satisfies(
-                exception ->
-                    assertThat(exception.reason())
-                        .isEqualTo("Guard for transition 'archive' was not satisfied"));
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "archive", 1))
+                .satisfies(exception ->
+                        assertThat(exception.reason()).isEqualTo("Guard for transition 'archive' was not satisfied"));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -448,10 +492,8 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, "bogus", 1))
-            .satisfies(
-                exception ->
-                    assertThat(exception.reason())
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "bogus", 1))
+                .satisfies(exception -> assertThat(exception.reason())
                         .isEqualTo("No transition named 'bogus' is available from the object's current state"));
     }
 
@@ -465,23 +507,28 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, "close", 1));
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "close", 1));
         assertThat(store.commitCalls).isZero();
     }
 
     @Test
     void fireOnTypeWithNoStateMachineThrowsTransitionNotAvailable() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            new BusinessObject(
-                id, new TypeRef(NO_MACHINE_TYPE.iri()), new TenantId("acme"), 1, Optional.empty(),
-                Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+        BusinessObject existing = new BusinessObject(
+                id,
+                new TypeRef(NO_MACHINE_TYPE.iri()),
+                new TenantId("acme"),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Widget", id, "anything", 1));
+                .isThrownBy(() -> service.fire(ALICE, "Widget", id, "anything", 1));
     }
 
     // --- authz / type / object resolution ---
@@ -493,7 +540,7 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, denyAll());
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 1));
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 1));
         assertThat(store.findCalls).isZero();
     }
 
@@ -503,7 +550,7 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TypeNotFoundException.class)
-            .isThrownBy(() -> service.fire(ALICE, "NoSuchType", ObjectId.random(), "activate", 1));
+                .isThrownBy(() -> service.fire(ALICE, "NoSuchType", ObjectId.random(), "activate", 1));
     }
 
     @Test
@@ -512,20 +559,19 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", ObjectId.random(), "activate", 1));
+                .isThrownBy(() -> service.fire(ALICE, "Project", ObjectId.random(), "activate", 1));
     }
 
     @Test
     void fireThrowsStaleObjectExceptionOnVersionMismatch() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 5, DRAFT_IRI, Map.of(new PropertyRef(OWNER_IRI), Value.text("alice")));
+        BusinessObject existing = project(id, 5, DRAFT_IRI, Map.of(new PropertyRef(OWNER_IRI), Value.text("alice")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(StaleObjectException.class)
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 4));
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 4));
     }
 
     @Test
@@ -534,14 +580,10 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
         ObjectId id = ObjectId.random();
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.fire(null, "Project", id, "activate", 1));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.fire(ALICE, null, id, "activate", 1));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.fire(ALICE, "Project", null, "activate", 1));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.fire(ALICE, "Project", id, null, 1));
+        assertThatNullPointerException().isThrownBy(() -> service.fire(null, "Project", id, "activate", 1));
+        assertThatNullPointerException().isThrownBy(() -> service.fire(ALICE, null, id, "activate", 1));
+        assertThatNullPointerException().isThrownBy(() -> service.fire(ALICE, "Project", null, "activate", 1));
+        assertThatNullPointerException().isThrownBy(() -> service.fire(ALICE, "Project", id, null, 1));
     }
 
     // --- timer outbox entries ---
@@ -563,14 +605,14 @@ class DefaultTransitionServiceTest {
         assertThat(scheduled.kind()).isEqualTo(OutboxEntry.KIND_TIMER_SCHEDULED);
         String expectedTimerKey = id.value().toString() + "|" + WAITING_IRI + "|expire";
         assertThat(scheduled.payload())
-            .containsEntry("objectId", id.value().toString())
-            .containsEntry("tenantId", "acme")
-            .containsEntry("principalId", "alice")
-            .containsEntry("typeIri", TIMER_WIDGET_IRI)
-            .containsEntry("state", WAITING_IRI)
-            .containsEntry("transitionName", "expire")
-            .containsEntry("after", EXPIRE_AFTER.toString())
-            .containsEntry("timerKey", expectedTimerKey);
+                .containsEntry("objectId", id.value().toString())
+                .containsEntry("tenantId", "acme")
+                .containsEntry("principalId", "alice")
+                .containsEntry("typeIri", TIMER_WIDGET_IRI)
+                .containsEntry("state", WAITING_IRI)
+                .containsEntry("transitionName", "expire")
+                .containsEntry("after", EXPIRE_AFTER.toString())
+                .containsEntry("timerKey", expectedTimerKey);
     }
 
     @Test
@@ -589,9 +631,9 @@ class DefaultTransitionServiceTest {
         assertThat(cancelled.kind()).isEqualTo(OutboxEntry.KIND_TIMER_CANCELLED);
         String expectedTimerKey = id.value().toString() + "|" + WAITING_IRI + "|expire";
         assertThat(cancelled.payload())
-            .containsEntry("objectId", id.value().toString())
-            .containsEntry("tenantId", "acme")
-            .containsEntry("timerKey", expectedTimerKey);
+                .containsEntry("objectId", id.value().toString())
+                .containsEntry("tenantId", "acme")
+                .containsEntry("timerKey", expectedTimerKey);
     }
 
     @Test
@@ -617,7 +659,7 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         Optional<BusinessObject> result =
-            service.fireAutomated(ALICE, ObjectId.random(), "autoAdvance", TriggerKind.ON_CHANGE);
+                service.fireAutomated(ALICE, ObjectId.random(), "autoAdvance", TriggerKind.ON_CHANGE);
 
         assertThat(result).isEmpty();
         assertThat(store.commitCalls).isZero();
@@ -632,8 +674,7 @@ class DefaultTransitionServiceTest {
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
-        Optional<BusinessObject> result =
-            service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.ON_CHANGE);
+        Optional<BusinessObject> result = service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.ON_CHANGE);
 
         assertThat(result).isEmpty();
         assertThat(store.commitCalls).isZero();
@@ -648,8 +689,7 @@ class DefaultTransitionServiceTest {
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
-        Optional<BusinessObject> result =
-            service.fireAutomated(ALICE, id, "guardedAdvance", TriggerKind.ON_CHANGE);
+        Optional<BusinessObject> result = service.fireAutomated(ALICE, id, "guardedAdvance", TriggerKind.ON_CHANGE);
 
         assertThat(result).isEmpty();
         assertThat(store.commitCalls).isZero();
@@ -664,8 +704,7 @@ class DefaultTransitionServiceTest {
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
-        Optional<BusinessObject> result =
-            service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.USER_ACTION);
+        Optional<BusinessObject> result = service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.USER_ACTION);
 
         assertThat(result).isEmpty();
         assertThat(store.commitCalls).isZero();
@@ -679,8 +718,7 @@ class DefaultTransitionServiceTest {
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
-        Optional<BusinessObject> result =
-            service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.ON_CHANGE);
+        Optional<BusinessObject> result = service.fireAutomated(ALICE, id, "autoAdvance", TriggerKind.ON_CHANGE);
 
         assertThat(result).isPresent();
         assertThat(result.get().state()).contains(DONE_IRI);
@@ -715,11 +753,11 @@ class DefaultTransitionServiceTest {
         OutboxEntry entry = changeSet.outbox().get(0);
         assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
         assertThat(entry.payload())
-            .containsEntry("objectId", id.value().toString())
-            .containsEntry("tenantId", "acme")
-            .containsEntry("principalId", "alice")
-            .containsEntry("signalName", WAKE_SIGNAL)
-            .containsEntry("body", Map.of("reason", "manual"));
+                .containsEntry("objectId", id.value().toString())
+                .containsEntry("tenantId", "acme")
+                .containsEntry("principalId", "alice")
+                .containsEntry("signalName", WAKE_SIGNAL)
+                .containsEntry("body", Map.of("reason", "manual"));
     }
 
     @Test
@@ -734,8 +772,7 @@ class DefaultTransitionServiceTest {
         service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of());
 
         assertThat(store.commits).hasSize(1);
-        assertThat(store.commits.get(0).outbox().get(0).kind())
-            .isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
+        assertThat(store.commits.get(0).outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
     }
 
     @Test
@@ -745,7 +782,7 @@ class DefaultTransitionServiceTest {
         ObjectId id = ObjectId.random();
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -758,9 +795,8 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(UnknownSignalException.class)
-            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, "noSuchSignal", Map.of()))
-            .satisfies(
-                exception -> {
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, "noSuchSignal", Map.of()))
+                .satisfies(exception -> {
                     assertThat(exception.typeIri()).isEqualTo(TIMER_WIDGET_IRI);
                     assertThat(exception.signalName()).isEqualTo("noSuchSignal");
                 });
@@ -770,16 +806,21 @@ class DefaultTransitionServiceTest {
     @Test
     void signalThrowsUnknownSignalExceptionOnTypeWithNoStateMachine() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            new BusinessObject(
-                id, new TypeRef(NS + "Widget"), new TenantId("acme"), 1, Optional.empty(),
-                Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+        BusinessObject existing = new BusinessObject(
+                id,
+                new TypeRef(NS + "Widget"),
+                new TenantId("acme"),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(UnknownSignalException.class)
-            .isThrownBy(() -> service.signal(ALICE, "Widget", id, WAKE_SIGNAL, Map.of()));
+                .isThrownBy(() -> service.signal(ALICE, "Widget", id, WAKE_SIGNAL, Map.of()));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -790,7 +831,7 @@ class DefaultTransitionServiceTest {
         ObjectId id = ObjectId.random();
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
         assertThat(store.findCalls).isZero();
     }
 
@@ -801,15 +842,12 @@ class DefaultTransitionServiceTest {
         ObjectId id = ObjectId.random();
 
         assertThatNullPointerException()
-            .isThrownBy(() -> service.signal(null, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+                .isThrownBy(() -> service.signal(null, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThatNullPointerException().isThrownBy(() -> service.signal(ALICE, null, id, WAKE_SIGNAL, Map.of()));
         assertThatNullPointerException()
-            .isThrownBy(() -> service.signal(ALICE, null, id, WAKE_SIGNAL, Map.of()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", null, WAKE_SIGNAL, Map.of()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, null, Map.of()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, null));
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", null, WAKE_SIGNAL, Map.of()));
+        assertThatNullPointerException().isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, null, Map.of()));
+        assertThatNullPointerException().isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, null));
     }
 
     // --- fire rejects non-UserAction triggers ---
@@ -823,9 +861,8 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-            .isThrownBy(() -> service.fire(ALICE, "TimerWidget", id, "autoAdvance", 1))
-            .satisfies(
-                exception -> assertThat(exception.transitionName()).isEqualTo("autoAdvance"));
+                .isThrownBy(() -> service.fire(ALICE, "TimerWidget", id, "autoAdvance", 1))
+                .satisfies(exception -> assertThat(exception.transitionName()).isEqualTo("autoAdvance"));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -840,8 +877,7 @@ class DefaultTransitionServiceTest {
             if (OWNER_GUARD.equals(expression)) {
                 return Value.bool(context.selfProperties().containsKey("owner"));
             }
-            throw new UnsupportedOperationException(
-                "Unrecognized expression in test fixture: " + expression);
+            throw new UnsupportedOperationException("Unrecognized expression in test fixture: " + expression);
         }
 
         @Override

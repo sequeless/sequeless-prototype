@@ -54,8 +54,7 @@ class DerivationMappingTest {
      * ex:belongsToProject} (the one legitimate object property from {@code Task} back to {@code
      * Project}).
      */
-    private static final String HEADER =
-        """
+    private static final String HEADER = """
         @prefix sq:   <https://sequeless.dev/ns/meta#> .
         @prefix owl:  <http://www.w3.org/2002/07/owl#> .
         @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -79,8 +78,7 @@ class DerivationMappingTest {
 
     @Test
     void rollupWithFilterMapsToRollupRule() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -105,14 +103,13 @@ class DerivationMappingTest {
         assertThat(rule.function()).isEqualTo(AggregateFunction.COUNT);
         assertThat(rule.ofPropertyIri()).isEmpty();
         assertThat(rule.criteria())
-            .containsExactly(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
+                .containsExactly(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
         assertThat(property.readOnly()).isTrue();
     }
 
     @Test
     void criterionAgainstIntegerPropertyCoercesToIntegerValueNotText() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -129,16 +126,15 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule =
-            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule)
+                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
         assertThat(rule.criteria())
-            .containsExactly(new Criterion(PRIORITY_IRI, Operator.GT, Optional.of(new IntegerValue(3))));
+                .containsExactly(new Criterion(PRIORITY_IRI, Operator.GT, Optional.of(new IntegerValue(3))));
     }
 
     @Test
     void rollupWithoutFilterMapsToRollupRuleWithEmptyCriteriaAndForcesReadOnly() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:totalEstimatedHours
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -166,8 +162,7 @@ class DerivationMappingTest {
 
     @Test
     void pluginMapsToPluginRule() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:workload
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Person ;
@@ -187,8 +182,7 @@ class DerivationMappingTest {
 
     @Test
     void rollupWithoutMaterialisedDefaultsToFalse() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -201,15 +195,14 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule =
-            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule)
+                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
         assertThat(rule.materialised()).isFalse();
     }
 
     @Test
     void rollupWithMaterialisedTrueIsHonoured() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -223,15 +216,14 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule =
-            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule)
+                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
         assertThat(rule.materialised()).isTrue();
     }
 
     @Test
     void pluginWithoutMaterialisedDefaultsToFalse() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:workload
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Person ;
@@ -240,8 +232,9 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        PluginRule rule =
-            (PluginRule) attribute(result, REF_NS + "Person", REF_NS + "workload").derivation().orElseThrow();
+        PluginRule rule = (PluginRule) attribute(result, REF_NS + "Person", REF_NS + "workload")
+                .derivation()
+                .orElseThrow();
         assertThat(rule.materialised()).isFalse();
     }
 
@@ -251,8 +244,7 @@ class DerivationMappingTest {
         // no sq:over/sq:via, so DefaultDerivationRecomputer (T5) has no generic way to discover which
         // targets a changed object affects. Rejecting the combination here, at mapping time, keeps
         // that gap from ever reaching a MetaModelSnapshot.
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:workload
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Person ;
@@ -266,8 +258,7 @@ class DerivationMappingTest {
 
     @Test
     void typedBothRollupAndPluginIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -284,8 +275,7 @@ class DerivationMappingTest {
 
     @Test
     void typedNeitherIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -300,8 +290,7 @@ class DerivationMappingTest {
 
     @Test
     void missingFunctionIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -316,8 +305,7 @@ class DerivationMappingTest {
 
     @Test
     void unknownFunctionIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -333,8 +321,7 @@ class DerivationMappingTest {
 
     @Test
     void missingOverIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -349,8 +336,7 @@ class DerivationMappingTest {
 
     @Test
     void missingViaIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -365,8 +351,7 @@ class DerivationMappingTest {
 
     @Test
     void ofMissingForSumIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:totalEstimatedHours
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -382,8 +367,7 @@ class DerivationMappingTest {
 
     @Test
     void ofPresentForCountIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -400,8 +384,7 @@ class DerivationMappingTest {
 
     @Test
     void missingPluginNameIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:workload
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Person ;
@@ -413,8 +396,7 @@ class DerivationMappingTest {
 
     @Test
     void criterionMissingPropertyIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -431,8 +413,7 @@ class DerivationMappingTest {
 
     @Test
     void criterionMissingOperatorIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -449,8 +430,7 @@ class DerivationMappingTest {
 
     @Test
     void criterionValuePresentForIsNullIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -468,8 +448,7 @@ class DerivationMappingTest {
 
     @Test
     void criterionValueAbsentForNonNullOperatorIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -486,8 +465,7 @@ class DerivationMappingTest {
 
     @Test
     void criterionValueThatDoesNotParseForDeclaredDatatypeIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -507,8 +485,7 @@ class DerivationMappingTest {
 
     @Test
     void viaNotObjectPropertyOnOverTypeIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -519,8 +496,8 @@ class DerivationMappingTest {
                     sq:over ex:Task ;
                     sq:via ex:status ] .
             """);
-        assertSingleError(result, OPEN_TASK_COUNT_IRI,
-            "is not an object property effectively declared on sq:over type");
+        assertSingleError(
+                result, OPEN_TASK_COUNT_IRI, "is not an object property effectively declared on sq:over type");
     }
 
     // -- Reasoner interaction --------------------------------------------------------------------
@@ -542,15 +519,13 @@ class DerivationMappingTest {
      */
     @Test
     void pluginMapsToPluginRuleUnderTheOwlReasonerTheAppActuallyUses() {
-        MappingResult result = mapTurtleUnderReasoner(
-            """
+        MappingResult result = mapTurtleUnderReasoner("""
             ex:workload
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Person ;
                 rdfs:range xsd:decimal ;
                 sq:derivedBy [ a sq:Plugin ; sq:pluginName "workload" ] .
-            """,
-            ReasonerSetting.OWL);
+            """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
         AttributeDefinition property = attribute(result, REF_NS + "Person", REF_NS + "workload");
@@ -568,8 +543,7 @@ class DerivationMappingTest {
      */
     @Test
     void rollupMapsToRollupRuleUnderTheOwlReasonerTheAppActuallyUses() {
-        MappingResult result = mapTurtleUnderReasoner(
-            """
+        MappingResult result = mapTurtleUnderReasoner("""
             ex:openTaskCount
                 a owl:DatatypeProperty ;
                 rdfs:domain ex:Project ;
@@ -583,17 +557,16 @@ class DerivationMappingTest {
                                   sq:property ex:status ;
                                   sq:operator sq:ne ;
                                   sq:value "done" ] ) ] .
-            """,
-            ReasonerSetting.OWL);
+            """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule =
-            (RollupRule) attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule)
+                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
         assertThat(rule.sourceTypeIri()).isEqualTo(TASK_IRI);
         assertThat(rule.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
         assertThat(rule.function()).isEqualTo(AggregateFunction.COUNT);
         assertThat(rule.criteria())
-            .containsExactly(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
+                .containsExactly(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
     }
 
     // -- Fixtures ---------------------------------------------------------------------------------
@@ -623,16 +596,18 @@ class DerivationMappingTest {
     private static OntModel buildModel(String turtle, ReasonerSetting reasoner) {
         Model rdfModel = ModelFactory.createDefaultModel();
         RDFDataMgr.read(
-            rdfModel,
-            new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
-            "https://sequeless.dev/ns/ref",
-            Lang.TURTLE);
+                rdfModel,
+                new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
+                "https://sequeless.dev/ns/ref",
+                Lang.TURTLE);
         return OntModelFactory.createModel(
-            rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
+                rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
     }
 
     private static List<OntologyIssue> errors(MappingResult result) {
-        return result.issues().stream().filter(issue -> issue.severity() == Severity.ERROR).toList();
+        return result.issues().stream()
+                .filter(issue -> issue.severity() == Severity.ERROR)
+                .toList();
     }
 
     private static void assertSingleError(MappingResult result, String propertyIri, String messageFragment) {
@@ -644,13 +619,13 @@ class DerivationMappingTest {
 
     private static AttributeDefinition attribute(MappingResult result, String typeIri, String propertyIri) {
         TypeDefinition type = result.types().stream()
-            .filter(t -> t.iri().equals(typeIri))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No type mapped for " + typeIri));
+                .filter(t -> t.iri().equals(typeIri))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No type mapped for " + typeIri));
         PropertyDefinition property = type.properties().stream()
-            .filter(p -> p.iri().equals(propertyIri))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No property " + propertyIri + " on " + typeIri));
+                .filter(p -> p.iri().equals(propertyIri))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No property " + propertyIri + " on " + typeIri));
         return (AttributeDefinition) property;
     }
 }

@@ -62,11 +62,11 @@ public final class StructuralValidator {
      * @throws NullPointerException if any argument is {@code null}
      */
     public static List<Violation> validateForCreate(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        TypeDefinition type,
-        Map<PropertyRef, Value> properties,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            MetaModelSnapshot snapshot,
+            TypeDefinition type,
+            Map<PropertyRef, Value> properties,
+            ObjectStorePort objectStorePort) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         Objects.requireNonNull(type, "type must not be null");
@@ -74,9 +74,7 @@ public final class StructuralValidator {
         Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
 
         if (type.isAbstract()) {
-            return List.of(
-                new Violation(
-                    "", "Type '" + type.iri() + "' is abstract and cannot be instantiated"));
+            return List.of(new Violation("", "Type '" + type.iri() + "' is abstract and cannot be instantiated"));
         }
         return validateCommon(scope, snapshot, type, properties, objectStorePort);
     }
@@ -98,11 +96,11 @@ public final class StructuralValidator {
      * @throws NullPointerException if any argument is {@code null}
      */
     public static List<Violation> validateForUpdate(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        TypeDefinition type,
-        Map<PropertyRef, Value> properties,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            MetaModelSnapshot snapshot,
+            TypeDefinition type,
+            Map<PropertyRef, Value> properties,
+            ObjectStorePort objectStorePort) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         Objects.requireNonNull(type, "type must not be null");
@@ -113,11 +111,11 @@ public final class StructuralValidator {
     }
 
     private static List<Violation> validateCommon(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        TypeDefinition type,
-        Map<PropertyRef, Value> properties,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            MetaModelSnapshot snapshot,
+            TypeDefinition type,
+            Map<PropertyRef, Value> properties,
+            ObjectStorePort objectStorePort) {
         Map<String, PropertyDefinition> byIri = new HashMap<>();
         for (PropertyDefinition property : type.properties()) {
             byIri.put(property.iri(), property);
@@ -147,35 +145,31 @@ public final class StructuralValidator {
      *     it
      */
     private static void assertNoDerivedPropertyPresent(
-        TypeDefinition type, Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
+            TypeDefinition type, Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
         for (PropertyRef ref : properties.keySet()) {
             PropertyDefinition property = byIri.get(ref.iri());
             if (property != null && property.derivation().isPresent()) {
                 throw new IllegalStateException(
-                    "Derived property '" + property.iri() + "' reached StructuralValidator for type '"
-                        + type.iri() + "' — this should be unreachable; ValueCoercer must reject it "
-                        + "before this point");
+                        "Derived property '" + property.iri() + "' reached StructuralValidator for type '"
+                                + type.iri() + "' — this should be unreachable; ValueCoercer must reject it "
+                                + "before this point");
             }
         }
     }
 
-    private static List<Violation> validateRequired(
-        TypeDefinition type, Map<PropertyRef, Value> properties) {
+    private static List<Violation> validateRequired(TypeDefinition type, Map<PropertyRef, Value> properties) {
         List<Violation> violations = new ArrayList<>();
         for (PropertyDefinition property : type.properties()) {
-            if (property.cardinality().min() >= 1
-                && !properties.containsKey(new PropertyRef(property.iri()))) {
+            if (property.cardinality().min() >= 1 && !properties.containsKey(new PropertyRef(property.iri()))) {
                 violations.add(
-                    new Violation(
-                        property.iri(),
-                        "Property '" + shortName(property.iri()) + "' is required"));
+                        new Violation(property.iri(), "Property '" + shortName(property.iri()) + "' is required"));
             }
         }
         return violations;
     }
 
     private static List<Violation> validateMaxCardinality(
-        Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
+            Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
         List<Violation> violations = new ArrayList<>();
         for (Map.Entry<PropertyRef, Value> entry : properties.entrySet()) {
             PropertyDefinition property = byIri.get(entry.getKey().iri());
@@ -186,24 +180,23 @@ public final class StructuralValidator {
             if (max.isEmpty()) {
                 continue;
             }
-            int actualCount =
-                entry.getValue() instanceof ListValue listValue ? listValue.values().size() : 1;
+            int actualCount = entry.getValue() instanceof ListValue listValue
+                    ? listValue.values().size()
+                    : 1;
             if (actualCount > max.getAsInt()) {
-                violations.add(
-                    new Violation(
-                        property.iri(),
-                        "expected at most " + max.getAsInt() + " value(s), got " + actualCount));
+                violations.add(new Violation(
+                        property.iri(), "expected at most " + max.getAsInt() + " value(s), got " + actualCount));
             }
         }
         return violations;
     }
 
     private static List<Violation> validateReferences(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        Map<PropertyRef, Value> properties,
-        Map<String, PropertyDefinition> byIri,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            MetaModelSnapshot snapshot,
+            Map<PropertyRef, Value> properties,
+            Map<String, PropertyDefinition> byIri,
+            ObjectStorePort objectStorePort) {
         Map<RelationshipDefinition, List<ObjectId>> targetsByProperty = new LinkedHashMap<>();
         Set<ObjectId> allTargetIds = new LinkedHashSet<>();
         for (Map.Entry<PropertyRef, Value> entry : properties.entrySet()) {
@@ -227,25 +220,20 @@ public final class StructuralValidator {
         Map<ObjectId, TypeRef> resolvedTypes = objectStorePort.typesOf(scope, allTargetIds);
 
         List<Violation> violations = new ArrayList<>();
-        for (Map.Entry<RelationshipDefinition, List<ObjectId>> entry :
-            targetsByProperty.entrySet()) {
+        for (Map.Entry<RelationshipDefinition, List<ObjectId>> entry : targetsByProperty.entrySet()) {
             RelationshipDefinition relationship = entry.getKey();
             for (ObjectId id : entry.getValue()) {
                 TypeRef resolvedType = resolvedTypes.get(id);
                 if (resolvedType == null) {
                     violations.add(
-                        new Violation(
-                            relationship.iri(),
-                            "Referenced object " + id.value() + " does not exist"));
+                            new Violation(relationship.iri(), "Referenced object " + id.value() + " does not exist"));
                     continue;
                 }
-                if (!TypeHierarchy.isSubtypeOf(
-                    snapshot, resolvedType.iri(), relationship.targetTypeIri())) {
-                    violations.add(
-                        new Violation(
+                if (!TypeHierarchy.isSubtypeOf(snapshot, resolvedType.iri(), relationship.targetTypeIri())) {
+                    violations.add(new Violation(
                             relationship.iri(),
-                            "Referenced object " + id.value() + " has type " + resolvedType.iri()
-                                + ", expected " + relationship.targetTypeIri() + " or a subtype"));
+                            "Referenced object " + id.value() + " has type " + resolvedType.iri() + ", expected "
+                                    + relationship.targetTypeIri() + " or a subtype"));
                 }
             }
         }

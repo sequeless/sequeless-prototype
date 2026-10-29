@@ -47,22 +47,19 @@ class PortBindingStartupFailureTest extends PostgresTestcontainersSupport {
 
     @Test
     void unknownAdapterNameFailsFastNamingThePropertyAndAvailableAdapters() {
-        assertThatThrownBy(
-                () ->
-                    new SpringApplicationBuilder(SequelessApplication.class)
+        assertThatThrownBy(() -> new SpringApplicationBuilder(SequelessApplication.class)
                         .web(WebApplicationType.NONE)
                         .run(
-                            "--sequeless.authz.adapter=missing",
-                            "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                            "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                            "--sequeless.persistence.password=" + POSTGRES.getPassword()))
-            .satisfies(
-                thrown -> {
+                                "--sequeless.authz.adapter=missing",
+                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
+                .satisfies(thrown -> {
                     PortBindingException cause = findCause(thrown, PortBindingException.class);
                     assertThat(cause).isNotNull();
                     assertThat(cause.getMessage())
-                        .contains("sequeless.authz.adapter")
-                        .contains("permit-all");
+                            .contains("sequeless.authz.adapter")
+                            .contains("permit-all");
                 });
     }
 

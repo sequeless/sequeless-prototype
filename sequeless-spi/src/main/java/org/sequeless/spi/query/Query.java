@@ -32,13 +32,13 @@ import org.sequeless.spi.object.Page;
  *     pass {@code false}
  */
 public record Query(
-    Set<String> types,
-    List<Criterion> criteria,
-    Optional<String> text,
-    List<Sort> sorts,
-    Page page,
-    List<String> facetProperties,
-    boolean includeDeleted) {
+        Set<String> types,
+        List<Criterion> criteria,
+        Optional<String> text,
+        List<Sort> sorts,
+        Page page,
+        List<String> facetProperties,
+        boolean includeDeleted) {
 
     public Query {
         Objects.requireNonNull(types, "types must not be null");

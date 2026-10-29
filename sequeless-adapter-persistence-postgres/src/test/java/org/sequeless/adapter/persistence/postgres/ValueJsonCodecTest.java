@@ -24,8 +24,7 @@ class ValueJsonCodecTest {
     @Test
     void roundTripsEveryScalarVariant() {
         ObjectId referenced = ObjectId.random();
-        Map<PropertyRef, Value> properties =
-            Map.of(
+        Map<PropertyRef, Value> properties = Map.of(
                 new PropertyRef(NS + "text"), Value.text("hello"),
                 new PropertyRef(NS + "integer"), Value.integer(42L),
                 new PropertyRef(NS + "decimal"), Value.decimal(new BigDecimal("12.50")),

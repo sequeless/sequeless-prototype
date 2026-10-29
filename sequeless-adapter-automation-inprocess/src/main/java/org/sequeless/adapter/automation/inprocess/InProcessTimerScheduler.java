@@ -42,8 +42,7 @@ final class InProcessTimerScheduler {
      */
     InProcessTimerScheduler(Clock clock, TriggerEvaluator triggerEvaluator) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
-        this.triggerEvaluator =
-            Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
+        this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
     }
 
     /**
@@ -87,16 +86,13 @@ final class InProcessTimerScheduler {
      */
     void sweep() {
         Instant now = clock.instant();
-        pending
-            .entrySet()
-            .removeIf(
-                e -> {
-                    ScheduledTimer timer = e.getValue();
-                    if (!timer.dueAt().isAfter(now)) {
-                        triggerEvaluator.onTimerElapsed(timer.scope(), timer.entry());
-                        return true;
-                    }
-                    return false;
-                });
+        pending.entrySet().removeIf(e -> {
+            ScheduledTimer timer = e.getValue();
+            if (!timer.dueAt().isAfter(now)) {
+                triggerEvaluator.onTimerElapsed(timer.scope(), timer.entry());
+                return true;
+            }
+            return false;
+        });
     }
 }

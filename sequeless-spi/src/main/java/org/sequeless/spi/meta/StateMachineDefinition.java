@@ -28,8 +28,7 @@ import java.util.Objects;
  *     be {@code null}; returned as an unmodifiable copy so callers cannot mutate this definition
  *     after construction
  */
-public record StateMachineDefinition(
-    String iri, List<State> states, State initialState, List<Transition> transitions) {
+public record StateMachineDefinition(String iri, List<State> states, State initialState, List<Transition> transitions) {
 
     public StateMachineDefinition {
         if (iri == null || iri.isBlank()) {

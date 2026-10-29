@@ -41,19 +41,20 @@ class OutboxEntryTest {
     @Test
     void rejectsNullId() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new OutboxEntry(null, OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), NOW));
+                .isThrownBy(
+                        () -> new OutboxEntry(null, OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), NOW));
     }
 
     @Test
     void rejectsBlankKind() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), "  ", payloadWithObjectId("x"), NOW));
+                .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), "  ", payloadWithObjectId("x"), NOW));
     }
 
     @Test
     void rejectsNullPayload() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, null, NOW));
+                .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, null, NOW));
     }
 
     @Test
@@ -62,8 +63,8 @@ class OutboxEntryTest {
         payload.put("type", "Task");
 
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW))
-            .withMessageContaining("objectId");
+                .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW))
+                .withMessageContaining("objectId");
     }
 
     @Test
@@ -72,8 +73,8 @@ class OutboxEntryTest {
         payload.put("objectId", UUID.randomUUID());
 
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW))
-            .withMessageContaining("objectId");
+                .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW))
+                .withMessageContaining("objectId");
     }
 
     @Test
@@ -84,7 +85,7 @@ class OutboxEntryTest {
         payload.put("nested", nested);
 
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW));
+                .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW));
     }
 
     @Test
@@ -96,7 +97,7 @@ class OutboxEntryTest {
         payload.put("list", list);
 
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW));
+                .isThrownBy(() -> new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payload, NOW));
     }
 
     @Test
@@ -112,14 +113,14 @@ class OutboxEntryTest {
     @Test
     void rejectsNullOccurredAt() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), null));
+                .isThrownBy(() -> new OutboxEntry(
+                        UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), null));
     }
 
     @Test
     void payloadIsUnmodifiable() {
-        OutboxEntry entry = new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), NOW);
+        OutboxEntry entry =
+                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), NOW);
 
         assertThatThrownBy(() -> entry.payload().put("k", "v")).isInstanceOf(UnsupportedOperationException.class);
     }

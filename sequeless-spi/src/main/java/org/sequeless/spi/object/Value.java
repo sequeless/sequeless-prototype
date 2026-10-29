@@ -20,8 +20,7 @@ import java.util.List;
  * nested in the sealed type's own file.
  */
 public sealed interface Value
-    permits TextValue, IntegerValue, DecimalValue, BoolValue, DateTimeValue, DateValue,
-        ReferenceValue, ListValue {
+        permits TextValue, IntegerValue, DecimalValue, BoolValue, DateTimeValue, DateValue, ReferenceValue, ListValue {
 
     /**
      * @param value the lexical form to wrap; must not be {@code null}

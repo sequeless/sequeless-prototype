@@ -66,7 +66,8 @@ public class TemporalAutomationAutoConfiguration {
         if (target == null || target.isBlank()) {
             return WorkflowServiceStubs.newLocalServiceStubs();
         }
-        WorkflowServiceStubsOptions options = WorkflowServiceStubsOptions.newBuilder().setTarget(target).build();
+        WorkflowServiceStubsOptions options =
+                WorkflowServiceStubsOptions.newBuilder().setTarget(target).build();
         return WorkflowServiceStubs.newServiceStubs(options);
     }
 
@@ -124,32 +125,32 @@ public class TemporalAutomationAutoConfiguration {
      */
     @Bean
     public WorkerFactory workerFactory(
-        WorkflowClient client,
-        ActionExecutor actionExecutor,
-        TriggerEvaluator triggerEvaluator,
-        DerivationRecomputer derivationRecomputer,
-        TemporalAutomationProperties props) {
+            WorkflowClient client,
+            ActionExecutor actionExecutor,
+            TriggerEvaluator triggerEvaluator,
+            DerivationRecomputer derivationRecomputer,
+            TemporalAutomationProperties props) {
         ActionWorkflowImpl.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
 
         WorkerFactory factory = WorkerFactory.newInstance(client);
         Worker worker = factory.newWorker(props.getTaskQueue());
         worker.registerWorkflowImplementationTypes(
-            ActionWorkflowImpl.class,
-            ChangeEventWorkflowImpl.class,
-            TimerWorkflowImpl.class,
-            SignalEventWorkflowImpl.class);
+                ActionWorkflowImpl.class,
+                ChangeEventWorkflowImpl.class,
+                TimerWorkflowImpl.class,
+                SignalEventWorkflowImpl.class);
         worker.registerActivitiesImplementations(
-            new ActionActivitiesImpl(actionExecutor),
-            new TriggerActivitiesImpl(triggerEvaluator, derivationRecomputer));
+                new ActionActivitiesImpl(actionExecutor),
+                new TriggerActivitiesImpl(triggerEvaluator, derivationRecomputer));
         try {
             factory.start();
         } catch (RuntimeException e) {
             log.warn(
-                "Failed to start Temporal WorkerFactory for task queue '{}'; the application will "
-                    + "continue starting, but no worker will poll this queue until it is restarted "
-                    + "with connectivity to the Temporal server restored",
-                props.getTaskQueue(),
-                e);
+                    "Failed to start Temporal WorkerFactory for task queue '{}'; the application will "
+                            + "continue starting, but no worker will poll this queue until it is restarted "
+                            + "with connectivity to the Temporal server restored",
+                    props.getTaskQueue(),
+                    e);
         }
         return factory;
     }
@@ -165,15 +166,14 @@ public class TemporalAutomationAutoConfiguration {
     private static final Duration ACTIVITY_START_TO_CLOSE_TIMEOUT = Duration.ofSeconds(30);
 
     private static ActivityOptions buildActivityOptions(TemporalAutomationProperties.Retry retry) {
-        RetryOptions retryOptions =
-            RetryOptions.newBuilder()
+        RetryOptions retryOptions = RetryOptions.newBuilder()
                 .setInitialInterval(retry.getInitialInterval())
                 .setBackoffCoefficient(retry.getBackoffCoefficient())
                 .setMaximumAttempts(retry.getMaximumAttempts())
                 .build();
         return ActivityOptions.newBuilder()
-            .setStartToCloseTimeout(ACTIVITY_START_TO_CLOSE_TIMEOUT)
-            .setRetryOptions(retryOptions)
-            .build();
+                .setStartToCloseTimeout(ACTIVITY_START_TO_CLOSE_TIMEOUT)
+                .setRetryOptions(retryOptions)
+                .build();
     }
 }

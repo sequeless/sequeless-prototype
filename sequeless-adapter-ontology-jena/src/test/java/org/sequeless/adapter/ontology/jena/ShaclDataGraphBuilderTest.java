@@ -32,15 +32,14 @@ import org.sequeless.testkit.Fixtures;
  */
 class ShaclDataGraphBuilderTest {
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL)
+    private static final MetaModelSnapshot SNAPSHOT = JenaOntologyPort.fromDocument(
+                    Fixtures.referenceOntology(), ReasonerSetting.OWL)
             .snapshot(Fixtures.defaultScope());
 
     @Test
     void referenceValueProducesResourceObjectNotLiteral() {
         ObjectId personId = ObjectId.random();
-        BusinessObject task =
-            task(Map.of(new PropertyRef(Fixtures.ASSIGNED_TO_IRI), Value.ref(personId)));
+        BusinessObject task = task(Map.of(new PropertyRef(Fixtures.ASSIGNED_TO_IRI), Value.ref(personId)));
 
         Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
 
@@ -48,8 +47,9 @@ class ShaclDataGraphBuilderTest {
         Node predicate = NodeFactory.createURI(Fixtures.ASSIGNED_TO_IRI);
         Node expectedObject = NodeFactory.createURI("urn:uuid:" + personId.value());
 
-        List<Node> objects =
-            graph.find(subject, predicate, Node.ANY).mapWith(triple -> triple.getObject()).toList();
+        List<Node> objects = graph.find(subject, predicate, Node.ANY)
+                .mapWith(triple -> triple.getObject())
+                .toList();
         assertThat(objects).containsExactly(expectedObject);
         assertThat(expectedObject.isURI()).isTrue();
     }
@@ -61,19 +61,19 @@ class ShaclDataGraphBuilderTest {
         Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
 
         Node subject = NodeFactory.createURI("urn:uuid:" + task.id().value());
-        List<Node> types =
-            graph.find(subject, RDF.type.asNode(), Node.ANY).mapWith(triple -> triple.getObject()).toList();
+        List<Node> types = graph.find(subject, RDF.type.asNode(), Node.ANY)
+                .mapWith(triple -> triple.getObject())
+                .toList();
 
         assertThat(types)
-            .extracting(Node::getURI)
-            .containsExactlyInAnyOrder(Fixtures.TASK_IRI, Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI);
+                .extracting(Node::getURI)
+                .containsExactlyInAnyOrder(Fixtures.TASK_IRI, Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI);
     }
 
     @Test
     void estimatedHoursProducesScalePreservingXsdDecimalLiteral() {
         BigDecimal exact = new BigDecimal("40.50");
-        BusinessObject task =
-            task(Map.of(new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(exact)));
+        BusinessObject task = task(Map.of(new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(exact)));
 
         Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
         Model model = ModelFactory.createModelForGraph(graph);
@@ -90,18 +90,16 @@ class ShaclDataGraphBuilderTest {
 
     @Test
     void multiValuedListProducesOneTriplePerElementNotAnRdfCollection() {
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.STATUS_IRI),
-                    Value.list(List.of(Value.text("OPEN"), Value.text("URGENT")))));
+        BusinessObject task = task(Map.of(
+                new PropertyRef(Fixtures.STATUS_IRI), Value.list(List.of(Value.text("OPEN"), Value.text("URGENT")))));
 
         Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
 
         Node subject = NodeFactory.createURI("urn:uuid:" + task.id().value());
         Node predicate = NodeFactory.createURI(Fixtures.STATUS_IRI);
-        List<Node> values =
-            graph.find(subject, predicate, Node.ANY).mapWith(triple -> triple.getObject()).toList();
+        List<Node> values = graph.find(subject, predicate, Node.ANY)
+                .mapWith(triple -> triple.getObject())
+                .toList();
 
         assertThat(values).hasSize(2);
         assertThat(values).extracting(Node::getLiteralLexicalForm).containsExactlyInAnyOrder("OPEN", "URGENT");
@@ -111,7 +109,13 @@ class ShaclDataGraphBuilderTest {
         Instant at = Instant.parse("2026-01-01T00:00:00Z");
         Audit audit = new Audit(at, "tester", at, "tester");
         return new BusinessObject(
-            ObjectId.random(), new TypeRef(Fixtures.TASK_IRI), TenantId.DEFAULT, 1, Optional.empty(),
-            properties, audit, false);
+                ObjectId.random(),
+                new TypeRef(Fixtures.TASK_IRI),
+                TenantId.DEFAULT,
+                1,
+                Optional.empty(),
+                properties,
+                audit,
+                false);
     }
 }

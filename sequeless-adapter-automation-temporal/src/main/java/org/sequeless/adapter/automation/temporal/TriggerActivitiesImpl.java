@@ -29,7 +29,7 @@ public final class TriggerActivitiesImpl implements TriggerActivities {
     public TriggerActivitiesImpl(TriggerEvaluator triggerEvaluator, DerivationRecomputer derivationRecomputer) {
         this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
         this.derivationRecomputer =
-            Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
+                Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
     }
 
     @Override

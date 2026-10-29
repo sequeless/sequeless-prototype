@@ -48,7 +48,7 @@ class OutboxEntryDataConverterRoundTripTest {
         payload.put("body", "templated-body");
 
         OutboxEntry original =
-            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
 
         DataConverter converter = DataConverter.getDefaultInstance();
         Optional<Payload> encoded = converter.toPayload(original);

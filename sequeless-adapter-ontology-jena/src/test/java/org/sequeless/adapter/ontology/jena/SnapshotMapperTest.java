@@ -47,27 +47,29 @@ class SnapshotMapperTest {
 
         // Reasoner-independent: property attribution is computed by SnapshotMapper itself, not
         // delegated to Jena's declaredProperties(), so the set and order are identical.
-        List<String> ownPropertyIris = taskUnderOwl.properties().stream().map(PropertyDefinition::iri).toList();
+        List<String> ownPropertyIris =
+                taskUnderOwl.properties().stream().map(PropertyDefinition::iri).toList();
         assertThat(ownPropertyIris)
-            .containsExactly(
-                Fixtures.TITLE_IRI,
-                Fixtures.STATUS_IRI,
-                Fixtures.PRIORITY_IRI,
-                Fixtures.ASSIGNED_TO_IRI,
-                Fixtures.BELONGS_TO_PROJECT_IRI,
-                Fixtures.CREATED_AT_IRI,
-                Fixtures.ESTIMATED_HOURS_IRI,
-                Fixtures.DUE_DATE_IRI,
-                Fixtures.DESCRIPTION_IRI);
+                .containsExactly(
+                        Fixtures.TITLE_IRI,
+                        Fixtures.STATUS_IRI,
+                        Fixtures.PRIORITY_IRI,
+                        Fixtures.ASSIGNED_TO_IRI,
+                        Fixtures.BELONGS_TO_PROJECT_IRI,
+                        Fixtures.CREATED_AT_IRI,
+                        Fixtures.ESTIMATED_HOURS_IRI,
+                        Fixtures.DUE_DATE_IRI,
+                        Fixtures.DESCRIPTION_IRI);
         assertThat(taskUnderNone.properties().stream().map(PropertyDefinition::iri))
-            .containsExactlyElementsOf(ownPropertyIris);
+                .containsExactlyElementsOf(ownPropertyIris);
 
         // Cardinality from restrictions declared on Task itself, for a property (title) it does not
         // own (Deliverable does) — the case that requires per-type, not per-property, scoping.
         AttributeDefinition title = attribute(taskUnderOwl, Fixtures.TITLE_IRI);
         assertThat(title.cardinality().min()).isEqualTo(1);
         assertThat(title.cardinality().max()).isEmpty();
-        assertThat(attribute(taskUnderNone, Fixtures.TITLE_IRI).cardinality().min()).isEqualTo(1);
+        assertThat(attribute(taskUnderNone, Fixtures.TITLE_IRI).cardinality().min())
+                .isEqualTo(1);
 
         RelationshipDefinition assignedTo = relationship(taskUnderOwl, Fixtures.ASSIGNED_TO_IRI);
         assertThat(assignedTo.cardinality().min()).isZero();
@@ -76,7 +78,10 @@ class SnapshotMapperTest {
 
         // Title, viewed from its actual owner Deliverable, carries no restriction of its own.
         TypeDefinition deliverableUnderOwl = typeNamed(owl, Fixtures.DELIVERABLE_IRI);
-        assertThat(attribute(deliverableUnderOwl, Fixtures.TITLE_IRI).cardinality().min()).isZero();
+        assertThat(attribute(deliverableUnderOwl, Fixtures.TITLE_IRI)
+                        .cardinality()
+                        .min())
+                .isZero();
 
         // owl:FunctionalProperty alone (no explicit restriction) yields max 1, min untouched.
         RelationshipDefinition belongsToProject = relationship(taskUnderOwl, Fixtures.BELONGS_TO_PROJECT_IRI);
@@ -96,8 +101,7 @@ class SnapshotMapperTest {
 
     @Test
     void reservedTermIsRejectedWithTheDocumentedMessage() {
-        String turtle =
-            """
+        String turtle = """
             @prefix sq:   <https://sequeless.dev/ns/meta#> .
             @prefix owl:  <http://www.w3.org/2002/07/owl#> .
             @prefix ex:   <https://sequeless.dev/ns/ref#> .
@@ -110,8 +114,7 @@ class SnapshotMapperTest {
 
         Optional<String> message = SqVocabulary.rejectionMessageIfReserved(model);
 
-        assertThat(message)
-            .contains("sq:permission is reserved for Phase 8 (authorisation) and is not supported yet.");
+        assertThat(message).contains("sq:permission is reserved for Phase 8 (authorisation) and is not supported yet.");
     }
 
     @Test
@@ -119,8 +122,9 @@ class SnapshotMapperTest {
         MappingResult owl = mapReferenceOntology(ReasonerSetting.OWL);
 
         assertThat(owl.types().stream().map(TypeDefinition::iri))
-            .doesNotContain(
-                Fixtures.REFERENCE_ONTOLOGY_IRI + "#TaskShape", Fixtures.REFERENCE_ONTOLOGY_IRI + "#PersonShape");
+                .doesNotContain(
+                        Fixtures.REFERENCE_ONTOLOGY_IRI + "#TaskShape",
+                        Fixtures.REFERENCE_ONTOLOGY_IRI + "#PersonShape");
         assertThat(owl.issues()).isEmpty();
     }
 
@@ -132,19 +136,19 @@ class SnapshotMapperTest {
     private static OntModel buildModel(String turtle, ReasonerSetting reasoner) {
         Model rdfModel = ModelFactory.createDefaultModel();
         RDFDataMgr.read(
-            rdfModel,
-            new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
-            Fixtures.REFERENCE_ONTOLOGY_IRI,
-            Lang.TURTLE);
+                rdfModel,
+                new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
+                Fixtures.REFERENCE_ONTOLOGY_IRI,
+                Lang.TURTLE);
         return OntModelFactory.createModel(
-            rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
+                rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
     }
 
     private static TypeDefinition typeNamed(MappingResult result, String iri) {
         return result.types().stream()
-            .filter(type -> type.iri().equals(iri))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No type mapped for " + iri));
+                .filter(type -> type.iri().equals(iri))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No type mapped for " + iri));
     }
 
     private static AttributeDefinition attribute(TypeDefinition type, String propertyIri) {
@@ -157,8 +161,8 @@ class SnapshotMapperTest {
 
     private static PropertyDefinition propertyNamed(TypeDefinition type, String propertyIri) {
         return type.properties().stream()
-            .filter(property -> property.iri().equals(propertyIri))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No property " + propertyIri + " on " + type.iri()));
+                .filter(property -> property.iri().equals(propertyIri))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No property " + propertyIri + " on " + type.iri()));
     }
 }

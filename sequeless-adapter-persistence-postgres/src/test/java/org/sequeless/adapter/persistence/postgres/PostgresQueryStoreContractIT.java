@@ -3,13 +3,13 @@ package org.sequeless.adapter.persistence.postgres;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.sequeless.testkit.Fixtures;
+import org.sequeless.testkit.query.QueryContract;
+import org.sequeless.testkit.query.QueryFixtures;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.sequeless.testkit.Fixtures;
-import org.sequeless.testkit.query.QueryContract;
-import org.sequeless.testkit.query.QueryFixtures;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -56,8 +56,7 @@ class PostgresQueryStoreContractIT extends QueryContract {
 
     @BeforeAll
     static void migrate() {
-        dataSource =
-            new SimpleDriverDataSource(
+        dataSource = new SimpleDriverDataSource(
                 new org.postgresql.Driver(), POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         PostgresMigrations.migrate(dataSource);
     }
@@ -65,8 +64,8 @@ class PostgresQueryStoreContractIT extends QueryContract {
     @AfterEach
     void truncateTables() {
         JdbcClient.create(dataSource)
-            .sql("TRUNCATE TABLE sq_object, sq_ontology_document, sq_outbox")
-            .update();
+                .sql("TRUNCATE TABLE sq_object, sq_ontology_document, sq_outbox")
+                .update();
     }
 
     @Override

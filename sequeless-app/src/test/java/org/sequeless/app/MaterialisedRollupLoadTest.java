@@ -63,9 +63,11 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
     private static final String OPEN_TASK_COUNT_IRI = "https://sequeless.dev/ns/ref#openTaskCount";
     private static final int TASK_COUNT = 200;
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
-    @Autowired private DataSource sequelessPersistenceDataSource;
+    @Autowired
+    private DataSource sequelessPersistenceDataSource;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -167,16 +169,15 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
         client.put()
                 .uri("/api/objects/Task/" + task.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "version",
+                        task.version(),
+                        "properties",
                         Map.of(
-                                "version",
-                                task.version(),
-                                "properties",
-                                Map.of(
-                                        "title", task.properties().get("title"),
-                                        "belongsToProject", task.properties().get("belongsToProject"),
-                                        "status", "done",
-                                        "estimatedHours", task.properties().get("estimatedHours"))))
+                                "title", task.properties().get("title"),
+                                "belongsToProject", task.properties().get("belongsToProject"),
+                                "status", "done",
+                                "estimatedHours", task.properties().get("estimatedHours"))))
                 .exchange()
                 .expectStatus()
                 .is2xxSuccessful();
@@ -192,14 +193,14 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
                 .single();
     }
 
-    private void awaitOpenTaskCount(
-            RestTestClient client, UUID projectId, int expected, Duration timeout) {
+    private void awaitOpenTaskCount(RestTestClient client, UUID projectId, int expected, Duration timeout) {
         Instant deadline = Instant.now().plus(timeout);
         Object lastSeen = null;
         while (Instant.now().isBefore(deadline)) {
             BusinessObjectResponse project = fetchProject(client, projectId);
             lastSeen = project.properties().get("openTaskCount");
-            if (Long.valueOf(expected).equals(lastSeen) || Integer.valueOf(expected).equals(lastSeen)) {
+            if (Long.valueOf(expected).equals(lastSeen)
+                    || Integer.valueOf(expected).equals(lastSeen)) {
                 return;
             }
             sleep(Duration.ofMillis(200));
@@ -210,35 +211,30 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
     }
 
     private BusinessObjectResponse fetchProject(RestTestClient client, UUID projectId) {
-        BusinessObjectResponse response =
-                client.get()
-                        .uri("/api/objects/Project/" + projectId)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse response = client.get()
+                .uri("/api/objects/Project/" + projectId)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(response).isNotNull();
         return response;
     }
 
     private BusinessObjectResponse setOwnerAndActivate(
-            RestTestClient client,
-            BusinessObjectResponse project,
-            String title,
-            BusinessObjectResponse owner) {
+            RestTestClient client, BusinessObjectResponse project, String title, BusinessObjectResponse owner) {
         client.put()
                 .uri("/api/objects/Project/" + project.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
                         Map.of(
-                                "version",
-                                1,
-                                "properties",
-                                Map.of(
-                                        "title", List.of(title),
-                                        "owner", owner.id().toString())))
+                                "title", List.of(title),
+                                "owner", owner.id().toString())))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -286,18 +282,21 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
         return client.post()
                 .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "properties",
                         Map.of(
-                                "properties",
-                                Map.of(
-                                        "title", List.of(title),
-                                        "belongsToProject", belongsToProjectId,
-                                        "status", status,
-                                        // See this class's javadoc (F69): every Task must set
-                                        // estimatedHours or GET /api/objects/Project/{id} crashes with
-                                        // an NPE computing the (unrelated) totalEstimatedHours
-                                        // rollup over an all-NULL group.
-                                        "estimatedHours", 1)))
+                                "title",
+                                List.of(title),
+                                "belongsToProject",
+                                belongsToProjectId,
+                                "status",
+                                status,
+                                // See this class's javadoc (F69): every Task must set
+                                // estimatedHours or GET /api/objects/Project/{id} crashes with
+                                // an NPE computing the (unrelated) totalEstimatedHours
+                                // rollup over an all-NULL group.
+                                "estimatedHours",
+                                1)))
                 .exchange()
                 .expectStatus()
                 .isCreated()
@@ -307,15 +306,14 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
     }
 
     private JsonNode fetchAsJson(RestTestClient client, String uri) {
-        byte[] responseBody =
-                client.get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = client.get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {

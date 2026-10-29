@@ -112,12 +112,9 @@ public class ObjectsController {
             ExpressionPort expressionPort) {
         this.businessObjectService =
                 Objects.requireNonNull(businessObjectService, "businessObjectService must not be null");
-        this.metaModelService =
-                Objects.requireNonNull(metaModelService, "metaModelService must not be null");
-        this.transitionService =
-                Objects.requireNonNull(transitionService, "transitionService must not be null");
-        this.expressionPort =
-                Objects.requireNonNull(expressionPort, "expressionPort must not be null");
+        this.metaModelService = Objects.requireNonNull(metaModelService, "metaModelService must not be null");
+        this.transitionService = Objects.requireNonNull(transitionService, "transitionService must not be null");
+        this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
     }
 
     /**
@@ -153,22 +150,20 @@ public class ObjectsController {
                     @RequestParam(name = "q", required = false)
                     String q,
             @Parameter(
-                            description =
-                                    "Comma-separated sort keys; a leading '-' means descending, e.g."
-                                            + " sort=-priority,dueDate")
+                            description = "Comma-separated sort keys; a leading '-' means descending, e.g."
+                                    + " sort=-priority,dueDate")
                     @RequestParam(name = "sort", required = false)
                     String sort,
             @Parameter(description = "Comma-separated property short names to compute facet counts for")
                     @RequestParam(name = "facets", required = false)
                     String facets,
             @Parameter(
-                            description =
-                                    "Filter clauses as filter[<property>][<op>]=<value>, repeatable; <op> is"
-                                        + " one of eq, ne, in, lt, lte, gt, gte, contains, startswith, isnull,"
-                                        + " notnull (case-insensitive); multiple filters AND together, including"
-                                        + " multiple filters on the same property (e.g."
-                                        + " dueDate[gte]=...&dueDate[lte]=... for a range); 'in' takes a"
-                                        + " comma-separated value; 'isnull'/'notnull' ignore any value")
+                            description = "Filter clauses as filter[<property>][<op>]=<value>, repeatable; <op> is"
+                                    + " one of eq, ne, in, lt, lte, gt, gte, contains, startswith, isnull,"
+                                    + " notnull (case-insensitive); multiple filters AND together, including"
+                                    + " multiple filters on the same property (e.g."
+                                    + " dueDate[gte]=...&dueDate[lte]=... for a range); 'in' takes a"
+                                    + " comma-separated value; 'isnull'/'notnull' ignore any value")
                     @RequestParam
                     MultiValueMap<String, String> allParams) {
         Scope scope = currentScope();
@@ -176,13 +171,12 @@ public class ObjectsController {
         List<BrowseQuery.Filter> filters = parseFilters(allParams);
         List<BrowseQuery.SortKey> sortKeys = parseSort(sort);
         List<String> facetNames = parseCommaList(facets);
-        BrowseQuery browseQuery =
-                new BrowseQuery(
-                        filters,
-                        Optional.ofNullable(q).filter(s -> !s.isBlank()),
-                        sortKeys,
-                        new Page(page, effectiveSize),
-                        facetNames);
+        BrowseQuery browseQuery = new BrowseQuery(
+                filters,
+                Optional.ofNullable(q).filter(s -> !s.isBlank()),
+                sortKeys,
+                new Page(page, effectiveSize),
+                facetNames);
         QueryResult result = businessObjectService.browse(scope, type, browseQuery);
         TypeDefinition requestType = metaModelService.describeType(scope, type);
         return QueryResultResponse.from(result, requestType, page, effectiveSize);
@@ -250,7 +244,10 @@ public class ObjectsController {
         if (value == null || value.isBlank()) {
             return List.of();
         }
-        return Arrays.stream(value.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     /**
@@ -265,8 +262,7 @@ public class ObjectsController {
             description = "No such type, or no such object",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping("/objects/{type}/{id}")
-    public ResponseEntity<BusinessObjectResponse> read(
-            @PathVariable("type") String type, @PathVariable("id") UUID id) {
+    public ResponseEntity<BusinessObjectResponse> read(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
         BusinessObject found = businessObjectService.read(scope, type, new ObjectId(id));
         TypeDefinition requestType = metaModelService.describeType(scope, type);
@@ -297,13 +293,11 @@ public class ObjectsController {
         Scope scope = currentScope();
         BusinessObject created = businessObjectService.add(scope, type, request.properties());
         TypeDefinition requestType = metaModelService.describeType(scope, type);
-        URI location =
-                URI.create(
-                        ServletUriComponentsBuilder.fromCurrentRequestUri()
-                                .path("/" + created.id().value())
-                                .build()
-                                .toUri()
-                                .getPath());
+        URI location = URI.create(ServletUriComponentsBuilder.fromCurrentRequestUri()
+                .path("/" + created.id().value())
+                .build()
+                .toUri()
+                .getPath());
         return ResponseEntity.created(location)
                 .eTag(Long.toString(created.version()))
                 .body(ObjectPropertyMapper.toResponse(created, requestType));
@@ -346,8 +340,7 @@ public class ObjectsController {
         Scope scope = currentScope();
         long expectedVersion = resolveExpectedVersion(request.version(), ifMatch);
         BusinessObject updated =
-                businessObjectService.edit(
-                        scope, type, new ObjectId(id), expectedVersion, request.properties());
+                businessObjectService.edit(scope, type, new ObjectId(id), expectedVersion, request.properties());
         TypeDefinition requestType = metaModelService.describeType(scope, type);
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
@@ -378,8 +371,7 @@ public class ObjectsController {
             @Parameter(description = "The version the caller expects the object to currently be at")
                     @RequestHeader(value = "If-Match", required = false)
                     String ifMatch) {
-        OptionalLong expectedVersion =
-                ifMatch == null ? OptionalLong.empty() : OptionalLong.of(parseVersion(ifMatch));
+        OptionalLong expectedVersion = ifMatch == null ? OptionalLong.empty() : OptionalLong.of(parseVersion(ifMatch));
         businessObjectService.delete(currentScope(), type, new ObjectId(id), expectedVersion);
         return ResponseEntity.noContent().build();
     }
@@ -404,8 +396,7 @@ public class ObjectsController {
             description = "No such type, or no such object",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping("/objects/{type}/{id}/transitions")
-    public List<TransitionResponse> transitions(
-            @PathVariable("type") String type, @PathVariable("id") UUID id) {
+    public List<TransitionResponse> transitions(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
         BusinessObject object = businessObjectService.read(scope, type, new ObjectId(id));
         MetaModelSnapshot snapshot = metaModelService.snapshot(scope);
@@ -456,10 +447,9 @@ public class ObjectsController {
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "409",
-            description =
-                    "The stored object is not at the expected version, or the named transition is"
-                            + " not available (no such transition, wrong current state, or its guard"
-                            + " failed)",
+            description = "The stored object is not at the expected version, or the named transition is"
+                    + " not available (no such transition, wrong current state, or its guard"
+                    + " failed)",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "428",
@@ -477,8 +467,7 @@ public class ObjectsController {
         Scope scope = currentScope();
         Long bodyVersion = request == null ? null : request.expectedVersion();
         long expectedVersion = resolveExpectedVersion(bodyVersion, ifMatch);
-        BusinessObject updated =
-                transitionService.fire(scope, type, new ObjectId(id), name, expectedVersion);
+        BusinessObject updated = transitionService.fire(scope, type, new ObjectId(id), name, expectedVersion);
         TypeDefinition requestType = metaModelService.describeType(scope, type);
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
@@ -497,9 +486,7 @@ public class ObjectsController {
      *     actually fires — see {@link TransitionService#signal}'s javadoc for why firing is the
      *     automation adapter's job, not this endpoint's
      */
-    @Operation(
-            summary =
-                    "Record an external signal for an object; does not itself fire any transition")
+    @Operation(summary = "Record an external signal for an object; does not itself fire any transition")
     @ApiResponse(
             responseCode = "202",
             description = "The signal was durably recorded; any resulting transition fires asynchronously")
@@ -518,8 +505,7 @@ public class ObjectsController {
             @PathVariable("name") String name,
             @RequestBody(required = false) Map<String, Object> body) {
         Scope scope = currentScope();
-        transitionService.signal(
-                scope, type, new ObjectId(id), name, body == null ? Map.of() : body);
+        transitionService.signal(scope, type, new ObjectId(id), name, body == null ? Map.of() : body);
         return ResponseEntity.accepted().build();
     }
 

@@ -53,22 +53,19 @@ class InconsistentOntologyStartupTest extends PostgresTestcontainersSupport {
 
     @Test
     void inconsistentOntologySourceFailsStartupNamingTheCulprit() {
-        assertThatThrownBy(
-                        () ->
-                                new SpringApplicationBuilder(SequelessApplication.class)
-                                        .web(WebApplicationType.NONE)
-                                        .run(
-                                                "--sequeless.ontology.source=classpath:ontology/inconsistent.ttl",
-                                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
-                .satisfies(
-                        thrown -> {
-                            OntologyException cause = findCause(thrown, OntologyException.class);
-                            assertThat(cause).isNotNull();
-                            assertThat(cause.getMessage()).contains("Cyborg");
-                            assertThat(cause.report().consistent()).isFalse();
-                        });
+        assertThatThrownBy(() -> new SpringApplicationBuilder(SequelessApplication.class)
+                        .web(WebApplicationType.NONE)
+                        .run(
+                                "--sequeless.ontology.source=classpath:ontology/inconsistent.ttl",
+                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
+                .satisfies(thrown -> {
+                    OntologyException cause = findCause(thrown, OntologyException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage()).contains("Cyborg");
+                    assertThat(cause.report().consistent()).isFalse();
+                });
     }
 
     private static <T extends Throwable> T findCause(Throwable root, Class<T> type) {

@@ -72,11 +72,10 @@ public final class ActionActivitiesImpl implements ActionActivities {
      *     non-2xx status
      */
     private void deliver(ResolvedWebhookRequest resolved) {
-        HttpRequest request =
-            HttpRequest.newBuilder(URI.create(resolved.url()))
+        HttpRequest request = HttpRequest.newBuilder(URI.create(resolved.url()))
                 .method(
-                    resolved.method(),
-                    resolved.body().map(BodyPublishers::ofString).orElseGet(BodyPublishers::noBody))
+                        resolved.method(),
+                        resolved.body().map(BodyPublishers::ofString).orElseGet(BodyPublishers::noBody))
                 .build();
 
         HttpResponse<Void> response;
@@ -86,17 +85,13 @@ public final class ActionActivitiesImpl implements ActionActivities {
             throw new WebhookActivityException("Webhook delivery to " + resolved.url() + " failed", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new WebhookActivityException(
-                "Webhook delivery to " + resolved.url() + " was interrupted", e);
+            throw new WebhookActivityException("Webhook delivery to " + resolved.url() + " was interrupted", e);
         }
 
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new WebhookActivityException(
-                "Webhook delivery to "
-                    + resolved.url()
-                    + " received non-2xx status "
-                    + response.statusCode(),
-                null);
+                    "Webhook delivery to " + resolved.url() + " received non-2xx status " + response.statusCode(),
+                    null);
         }
     }
 }

@@ -22,10 +22,10 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
 class OntologyPortTest {
 
     private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
-        "https://example.org/ns", Optional.empty(), Map.of(), List.of(), new OntologyReport(true, List.of()));
+            "https://example.org/ns", Optional.empty(), Map.of(), List.of(), new OntologyReport(true, List.of()));
 
     private static final OntologyDocument DOCUMENT =
-        new OntologyDocument("@prefix ex: <https://example.org/> .", OntologyFormat.TURTLE);
+            new OntologyDocument("@prefix ex: <https://example.org/> .", OntologyFormat.TURTLE);
 
     @Test
     void isUsableAsAFourMethodImplementation() {
@@ -63,7 +63,8 @@ class OntologyPortTest {
         assertThat(port.snapshot(scope)).isEqualTo(SNAPSHOT);
         assertThat(port.reload(scope)).isEqualTo(SNAPSHOT);
         assertThat(port.export(scope, OntologyFormat.TURTLE)).isEqualTo(DOCUMENT);
-        assertThat(port.importDocument(scope, DOCUMENT, ImportMode.REPLACE).accepted()).isTrue();
+        assertThat(port.importDocument(scope, DOCUMENT, ImportMode.REPLACE).accepted())
+                .isTrue();
     }
 
     @Test
@@ -102,10 +103,8 @@ class OntologyPortTest {
         assertThatNullPointerException().isThrownBy(() -> port.reload(null));
         assertThatNullPointerException().isThrownBy(() -> port.export(null, OntologyFormat.TURTLE));
         assertThatNullPointerException().isThrownBy(() -> port.export(scope, null));
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.importDocument(null, DOCUMENT, ImportMode.REPLACE));
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.importDocument(scope, null, ImportMode.REPLACE));
+        assertThatNullPointerException().isThrownBy(() -> port.importDocument(null, DOCUMENT, ImportMode.REPLACE));
+        assertThatNullPointerException().isThrownBy(() -> port.importDocument(scope, null, ImportMode.REPLACE));
         assertThatNullPointerException().isThrownBy(() -> port.importDocument(scope, DOCUMENT, null));
     }
 }
