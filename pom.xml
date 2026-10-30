@@ -40,7 +40,6 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <sonar.projectKey>sequeless_sequeless-prototype</sonar.projectKey>
 
-
     <spring-boot.version>4.1.1</spring-boot.version>
     <japicmp.version>0.26.2</japicmp.version>
     <jena.version>6.1.0</jena.version>
