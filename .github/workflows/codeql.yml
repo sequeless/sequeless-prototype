@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   codeql:
-    uses: sequeless/sequeless-build/.github/workflows/maven-codeql.yml@workflows-v0.1.0
+    uses: sequeless/sequeless-build/.github/workflows/maven-codeql.yml@workflows-v0.1.1
     with:
       languages: '["actions","java-kotlin","javascript-typescript"]'
     secrets: inherit
