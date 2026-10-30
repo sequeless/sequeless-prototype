@@ -51,7 +51,3 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.PACKAGES_READ_TOKEN || secrets.GITHUB_TOKEN }}
-
-  sonar:
-    uses: sequeless/sequeless-build/.github/workflows/maven-sonar.yml@workflows-v0.1.0
-    secrets: inherit
