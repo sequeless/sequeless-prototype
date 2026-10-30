@@ -27,20 +27,20 @@ import java.util.Optional;
  * @param transitive whether this relationship is declared {@code owl:TransitiveProperty}
  */
 public record RelationshipDefinition(
-    String iri,
-    String label,
-    Cardinality cardinality,
-    boolean facet,
-    boolean indexed,
-    boolean searchable,
-    boolean readOnly,
-    boolean displayLabel,
-    DisplayHints displayHints,
-    Optional<DerivationRule> derivation,
-    String targetTypeIri,
-    Optional<String> inverseIri,
-    boolean transitive)
-    implements PropertyDefinition {
+        String iri,
+        String label,
+        Cardinality cardinality,
+        boolean facet,
+        boolean indexed,
+        boolean searchable,
+        boolean readOnly,
+        boolean displayLabel,
+        DisplayHints displayHints,
+        Optional<DerivationRule> derivation,
+        String targetTypeIri,
+        Optional<String> inverseIri,
+        boolean transitive)
+        implements PropertyDefinition {
 
     public RelationshipDefinition {
         if (iri == null || iri.isBlank()) {

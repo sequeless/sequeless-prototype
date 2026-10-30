@@ -37,8 +37,7 @@ class UnknownPluginActivationTest {
     private static final String WORKLOAD_IRI = REF_NS + "workload";
     private static final String UNREGISTERED_PLUGIN_NAME = "totally-unregistered-plugin";
 
-    private static final String UNKNOWN_PLUGIN_TURTLE =
-        """
+    private static final String UNKNOWN_PLUGIN_TURTLE = """
         @prefix sq:   <https://sequeless.dev/ns/meta#> .
         @prefix owl:  <http://www.w3.org/2002/07/owl#> .
         @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -59,19 +58,19 @@ class UnknownPluginActivationTest {
     @Test
     void fromDocumentThenSnapshotThrowsForAnUnknownPluginName() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
-            new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ReasonerSetting.NONE);
+                new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ReasonerSetting.NONE);
 
         // fromDocument itself never throws, even for a bad document (F20) -- the failure surfaces
         // only once something asks this port to actually serve what it built, exactly like the
         // existing reserved-term and inconsistent-ontology activation tests.
         assertThatThrownBy(() -> port.snapshot(SCOPE))
-            .isInstanceOf(OntologyException.class)
-            .satisfies(thrown -> {
-                OntologyException exception = (OntologyException) thrown;
-                assertThat(exception.report().consistent()).isFalse();
-                assertThat(exception.report().issues())
-                    .anyMatch(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI));
-            });
+                .isInstanceOf(OntologyException.class)
+                .satisfies(thrown -> {
+                    OntologyException exception = (OntologyException) thrown;
+                    assertThat(exception.report().consistent()).isFalse();
+                    assertThat(exception.report().issues())
+                            .anyMatch(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI));
+                });
     }
 
     @Test
@@ -80,14 +79,14 @@ class UnknownPluginActivationTest {
         MetaModelSnapshot before = port.snapshot(SCOPE);
 
         assertThatThrownBy(() -> port.importDocument(
-                SCOPE, new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ImportMode.REPLACE))
-            .isInstanceOf(OntologyException.class)
-            .satisfies(thrown -> {
-                OntologyException exception = (OntologyException) thrown;
-                assertThat(exception.report().consistent()).isFalse();
-                assertThat(exception.report().issues())
-                    .anyMatch(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI));
-            });
+                        SCOPE, new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ImportMode.REPLACE))
+                .isInstanceOf(OntologyException.class)
+                .satisfies(thrown -> {
+                    OntologyException exception = (OntologyException) thrown;
+                    assertThat(exception.report().consistent()).isFalse();
+                    assertThat(exception.report().issues())
+                            .anyMatch(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI));
+                });
 
         // The rejected import must never have replaced this port's active state.
         MetaModelSnapshot after = port.snapshot(SCOPE);
@@ -97,8 +96,7 @@ class UnknownPluginActivationTest {
 
     @Test
     void propertyInheritedByMultipleSubtypesProducesExactlyOneIssue() {
-        String turtle =
-            """
+        String turtle = """
             @prefix sq:   <https://sequeless.dev/ns/meta#> .
             @prefix owl:  <http://www.w3.org/2002/07/owl#> .
             @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -117,28 +115,28 @@ class UnknownPluginActivationTest {
                 rdfs:range xsd:decimal ;
                 sq:derivedBy [ a sq:Plugin ; sq:pluginName "totally-unregistered-plugin" ] .
             """;
-        JenaOntologyPort port =
-            JenaOntologyPort.fromDocument(new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.NONE);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.NONE);
 
         assertThatThrownBy(() -> port.snapshot(SCOPE))
-            .isInstanceOf(OntologyException.class)
-            .satisfies(thrown -> {
-                OntologyException exception = (OntologyException) thrown;
-                // ex:workload is attributed to Person, Employee AND Contractor (inheritance), but
-                // the unknown-plugin check must be deduplicated by property IRI: exactly one issue,
-                // not three.
-                long matches = exception.report().issues().stream()
-                    .filter(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI))
-                    .count();
-                assertThat(matches).isEqualTo(1);
-            });
+                .isInstanceOf(OntologyException.class)
+                .satisfies(thrown -> {
+                    OntologyException exception = (OntologyException) thrown;
+                    // ex:workload is attributed to Person, Employee AND Contractor (inheritance), but
+                    // the unknown-plugin check must be deduplicated by property IRI: exactly one issue,
+                    // not three.
+                    long matches = exception.report().issues().stream()
+                            .filter(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI))
+                            .count();
+                    assertThat(matches).isEqualTo(1);
+                });
     }
 
     private static boolean isUnknownWorkloadPluginIssue(OntologyIssue issue, String propertyIri) {
         return issue.severity() == Severity.ERROR
-            && issue.subjectIri().equals(Optional.of(propertyIri))
-            && issue.message()
-                .equals("sq:pluginName '" + UNREGISTERED_PLUGIN_NAME
-                    + "' has no registered DerivationPlugin on the classpath.");
+                && issue.subjectIri().equals(Optional.of(propertyIri))
+                && issue.message()
+                        .equals("sq:pluginName '" + UNREGISTERED_PLUGIN_NAME
+                                + "' has no registered DerivationPlugin on the classpath.");
     }
 }

@@ -26,12 +26,12 @@ import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.meta.Action;
 import org.sequeless.spi.meta.CreateObjectAction;
+import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.LogAction;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.PropertyAssignment;
 import org.sequeless.spi.meta.SetPropertyAction;
 import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TriggerKind;
@@ -88,24 +88,20 @@ public final class DefaultTransitionService implements TransitionService {
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultTransitionService(
-        OntologyPort ontologyPort,
-        ObjectStorePort objectStorePort,
-        AuthorizationPort authorizationPort,
-        ExpressionPort expressionPort,
-        Clock clock) {
+            OntologyPort ontologyPort,
+            ObjectStorePort objectStorePort,
+            AuthorizationPort authorizationPort,
+            ExpressionPort expressionPort,
+            Clock clock) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
-        this.authorizationPort =
-            Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
-        this.expressionPort =
-            Objects.requireNonNull(expressionPort, "expressionPort must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
-    public BusinessObject fire(
-        Scope scope, String type, ObjectId id, String transitionName, long expectedVersion) {
+    public BusinessObject fire(Scope scope, String type, ObjectId id, String transitionName, long expectedVersion) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
@@ -115,50 +111,38 @@ public final class DefaultTransitionService implements TransitionService {
         TypeDefinition resolved = resolveType(snapshot, type);
         authorize(scope, Operation.TRANSITION, resolved.iri());
 
-        BusinessObject existing =
-            objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(snapshot, existing, resolved, id);
 
-        StateMachineDefinition machine =
-            resolved
-                .stateMachine()
-                .orElseThrow(
-                    () ->
-                        new TransitionNotAvailableException(
-                            transitionName,
-                            "Type '" + resolved.iri() + "' has no state machine"));
+        StateMachineDefinition machine = resolved.stateMachine()
+                .orElseThrow(() -> new TransitionNotAvailableException(
+                        transitionName, "Type '" + resolved.iri() + "' has no state machine"));
 
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
-        List<TransitionAvailability> available =
-            interpreter.availableTransitions(scope, snapshot, existing);
+        List<TransitionAvailability> available = interpreter.availableTransitions(scope, snapshot, existing);
         Optional<TransitionAvailability> match =
-            available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
+                available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
         if (match.isEmpty()) {
             throw new TransitionNotAvailableException(transitionName, notAvailableMessage(transitionName));
         }
         if (!match.get().available()) {
             throw new TransitionNotAvailableException(
-                transitionName, match.get().reason().orElseThrow());
+                    transitionName, match.get().reason().orElseThrow());
         }
 
-        Transition transition =
-            machine.transitions().stream()
-                .filter(
-                    t ->
-                        t.name().equals(transitionName)
-                            && existing.state().isPresent()
-                            && Objects.equals(t.fromStateIri(), existing.state().get()))
+        Transition transition = machine.transitions().stream()
+                .filter(t -> t.name().equals(transitionName)
+                        && existing.state().isPresent()
+                        && Objects.equals(t.fromStateIri(), existing.state().get()))
                 .findFirst()
                 .orElseThrow(
-                    () ->
-                        new TransitionNotAvailableException(
-                            transitionName, notAvailableMessage(transitionName)));
+                        () -> new TransitionNotAvailableException(transitionName, notAvailableMessage(transitionName)));
 
         if (transition.trigger().kind() != TriggerKind.USER_ACTION) {
             throw new TransitionNotAvailableException(
-                transitionName,
-                "Transition '" + transitionName
-                    + "' is not user-triggerable; its trigger is " + transition.trigger().kind());
+                    transitionName,
+                    "Transition '" + transitionName + "' is not user-triggerable; its trigger is "
+                            + transition.trigger().kind());
         }
 
         return commitTransition(scope, resolved, existing, transition, expectedVersion, now());
@@ -198,7 +182,7 @@ public final class DefaultTransitionService implements TransitionService {
      */
     @Override
     public Optional<BusinessObject> fireAutomated(
-        Scope scope, ObjectId id, String transitionName, TriggerKind expected) {
+            Scope scope, ObjectId id, String transitionName, TriggerKind expected) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(transitionName, "transitionName must not be null");
@@ -222,21 +206,17 @@ public final class DefaultTransitionService implements TransitionService {
         StateMachineDefinition machine = resolved.stateMachine().get();
 
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
-        List<TransitionAvailability> available =
-            interpreter.availableTransitions(scope, snapshot, existing);
+        List<TransitionAvailability> available = interpreter.availableTransitions(scope, snapshot, existing);
         Optional<TransitionAvailability> match =
-            available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
+                available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
         if (match.isEmpty() || !match.get().available()) {
             return Optional.empty();
         }
 
-        Optional<Transition> maybeTransition =
-            machine.transitions().stream()
-                .filter(
-                    t ->
-                        t.name().equals(transitionName)
-                            && existing.state().isPresent()
-                            && Objects.equals(t.fromStateIri(), existing.state().get()))
+        Optional<Transition> maybeTransition = machine.transitions().stream()
+                .filter(t -> t.name().equals(transitionName)
+                        && existing.state().isPresent()
+                        && Objects.equals(t.fromStateIri(), existing.state().get()))
                 .findFirst();
         if (maybeTransition.isEmpty()) {
             return Optional.empty();
@@ -246,8 +226,7 @@ public final class DefaultTransitionService implements TransitionService {
             return Optional.empty();
         }
 
-        return Optional.of(
-            commitTransition(scope, resolved, existing, transition, existing.version(), now()));
+        return Optional.of(commitTransition(scope, resolved, existing, transition, existing.version(), now()));
     }
 
     /**
@@ -259,8 +238,7 @@ public final class DefaultTransitionService implements TransitionService {
      * outbox are both empty.
      */
     @Override
-    public void signal(
-        Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
+    public void signal(Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
@@ -271,20 +249,14 @@ public final class DefaultTransitionService implements TransitionService {
         TypeDefinition resolved = resolveType(snapshot, type);
         authorize(scope, Operation.TRANSITION, resolved.iri());
 
-        BusinessObject existing =
-            objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(snapshot, existing, resolved, id);
 
         StateMachineDefinition machine =
-            resolved
-                .stateMachine()
-                .orElseThrow(() -> new UnknownSignalException(resolved.iri(), signalName));
-        boolean declared =
-            machine.transitions().stream()
-                .anyMatch(
-                    t ->
-                        t.trigger() instanceof ExternalSignalTrigger signal
-                            && signal.signalName().equals(signalName));
+                resolved.stateMachine().orElseThrow(() -> new UnknownSignalException(resolved.iri(), signalName));
+        boolean declared = machine.transitions().stream()
+                .anyMatch(t -> t.trigger() instanceof ExternalSignalTrigger signal
+                        && signal.signalName().equals(signalName));
         if (!declared) {
             throw new UnknownSignalException(resolved.iri(), signalName);
         }
@@ -295,8 +267,7 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("principalId", scope.principal().id());
         payload.put("signalName", signalName);
         payload.put("body", body);
-        OutboxEntry signalEntry =
-            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, payload, now());
+        OutboxEntry signalEntry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, payload, now());
 
         objectStorePort.commit(scope, new ChangeSet(List.of(), List.of(signalEntry)));
     }
@@ -310,17 +281,15 @@ public final class DefaultTransitionService implements TransitionService {
      * a successful transition commits.
      */
     private BusinessObject commitTransition(
-        Scope scope,
-        TypeDefinition resolved,
-        BusinessObject existing,
-        Transition transition,
-        long expectedVersion,
-        Instant now) {
+            Scope scope,
+            TypeDefinition resolved,
+            BusinessObject existing,
+            Transition transition,
+            long expectedVersion,
+            Instant now) {
         String by = scope.principal().id();
-        Audit audit =
-            new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
-        BusinessObject candidate =
-            new BusinessObject(
+        Audit audit = new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
+        BusinessObject candidate = new BusinessObject(
                 existing.id(),
                 existing.type(),
                 existing.tenant(),
@@ -334,13 +303,11 @@ public final class DefaultTransitionService implements TransitionService {
         outbox.add(transitionFiredEntry(scope, existing, transition, now));
         List<Action> actions = transition.actions();
         for (int i = 0; i < actions.size(); i++) {
-            outbox.add(
-                actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), now));
+            outbox.add(actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), now));
         }
         addTimerOutboxEntries(scope, resolved, existing, transition, now, outbox);
 
-        ChangeSet changeSet =
-            new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
+        ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
         CommitResult result = objectStorePort.commit(scope, changeSet);
         return result.objects().get(0);
     }
@@ -355,12 +322,12 @@ public final class DefaultTransitionService implements TransitionService {
      * own representation untouched.
      */
     private void addTimerOutboxEntries(
-        Scope scope,
-        TypeDefinition resolved,
-        BusinessObject existing,
-        Transition transition,
-        Instant now,
-        List<OutboxEntry> outbox) {
+            Scope scope,
+            TypeDefinition resolved,
+            BusinessObject existing,
+            Transition transition,
+            Instant now,
+            List<OutboxEntry> outbox) {
         StateMachineDefinition machine = resolved.stateMachine().orElseThrow();
         for (Transition candidate : machine.transitions()) {
             if (!(candidate.trigger() instanceof TimerTrigger timer)) {
@@ -384,12 +351,12 @@ public final class DefaultTransitionService implements TransitionService {
      * at every call site.
      */
     private OutboxEntry timerScheduledEntry(
-        Scope scope,
-        TypeDefinition resolved,
-        BusinessObject existing,
-        Transition timerTransition,
-        TimerTrigger timer,
-        Instant now) {
+            Scope scope,
+            TypeDefinition resolved,
+            BusinessObject existing,
+            Transition timerTransition,
+            TimerTrigger timer,
+            Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
@@ -398,9 +365,7 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("state", timerTransition.fromStateIri());
         payload.put("transitionName", timerTransition.name());
         payload.put("after", timer.after().toString());
-        payload.put(
-            "timerKey",
-            timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        payload.put("timerKey", timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED, payload, now);
     }
 
@@ -412,13 +377,11 @@ public final class DefaultTransitionService implements TransitionService {
      * matching schedule entry carried — the two can never drift apart.
      */
     private OutboxEntry timerCancelledEntry(
-        Scope scope, BusinessObject existing, Transition timerTransition, Instant now) {
+            Scope scope, BusinessObject existing, Transition timerTransition, Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
-        payload.put(
-            "timerKey",
-            timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        payload.put("timerKey", timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_CANCELLED, payload, now);
     }
 
@@ -433,12 +396,10 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     private static String notAvailableMessage(String transitionName) {
-        return "No transition named '" + transitionName
-            + "' is available from the object's current state";
+        return "No transition named '" + transitionName + "' is available from the object's current state";
     }
 
-    private OutboxEntry transitionFiredEntry(
-        Scope scope, BusinessObject existing, Transition transition, Instant now) {
+    private OutboxEntry transitionFiredEntry(Scope scope, BusinessObject existing, Transition transition, Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
@@ -450,15 +411,14 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     private OutboxEntry actionRequestEntry(
-        Scope scope,
-        TypeDefinition resolved,
-        BusinessObject existing,
-        Transition transition,
-        int actionIndex,
-        Action action,
-        Instant now) {
-        Map<String, Object> payload =
-            actionRequestPayload(scope, resolved, existing, transition, actionIndex, action);
+            Scope scope,
+            TypeDefinition resolved,
+            BusinessObject existing,
+            Transition transition,
+            int actionIndex,
+            Action action,
+            Instant now) {
+        Map<String, Object> payload = actionRequestPayload(scope, resolved, existing, transition, actionIndex, action);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, now);
     }
 
@@ -472,12 +432,12 @@ public final class DefaultTransitionService implements TransitionService {
      * so "one of two mutually exclusive keys" is expressed by omission, never a null placeholder.
      */
     private Map<String, Object> actionRequestPayload(
-        Scope scope,
-        TypeDefinition resolved,
-        BusinessObject existing,
-        Transition transition,
-        int actionIndex,
-        Action action) {
+            Scope scope,
+            TypeDefinition resolved,
+            BusinessObject existing,
+            Transition transition,
+            int actionIndex,
+            Action action) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
@@ -534,14 +494,13 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     private TypeDefinition resolveType(MetaModelSnapshot snapshot, String nameOrIri) {
-        return snapshot
-            .typeByName(nameOrIri)
-            .or(() -> snapshot.type(nameOrIri))
-            .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
+        return snapshot.typeByName(nameOrIri)
+                .or(() -> snapshot.type(nameOrIri))
+                .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
     }
 
     private void requireMatchingType(
-        MetaModelSnapshot snapshot, BusinessObject object, TypeDefinition resolved, ObjectId id) {
+            MetaModelSnapshot snapshot, BusinessObject object, TypeDefinition resolved, ObjectId id) {
         if (!TypeHierarchy.isSubtypeOf(snapshot, object.type().iri(), resolved.iri())) {
             throw new ObjectNotFoundException(id);
         }

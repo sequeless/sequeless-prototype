@@ -54,14 +54,10 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultTriggerEvaluator(
-        OntologyPort ontologyPort,
-        ObjectStorePort objectStorePort,
-        TransitionService transitionService) {
+            OntologyPort ontologyPort, ObjectStorePort objectStorePort, TransitionService transitionService) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
-        this.transitionService =
-            Objects.requireNonNull(transitionService, "transitionService must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+        this.transitionService = Objects.requireNonNull(transitionService, "transitionService must not be null");
     }
 
     @Override
@@ -171,10 +167,9 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
 
         for (Transition transition : machine.transitions()) {
             if (transition.fromStateIri().equals(currentState)
-                && transition.trigger() instanceof ExternalSignalTrigger signalTrigger
-                && signalTrigger.signalName().equals(signalName)) {
-                transitionService.fireAutomated(
-                    scope, objectId, transition.name(), TriggerKind.EXTERNAL_SIGNAL);
+                    && transition.trigger() instanceof ExternalSignalTrigger signalTrigger
+                    && signalTrigger.signalName().equals(signalName)) {
+                transitionService.fireAutomated(scope, objectId, transition.name(), TriggerKind.EXTERNAL_SIGNAL);
                 return;
             }
         }
@@ -189,8 +184,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
      * transition departing its current state is a silent no-op — exactly as stale a hint as any
      * other this class reacts to.
      */
-    private void fireFirstAvailableOnChange(
-        Scope scope, MetaModelSnapshot snapshot, ObjectId candidateId) {
+    private void fireFirstAvailableOnChange(Scope scope, MetaModelSnapshot snapshot, ObjectId candidateId) {
         Optional<BusinessObject> found = objectStorePort.find(scope, candidateId);
         if (found.isEmpty() || found.get().state().isEmpty()) {
             return;
@@ -211,8 +205,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
                 continue;
             }
             Optional<BusinessObject> result =
-                transitionService.fireAutomated(
-                    scope, candidateId, transition.name(), TriggerKind.ON_CHANGE);
+                    transitionService.fireAutomated(scope, candidateId, transition.name(), TriggerKind.ON_CHANGE);
             if (result.isPresent()) {
                 return;
             }
@@ -256,8 +249,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
     private static Map<PropertyRef, Value> decodePropertiesSnapshot(Map<String, Object> payload) {
         Map<String, Object> raw = (Map<String, Object>) payload.get("properties");
         Map<PropertyRef, Value> result = new HashMap<>();
-        raw.forEach(
-            (iri, tagged) -> result.put(new PropertyRef(iri), PayloadValueCodec.fromPayload(tagged)));
+        raw.forEach((iri, tagged) -> result.put(new PropertyRef(iri), PayloadValueCodec.fromPayload(tagged)));
         return result;
     }
 }

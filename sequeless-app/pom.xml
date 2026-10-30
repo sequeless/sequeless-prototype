@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,12 +12,20 @@
   <artifactId>sequeless-app</artifactId>
 
   <name>sequeless-app</name>
-  <description>
-    Spring Boot application: REST inbound adapter, wiring, Actuator, OpenAPI, ArchUnit tests,
+  <description>Spring Boot application: REST inbound adapter, wiring, Actuator, OpenAPI, ArchUnit tests,
     end-to-end tests with Testcontainers. Depends on every other module so its ArchUnit suite
     (added in T10) sees every adapter as a reactor jar. No spring-boot-maven-plugin binding yet:
-    no main class exists until T8 and binding repackage now would break verify.
-  </description>
+    no main class exists until T8 and binding repackage now would break verify.</description>
+
+  <properties>
+    <!--
+      The host depends on its adapters only so their auto-configuration runs. No app code names
+      them, so bytecode analysis cannot see the use, and declaring the transitive Spring, Tomcat
+      and Jackson artifacts would only defeat that. Boundaries stay guarded by ArchitectureTest
+      (spec 3 section 3.2a, rule 6).
+    -->
+    <sequeless.dependency-analyze.skip>true</sequeless.dependency-analyze.skip>
+  </properties>
 
   <dependencies>
     <dependency>
@@ -140,11 +146,6 @@
       <scope>test</scope>
     </dependency>
 
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <optional>true</optional>
-    </dependency>
   </dependencies>
 
   <build>
@@ -155,7 +156,9 @@
         <version>${spring-boot.version}</version>
         <executions>
           <execution>
-            <goals><goal>repackage</goal></goals>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
             <configuration>
               <!--
                 Without a classifier, repackage replaces this module's main artifact (the plain

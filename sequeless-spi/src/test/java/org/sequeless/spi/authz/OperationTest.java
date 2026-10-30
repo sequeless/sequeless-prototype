@@ -9,14 +9,14 @@ class OperationTest {
     @Test
     void valuesAreExactlyTheSevenOperationsInDeclaredOrder() {
         assertThat(Operation.values())
-            .as("declaration order guards ordinal stability for anything that ends up comparing ordinals")
-            .containsExactly(
-                Operation.BROWSE,
-                Operation.READ,
-                Operation.EDIT,
-                Operation.ADD,
-                Operation.DELETE,
-                Operation.TRANSITION,
-                Operation.ADMIN);
+                .as("declaration order guards ordinal stability for anything that ends up comparing ordinals")
+                .containsExactly(
+                        Operation.BROWSE,
+                        Operation.READ,
+                        Operation.EDIT,
+                        Operation.ADD,
+                        Operation.DELETE,
+                        Operation.TRANSITION,
+                        Operation.ADMIN);
     }
 }

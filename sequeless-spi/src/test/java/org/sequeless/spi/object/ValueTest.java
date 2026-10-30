@@ -63,8 +63,8 @@ class ValueTest {
     @Test
     void listValueRejectsNestedList() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> Value.list(List.of(Value.list(List.of()))))
-            .withMessageContaining("nested");
+                .isThrownBy(() -> Value.list(List.of(Value.list(List.of()))))
+                .withMessageContaining("nested");
     }
 
     @Test
@@ -76,10 +76,8 @@ class ValueTest {
 
     @Test
     void decimalValueEqualityIsScaleSensitive() {
-        assertThat(new DecimalValue(new BigDecimal("12.50")))
-            .isNotEqualTo(new DecimalValue(new BigDecimal("12.5")));
-        assertThat(new DecimalValue(new BigDecimal("12.50")))
-            .isNotEqualTo(new DecimalValue(BigDecimal.valueOf(12.5)));
+        assertThat(new DecimalValue(new BigDecimal("12.50"))).isNotEqualTo(new DecimalValue(new BigDecimal("12.5")));
+        assertThat(new DecimalValue(new BigDecimal("12.50"))).isNotEqualTo(new DecimalValue(BigDecimal.valueOf(12.5)));
     }
 
     @Test

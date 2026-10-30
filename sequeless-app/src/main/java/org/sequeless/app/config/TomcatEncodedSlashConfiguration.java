@@ -38,9 +38,7 @@ public class TomcatEncodedSlashConfiguration {
      */
     @Bean
     public WebServerFactoryCustomizer<TomcatServletWebServerFactory> encodedSlashCustomizer() {
-        return factory ->
-                factory.addConnectorCustomizers(
-                        connector ->
-                                connector.setEncodedSolidusHandling(EncodedSolidusHandling.DECODE.getValue()));
+        return factory -> factory.addConnectorCustomizers(
+                connector -> connector.setEncodedSolidusHandling(EncodedSolidusHandling.DECODE.getValue()));
     }
 }

@@ -11,6 +11,15 @@ target/
 *.log
 .DS_Store
 
+# Node and Angular build/tool outputs, including the Angular production bundle emitted into the Spring Boot app's static resources directory
+node_modules/
+/sequeless-ui/dist/
+/sequeless-ui/.angular/
+/sequeless-ui/coverage/
+/sequeless-ui/.api-types/
+/sequeless-ui/test-results/
+/sequeless-ui/playwright-report/
+/sequeless-app/src/main/resources/static/
 .copilot-logs/
 .claude
 skills-lock.json

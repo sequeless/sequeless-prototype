@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,11 +12,9 @@
   <artifactId>sequeless-adapter-authz-permitall</artifactId>
 
   <name>sequeless-adapter-authz-permitall</name>
-  <description>
-    Default AuthorizationPort adapter that allows everything (DR-11). Registers an
+  <description>Default AuthorizationPort adapter that allows everything (DR-11). Registers an
     AdapterDescriptorProvider and a Spring Boot auto-configuration discovered via
-    sequeless.authz.adapter=permit-all.
-  </description>
+    sequeless.authz.adapter=permit-all.</description>
 
   <dependencies>
     <dependency>
@@ -37,6 +33,23 @@
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi-testkit</artifactId>
       <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

@@ -23,23 +23,21 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
  */
 class PostgresPersistenceAutoConfigurationTest {
 
-    private final ApplicationContextRunner runner =
-        new ApplicationContextRunner()
+    private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(PostgresPersistenceAutoConfiguration.class));
 
     @Test
     void wiresObjectStorePortAndDataSourceWhenAdapterPropertySet() {
-        runner
-            .withPropertyValues(
-                "sequeless.persistence.adapter=postgres",
-                "sequeless.persistence.url=jdbc:postgresql://localhost:5432/test",
-                "sequeless.persistence.username=test",
-                "sequeless.persistence.password=test")
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ObjectStorePort.class);
-                assertThat(context).hasSingleBean(DataSource.class);
-            });
+        runner.withPropertyValues(
+                        "sequeless.persistence.adapter=postgres",
+                        "sequeless.persistence.url=jdbc:postgresql://localhost:5432/test",
+                        "sequeless.persistence.username=test",
+                        "sequeless.persistence.password=test")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ObjectStorePort.class);
+                    assertThat(context).hasSingleBean(DataSource.class);
+                });
     }
 
     @Test
@@ -52,11 +50,9 @@ class PostgresPersistenceAutoConfigurationTest {
 
     @Test
     void doesNotWireWhenAdapterPropertyIsSomethingElse() {
-        runner
-            .withPropertyValues("sequeless.persistence.adapter=in-memory")
-            .run(context -> {
-                assertThat(context).doesNotHaveBean(ObjectStorePort.class);
-                assertThat(context).doesNotHaveBean(DataSource.class);
-            });
+        runner.withPropertyValues("sequeless.persistence.adapter=in-memory").run(context -> {
+            assertThat(context).doesNotHaveBean(ObjectStorePort.class);
+            assertThat(context).doesNotHaveBean(DataSource.class);
+        });
     }
 }

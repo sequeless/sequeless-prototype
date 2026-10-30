@@ -23,7 +23,7 @@ public record OntologyReport(boolean consistent, List<OntologyIssue> issues) {
         issues = List.copyOf(issues);
         if (!consistent && issues.stream().noneMatch(issue -> issue.severity() == Severity.ERROR)) {
             throw new IllegalArgumentException(
-                "An inconsistent OntologyReport must contain at least one ERROR issue explaining why");
+                    "An inconsistent OntologyReport must contain at least one ERROR issue explaining why");
         }
     }
 
@@ -41,12 +41,12 @@ public record OntologyReport(boolean consistent, List<OntologyIssue> issues) {
         if (issues.isEmpty()) {
             return consistent ? "Ontology is consistent." : "Ontology is inconsistent.";
         }
-        String header = "Ontology is " + (consistent ? "consistent" : "inconsistent") + " (" + issues.size()
-            + " issue(s)):";
+        String header =
+                "Ontology is " + (consistent ? "consistent" : "inconsistent") + " (" + issues.size() + " issue(s)):";
         String lines = issues.stream()
-            .map(issue -> "  [" + issue.severity() + "] " + issue.subjectIri().map(iri -> iri + ": ").orElse("")
-                + issue.message())
-            .collect(Collectors.joining("\n"));
+                .map(issue -> "  [" + issue.severity() + "] "
+                        + issue.subjectIri().map(iri -> iri + ": ").orElse("") + issue.message())
+                .collect(Collectors.joining("\n"));
         return header + "\n" + lines;
     }
 }

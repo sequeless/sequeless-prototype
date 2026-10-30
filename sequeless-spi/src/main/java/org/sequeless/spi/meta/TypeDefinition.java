@@ -25,13 +25,13 @@ import java.util.Optional;
  *     {@link Optional} wrapper itself, not just its contents)
  */
 public record TypeDefinition(
-    String iri,
-    String label,
-    List<String> superTypes,
-    List<PropertyDefinition> properties,
-    DisplayHints displayHints,
-    boolean isAbstract,
-    Optional<StateMachineDefinition> stateMachine) {
+        String iri,
+        String label,
+        List<String> superTypes,
+        List<PropertyDefinition> properties,
+        DisplayHints displayHints,
+        boolean isAbstract,
+        Optional<StateMachineDefinition> stateMachine) {
 
     public TypeDefinition {
         if (iri == null || iri.isBlank()) {

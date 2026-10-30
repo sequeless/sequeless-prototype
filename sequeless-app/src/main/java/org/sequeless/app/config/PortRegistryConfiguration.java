@@ -32,10 +32,10 @@ public class PortRegistryConfiguration {
     @Bean
     public List<PortDefinition> portDefinitions() {
         return List.of(
-            new PortDefinition("sequeless.authz.adapter", AuthorizationPort.class),
-            new PortDefinition("sequeless.ontology.adapter", OntologyPort.class),
-            new PortDefinition("sequeless.persistence.adapter", ObjectStorePort.class),
-            new PortDefinition("sequeless.validation.adapter", ValidationPort.class));
+                new PortDefinition("sequeless.authz.adapter", AuthorizationPort.class),
+                new PortDefinition("sequeless.ontology.adapter", OntologyPort.class),
+                new PortDefinition("sequeless.persistence.adapter", ObjectStorePort.class),
+                new PortDefinition("sequeless.validation.adapter", ValidationPort.class));
     }
 
     /**

@@ -1,6 +1,5 @@
 package org.sequeless.adapter.persistence.postgres;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -51,8 +50,9 @@ final class ValueJsonCodec {
     // 12.50 is parsed into a DoubleNode and JsonNode#decimalValue() derives a BigDecimal from the
     // double, which silently drops scale (12.50 -> 12.5). With this enabled, decimal(s) parse
     // directly from their JSON literal into a scale-preserving BigDecimalNode.
-    private static final JsonMapper MAPPER =
-        JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
+    private static final JsonMapper MAPPER = JsonMapper.builder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
 
     private ValueJsonCodec() {}
 
@@ -76,8 +76,7 @@ final class ValueJsonCodec {
         Objects.requireNonNull(json, "json must not be null");
         JsonNode root = MAPPER.readTree(json);
         Map<PropertyRef, Value> result = new LinkedHashMap<>();
-        root.properties()
-            .forEach(entry -> result.put(new PropertyRef(entry.getKey()), decode(entry.getValue())));
+        root.properties().forEach(entry -> result.put(new PropertyRef(entry.getKey()), decode(entry.getValue())));
         return result;
     }
 
@@ -88,7 +87,8 @@ final class ValueJsonCodec {
             case IntegerValue integer -> node.put(TAG_INTEGER, integer.value());
             case DecimalValue decimal -> node.put(TAG_DECIMAL, decimal.value());
             case BoolValue bool -> node.put(TAG_BOOL, bool.value());
-            case DateTimeValue dateTime -> node.put(TAG_DATE_TIME, dateTime.value().toString());
+            case DateTimeValue dateTime ->
+                node.put(TAG_DATE_TIME, dateTime.value().toString());
             case DateValue date -> node.put(TAG_DATE, date.value().toString());
             case ReferenceValue ref -> node.put(TAG_REF, ref.target().value().toString());
             case ListValue list -> {

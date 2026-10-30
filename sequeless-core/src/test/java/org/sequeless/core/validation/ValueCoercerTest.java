@@ -19,8 +19,6 @@ import org.sequeless.spi.meta.DisplayHints;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.DateTimeValue;
 import org.sequeless.spi.object.DateValue;
@@ -31,6 +29,8 @@ import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.TextValue;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.validation.Violation;
 
 /**
@@ -55,17 +55,16 @@ class ValueCoercerTest {
     private static final String BELONGS_TO_PROJECT_IRI = NS + "belongsToProject";
 
     private static final AttributeDefinition TITLE =
-        attribute(TITLE_IRI, Cardinality.range(1, 1), Datatype.STRING, false);
+            attribute(TITLE_IRI, Cardinality.range(1, 1), Datatype.STRING, false);
     private static final AttributeDefinition PRIORITY =
-        attribute(PRIORITY_IRI, Cardinality.atMost(1), Datatype.INTEGER, false);
+            attribute(PRIORITY_IRI, Cardinality.atMost(1), Datatype.INTEGER, false);
     private static final AttributeDefinition ESTIMATED_HOURS =
-        attribute(ESTIMATED_HOURS_IRI, Cardinality.atMost(1), Datatype.DECIMAL, false);
+            attribute(ESTIMATED_HOURS_IRI, Cardinality.atMost(1), Datatype.DECIMAL, false);
     private static final AttributeDefinition DUE_DATE =
-        attribute(DUE_DATE_IRI, Cardinality.atMost(1), Datatype.DATE, false);
+            attribute(DUE_DATE_IRI, Cardinality.atMost(1), Datatype.DATE, false);
     private static final AttributeDefinition TAGS =
-        attribute(TAGS_IRI, Cardinality.atMost(Integer.MAX_VALUE), Datatype.STRING, false);
-    private static final RelationshipDefinition ASSIGNED_TO =
-        new RelationshipDefinition(
+            attribute(TAGS_IRI, Cardinality.atMost(Integer.MAX_VALUE), Datatype.STRING, false);
+    private static final RelationshipDefinition ASSIGNED_TO = new RelationshipDefinition(
             ASSIGNED_TO_IRI,
             "Assigned To",
             Cardinality.atMost(1),
@@ -80,14 +79,13 @@ class ValueCoercerTest {
             Optional.empty(),
             false);
     private static final AttributeDefinition CREATED_AT =
-        attribute(CREATED_AT_IRI, Cardinality.atMost(1), Datatype.DATE_TIME, true);
+            attribute(CREATED_AT_IRI, Cardinality.atMost(1), Datatype.DATE_TIME, true);
     /**
      * {@code sq:Rollup}-derived: {@code count} of {@code Task} via {@code belongsToProject},
      * filtered to {@code status != "done"} — mirrors {@code QueryFixtures.openTaskCount()}'s exact
      * {@link RollupRule} shape, per T9's findings.
      */
-    private static final AttributeDefinition OPEN_TASK_COUNT =
-        new AttributeDefinition(
+    private static final AttributeDefinition OPEN_TASK_COUNT = new AttributeDefinition(
             OPEN_TASK_COUNT_IRI,
             "Open Tasks",
             Cardinality.atMost(1),
@@ -97,20 +95,16 @@ class ValueCoercerTest {
             true,
             false,
             DisplayHints.none(),
-            Optional.of(
-                new RollupRule(
+            Optional.of(new RollupRule(
                     NS + "Task",
                     BELONGS_TO_PROJECT_IRI,
                     AggregateFunction.COUNT,
                     Optional.empty(),
-                    List.of(
-                        new Criterion(
-                            STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+                    List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
                     false)),
             Datatype.INTEGER);
 
-    private static final TypeDefinition TASK =
-        new TypeDefinition(
+    private static final TypeDefinition TASK = new TypeDefinition(
             NS + "Task",
             "Task",
             List.of(),
@@ -119,30 +113,23 @@ class ValueCoercerTest {
             false,
             Optional.empty());
 
-    private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI,
-            "Project",
-            List.of(),
-            List.of(OPEN_TASK_COUNT),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+    private static final TypeDefinition PROJECT = new TypeDefinition(
+            PROJECT_IRI, "Project", List.of(), List.of(OPEN_TASK_COUNT), DisplayHints.none(), false, Optional.empty());
 
     private static AttributeDefinition attribute(
-        String iri, Cardinality cardinality, Datatype datatype, boolean readOnly) {
+            String iri, Cardinality cardinality, Datatype datatype, boolean readOnly) {
         return new AttributeDefinition(
-            iri,
-            iri,
-            cardinality,
-            false,
-            false,
-            false,
-            readOnly,
-            false,
-            DisplayHints.none(),
-            Optional.empty(),
-            datatype);
+                iri,
+                iri,
+                cardinality,
+                false,
+                false,
+                false,
+                readOnly,
+                false,
+                DisplayHints.none(),
+                Optional.empty(),
+                datatype);
     }
 
     // --- scalar datatypes ---
@@ -152,8 +139,7 @@ class ValueCoercerTest {
         CoercionResult result = ValueCoercer.coerce(TASK, Map.of("title", "Write plan"));
 
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.properties())
-            .containsEntry(new PropertyRef(TITLE_IRI), new TextValue("Write plan"));
+        assertThat(result.properties()).containsEntry(new PropertyRef(TITLE_IRI), new TextValue("Write plan"));
     }
 
     @Test
@@ -161,19 +147,16 @@ class ValueCoercerTest {
         CoercionResult result = ValueCoercer.coerce(TASK, Map.of("priority", 2));
 
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.properties())
-            .containsEntry(new PropertyRef(PRIORITY_IRI), new IntegerValue(2));
+        assertThat(result.properties()).containsEntry(new PropertyRef(PRIORITY_IRI), new IntegerValue(2));
     }
 
     @Test
     void coercesDecimalPropertyFromBigDecimalKeepingScale() {
-        CoercionResult result =
-            ValueCoercer.coerce(TASK, Map.of("estimatedHours", new BigDecimal("12.50")));
+        CoercionResult result = ValueCoercer.coerce(TASK, Map.of("estimatedHours", new BigDecimal("12.50")));
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.properties())
-            .containsEntry(
-                new PropertyRef(ESTIMATED_HOURS_IRI), new DecimalValue(new BigDecimal("12.50")));
+                .containsEntry(new PropertyRef(ESTIMATED_HOURS_IRI), new DecimalValue(new BigDecimal("12.50")));
     }
 
     @Test
@@ -182,22 +165,19 @@ class ValueCoercerTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.properties())
-            .containsEntry(
-                new PropertyRef(ESTIMATED_HOURS_IRI), new DecimalValue(new BigDecimal("12.50")));
+                .containsEntry(new PropertyRef(ESTIMATED_HOURS_IRI), new DecimalValue(new BigDecimal("12.50")));
     }
 
     @Test
     void coercesBooleanProperty() {
         AttributeDefinition flag = attribute(NS + "flag", Cardinality.atMost(1), Datatype.BOOLEAN, false);
-        TypeDefinition type =
-            new TypeDefinition(
+        TypeDefinition type = new TypeDefinition(
                 NS + "T", "T", List.of(), List.of(flag), DisplayHints.none(), false, Optional.empty());
 
         CoercionResult result = ValueCoercer.coerce(type, Map.of("flag", true));
 
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.properties())
-            .containsEntry(new PropertyRef(NS + "flag"), new BoolValue(true));
+        assertThat(result.properties()).containsEntry(new PropertyRef(NS + "flag"), new BoolValue(true));
     }
 
     @Test
@@ -206,31 +186,21 @@ class ValueCoercerTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.properties())
-            .containsEntry(new PropertyRef(DUE_DATE_IRI), new DateValue(LocalDate.parse("2026-10-01")));
+                .containsEntry(new PropertyRef(DUE_DATE_IRI), new DateValue(LocalDate.parse("2026-10-01")));
     }
 
     @Test
     void coercesDateTimeProperty() {
-        AttributeDefinition writable =
-            attribute(NS + "occurredAt", Cardinality.atMost(1), Datatype.DATE_TIME, false);
-        TypeDefinition type =
-            new TypeDefinition(
-                NS + "T",
-                "T",
-                List.of(),
-                List.of(writable),
-                DisplayHints.none(),
-                false,
-                Optional.empty());
+        AttributeDefinition writable = attribute(NS + "occurredAt", Cardinality.atMost(1), Datatype.DATE_TIME, false);
+        TypeDefinition type = new TypeDefinition(
+                NS + "T", "T", List.of(), List.of(writable), DisplayHints.none(), false, Optional.empty());
 
-        CoercionResult result =
-            ValueCoercer.coerce(type, Map.of("occurredAt", "2026-09-16T10:00:00Z"));
+        CoercionResult result = ValueCoercer.coerce(type, Map.of("occurredAt", "2026-09-16T10:00:00Z"));
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.properties())
-            .containsEntry(
-                new PropertyRef(NS + "occurredAt"),
-                new DateTimeValue(Instant.parse("2026-09-16T10:00:00Z")));
+                .containsEntry(
+                        new PropertyRef(NS + "occurredAt"), new DateTimeValue(Instant.parse("2026-09-16T10:00:00Z")));
     }
 
     @Test
@@ -239,9 +209,8 @@ class ValueCoercerTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.properties())
-            .containsEntry(
-                new PropertyRef(TAGS_IRI),
-                new ListValue(List.of(new TextValue("a"), new TextValue("b"))));
+                .containsEntry(
+                        new PropertyRef(TAGS_IRI), new ListValue(List.of(new TextValue("a"), new TextValue("b"))));
     }
 
     @Test
@@ -249,11 +218,10 @@ class ValueCoercerTest {
         ObjectId personId = ObjectId.random();
 
         CoercionResult result =
-            ValueCoercer.coerce(TASK, Map.of("assignedTo", personId.value().toString()));
+                ValueCoercer.coerce(TASK, Map.of("assignedTo", personId.value().toString()));
 
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.properties())
-            .containsEntry(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(personId));
+        assertThat(result.properties()).containsEntry(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(personId));
     }
 
     // --- unknown / read-only ---
@@ -269,8 +237,7 @@ class ValueCoercerTest {
 
     @Test
     void readOnlyPropertySuppliedByCallerProducesViolation() {
-        CoercionResult result =
-            ValueCoercer.coerce(TASK, Map.of("createdAt", "2026-09-16T10:00:00Z"));
+        CoercionResult result = ValueCoercer.coerce(TASK, Map.of("createdAt", "2026-09-16T10:00:00Z"));
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.violations()).hasSize(1);
@@ -288,8 +255,7 @@ class ValueCoercerTest {
 
     @Test
     void derivedPropertySuppliedByCallerProducesViolationNamingItAsDerived() {
-        CoercionResult plainReadOnly =
-            ValueCoercer.coerce(TASK, Map.of("createdAt", "2026-09-16T10:00:00Z"));
+        CoercionResult plainReadOnly = ValueCoercer.coerce(TASK, Map.of("createdAt", "2026-09-16T10:00:00Z"));
         CoercionResult derived = ValueCoercer.coerce(PROJECT, Map.of("openTaskCount", 3));
 
         assertThat(plainReadOnly.isSuccess()).isFalse();
@@ -297,10 +263,9 @@ class ValueCoercerTest {
         assertThat(derived.violations()).hasSize(1);
         Violation violation = derived.violations().get(0);
         assertThat(violation.path()).isEqualTo(OPEN_TASK_COUNT_IRI);
+        assertThat(violation.message()).contains("is a derived property and cannot be set directly");
         assertThat(violation.message())
-            .contains("is a derived property and cannot be set directly");
-        assertThat(violation.message())
-            .isNotEqualTo(plainReadOnly.violations().get(0).message());
+                .isNotEqualTo(plainReadOnly.violations().get(0).message());
     }
 
     // --- datatype mismatches ---
@@ -331,20 +296,11 @@ class ValueCoercerTest {
 
     @Test
     void datatypeMismatchForDateTimeWithoutOffset() {
-        AttributeDefinition writable =
-            attribute(NS + "occurredAt", Cardinality.atMost(1), Datatype.DATE_TIME, false);
-        TypeDefinition type =
-            new TypeDefinition(
-                NS + "T",
-                "T",
-                List.of(),
-                List.of(writable),
-                DisplayHints.none(),
-                false,
-                Optional.empty());
+        AttributeDefinition writable = attribute(NS + "occurredAt", Cardinality.atMost(1), Datatype.DATE_TIME, false);
+        TypeDefinition type = new TypeDefinition(
+                NS + "T", "T", List.of(), List.of(writable), DisplayHints.none(), false, Optional.empty());
 
-        CoercionResult result =
-            ValueCoercer.coerce(type, Map.of("occurredAt", "2026-09-16T10:00:00"));
+        CoercionResult result = ValueCoercer.coerce(type, Map.of("occurredAt", "2026-09-16T10:00:00"));
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.violations().get(0).path()).isEqualTo(NS + "occurredAt");
@@ -370,8 +326,7 @@ class ValueCoercerTest {
 
     @Test
     void nestedListProducesViolationNotAnException() {
-        CoercionResult result =
-            ValueCoercer.coerce(TASK, Map.of("tags", List.of(List.of("a", "b"))));
+        CoercionResult result = ValueCoercer.coerce(TASK, Map.of("tags", List.of(List.of("a", "b"))));
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.violations().get(0).path()).isEqualTo(TAGS_IRI);

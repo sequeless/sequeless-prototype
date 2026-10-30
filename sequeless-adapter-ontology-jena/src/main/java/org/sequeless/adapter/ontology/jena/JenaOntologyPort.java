@@ -132,7 +132,9 @@ public final class JenaOntologyPort implements OntologyPort {
     private volatile PortState current;
 
     private JenaOntologyPort(
-            Supplier<InputStream> sourceLoader, ReasonerSetting reasoner, Optional<OntologyDocumentStore> documentStore) {
+            Supplier<InputStream> sourceLoader,
+            ReasonerSetting reasoner,
+            Optional<OntologyDocumentStore> documentStore) {
         this.sourceLoader = sourceLoader;
         this.reasoner = reasoner;
         this.documentStore = documentStore;
@@ -191,7 +193,10 @@ public final class JenaOntologyPort implements OntologyPort {
      *     source} is inconsistent — a broken seed is never activated
      */
     public static JenaOntologyPort fromStore(
-            OntologyDocumentStore documents, Scope scope, String sourcePropertyName, String source,
+            OntologyDocumentStore documents,
+            Scope scope,
+            String sourcePropertyName,
+            String source,
             ReasonerSetting reasoner) {
         Objects.requireNonNull(documents, "documents must not be null");
         Objects.requireNonNull(scope, "scope must not be null");
@@ -203,9 +208,8 @@ public final class JenaOntologyPort implements OntologyPort {
             initial = active.get().document();
         } else {
             if (source == null || source.isBlank()) {
-                throw new IllegalStateException(
-                    "No ontology document stored for tenant '" + scope.tenantId().value()
-                        + "' and no '" + sourcePropertyName + "' configured to seed one");
+                throw new IllegalStateException("No ontology document stored for tenant '"
+                        + scope.tenantId().value() + "' and no '" + sourcePropertyName + "' configured to seed one");
             }
             Objects.requireNonNull(sourcePropertyName, "sourcePropertyName must not be null");
             String turtle;
@@ -221,8 +225,7 @@ public final class JenaOntologyPort implements OntologyPort {
         }
 
         byte[] content = initial.content().getBytes(StandardCharsets.UTF_8);
-        return new JenaOntologyPort(
-            () -> new ByteArrayInputStream(content), reasoner, Optional.of(documents));
+        return new JenaOntologyPort(() -> new ByteArrayInputStream(content), reasoner, Optional.of(documents));
     }
 
     @Override
@@ -234,16 +237,16 @@ public final class JenaOntologyPort implements OntologyPort {
     @Override
     public MetaModelSnapshot reload(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Supplier<InputStream> loader =
-            documentStore.<Supplier<InputStream>>map(store -> () -> activeDocumentStream(store, scope))
+        Supplier<InputStream> loader = documentStore
+                .<Supplier<InputStream>>map(store -> () -> activeDocumentStream(store, scope))
                 .orElse(sourceLoader);
         return swapOnSuccess(buildState(loader)).snapshot();
     }
 
     private static InputStream activeDocumentStream(OntologyDocumentStore store, Scope scope) {
         StoredOntologyDocument active = store.active(scope)
-            .orElseThrow(() -> new IllegalStateException(
-                "No active ontology document stored for tenant '" + scope.tenantId().value() + "'"));
+                .orElseThrow(() -> new IllegalStateException("No active ontology document stored for tenant '"
+                        + scope.tenantId().value() + "'"));
         byte[] bytes = active.document().content().getBytes(StandardCharsets.UTF_8);
         return new ByteArrayInputStream(bytes);
     }
@@ -270,7 +273,8 @@ public final class JenaOntologyPort implements OntologyPort {
         requireConsistent(fresh);
         documentStore.ifPresent(store -> store.activate(scope, document));
         current = fresh;
-        return new ImportReport(true, fresh.snapshot().report(), fresh.snapshot().types().size());
+        return new ImportReport(
+                true, fresh.snapshot().report(), fresh.snapshot().types().size());
     }
 
     /**
@@ -342,16 +346,16 @@ public final class JenaOntologyPort implements OntologyPort {
         consistent &= consistencyReport.consistent();
 
         List<String> unresolvedImports = model.getID()
-            .imports()
-            .filter(iri -> !iri.equals(ImportResolver.SQ_META_IRI))
-            .sorted()
-            .toList();
+                .imports()
+                .filter(iri -> !iri.equals(ImportResolver.SQ_META_IRI))
+                .sorted()
+                .toList();
         for (String iri : unresolvedImports) {
             issues.add(new OntologyIssue(
-                Severity.ERROR,
-                Optional.of(iri),
-                "owl:imports <" + iri + "> could not be resolved; this adapter only bundles <"
-                    + ImportResolver.SQ_META_IRI + ">."));
+                    Severity.ERROR,
+                    Optional.of(iri),
+                    "owl:imports <" + iri + "> could not be resolved; this adapter only bundles <"
+                            + ImportResolver.SQ_META_IRI + ">."));
             consistent = false;
         }
 
@@ -377,11 +381,11 @@ public final class JenaOntologyPort implements OntologyPort {
         }
 
         MetaModelSnapshot snapshot = new MetaModelSnapshot(
-            ontologyIri,
-            Optional.ofNullable(model.getID().getVersionIRI()),
-            model.getNsPrefixMap(),
-            mapping.types(),
-            mergedReport);
+                ontologyIri,
+                Optional.ofNullable(model.getID().getVersionIRI()),
+                model.getNsPrefixMap(),
+                mapping.types(),
+                mergedReport);
 
         return new PortState(model, snapshot);
     }
@@ -403,17 +407,17 @@ public final class JenaOntologyPort implements OntologyPort {
      */
     private static List<OntologyIssue> unknownPluginIssues(List<TypeDefinition> types) {
         Set<String> registeredPluginNames = ServiceLoader.load(DerivationPlugin.class).stream()
-            .map(ServiceLoader.Provider::get)
-            .map(DerivationPlugin::name)
-            .collect(Collectors.toSet());
+                .map(ServiceLoader.Provider::get)
+                .map(DerivationPlugin::name)
+                .collect(Collectors.toSet());
 
         Map<String, String> pluginRulesByPropertyIri = new LinkedHashMap<>();
         for (TypeDefinition type : types) {
             for (PropertyDefinition property : type.properties()) {
                 property.derivation()
-                    .filter(PluginRule.class::isInstance)
-                    .map(PluginRule.class::cast)
-                    .ifPresent(rule -> pluginRulesByPropertyIri.putIfAbsent(property.iri(), rule.pluginName()));
+                        .filter(PluginRule.class::isInstance)
+                        .map(PluginRule.class::cast)
+                        .ifPresent(rule -> pluginRulesByPropertyIri.putIfAbsent(property.iri(), rule.pluginName()));
             }
         }
 
@@ -423,9 +427,9 @@ public final class JenaOntologyPort implements OntologyPort {
             String pluginName = entry.getValue();
             if (!registeredPluginNames.contains(pluginName)) {
                 issues.add(new OntologyIssue(
-                    Severity.ERROR,
-                    Optional.of(propertyIri),
-                    "sq:pluginName '" + pluginName + "' has no registered DerivationPlugin on the classpath."));
+                        Severity.ERROR,
+                        Optional.of(propertyIri),
+                        "sq:pluginName '" + pluginName + "' has no registered DerivationPlugin on the classpath."));
             }
         }
         return issues;
@@ -433,9 +437,9 @@ public final class JenaOntologyPort implements OntologyPort {
 
     private static PortState failureState(String message) {
         OntologyReport report =
-            new OntologyReport(false, List.of(new OntologyIssue(Severity.ERROR, Optional.empty(), message)));
+                new OntologyReport(false, List.of(new OntologyIssue(Severity.ERROR, Optional.empty(), message)));
         MetaModelSnapshot snapshot =
-            new MetaModelSnapshot(UNBUILDABLE_ONTOLOGY_IRI, Optional.empty(), Map.of(), List.of(), report);
+                new MetaModelSnapshot(UNBUILDABLE_ONTOLOGY_IRI, Optional.empty(), Map.of(), List.of(), report);
         return new PortState(null, snapshot);
     }
 

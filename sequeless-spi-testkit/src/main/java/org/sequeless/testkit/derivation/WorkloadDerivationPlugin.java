@@ -48,18 +48,15 @@ public final class WorkloadDerivationPlugin implements DerivationPlugin {
 
     @Override
     public Map<ObjectId, Value> derive(DerivationContext context, List<BusinessObject> objects) {
-        Set<ObjectId> targetIds =
-            objects.stream().map(BusinessObject::id).collect(Collectors.toUnmodifiableSet());
-        AggregateRequest request =
-            new AggregateRequest(
+        Set<ObjectId> targetIds = objects.stream().map(BusinessObject::id).collect(Collectors.toUnmodifiableSet());
+        AggregateRequest request = new AggregateRequest(
                 SOURCE_TYPES,
                 Fixtures.ASSIGNED_TO_IRI,
                 targetIds,
                 AggregateFunction.SUM,
                 Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
                 List.of());
-        AggregateResult result =
-            context.queryPort().aggregate(context.scope(), context.snapshot(), request);
+        AggregateResult result = context.queryPort().aggregate(context.scope(), context.snapshot(), request);
         return result.values();
     }
 }

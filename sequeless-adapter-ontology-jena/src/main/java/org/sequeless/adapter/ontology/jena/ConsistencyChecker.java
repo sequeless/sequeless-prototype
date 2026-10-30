@@ -95,9 +95,9 @@ final class ConsistencyChecker {
 
     private static OntologyIssue toIssue(ValidityReport.Report report) {
         return new OntologyIssue(
-            report.isError() ? Severity.ERROR : Severity.WARNING,
-            subjectIriOf(report.getExtension()),
-            collapse(report.getDescription()));
+                report.isError() ? Severity.ERROR : Severity.WARNING,
+                subjectIriOf(report.getExtension()),
+                collapse(report.getDescription()));
     }
 
     private static Optional<String> subjectIriOf(Object extension) {

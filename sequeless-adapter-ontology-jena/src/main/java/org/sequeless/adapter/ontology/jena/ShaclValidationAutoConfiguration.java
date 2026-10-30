@@ -35,8 +35,7 @@ public class ShaclValidationAutoConfiguration {
     @Bean
     public ValidationPort validationPort(OntologyPort ontologyPort) {
         if (!(ontologyPort instanceof JenaOntologyPort jenaPort)) {
-            throw new IllegalStateException(
-                "sequeless.validation.adapter=shacl requires the Jena OntologyPort adapter "
+            throw new IllegalStateException("sequeless.validation.adapter=shacl requires the Jena OntologyPort adapter "
                     + "(sequeless.ontology.adapter=jena) to be active, sharing its ontology; got "
                     + ontologyPort.getClass());
         }

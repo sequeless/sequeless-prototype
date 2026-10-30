@@ -81,7 +81,9 @@ public final class PayloadValueCodec {
             case DateValue date -> tag(TAG_DATE, date.value().toString());
             case ReferenceValue ref -> tag(TAG_REF, ref.target().value().toString());
             case ListValue list ->
-                tag(TAG_LIST, list.values().stream().map(PayloadValueCodec::toPayload).toList());
+                tag(
+                        TAG_LIST,
+                        list.values().stream().map(PayloadValueCodec::toPayload).toList());
         };
     }
 
@@ -96,8 +98,7 @@ public final class PayloadValueCodec {
     public static Value fromPayload(Object payload) {
         Objects.requireNonNull(payload, "payload must not be null");
         if (!(payload instanceof Map<?, ?> map) || map.size() != 1) {
-            throw new IllegalArgumentException(
-                "Expected a single-key tagged value map, got: " + payload);
+            throw new IllegalArgumentException("Expected a single-key tagged value map, got: " + payload);
         }
         Map.Entry<?, ?> entry = map.entrySet().iterator().next();
         Object rawTag = entry.getKey();
@@ -115,7 +116,8 @@ public final class PayloadValueCodec {
             case TAG_DATE -> Value.date(LocalDate.parse((String) raw));
             case TAG_REF -> Value.ref(ObjectId.parse((String) raw));
             case TAG_LIST ->
-                Value.list(((List<?>) raw).stream().map(PayloadValueCodec::fromPayload).toList());
+                Value.list(((List<?>) raw)
+                        .stream().map(PayloadValueCodec::fromPayload).toList());
             default -> throw new IllegalArgumentException("Unrecognized tagged value key: " + tag);
         };
     }

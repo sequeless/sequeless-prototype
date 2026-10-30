@@ -160,8 +160,13 @@ public class CoreConfiguration {
             @Lazy QueryPort queryPort,
             DerivationPlanner derivationPlanner) {
         return new DefaultBusinessObjectService(
-            ontologyPort, objectStorePort, validationPort, authorizationPort, queryPort,
-            Clock.systemUTC(), derivationPlanner);
+                ontologyPort,
+                objectStorePort,
+                validationPort,
+                authorizationPort,
+                queryPort,
+                Clock.systemUTC(),
+                derivationPlanner);
     }
 
     /**
@@ -178,9 +183,7 @@ public class CoreConfiguration {
      */
     @Bean
     public OntologyAdministration ontologyAdministration(
-            @Lazy OntologyPort ontologyPort,
-            @Lazy AuthorizationPort authorizationPort,
-            @Lazy QueryPort queryPort) {
+            @Lazy OntologyPort ontologyPort, @Lazy AuthorizationPort authorizationPort, @Lazy QueryPort queryPort) {
         return new DefaultOntologyAdministration(ontologyPort, authorizationPort, queryPort);
     }
 
@@ -210,8 +213,7 @@ public class CoreConfiguration {
      * @return a {@link DefaultActionExecutor} consulting both ports on every call
      */
     @Bean
-    public ActionExecutor actionExecutor(
-            @Lazy ExpressionPort expressionPort, @Lazy ObjectStorePort objectStorePort) {
+    public ActionExecutor actionExecutor(@Lazy ExpressionPort expressionPort, @Lazy ObjectStorePort objectStorePort) {
         return new DefaultActionExecutor(expressionPort, objectStorePort, Clock.systemUTC());
     }
 
@@ -239,7 +241,7 @@ public class CoreConfiguration {
             @Lazy AuthorizationPort authorizationPort,
             @Lazy ExpressionPort expressionPort) {
         return new DefaultTransitionService(
-            ontologyPort, objectStorePort, authorizationPort, expressionPort, Clock.systemUTC());
+                ontologyPort, objectStorePort, authorizationPort, expressionPort, Clock.systemUTC());
     }
 
     /**
@@ -323,7 +325,11 @@ public class CoreConfiguration {
             @Value("${sequeless.automation.recompute.retry.max-attempts:8}") int maxAttempts,
             @Value("${sequeless.automation.recompute.retry.base-delay:PT0.02S}") String baseDelayText) {
         return new DefaultDerivationRecomputer(
-            ontologyPort, objectStorePort, derivationPlanner, maxAttempts, Duration.parse(baseDelayText),
-            Clock.systemUTC());
+                ontologyPort,
+                objectStorePort,
+                derivationPlanner,
+                maxAttempts,
+                Duration.parse(baseDelayText),
+                Clock.systemUTC());
     }
 }

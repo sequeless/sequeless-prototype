@@ -29,7 +29,7 @@ import org.sequeless.spi.authz.Operation;
 class DefaultWhoAmITest {
 
     private static final Scope SCOPE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     @Test
     void whoAmIEchoesScopeTenantAndPrincipalOnPermit() {
@@ -49,8 +49,8 @@ class DefaultWhoAmITest {
         DefaultWhoAmI whoAmI = new DefaultWhoAmI((scope, operation, resource) -> denial);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> whoAmI.whoAmI(SCOPE))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> whoAmI.whoAmI(SCOPE))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
     }
 
     @Test
@@ -58,14 +58,12 @@ class DefaultWhoAmITest {
         List<Scope> capturedScopes = new ArrayList<>();
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        DefaultWhoAmI whoAmI =
-            new DefaultWhoAmI(
-                (scope, operation, resource) -> {
-                    capturedScopes.add(scope);
-                    capturedOperations.add(operation);
-                    capturedResources.add(resource);
-                    return AccessDecision.permit("ok");
-                });
+        DefaultWhoAmI whoAmI = new DefaultWhoAmI((scope, operation, resource) -> {
+            capturedScopes.add(scope);
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        });
 
         whoAmI.whoAmI(SCOPE);
 

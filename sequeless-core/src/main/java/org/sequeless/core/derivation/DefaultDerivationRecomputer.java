@@ -75,17 +75,15 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      *     negative
      */
     public DefaultDerivationRecomputer(
-        OntologyPort ontologyPort,
-        ObjectStorePort objectStorePort,
-        DerivationPlanner derivationPlanner,
-        int maxAttempts,
-        Duration baseDelay,
-        Clock clock) {
+            OntologyPort ontologyPort,
+            ObjectStorePort objectStorePort,
+            DerivationPlanner derivationPlanner,
+            int maxAttempts,
+            Duration baseDelay,
+            Clock clock) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
-        this.derivationPlanner =
-            Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+        this.derivationPlanner = Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("maxAttempts must be at least 1");
         }
@@ -161,7 +159,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
 
         for (Map.Entry<TargetProperty, RollupRule> entry : work.entrySet()) {
             recomputeOne(
-                scope, snapshot, entry.getKey().targetId(), entry.getKey().propertyIri(), entry.getValue());
+                    scope, snapshot, entry.getKey().targetId(), entry.getKey().propertyIri(), entry.getValue());
         }
     }
 
@@ -179,7 +177,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      * time, so there is no page to batch across.
      */
     private void recomputeOne(
-        Scope scope, MetaModelSnapshot snapshot, ObjectId targetId, String propertyIri, RollupRule rule) {
+            Scope scope, MetaModelSnapshot snapshot, ObjectId targetId, String propertyIri, RollupRule rule) {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             Optional<BusinessObject> found = objectStorePort.find(scope, targetId);
             if (found.isEmpty()) {
@@ -189,7 +187,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
             BusinessObject target = found.get();
 
             Map<ObjectId, Value> computed =
-                derivationPlanner.computeRule(scope, snapshot, rule, Set.of(targetId), List.of(target));
+                    derivationPlanner.computeRule(scope, snapshot, rule, Set.of(targetId), List.of(target));
             Value newValue = computed.get(targetId);
             PropertyRef propertyRef = new PropertyRef(propertyIri);
             Value currentValue = target.properties().get(propertyRef);
@@ -209,8 +207,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
             }
 
             Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
-            BusinessObject candidate =
-                new BusinessObject(
+            BusinessObject candidate = new BusinessObject(
                     target.id(),
                     target.type(),
                     target.tenant(),
@@ -218,16 +215,16 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
                     target.state(),
                     newProperties,
                     new Audit(
-                        target.audit().createdAt(),
-                        target.audit().createdBy(),
-                        now,
-                        scope.principal().id()),
+                            target.audit().createdAt(),
+                            target.audit().createdBy(),
+                            now,
+                            scope.principal().id()),
                     target.deleted());
 
-            ChangeSet changeSet =
-                new ChangeSet(
+            ChangeSet changeSet = new ChangeSet(
                     List.of(new Update(candidate, target.version())),
-                    List.of(objectUpdatedEntry(targetId, target.version() + 1, target.type().iri(), now)));
+                    List.of(objectUpdatedEntry(
+                            targetId, target.version() + 1, target.type().iri(), now)));
 
             try {
                 objectStorePort.commit(scope, changeSet);
@@ -263,8 +260,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      * exactly as {@code DefaultActionExecutor} already keeps its own copy of the same small
      * map-builder, since that method is private to a different class.
      */
-    private static OutboxEntry objectUpdatedEntry(
-        ObjectId id, long version, String typeIri, Instant occurredAt) {
+    private static OutboxEntry objectUpdatedEntry(ObjectId id, long version, String typeIri, Instant occurredAt) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
@@ -301,8 +297,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
     private static Map<PropertyRef, Value> decodePropertiesSnapshot(Map<String, Object> payload) {
         Map<String, Object> raw = (Map<String, Object>) payload.get("properties");
         Map<PropertyRef, Value> result = new HashMap<>();
-        raw.forEach(
-            (iri, tagged) -> result.put(new PropertyRef(iri), PayloadValueCodec.fromPayload(tagged)));
+        raw.forEach((iri, tagged) -> result.put(new PropertyRef(iri), PayloadValueCodec.fromPayload(tagged)));
         return result;
     }
 }

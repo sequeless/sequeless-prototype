@@ -27,21 +27,19 @@ class OntologyIssueTest {
 
     @Test
     void rejectsNullSeverity() {
-        assertThatNullPointerException()
-            .isThrownBy(() -> new OntologyIssue(null, Optional.empty(), "message"));
+        assertThatNullPointerException().isThrownBy(() -> new OntologyIssue(null, Optional.empty(), "message"));
     }
 
     @Test
     void rejectsNullSubjectIriWrapper() {
-        assertThatNullPointerException()
-            .isThrownBy(() -> new OntologyIssue(Severity.ERROR, null, "message"));
+        assertThatNullPointerException().isThrownBy(() -> new OntologyIssue(Severity.ERROR, null, "message"));
     }
 
     @Test
     void rejectsNullOrBlankMessage() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OntologyIssue(Severity.ERROR, Optional.empty(), null));
+                .isThrownBy(() -> new OntologyIssue(Severity.ERROR, Optional.empty(), null));
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new OntologyIssue(Severity.ERROR, Optional.empty(), "  "));
+                .isThrownBy(() -> new OntologyIssue(Severity.ERROR, Optional.empty(), "  "));
     }
 }

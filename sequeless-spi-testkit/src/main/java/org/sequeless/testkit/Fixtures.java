@@ -35,8 +35,7 @@ public final class Fixtures {
     public static final String INCONSISTENT_ONTOLOGY_IRI = "https://sequeless.dev/ns/ref-inconsistent";
 
     /** Document IRI of the variant exercising inverse and transitive object properties. */
-    public static final String INVERSE_TRANSITIVE_ONTOLOGY_IRI =
-        "https://sequeless.dev/ns/ref-inverse-transitive";
+    public static final String INVERSE_TRANSITIVE_ONTOLOGY_IRI = "https://sequeless.dev/ns/ref-inverse-transitive";
 
     /**
      * Term namespace of the reference domain. Every {@code REFERENCE_*} IRI constant below is this
@@ -147,14 +146,10 @@ public final class Fixtures {
     public static final String CLOSED_IRI = REF + "Closed";
 
     private static final String REFERENCE_TURTLE = readClasspathResource("/ontology/reference.ttl");
-    private static final String INCONSISTENT_TURTLE =
-        readClasspathResource("/ontology/inconsistent.ttl");
-    private static final String INVERSE_TRANSITIVE_TURTLE =
-        readClasspathResource("/ontology/inverse-transitive.ttl");
-    private static final String REFERENCE_PLUGIN_TURTLE =
-        readClasspathResource("/ontology/reference-plugin.ttl");
-    private static final String UNKNOWN_PLUGIN_TURTLE =
-        readClasspathResource("/ontology/unknown-plugin.ttl");
+    private static final String INCONSISTENT_TURTLE = readClasspathResource("/ontology/inconsistent.ttl");
+    private static final String INVERSE_TRANSITIVE_TURTLE = readClasspathResource("/ontology/inverse-transitive.ttl");
+    private static final String REFERENCE_PLUGIN_TURTLE = readClasspathResource("/ontology/reference-plugin.ttl");
+    private static final String UNKNOWN_PLUGIN_TURTLE = readClasspathResource("/ontology/unknown-plugin.ttl");
 
     private Fixtures() {}
 
@@ -255,8 +250,7 @@ public final class Fixtures {
     private static String readClasspathResource(String resource) {
         try (InputStream stream = Fixtures.class.getResourceAsStream(resource)) {
             if (stream == null) {
-                throw new IllegalStateException(
-                    "Missing testkit ontology fixture on the classpath: " + resource);
+                throw new IllegalStateException("Missing testkit ontology fixture on the classpath: " + resource);
             }
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {

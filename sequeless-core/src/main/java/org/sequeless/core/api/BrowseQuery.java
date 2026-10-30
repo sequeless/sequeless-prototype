@@ -27,11 +27,7 @@ import org.sequeless.spi.object.Page;
  *     full IRI; must not be {@code null}; may be empty
  */
 public record BrowseQuery(
-    List<Filter> filters,
-    Optional<String> text,
-    List<SortKey> sorts,
-    Page page,
-    List<String> facets) {
+        List<Filter> filters, Optional<String> text, List<SortKey> sorts, Page page, List<String> facets) {
 
     public BrowseQuery {
         Objects.requireNonNull(filters, "filters must not be null");

@@ -87,11 +87,17 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     private static final String TASK_TYPE_IRI = "https://sequeless.dev/ns/ref#Task";
     private static final String TITLE_PROPERTY_IRI = "https://sequeless.dev/ns/ref#title";
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
-    @Autowired private ObjectStorePort objectStorePort;
-    @Autowired private OutboxPort outboxPort;
-    @Autowired private AutomationPort automationPort;
+    @Autowired
+    private ObjectStorePort objectStorePort;
+
+    @Autowired
+    private OutboxPort outboxPort;
+
+    @Autowired
+    private AutomationPort automationPort;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -100,7 +106,9 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @AfterEach
@@ -114,28 +122,24 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     void webhookRetriesThreeTimesThenSucceedsAndMarksOutboxRowProcessed() throws IOException {
         AtomicInteger requestCount = new AtomicInteger();
         webhookServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        webhookServer.createContext(
-            "/hook",
-            exchange -> {
-                int count = requestCount.incrementAndGet();
-                exchange.getRequestBody().readAllBytes();
-                int status = count < 4 ? 500 : 200;
-                exchange.sendResponseHeaders(status, -1);
-                exchange.close();
-            });
+        webhookServer.createContext("/hook", exchange -> {
+            int count = requestCount.incrementAndGet();
+            exchange.getRequestBody().readAllBytes();
+            int status = count < 4 ? 500 : 200;
+            exchange.sendResponseHeaders(status, -1);
+            exchange.close();
+        });
         webhookServer.start();
         String webhookUrl = "http://localhost:" + webhookServer.getAddress().getPort() + "/hook";
 
         BusinessObjectResponse project = createProject("Webhook retry project");
         BusinessObject existing =
-            objectStorePort.find(SCOPE, new ObjectId(project.id())).orElseThrow();
+                objectStorePort.find(SCOPE, new ObjectId(project.id())).orElseThrow();
 
         Update touch = touch(existing);
-        OutboxEntry actionRequest =
-            webhookActionRequestEntry(existing, "webhookRetries", webhookUrl);
+        OutboxEntry actionRequest = webhookActionRequestEntry(existing, "webhookRetries", webhookUrl);
 
-        objectStorePort.commit(
-            SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(actionRequest)));
+        objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(actionRequest)));
 
         awaitRequestCount(requestCount, 4);
         assertThat(requestCount.get()).as("total webhook requests observed").isEqualTo(4);
@@ -149,14 +153,13 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
 
         BusinessObjectResponse project = createProject("Idempotency project");
         BusinessObject existing =
-            objectStorePort.find(SCOPE, new ObjectId(project.id())).orElseThrow();
+                objectStorePort.find(SCOPE, new ObjectId(project.id())).orElseThrow();
 
         Update touch = touch(existing);
         UUID entryId = UUID.randomUUID();
         OutboxEntry actionRequest = createObjectActionRequestEntry(entryId, existing, uniqueTitle);
 
-        objectStorePort.commit(
-            SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(actionRequest)));
+        objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(actionRequest)));
 
         // Simulates "the relay crashed between committing this row and finishing its dispatch,
         // then redispatched the identical row after restart": call dispatch() directly, twice,
@@ -169,14 +172,12 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
 
     private Update touch(BusinessObject existing) {
         Instant now = Instant.now();
-        Audit audit =
-            new Audit(
+        Audit audit = new Audit(
                 existing.audit().createdAt(),
                 existing.audit().createdBy(),
                 now,
                 SCOPE.principal().id());
-        BusinessObject candidate =
-            new BusinessObject(
+        BusinessObject candidate = new BusinessObject(
                 existing.id(),
                 existing.type(),
                 existing.tenant(),
@@ -188,8 +189,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         return new Update(candidate, existing.version());
     }
 
-    private static OutboxEntry webhookActionRequestEntry(
-        BusinessObject existing, String transitionName, String url) {
+    private static OutboxEntry webhookActionRequestEntry(BusinessObject existing, String transitionName, String url) {
         Map<String, Object> payload = commonPayload(existing, transitionName);
         payload.put("actionKind", "Webhook");
         payload.put("url", url);
@@ -198,8 +198,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
     }
 
-    private static OutboxEntry createObjectActionRequestEntry(
-        UUID entryId, BusinessObject existing, String title) {
+    private static OutboxEntry createObjectActionRequestEntry(UUID entryId, BusinessObject existing, String title) {
         Map<String, Object> payload = commonPayload(existing, "createIdempotent");
         payload.put("actionKind", "CreateObject");
         payload.put("createType", TASK_TYPE_IRI);
@@ -232,16 +231,14 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         Optional<Boolean> claimed;
         do {
-            claimed =
-                outboxPort.claimNext(
-                    Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> Boolean.TRUE);
+            claimed = outboxPort.claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> Boolean.TRUE);
             if (claimed.isPresent()) {
                 sleep(Duration.ofMillis(100));
             }
         } while (claimed.isPresent() && Instant.now().isBefore(deadline));
         assertThat(claimed)
-            .as("no unprocessed ActionRequest outbox rows remain")
-            .isEmpty();
+                .as("no unprocessed ActionRequest outbox rows remain")
+                .isEmpty();
     }
 
     private void awaitExactlyOneTaskTitled(String expectedTitle) {
@@ -254,18 +251,20 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
             }
             sleep(Duration.ofMillis(200));
         }
-        assertThat(matches).as("exactly one Task titled '%s' exists", expectedTitle).isEqualTo(1);
+        assertThat(matches)
+                .as("exactly one Task titled '%s' exists", expectedTitle)
+                .isEqualTo(1);
 
         // Give any redundant (would-be duplicate) dispatch a moment to land, then confirm the
         // count never rises above one.
         sleep(Duration.ofSeconds(2));
         assertThat(countTasksTitled(expectedTitle))
-            .as("no duplicate Task titled '%s' appeared", expectedTitle)
-            .isEqualTo(1);
+                .as("no duplicate Task titled '%s' appeared", expectedTitle)
+                .isEqualTo(1);
     }
 
     private int countTasksTitled(String expectedTitle) {
-        JsonNode page = fetchAsJson("/objects/Task?page=0&size=200");
+        JsonNode page = fetchAsJson("/api/objects/Task?page=0&size=200");
         int count = 0;
         for (JsonNode item : page.get("items")) {
             JsonNode title = item.get("properties").get("title");
@@ -300,7 +299,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     private BusinessObjectResponse createProject(String title) {
         return restTestClient
                 .post()
-                .uri("/objects/Project")
+                .uri("/api/objects/Project")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of("title", List.of(title))))
                 .exchange()
@@ -312,16 +311,15 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     }
 
     private JsonNode fetchAsJson(String uri) {
-        byte[] responseBody =
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {

@@ -45,8 +45,7 @@ public final class ActionWorkflowImpl implements ActionWorkflow {
     public void execute(OutboxEntry entry) {
         ActivityOptions activityOptions = ACTIVITY_OPTIONS;
         if (activityOptions == null) {
-            throw new IllegalStateException(
-                "ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
+            throw new IllegalStateException("ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         ActionActivities activities = Workflow.newActivityStub(ActionActivities.class, activityOptions);
@@ -58,8 +57,8 @@ public final class ActionWorkflowImpl implements ActionWorkflow {
             case ACTION_KIND_CREATE_OBJECT -> activities.applyCreateObject(scope, entry);
             case ACTION_KIND_LOG -> activities.applyLog(scope, entry);
             case ACTION_KIND_WEBHOOK -> activities.executeWebhook(scope, entry);
-            default -> throw new IllegalArgumentException(
-                "Unrecognized ActionRequest payload actionKind: " + actionKind);
+            default ->
+                throw new IllegalArgumentException("Unrecognized ActionRequest payload actionKind: " + actionKind);
         }
     }
 

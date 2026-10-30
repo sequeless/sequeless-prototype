@@ -57,8 +57,7 @@ public final class DerivationPlanner {
      */
     public DerivationPlanner(QueryPort queryPort, DerivationPluginRegistry pluginRegistry) {
         this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
-        this.pluginRegistry =
-            Objects.requireNonNull(pluginRegistry, "pluginRegistry must not be null");
+        this.pluginRegistry = Objects.requireNonNull(pluginRegistry, "pluginRegistry must not be null");
     }
 
     /**
@@ -76,7 +75,7 @@ public final class DerivationPlanner {
      * @throws NullPointerException if any argument is {@code null}
      */
     public List<BusinessObject> apply(
-        Scope scope, MetaModelSnapshot snapshot, TypeDefinition requestType, List<BusinessObject> objects) {
+            Scope scope, MetaModelSnapshot snapshot, TypeDefinition requestType, List<BusinessObject> objects) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         Objects.requireNonNull(requestType, "requestType must not be null");
@@ -101,13 +100,13 @@ public final class DerivationPlanner {
                 }
                 DerivationRule rule = property.derivation().get();
                 List<PropertyDefinition> properties =
-                    propertiesByRule.computeIfAbsent(rule, unused -> new ArrayList<>());
+                        propertiesByRule.computeIfAbsent(rule, unused -> new ArrayList<>());
                 if (!properties.contains(property)) {
                     properties.add(property);
                 }
                 targetIdsByRule
-                    .computeIfAbsent(rule, unused -> new LinkedHashSet<>())
-                    .add(object.id());
+                        .computeIfAbsent(rule, unused -> new LinkedHashSet<>())
+                        .add(object.id());
             }
         }
 
@@ -153,11 +152,11 @@ public final class DerivationPlanner {
      * @throws NullPointerException if any argument is {@code null}
      */
     public Map<ObjectId, Value> computeRule(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        DerivationRule rule,
-        Set<ObjectId> targetIds,
-        List<BusinessObject> objects) {
+            Scope scope,
+            MetaModelSnapshot snapshot,
+            DerivationRule rule,
+            Set<ObjectId> targetIds,
+            List<BusinessObject> objects) {
         return switch (rule) {
             case RollupRule rollup -> resolveRollup(scope, snapshot, rollup, targetIds);
             case PluginRule pluginRule -> resolvePlugin(scope, snapshot, pluginRule, targetIds, objects);
@@ -165,38 +164,30 @@ public final class DerivationPlanner {
     }
 
     private static TypeDefinition resolveType(MetaModelSnapshot snapshot, BusinessObject object) {
-        return snapshot
-            .type(object.type().iri())
-            .orElseThrow(
-                () ->
-                    new IllegalStateException(
-                        "Object " + object.id() + " has unknown type " + object.type().iri()));
+        return snapshot.type(object.type().iri())
+                .orElseThrow(() -> new IllegalStateException("Object " + object.id() + " has unknown type "
+                        + object.type().iri()));
     }
 
     private Map<ObjectId, Value> resolveRollup(
-        Scope scope, MetaModelSnapshot snapshot, RollupRule rollup, Set<ObjectId> targetIds) {
+            Scope scope, MetaModelSnapshot snapshot, RollupRule rollup, Set<ObjectId> targetIds) {
         Set<String> sourceTypes = TypeHierarchy.concreteTypeAndSubtypes(snapshot, rollup.sourceTypeIri());
-        AggregateRequest request =
-            new AggregateRequest(
-                sourceTypes,
-                rollup.viaIri(),
-                targetIds,
-                rollup.function(),
-                rollup.ofPropertyIri(),
-                rollup.criteria());
+        AggregateRequest request = new AggregateRequest(
+                sourceTypes, rollup.viaIri(), targetIds, rollup.function(), rollup.ofPropertyIri(), rollup.criteria());
         AggregateResult result = queryPort.aggregate(scope, snapshot, request);
         return result.values();
     }
 
     private Map<ObjectId, Value> resolvePlugin(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        PluginRule pluginRule,
-        Set<ObjectId> targetIds,
-        List<BusinessObject> objects) {
+            Scope scope,
+            MetaModelSnapshot snapshot,
+            PluginRule pluginRule,
+            Set<ObjectId> targetIds,
+            List<BusinessObject> objects) {
         DerivationPlugin plugin = pluginRegistry.get(pluginRule.pluginName());
-        List<BusinessObject> targetObjects =
-            objects.stream().filter(object -> targetIds.contains(object.id())).toList();
+        List<BusinessObject> targetObjects = objects.stream()
+                .filter(object -> targetIds.contains(object.id()))
+                .toList();
         DerivationContext context = new DerivationContext(scope, snapshot, queryPort);
         return plugin.derive(context, targetObjects);
     }
@@ -208,9 +199,7 @@ public final class DerivationPlanner {
      * computedByPropertyIri} produced for that object, if any.
      */
     private static BusinessObject merge(
-        BusinessObject object,
-        TypeDefinition type,
-        Map<String, Map<ObjectId, Value>> computedByPropertyIri) {
+            BusinessObject object, TypeDefinition type, Map<String, Map<ObjectId, Value>> computedByPropertyIri) {
         Map<PropertyRef, Value> properties = new LinkedHashMap<>(object.properties());
         for (PropertyDefinition property : type.properties()) {
             if (property.derivation().isEmpty()) {
@@ -228,13 +217,13 @@ public final class DerivationPlanner {
             }
         }
         return new BusinessObject(
-            object.id(),
-            object.type(),
-            object.tenant(),
-            object.version(),
-            object.state(),
-            properties,
-            object.audit(),
-            object.deleted());
+                object.id(),
+                object.type(),
+                object.tenant(),
+                object.version(),
+                object.state(),
+                properties,
+                object.audit(),
+                object.deleted());
     }
 }

@@ -48,50 +48,56 @@ class BusinessObjectTest {
 
         assertThat(object.properties()).containsEntry(TITLE, Value.text("Write plan"));
         assertThatThrownBy(() -> object.properties().put(TITLE, Value.text("x")))
-            .isInstanceOf(UnsupportedOperationException.class);
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
     void rejectsVersionLessThanOne() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, 0, Optional.empty(), Map.of(), AUDIT, false));
+                .isThrownBy(() ->
+                        new BusinessObject(ID, TYPE, TenantId.DEFAULT, 0, Optional.empty(), Map.of(), AUDIT, false));
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, -1, Optional.empty(), Map.of(), AUDIT, false));
+                .isThrownBy(() ->
+                        new BusinessObject(ID, TYPE, TenantId.DEFAULT, -1, Optional.empty(), Map.of(), AUDIT, false));
     }
 
     @Test
     void rejectsNullId() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new BusinessObject(null, TYPE, TenantId.DEFAULT, 1, Optional.empty(), Map.of(), AUDIT, false));
+                .isThrownBy(() ->
+                        new BusinessObject(null, TYPE, TenantId.DEFAULT, 1, Optional.empty(), Map.of(), AUDIT, false));
     }
 
     @Test
     void rejectsNullType() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new BusinessObject(ID, null, TenantId.DEFAULT, 1, Optional.empty(), Map.of(), AUDIT, false));
+                .isThrownBy(() ->
+                        new BusinessObject(ID, null, TenantId.DEFAULT, 1, Optional.empty(), Map.of(), AUDIT, false));
     }
 
     @Test
     void rejectsNullTenant() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new BusinessObject(ID, TYPE, null, 1, Optional.empty(), Map.of(), AUDIT, false));
+                .isThrownBy(() -> new BusinessObject(ID, TYPE, null, 1, Optional.empty(), Map.of(), AUDIT, false));
     }
 
     @Test
     void rejectsNullStateWrapper() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, 1, null, Map.of(), AUDIT, false));
+                .isThrownBy(() -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, 1, null, Map.of(), AUDIT, false));
     }
 
     @Test
     void rejectsNullProperties() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, 1, Optional.empty(), null, AUDIT, false));
+                .isThrownBy(
+                        () -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, 1, Optional.empty(), null, AUDIT, false));
     }
 
     @Test
     void rejectsNullAudit() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new BusinessObject(ID, TYPE, TenantId.DEFAULT, 1, Optional.empty(), Map.of(), null, false));
+                .isThrownBy(() ->
+                        new BusinessObject(ID, TYPE, TenantId.DEFAULT, 1, Optional.empty(), Map.of(), null, false));
     }
 }

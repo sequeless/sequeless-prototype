@@ -26,7 +26,6 @@ import org.sequeless.spi.meta.Cardinality;
 import org.sequeless.spi.meta.Datatype;
 import org.sequeless.spi.meta.DisplayHints;
 import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.RollupRule;
 import org.sequeless.spi.meta.TypeDefinition;
@@ -85,83 +84,116 @@ class DefaultDerivationRecomputerTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
-    private static final RelationshipDefinition BELONGS_TO_PROJECT =
-        new RelationshipDefinition(
-            BELONGS_TO_PROJECT_IRI, "belongsToProject", Cardinality.optional(), false, false,
-            false, false, false, DisplayHints.none(), Optional.empty(), PROJECT_IRI,
-            Optional.empty(), false);
+    private static final RelationshipDefinition BELONGS_TO_PROJECT = new RelationshipDefinition(
+            BELONGS_TO_PROJECT_IRI,
+            "belongsToProject",
+            Cardinality.optional(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Optional.empty(),
+            PROJECT_IRI,
+            Optional.empty(),
+            false);
 
     private static RollupRule openTaskCountRule(boolean materialised) {
         return new RollupRule(
-            TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(),
-            materialised);
+                TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(), materialised);
     }
 
     private static AttributeDefinition openTaskCountAttribute(boolean materialised) {
         return new AttributeDefinition(
-            OPEN_TASK_COUNT_IRI, "openTaskCount", Cardinality.required(), false, false, false, true,
-            false, DisplayHints.none(), Optional.of(openTaskCountRule(materialised)),
-            Datatype.INTEGER);
+                OPEN_TASK_COUNT_IRI,
+                "openTaskCount",
+                Cardinality.required(),
+                false,
+                false,
+                false,
+                true,
+                false,
+                DisplayHints.none(),
+                Optional.of(openTaskCountRule(materialised)),
+                Datatype.INTEGER);
     }
 
     private static TypeDefinition projectType(boolean materialised) {
         return new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(), List.of(openTaskCountAttribute(materialised)),
-            DisplayHints.none(), false, Optional.empty());
+                PROJECT_IRI,
+                "Project",
+                List.of(),
+                List.of(openTaskCountAttribute(materialised)),
+                DisplayHints.none(),
+                false,
+                Optional.empty());
     }
 
-    private static final TypeDefinition TASK =
-        new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false,
-            Optional.empty());
+    private static final TypeDefinition TASK = new TypeDefinition(
+            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false, Optional.empty());
 
     private static MetaModelSnapshot buildSnapshot(boolean materialised) {
         return new MetaModelSnapshot(
-            NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(),
-            List.of(projectType(materialised), TASK), new OntologyReport(true, List.of()));
+                NS.substring(0, NS.length() - 1),
+                Optional.empty(),
+                Map.of(),
+                List.of(projectType(materialised), TASK),
+                new OntologyReport(true, List.of()));
     }
 
     private static BusinessObject project(ObjectId id, long version, Integer openTaskCount) {
-        Map<PropertyRef, Value> properties =
-            openTaskCount == null
+        Map<PropertyRef, Value> properties = openTaskCount == null
                 ? Map.of()
                 : Map.of(new PropertyRef(OPEN_TASK_COUNT_IRI), new IntegerValue(openTaskCount));
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.empty(),
-            properties, new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.empty(),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static BusinessObject task(ObjectId id, ObjectId belongsToProjectId) {
         return new BusinessObject(
-            id, new TypeRef(TASK_IRI), new TenantId("acme"), 1, Optional.empty(),
-            Map.of(new PropertyRef(BELONGS_TO_PROJECT_IRI), Value.ref(belongsToProjectId)),
-            new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(TASK_IRI),
+                new TenantId("acme"),
+                1,
+                Optional.empty(),
+                Map.of(new PropertyRef(BELONGS_TO_PROJECT_IRI), Value.ref(belongsToProjectId)),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static OutboxEntry objectUpdatedEvent(ObjectId taskId) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI), NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI),
+                NOW);
     }
 
     private static OutboxEntry objectDeletedEvent(ObjectId taskId, ObjectId belongsToProjectId) {
         Map<String, Object> properties =
-            Map.of(
-                BELONGS_TO_PROJECT_IRI,
-                PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
+                Map.of(BELONGS_TO_PROJECT_IRI, PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
-            NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_DELETED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
+                NOW);
     }
 
     private static DefaultDerivationRecomputer recomputer(
-        FakeObjectStorePort store, FakeQueryPort queryPort, boolean materialised, int maxAttempts) {
+            FakeObjectStorePort store, FakeQueryPort queryPort, boolean materialised, int maxAttempts) {
         DerivationPlanner planner = new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
         return new DefaultDerivationRecomputer(
-            new FakeOntologyPort(materialised), store, planner, maxAttempts, Duration.ofMillis(1), CLOCK);
+                new FakeOntologyPort(materialised), store, planner, maxAttempts, Duration.ofMillis(1), CLOCK);
     }
 
     @Test
@@ -178,7 +210,7 @@ class DefaultDerivationRecomputerTest {
 
         BusinessObject updated = store.store.get(projectId);
         assertThat(updated.properties().get(new PropertyRef(OPEN_TASK_COUNT_IRI)))
-            .isEqualTo(new IntegerValue(2));
+                .isEqualTo(new IntegerValue(2));
         assertThat(updated.version()).isEqualTo(4);
         assertThat(store.commitCalls).isEqualTo(1);
         assertThat(store.lastOutboxKind).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
@@ -215,7 +247,7 @@ class DefaultDerivationRecomputerTest {
 
         BusinessObject updated = store.store.get(projectId);
         assertThat(updated.properties().get(new PropertyRef(OPEN_TASK_COUNT_IRI)))
-            .isEqualTo(new IntegerValue(0));
+                .isEqualTo(new IntegerValue(0));
         assertThat(store.commitCalls).isEqualTo(1);
     }
 
@@ -234,7 +266,7 @@ class DefaultDerivationRecomputerTest {
 
         BusinessObject updated = store.store.get(projectId);
         assertThat(updated.properties().get(new PropertyRef(OPEN_TASK_COUNT_IRI)))
-            .isEqualTo(new IntegerValue(1));
+                .isEqualTo(new IntegerValue(1));
         // 2 injected stale failures + 1 succeeding commit attempt.
         assertThat(store.commitCalls).isEqualTo(3);
     }
@@ -251,7 +283,7 @@ class DefaultDerivationRecomputerTest {
         DefaultDerivationRecomputer recomputer = recomputer(store, queryPort, true, 3);
 
         assertThatThrownBy(() -> recomputer.recompute(ALICE, objectUpdatedEvent(taskId)))
-            .isInstanceOf(StaleObjectException.class);
+                .isInstanceOf(StaleObjectException.class);
         assertThat(store.commitCalls).isEqualTo(3);
     }
 
@@ -398,11 +430,16 @@ class DefaultDerivationRecomputerTest {
                         // this recompute attempt's read and its commit.
                         BusinessObject current = store.get(id);
                         store.put(
-                            id,
-                            new BusinessObject(
-                                current.id(), current.type(), current.tenant(),
-                                current.version() + 1, current.state(), current.properties(),
-                                current.audit(), current.deleted()));
+                                id,
+                                new BusinessObject(
+                                        current.id(),
+                                        current.type(),
+                                        current.tenant(),
+                                        current.version() + 1,
+                                        current.state(),
+                                        current.properties(),
+                                        current.audit(),
+                                        current.deleted()));
                         throw new StaleObjectException(id, update.expectedVersion());
                     }
                     BusinessObject current = store.get(id);

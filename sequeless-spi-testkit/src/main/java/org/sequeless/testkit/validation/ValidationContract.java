@@ -87,8 +87,7 @@ public abstract class ValidationContract {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
         BusinessObject task = task(Map.of(new PropertyRef(Fixtures.TITLE_IRI), Value.text("x")));
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> fixture.port().validate(null, fixture.snapshot(), task));
+        assertThatNullPointerException().isThrownBy(() -> fixture.port().validate(null, fixture.snapshot(), task));
     }
 
     @Test
@@ -96,8 +95,7 @@ public abstract class ValidationContract {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
         BusinessObject task = task(Map.of(new PropertyRef(Fixtures.TITLE_IRI), Value.text("x")));
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), null, task));
+        assertThatNullPointerException().isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), null, task));
     }
 
     @Test
@@ -105,21 +103,17 @@ public abstract class ValidationContract {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
 
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), null));
+                .isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), null));
     }
 
     @Test
     void validReferenceTaskProducesNoViolations() {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Write plan"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("40"))));
+        BusinessObject task = task(Map.of(
+                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Write plan"),
+                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("40"))));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
 
         assertThat(violations).isEmpty();
     }
@@ -127,15 +121,11 @@ public abstract class ValidationContract {
     @Test
     void outOfRangeEstimatedHoursProducesViolationOnItsPath() {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Too big"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI),
-                        Value.decimal(new BigDecimal("5000"))));
+        BusinessObject task = task(Map.of(
+                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Too big"),
+                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
 
         assertThat(violations).isNotEmpty();
         assertThat(violations).extracting(Violation::path).contains(Fixtures.ESTIMATED_HOURS_IRI);
@@ -144,14 +134,11 @@ public abstract class ValidationContract {
     @Test
     void invalidPersonEmailProducesViolationOnItsPath() {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject person =
-            person(
-                Map.of(
-                    new PropertyRef(Fixtures.NAME_IRI), Value.text("Alice"),
-                    new PropertyRef(Fixtures.EMAIL_IRI), Value.text("not-an-email")));
+        BusinessObject person = person(Map.of(
+                new PropertyRef(Fixtures.NAME_IRI), Value.text("Alice"),
+                new PropertyRef(Fixtures.EMAIL_IRI), Value.text("not-an-email")));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), person);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), person);
 
         assertThat(violations).isNotEmpty();
         assertThat(violations).extracting(Violation::path).contains(Fixtures.EMAIL_IRI);
@@ -161,12 +148,9 @@ public abstract class ValidationContract {
     void validateIsDeterministic() {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
         Scope scope = Fixtures.defaultScope();
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Determinism check"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI),
-                        Value.decimal(new BigDecimal("5000"))));
+        BusinessObject task = task(Map.of(
+                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Determinism check"),
+                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
         List<Violation> first = fixture.port().validate(scope, fixture.snapshot(), task);
         List<Violation> second = fixture.port().validate(scope, fixture.snapshot(), task);
@@ -177,19 +161,15 @@ public abstract class ValidationContract {
     @Test
     void violationsListIsUnmodifiable() {
         Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Immutable check"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI),
-                        Value.decimal(new BigDecimal("5000"))));
+        BusinessObject task = task(Map.of(
+                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Immutable check"),
+                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
 
         assertThat(violations).isNotEmpty();
         assertThatThrownBy(() -> violations.add(new Violation("", "extra")))
-            .isInstanceOf(UnsupportedOperationException.class);
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private static BusinessObject task(Map<PropertyRef, Value> properties) {
@@ -204,6 +184,6 @@ public abstract class ValidationContract {
         Instant at = Instant.parse("2026-01-01T00:00:00Z");
         Audit audit = new Audit(at, "tester", at, "tester");
         return new BusinessObject(
-            ObjectId.random(), type, TenantId.DEFAULT, 1, Optional.empty(), properties, audit, false);
+                ObjectId.random(), type, TenantId.DEFAULT, 1, Optional.empty(), properties, audit, false);
     }
 }

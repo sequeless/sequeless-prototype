@@ -5,7 +5,6 @@ import java.util.OptionalLong;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.validation.ValidationException;
 import org.sequeless.spi.Scope;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectId;
@@ -130,8 +129,7 @@ public interface BusinessObjectService {
      *     violation
      * @throws StaleObjectException if the stored object is not currently at {@code expectedVersion}
      */
-    BusinessObject edit(
-        Scope scope, String type, ObjectId id, long expectedVersion, Map<String, Object> properties);
+    BusinessObject edit(Scope scope, String type, ObjectId id, long expectedVersion, Map<String, Object> properties);
 
     /**
      * Soft-deletes an existing object of {@code type} (or a subtype of it).

@@ -63,15 +63,15 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
     @Override
     public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
         throw new UnsupportedOperationException(
-            "browse is not exercised by AggregateContract; this double only supports commit and "
-                + "aggregation reads");
+                "browse is not exercised by AggregateContract; this double only supports commit and "
+                        + "aggregation reads");
     }
 
     @Override
     public Map<ObjectId, TypeRef> typesOf(Scope scope, Set<ObjectId> ids) {
         throw new UnsupportedOperationException(
-            "typesOf is not exercised by AggregateContract; this double only supports commit and "
-                + "aggregation reads");
+                "typesOf is not exercised by AggregateContract; this double only supports commit and "
+                        + "aggregation reads");
     }
 
     @Override
@@ -105,7 +105,7 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             @Override
             public StoredOntologyDocument activate(Scope scope, OntologyDocument document) {
                 throw new UnsupportedOperationException(
-                    "AggregateContract never activates an ontology through the store");
+                        "AggregateContract never activates an ontology through the store");
             }
         };
     }
@@ -123,8 +123,8 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             List<BusinessObject> matching = new ArrayList<>();
             for (BusinessObject object : objects.values()) {
                 if (!object.deleted()
-                    && object.tenant().equals(scope.tenantId())
-                    && typeIris.contains(object.type().iri())) {
+                        && object.tenant().equals(scope.tenantId())
+                        && typeIris.contains(object.type().iri())) {
                     matching.add(object);
                 }
             }
@@ -155,8 +155,7 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
     private BusinessObject apply(Scope scope, Mutation mutation) {
         return switch (mutation) {
             case Create create -> {
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         create.object().id(),
                         create.object().type(),
                         scope.tenantId(),
@@ -169,8 +168,7 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
                 yield stored;
             }
             case Update update -> {
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         update.object().id(),
                         update.object().type(),
                         scope.tenantId(),
@@ -184,17 +182,14 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             }
             case Delete delete -> {
                 BusinessObject previous = objects.get(delete.id());
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         previous.id(),
                         previous.type(),
                         previous.tenant(),
                         delete.expectedVersion() + 1,
                         previous.state(),
                         previous.properties(),
-                        new Audit(
-                            previous.audit().createdAt(), previous.audit().createdBy(), delete.at(),
-                            delete.by()),
+                        new Audit(previous.audit().createdAt(), previous.audit().createdBy(), delete.at(), delete.by()),
                         true);
                 objects.put(stored.id(), stored);
                 yield stored;

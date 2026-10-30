@@ -87,19 +87,16 @@ class InMemoryOntologyPortContractTest extends OntologyContract {
          */
         private MetaModelSnapshot buildSnapshot(OntologyDocument document) {
             if (document.content().equals(Fixtures.inconsistentOntology().content())) {
-                OntologyReport report =
-                    new OntologyReport(
+                OntologyReport report = new OntologyReport(
                         false,
-                        List.of(
-                            new OntologyIssue(
+                        List.of(new OntologyIssue(
                                 Severity.ERROR,
                                 Optional.empty(),
                                 "fake port: document matches the known-inconsistent fixture")));
                 throw new OntologyException(report);
             }
 
-            TypeDefinition thing =
-                new TypeDefinition(
+            TypeDefinition thing = new TypeDefinition(
                     "https://example.org/fake#Thing",
                     "Thing",
                     List.of(),
@@ -108,11 +105,11 @@ class InMemoryOntologyPortContractTest extends OntologyContract {
                     false,
                     Optional.empty());
             return new MetaModelSnapshot(
-                "https://example.org/fake",
-                Optional.empty(),
-                Map.of(),
-                List.of(thing),
-                new OntologyReport(true, List.of()));
+                    "https://example.org/fake",
+                    Optional.empty(),
+                    Map.of(),
+                    List.of(thing),
+                    new OntologyReport(true, List.of()));
         }
     }
 }

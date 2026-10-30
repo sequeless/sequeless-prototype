@@ -230,8 +230,8 @@ final class SqVocabulary {
      * order so that an ontology using more than one reserved term still fails with a deterministic
      * message rather than one that depends on {@code Map} iteration order.
      */
-    private static final List<ReservedTerm> RESERVED_TERMS = List.of(
-        new ReservedTerm("permission", "Phase 8 (authorisation)"));
+    private static final List<ReservedTerm> RESERVED_TERMS =
+            List.of(new ReservedTerm("permission", "Phase 8 (authorisation)"));
 
     private SqVocabulary() {}
 
@@ -255,8 +255,7 @@ final class SqVocabulary {
         for (ReservedTerm term : RESERVED_TERMS) {
             var resource = ResourceFactory.createResource(NS + term.localName());
             if (model.getBaseModel().containsResource(resource)) {
-                return Optional.of(
-                    "sq:" + term.localName() + " is reserved for " + term.reservedFor()
+                return Optional.of("sq:" + term.localName() + " is reserved for " + term.reservedFor()
                         + " and is not supported yet.");
             }
         }

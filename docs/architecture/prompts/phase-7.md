@@ -19,7 +19,7 @@ first.
 
 Earlier phases delivered the full runtime: BREAD, query and facets, on-read and materialised
 derivations, state machines with user, on-change, timer and signal triggers, durable actions.
-POST /ontology currently replaces the active document and rebuilds the snapshot without checking
+POST /api/ontology currently replaces the active document and rebuilds the snapshot without checking
 existing data.
 
 OBJECTIVE
@@ -50,9 +50,9 @@ DELIVERABLES
 - SPI: batch iteration and bulk update methods on ObjectStorePort with contract tests; migration
   record storage.
 - PostgreSQL adapter: sq_meta_migration table and batch operations.
-- REST: POST /ontology?mode=dryRun returning the diff and classification; POST /ontology
+- REST: POST /api/ontology?mode=dryRun returning the diff and classification; POST /api/ontology
   (additive applies immediately; breaking returns 409 with the diff and a plan template);
-  POST /ontology/migrations with the plan; GET /ontology/migrations/{id}; POST /ontology/versions/
+  POST /api/ontology/migrations with the plan; GET /api/ontology/migrations/{id}; POST /api/ontology/versions/
   {version}/activate.
 - docs/architecture/meta-model-evolution.md with the classification rules and step semantics.
 - Tests using the reference ontology: add a property (additive), rename Task.estimatedHours to
@@ -78,3 +78,5 @@ Plan before coding: propose the diff model, the classification table and the ste
 confirm with me before implementing. Ask via AskUserQuestion when ambiguous, especially about
 what counts as destructive.
 ```
+
+> Note: new REST controllers under `org.sequeless.app.rest` are served under `/api`; `ApiPathPrefixConfiguration` applies the prefix, so write `/api/...` URLs.

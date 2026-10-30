@@ -49,7 +49,6 @@ import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.object.Value;
@@ -114,20 +113,20 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultBusinessObjectService(
-        OntologyPort ontologyPort,
-        ObjectStorePort objectStorePort,
-        ValidationPort validationPort,
-        AuthorizationPort authorizationPort,
-        QueryPort queryPort,
-        Clock clock) {
+            OntologyPort ontologyPort,
+            ObjectStorePort objectStorePort,
+            ValidationPort validationPort,
+            AuthorizationPort authorizationPort,
+            QueryPort queryPort,
+            Clock clock) {
         this(
-            ontologyPort,
-            objectStorePort,
-            validationPort,
-            authorizationPort,
-            queryPort,
-            clock,
-            new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader()));
+                ontologyPort,
+                objectStorePort,
+                validationPort,
+                authorizationPort,
+                queryPort,
+                clock,
+                new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader()));
     }
 
     /**
@@ -147,24 +146,20 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultBusinessObjectService(
-        OntologyPort ontologyPort,
-        ObjectStorePort objectStorePort,
-        ValidationPort validationPort,
-        AuthorizationPort authorizationPort,
-        QueryPort queryPort,
-        Clock clock,
-        DerivationPlanner derivationPlanner) {
+            OntologyPort ontologyPort,
+            ObjectStorePort objectStorePort,
+            ValidationPort validationPort,
+            AuthorizationPort authorizationPort,
+            QueryPort queryPort,
+            Clock clock,
+            DerivationPlanner derivationPlanner) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
-        this.validationPort =
-            Objects.requireNonNull(validationPort, "validationPort must not be null");
-        this.authorizationPort =
-            Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+        this.validationPort = Objects.requireNonNull(validationPort, "validationPort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
         this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
-        this.derivationPlanner =
-            Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
+        this.derivationPlanner = Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
     }
 
     @Override
@@ -191,11 +186,9 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             return new QueryResult(List.of(), 0, Map.of());
         }
 
-        Query spiQuery =
-            new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
+        Query spiQuery = new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
         QueryResult result = queryPort.query(scope, snapshot, spiQuery);
-        List<BusinessObject> derived =
-            derivationPlanner.apply(scope, snapshot, resolved, result.items());
+        List<BusinessObject> derived = derivationPlanner.apply(scope, snapshot, resolved, result.items());
         return new QueryResult(derived, result.total(), result.facets());
     }
 
@@ -209,10 +202,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         TypeDefinition resolved = resolveType(snapshot, type);
         authorize(scope, Operation.READ, resolved.iri());
 
-        BusinessObject found =
-            objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        BusinessObject found = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(snapshot, found, resolved, id);
-        return derivationPlanner.apply(scope, snapshot, resolved, List.of(found)).get(0);
+        return derivationPlanner
+                .apply(scope, snapshot, resolved, List.of(found))
+                .get(0);
     }
 
     @Override
@@ -227,17 +221,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
 
         Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, properties);
         List<Violation> structural =
-            StructuralValidator.validateForCreate(
-                scope, snapshot, resolved, coerced, objectStorePort);
+                StructuralValidator.validateForCreate(scope, snapshot, resolved, coerced, objectStorePort);
         if (!structural.isEmpty()) {
             throw new ValidationException(ValidationException.Source.STRUCTURAL, structural);
         }
 
         Instant now = now();
         String by = scope.principal().id();
-        Optional<String> initialState = resolved.stateMachine().map(m -> m.initialState().iri());
-        BusinessObject candidate =
-            new BusinessObject(
+        Optional<String> initialState =
+                resolved.stateMachine().map(m -> m.initialState().iri());
+        BusinessObject candidate = new BusinessObject(
                 ObjectId.random(),
                 new TypeRef(resolved.iri()),
                 scope.tenantId(),
@@ -252,14 +245,12 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             throw new ValidationException(ValidationException.Source.SHACL, shaclViolations);
         }
 
-        OutboxEntry outboxEntry =
-            new OutboxEntry(
+        OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_CREATED,
                 outboxPayload(candidate.id(), 1L, candidate.type().iri()),
                 now);
-        ChangeSet changeSet =
-            new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
+        ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
 
         CommitResult result = objectStorePort.commit(scope, changeSet);
         return result.objects().get(0);
@@ -267,11 +258,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
 
     @Override
     public BusinessObject edit(
-        Scope scope,
-        String type,
-        ObjectId id,
-        long expectedVersion,
-        Map<String, Object> properties) {
+            Scope scope, String type, ObjectId id, long expectedVersion, Map<String, Object> properties) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
@@ -281,47 +268,34 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         TypeDefinition resolved = resolveType(snapshot, type);
         authorize(scope, Operation.EDIT, resolved.iri());
 
-        BusinessObject existing =
-            objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(snapshot, existing, resolved, id);
 
         Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, properties);
         List<Violation> structural =
-            StructuralValidator.validateForUpdate(
-                scope, snapshot, resolved, coerced, objectStorePort);
+                StructuralValidator.validateForUpdate(scope, snapshot, resolved, coerced, objectStorePort);
         if (!structural.isEmpty()) {
             throw new ValidationException(ValidationException.Source.STRUCTURAL, structural);
         }
 
         Instant now = now();
         String by = scope.principal().id();
-        Audit audit =
-            new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
-        BusinessObject candidate =
-            new BusinessObject(
-                id,
-                existing.type(),
-                existing.tenant(),
-                expectedVersion + 1,
-                existing.state(),
-                coerced,
-                audit,
-                false);
+        Audit audit = new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
+        BusinessObject candidate = new BusinessObject(
+                id, existing.type(), existing.tenant(), expectedVersion + 1, existing.state(), coerced, audit, false);
 
         List<Violation> shaclViolations = validationPort.validate(scope, snapshot, candidate);
         if (!shaclViolations.isEmpty()) {
             throw new ValidationException(ValidationException.Source.SHACL, shaclViolations);
         }
 
-        OutboxEntry outboxEntry =
-            new OutboxEntry(
+        OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
                 outboxPayload(id, expectedVersion + 1, existing.type().iri()),
                 now);
         ChangeSet changeSet =
-            new ChangeSet(
-                List.<Mutation>of(new Update(candidate, expectedVersion)), List.of(outboxEntry));
+                new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), List.of(outboxEntry));
 
         CommitResult result = objectStorePort.commit(scope, changeSet);
         return result.objects().get(0);
@@ -338,8 +312,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         TypeDefinition resolved = resolveType(snapshot, type);
         authorize(scope, Operation.DELETE, resolved.iri());
 
-        BusinessObject existing =
-            objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(snapshot, existing, resolved, id);
 
         long versionToDelete = expectedVersion.orElse(existing.version());
@@ -347,20 +320,18 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         String by = scope.principal().id();
         Delete deletion = new Delete(id, versionToDelete, now, by);
         Map<String, Object> payload =
-            outboxPayload(id, versionToDelete + 1, existing.type().iri());
+                outboxPayload(id, versionToDelete + 1, existing.type().iri());
         payload.put("properties", propertiesSnapshot(existing));
-        OutboxEntry outboxEntry =
-            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED, payload, now);
+        OutboxEntry outboxEntry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED, payload, now);
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(deletion), List.of(outboxEntry));
 
         objectStorePort.commit(scope, changeSet);
     }
 
     private TypeDefinition resolveType(MetaModelSnapshot snapshot, String nameOrIri) {
-        return snapshot
-            .typeByName(nameOrIri)
-            .or(() -> snapshot.type(nameOrIri))
-            .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
+        return snapshot.typeByName(nameOrIri)
+                .or(() -> snapshot.type(nameOrIri))
+                .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
     }
 
     /**
@@ -392,24 +363,23 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * single {@link BrowseQuery} can report every violation it contains at once.
      */
     private PropertyDefinition resolveQueryableProperty(
-        String nameOrIri, Map<String, PropertyDefinition> index, List<Violation> violations, String kind) {
+            String nameOrIri, Map<String, PropertyDefinition> index, List<Violation> violations, String kind) {
         PropertyDefinition property = index.get(nameOrIri);
         if (property == null) {
             violations.add(new Violation(nameOrIri, "Unknown property '" + nameOrIri + "'"));
             return null;
         }
         if (!isScalar(property)) {
-            violations.add(
-                new Violation(
+            violations.add(new Violation(
                     property.iri(),
-                    "Property '" + shortName(property.iri())
-                        + "' is multi-valued and cannot be used in a " + kind));
+                    "Property '" + shortName(property.iri()) + "' is multi-valued and cannot be used in a " + kind));
             return null;
         }
         if (property.derivation().isPresent() && !property.derivation().get().materialised()) {
-            violations.add(new Violation(property.iri(),
-                "Property '" + shortName(property.iri()) + "' is a derived property that is not materialised "
-                    + "and cannot be used in a " + kind));
+            violations.add(new Violation(
+                    property.iri(),
+                    "Property '" + shortName(property.iri()) + "' is a derived property that is not materialised "
+                            + "and cannot be used in a " + kind));
             return null;
         }
         return property;
@@ -421,49 +391,38 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private List<Criterion> buildCriteria(
-        List<BrowseQuery.Filter> filters,
-        Map<String, PropertyDefinition> index,
-        List<Violation> violations) {
+            List<BrowseQuery.Filter> filters, Map<String, PropertyDefinition> index, List<Violation> violations) {
         List<Criterion> criteria = new ArrayList<>();
         for (BrowseQuery.Filter filter : filters) {
-            PropertyDefinition property =
-                resolveQueryableProperty(filter.property(), index, violations, "filter");
+            PropertyDefinition property = resolveQueryableProperty(filter.property(), index, violations, "filter");
             if (property == null) {
                 continue;
             }
             Optional<Operator> operator = parseOperatorToken(filter.operator());
             if (operator.isEmpty()) {
-                violations.add(
-                    new Violation(
-                        filter.property(), "Unknown filter operator '" + filter.operator() + "'"));
+                violations.add(new Violation(filter.property(), "Unknown filter operator '" + filter.operator() + "'"));
                 continue;
             }
             if (!operatorApplicable(operator.get(), property)) {
-                violations.add(
-                    new Violation(
+                violations.add(new Violation(
                         property.iri(),
                         "Operator '" + filter.operator() + "' is not applicable to property '"
-                            + shortName(property.iri()) + "'"));
+                                + shortName(property.iri()) + "'"));
                 continue;
             }
-            Optional<Value> value =
-                buildCriterionValue(property, operator.get(), filter.rawValue(), violations);
+            Optional<Value> value = buildCriterionValue(property, operator.get(), filter.rawValue(), violations);
             criteria.add(new Criterion(property.iri(), operator.get(), value));
         }
         return criteria;
     }
 
     private Optional<Value> buildCriterionValue(
-        PropertyDefinition property,
-        Operator operator,
-        Optional<String> rawValue,
-        List<Violation> violations) {
+            PropertyDefinition property, Operator operator, Optional<String> rawValue, List<Violation> violations) {
         if (operator == Operator.IS_NULL || operator == Operator.NOT_NULL) {
             return Optional.empty();
         }
         if (rawValue.isEmpty()) {
-            violations.add(
-                new Violation(property.iri(), "value required for operator " + operator));
+            violations.add(new Violation(property.iri(), "value required for operator " + operator));
             return Optional.empty();
         }
         String raw = rawValue.get();
@@ -474,9 +433,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             for (String token : tokens) {
                 String trimmed = token.trim();
                 if (trimmed.isEmpty()) {
-                    violations.add(
-                        new Violation(
-                            property.iri(), "IN operator candidate value must not be blank"));
+                    violations.add(new Violation(property.iri(), "IN operator candidate value must not be blank"));
                     allSucceeded = false;
                     continue;
                 }
@@ -504,8 +461,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * the call. Every other datatype family (including relationship UUIDs) already accepts a raw
      * {@link String} as-is.
      */
-    private Optional<Value> coerceFilterScalar(
-        PropertyDefinition property, String raw, List<Violation> violations) {
+    private Optional<Value> coerceFilterScalar(PropertyDefinition property, String raw, List<Violation> violations) {
         Object nativeValue = raw;
         if (property instanceof AttributeDefinition attribute) {
             switch (attribute.datatype()) {
@@ -542,22 +498,17 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private List<Sort> buildSorts(
-        List<BrowseQuery.SortKey> sortKeys,
-        Map<String, PropertyDefinition> index,
-        List<Violation> violations) {
+            List<BrowseQuery.SortKey> sortKeys, Map<String, PropertyDefinition> index, List<Violation> violations) {
         List<Sort> sorts = new ArrayList<>();
         for (BrowseQuery.SortKey sortKey : sortKeys) {
-            PropertyDefinition property =
-                resolveQueryableProperty(sortKey.property(), index, violations, "sort");
+            PropertyDefinition property = resolveQueryableProperty(sortKey.property(), index, violations, "sort");
             if (property == null) {
                 continue;
             }
             Optional<Direction> direction = parseDirectionToken(sortKey.direction());
             if (direction.isEmpty()) {
                 violations.add(
-                    new Violation(
-                        sortKey.property(),
-                        "Unknown sort direction '" + sortKey.direction() + "'"));
+                        new Violation(sortKey.property(), "Unknown sort direction '" + sortKey.direction() + "'"));
                 continue;
             }
             sorts.add(new Sort(property.iri(), direction.get()));
@@ -566,19 +517,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private List<String> buildFacets(
-        List<String> facets, Map<String, PropertyDefinition> index, List<Violation> violations) {
+            List<String> facets, Map<String, PropertyDefinition> index, List<Violation> violations) {
         List<String> facetIris = new ArrayList<>();
         for (String nameOrIri : facets) {
-            PropertyDefinition property =
-                resolveQueryableProperty(nameOrIri, index, violations, "facet");
+            PropertyDefinition property = resolveQueryableProperty(nameOrIri, index, violations, "facet");
             if (property == null) {
                 continue;
             }
             if (!property.facet()) {
-                violations.add(
-                    new Violation(
-                        property.iri(),
-                        "Property '" + shortName(property.iri()) + "' is not a facet property"));
+                violations.add(new Violation(
+                        property.iri(), "Property '" + shortName(property.iri()) + "' is not a facet property"));
                 continue;
             }
             facetIris.add(property.iri());
@@ -591,13 +539,12 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             case EQ, NE, IN, IS_NULL, NOT_NULL -> true;
             case LT, LTE, GT, GTE ->
                 property instanceof AttributeDefinition attribute
-                    && switch (attribute.datatype()) {
-                        case INTEGER, LONG, DECIMAL, DOUBLE, DATE, DATE_TIME -> true;
-                        default -> false;
-                    };
+                        && switch (attribute.datatype()) {
+                            case INTEGER, LONG, DECIMAL, DOUBLE, DATE, DATE_TIME -> true;
+                            default -> false;
+                        };
             case CONTAINS, STARTS_WITH ->
-                property instanceof AttributeDefinition attribute
-                    && attribute.datatype() == Datatype.STRING;
+                property instanceof AttributeDefinition attribute && attribute.datatype() == Datatype.STRING;
         };
     }
 
@@ -642,18 +589,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private void requireMatchingType(
-        MetaModelSnapshot snapshot, BusinessObject object, TypeDefinition resolved, ObjectId id) {
+            MetaModelSnapshot snapshot, BusinessObject object, TypeDefinition resolved, ObjectId id) {
         if (!TypeHierarchy.isSubtypeOf(snapshot, object.type().iri(), resolved.iri())) {
             throw new ObjectNotFoundException(id);
         }
     }
 
-    private Map<PropertyRef, Value> coerceOrThrow(
-        TypeDefinition type, Map<String, Object> rawProperties) {
+    private Map<PropertyRef, Value> coerceOrThrow(TypeDefinition type, Map<String, Object> rawProperties) {
         CoercionResult coercion = ValueCoercer.coerce(type, rawProperties);
         if (!coercion.isSuccess()) {
-            throw new ValidationException(
-                ValidationException.Source.STRUCTURAL, coercion.violations());
+            throw new ValidationException(ValidationException.Source.STRUCTURAL, coercion.violations());
         }
         return coercion.properties();
     }

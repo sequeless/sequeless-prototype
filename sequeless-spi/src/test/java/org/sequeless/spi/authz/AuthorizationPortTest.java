@@ -49,9 +49,8 @@ class AuthorizationPortTest {
         Scope scope = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
 
         assertThatNullPointerException()
-            .isThrownBy(() -> port.decide(null, Operation.READ, AuthorizationPort.EVERYTHING));
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.decide(scope, null, AuthorizationPort.EVERYTHING));
+                .isThrownBy(() -> port.decide(null, Operation.READ, AuthorizationPort.EVERYTHING));
+        assertThatNullPointerException().isThrownBy(() -> port.decide(scope, null, AuthorizationPort.EVERYTHING));
         assertThatNullPointerException().isThrownBy(() -> port.decide(scope, Operation.READ, null));
     }
 }

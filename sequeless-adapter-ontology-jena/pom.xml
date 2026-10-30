@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,12 +12,10 @@
   <artifactId>sequeless-adapter-ontology-jena</artifactId>
 
   <name>sequeless-adapter-ontology-jena</name>
-  <description>
-    The default OntologyPort adapter: Jena 6 ontapi, the built-in OWL/RDFS reasoners selected by
+  <description>The default OntologyPort adapter: Jena 6 ontapi, the built-in OWL/RDFS reasoners selected by
     sequeless.ontology.reasoner, owl:imports resolution against a bundled copy of the sq: vocabulary,
     sq: annotation mapping into the SPI's MetaModelSnapshot records, a consistency check producing an
-    OntologyReport, and Turtle import/export. jena-shacl and ValidationPort arrive in Phase 2.
-  </description>
+    OntologyReport, and Turtle import/export. jena-shacl and ValidationPort arrive in Phase 2.</description>
 
   <dependencies>
     <dependency>
@@ -62,12 +58,6 @@
       <optional>true</optional>
     </dependency>
 
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <optional>true</optional>
-    </dependency>
-
     <!--
       Brings OntologyContract, the reference-domain Turtle fixtures, and (transitively, at compile
       scope there by design) JUnit Jupiter and AssertJ.
@@ -89,6 +79,49 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-arq</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-beans</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

@@ -27,7 +27,7 @@ class OntologyReportTest {
     @Test
     void inconsistentRequiresAtLeastOneErrorIssue() {
         List<OntologyIssue> onlyWarnings =
-            List.of(new OntologyIssue(Severity.WARNING, Optional.empty(), "just a warning"));
+                List.of(new OntologyIssue(Severity.WARNING, Optional.empty(), "just a warning"));
 
         assertThatIllegalArgumentException().isThrownBy(() -> new OntologyReport(false, onlyWarnings));
     }
@@ -38,7 +38,7 @@ class OntologyReportTest {
         OntologyReport report = new OntologyReport(false, List.of(issue));
 
         assertThat(report.describe())
-            .isEqualTo("Ontology is inconsistent (1 issue(s)):\n  [ERROR] ex:Cyborg: conflicting types");
+                .isEqualTo("Ontology is inconsistent (1 issue(s)):\n  [ERROR] ex:Cyborg: conflicting types");
     }
 
     @Test
@@ -48,10 +48,9 @@ class OntologyReportTest {
         OntologyReport report = new OntologyReport(false, List.of(first, second));
 
         assertThat(report.describe())
-            .isEqualTo(
-                "Ontology is inconsistent (2 issue(s)):\n"
-                    + "  [ERROR] ex:Cyborg: conflicting types\n"
-                    + "  [WARNING] malformed document");
+                .isEqualTo("Ontology is inconsistent (2 issue(s)):\n"
+                        + "  [ERROR] ex:Cyborg: conflicting types\n"
+                        + "  [WARNING] malformed document");
     }
 
     @Test
@@ -59,7 +58,8 @@ class OntologyReportTest {
         OntologyIssue warning = new OntologyIssue(Severity.WARNING, Optional.empty(), "unrecognised datatype");
         OntologyReport report = new OntologyReport(true, List.of(warning));
 
-        assertThat(report.describe()).isEqualTo("Ontology is consistent (1 issue(s)):\n  [WARNING] unrecognised datatype");
+        assertThat(report.describe())
+                .isEqualTo("Ontology is consistent (1 issue(s)):\n  [WARNING] unrecognised datatype");
     }
 
     @Test
@@ -77,6 +77,6 @@ class OntologyReportTest {
 
         assertThat(report.issues()).hasSize(1);
         assertThatThrownBy(() -> report.issues().add(new OntologyIssue(Severity.WARNING, Optional.empty(), "x")))
-            .isInstanceOf(UnsupportedOperationException.class);
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 }

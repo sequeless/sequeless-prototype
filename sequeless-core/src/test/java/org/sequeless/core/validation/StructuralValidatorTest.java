@@ -40,7 +40,7 @@ import org.sequeless.spi.validation.Violation;
 class StructuralValidatorTest {
 
     private static final Scope SCOPE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     private static final String NS = "https://sequeless.dev/ns/ref#";
     private static final String TITLE_IRI = NS + "title";
@@ -52,15 +52,12 @@ class StructuralValidatorTest {
     private static final String PROJECT_IRI = NS + "Project";
     private static final String ABSTRACT_THING_IRI = NS + "AbstractThing";
 
-    private static final AttributeDefinition TITLE =
-        attribute(TITLE_IRI, Cardinality.required());
-    private static final AttributeDefinition TAGS =
-        attribute(TAGS_IRI, Cardinality.range(0, 2));
+    private static final AttributeDefinition TITLE = attribute(TITLE_IRI, Cardinality.required());
+    private static final AttributeDefinition TAGS = attribute(TAGS_IRI, Cardinality.range(0, 2));
     private static final RelationshipDefinition ASSIGNED_TO =
-        relationship(ASSIGNED_TO_IRI, Cardinality.optional(), PERSON_IRI);
+            relationship(ASSIGNED_TO_IRI, Cardinality.optional(), PERSON_IRI);
 
-    private static final TypeDefinition TASK =
-        new TypeDefinition(
+    private static final TypeDefinition TASK = new TypeDefinition(
             TASK_IRI,
             "Task",
             List.of(),
@@ -69,42 +66,19 @@ class StructuralValidatorTest {
             false,
             Optional.empty());
 
-    private static final TypeDefinition PERSON =
-        new TypeDefinition(
+    private static final TypeDefinition PERSON = new TypeDefinition(
             PERSON_IRI, "Person", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
 
-    private static final TypeDefinition EMPLOYEE =
-        new TypeDefinition(
-            EMPLOYEE_IRI,
-            "Employee",
-            List.of(PERSON_IRI),
-            List.of(),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+    private static final TypeDefinition EMPLOYEE = new TypeDefinition(
+            EMPLOYEE_IRI, "Employee", List.of(PERSON_IRI), List.of(), DisplayHints.none(), false, Optional.empty());
 
-    private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI,
-            "Project",
-            List.of(),
-            List.of(),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+    private static final TypeDefinition PROJECT = new TypeDefinition(
+            PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
 
-    private static final TypeDefinition ABSTRACT_THING =
-        new TypeDefinition(
-            ABSTRACT_THING_IRI,
-            "AbstractThing",
-            List.of(),
-            List.of(),
-            DisplayHints.none(),
-            true,
-            Optional.empty());
+    private static final TypeDefinition ABSTRACT_THING = new TypeDefinition(
+            ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true, Optional.empty());
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
+    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
@@ -113,15 +87,34 @@ class StructuralValidatorTest {
 
     private static AttributeDefinition attribute(String iri, Cardinality cardinality) {
         return new AttributeDefinition(
-            iri, iri, cardinality, false, false, false, false, false, DisplayHints.none(),
-            Optional.empty(), Datatype.STRING);
+                iri,
+                iri,
+                cardinality,
+                false,
+                false,
+                false,
+                false,
+                false,
+                DisplayHints.none(),
+                Optional.empty(),
+                Datatype.STRING);
     }
 
-    private static RelationshipDefinition relationship(
-        String iri, Cardinality cardinality, String targetTypeIri) {
+    private static RelationshipDefinition relationship(String iri, Cardinality cardinality, String targetTypeIri) {
         return new RelationshipDefinition(
-            iri, iri, cardinality, false, false, false, false, false, DisplayHints.none(),
-            Optional.empty(), targetTypeIri, Optional.empty(), false);
+                iri,
+                iri,
+                cardinality,
+                false,
+                false,
+                false,
+                false,
+                false,
+                DisplayHints.none(),
+                Optional.empty(),
+                targetTypeIri,
+                Optional.empty(),
+                false);
     }
 
     private static Map<PropertyRef, Value> propsWithTitle() {
@@ -136,8 +129,7 @@ class StructuralValidatorTest {
     void missingRequiredPropertyProducesOneViolationNamingItsIri() {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, Map.of(), store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, Map.of(), store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(TITLE_IRI);
@@ -148,7 +140,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, propsWithTitle(), store);
+                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, propsWithTitle(), store);
 
         assertThat(violations).isEmpty();
     }
@@ -160,12 +152,10 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
         Map<PropertyRef, Value> props = propsWithTitle();
         props.put(
-            new PropertyRef(TAGS_IRI),
-            new ListValue(
-                List.of(new TextValue("a"), new TextValue("b"), new TextValue("c"))));
+                new PropertyRef(TAGS_IRI),
+                new ListValue(List.of(new TextValue("a"), new TextValue("b"), new TextValue("c"))));
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(TAGS_IRI);
@@ -180,8 +170,7 @@ class StructuralValidatorTest {
         Map<PropertyRef, Value> props = propsWithTitle();
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(missing));
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(ASSIGNED_TO_IRI);
@@ -191,13 +180,11 @@ class StructuralValidatorTest {
     @Test
     void referenceToIdOfWrongTypeProducesViolation() {
         ObjectId projectId = ObjectId.random();
-        FakeObjectStorePort store =
-            new FakeObjectStorePort(Map.of(projectId, new TypeRef(PROJECT_IRI)));
+        FakeObjectStorePort store = new FakeObjectStorePort(Map.of(projectId, new TypeRef(PROJECT_IRI)));
         Map<PropertyRef, Value> props = propsWithTitle();
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(projectId));
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(ASSIGNED_TO_IRI);
@@ -206,13 +193,11 @@ class StructuralValidatorTest {
     @Test
     void referenceToIdOfExactTargetTypeProducesNoViolation() {
         ObjectId personId = ObjectId.random();
-        FakeObjectStorePort store =
-            new FakeObjectStorePort(Map.of(personId, new TypeRef(PERSON_IRI)));
+        FakeObjectStorePort store = new FakeObjectStorePort(Map.of(personId, new TypeRef(PERSON_IRI)));
         Map<PropertyRef, Value> props = propsWithTitle();
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(personId));
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
 
         assertThat(violations).isEmpty();
     }
@@ -220,13 +205,11 @@ class StructuralValidatorTest {
     @Test
     void referenceToIdOfSubtypeOfTargetTypeProducesNoViolation() {
         ObjectId employeeId = ObjectId.random();
-        FakeObjectStorePort store =
-            new FakeObjectStorePort(Map.of(employeeId, new TypeRef(EMPLOYEE_IRI)));
+        FakeObjectStorePort store = new FakeObjectStorePort(Map.of(employeeId, new TypeRef(EMPLOYEE_IRI)));
         Map<PropertyRef, Value> props = propsWithTitle();
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(employeeId));
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, props, store);
 
         assertThat(violations).isEmpty();
     }
@@ -238,7 +221,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, ABSTRACT_THING, Map.of(), store);
+                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, ABSTRACT_THING, Map.of(), store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEmpty();
@@ -250,7 +233,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-            StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, ABSTRACT_THING, Map.of(), store);
+                StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, ABSTRACT_THING, Map.of(), store);
 
         assertThat(violations).isEmpty();
     }
@@ -260,10 +243,8 @@ class StructuralValidatorTest {
     @Test
     void multiplePropertiesReferencingSameIdCallTypesOfOnceWithASetContainingItOnce() {
         ObjectId personId = ObjectId.random();
-        RelationshipDefinition secondRelationship =
-            relationship(NS + "backup", Cardinality.optional(), PERSON_IRI);
-        TypeDefinition typeWithTwoRelationships =
-            new TypeDefinition(
+        RelationshipDefinition secondRelationship = relationship(NS + "backup", Cardinality.optional(), PERSON_IRI);
+        TypeDefinition typeWithTwoRelationships = new TypeDefinition(
                 NS + "Dual",
                 "Dual",
                 List.of(),
@@ -271,15 +252,13 @@ class StructuralValidatorTest {
                 DisplayHints.none(),
                 false,
                 Optional.empty());
-        FakeObjectStorePort store =
-            new FakeObjectStorePort(Map.of(personId, new TypeRef(PERSON_IRI)));
+        FakeObjectStorePort store = new FakeObjectStorePort(Map.of(personId, new TypeRef(PERSON_IRI)));
         Map<PropertyRef, Value> props = propsWithTitle();
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(personId));
         props.put(new PropertyRef(NS + "backup"), new ReferenceValue(personId));
 
         List<Violation> violations =
-            StructuralValidator.validateForCreate(
-                SCOPE, SNAPSHOT, typeWithTwoRelationships, props, store);
+                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, typeWithTwoRelationships, props, store);
 
         assertThat(violations).isEmpty();
         assertThat(store.typesOfCalls).isEqualTo(1);
@@ -292,8 +271,7 @@ class StructuralValidatorTest {
     void emptyPropertiesWithNoRequiredPropertiesOnTypeProducesNoViolations() {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
-        List<Violation> violations =
-            StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, PERSON, Map.of(), store);
+        List<Violation> violations = StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, PERSON, Map.of(), store);
 
         assertThat(violations).isEmpty();
     }
@@ -304,40 +282,30 @@ class StructuralValidatorTest {
     void validateForCreateRejectsNullArguments() {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForCreate(null, SNAPSHOT, TASK, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(null, SNAPSHOT, TASK, Map.of(), store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForCreate(SCOPE, null, TASK, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, null, TASK, Map.of(), store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, null, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, null, Map.of(), store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, null, store));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, null, store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, Map.of(), null));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, TASK, Map.of(), null));
     }
 
     @Test
     void validateForUpdateRejectsNullArguments() {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForUpdate(null, SNAPSHOT, TASK, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(null, SNAPSHOT, TASK, Map.of(), store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForUpdate(SCOPE, null, TASK, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, null, TASK, Map.of(), store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, null, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, null, Map.of(), store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, TASK, null, store));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, TASK, null, store));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, TASK, Map.of(), null));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, TASK, Map.of(), null));
     }
 
     /**

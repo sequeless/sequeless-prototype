@@ -37,13 +37,13 @@ import java.util.Optional;
  *     transition after construction
  */
 public record Transition(
-    String name,
-    String fromStateIri,
-    String toStateIri,
-    TriggerSpec trigger,
-    Optional<String> guard,
-    Optional<String> guardMessage,
-    List<Action> actions) {
+        String name,
+        String fromStateIri,
+        String toStateIri,
+        TriggerSpec trigger,
+        Optional<String> guard,
+        Optional<String> guardMessage,
+        List<Action> actions) {
 
     public Transition {
         if (name == null || name.isBlank()) {

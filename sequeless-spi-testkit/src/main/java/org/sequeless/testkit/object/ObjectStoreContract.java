@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -137,8 +137,7 @@ public abstract class ObjectStoreContract {
     void findRejectsNullScopeOrId() {
         ObjectStorePort store = freshStore();
         assertThatNullPointerException().isThrownBy(() -> store.find(null, ObjectId.random()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> store.find(Fixtures.defaultScope(), null));
+        assertThatNullPointerException().isThrownBy(() -> store.find(Fixtures.defaultScope(), null));
     }
 
     @Test
@@ -175,9 +174,7 @@ public abstract class ObjectStoreContract {
         ObjectStorePort store = freshStore();
         Scope scope = Fixtures.defaultScope();
         ChangeSet changeSet =
-            new ChangeSet(
-                List.of(new Create(newObject(scope, ObjectId.random(), TYPE_A, Map.of()))),
-                List.of());
+                new ChangeSet(List.of(new Create(newObject(scope, ObjectId.random(), TYPE_A, Map.of()))), List.of());
 
         assertThatNullPointerException().isThrownBy(() -> store.commit(null, changeSet));
         assertThatNullPointerException().isThrownBy(() -> store.commit(scope, null));
@@ -204,8 +201,7 @@ public abstract class ObjectStoreContract {
         Audit audit = new Audit(at, "alice", at, "alice");
         ObjectId referenced = ObjectId.random();
 
-        Map<PropertyRef, Value> properties =
-            Map.of(
+        Map<PropertyRef, Value> properties = Map.of(
                 TEXT_PROP, Value.text("hello"),
                 INTEGER_PROP, Value.integer(42),
                 DECIMAL_PROP, Value.decimal(new BigDecimal("12.50")),
@@ -216,8 +212,7 @@ public abstract class ObjectStoreContract {
                 LIST_PROP, Value.list(List.of(Value.text("a"), Value.text("b"))));
 
         BusinessObject toCreate =
-            new BusinessObject(
-                id, TYPE_A, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
+                new BusinessObject(id, TYPE_A, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
 
         store.commit(scope, new ChangeSet(List.of(new Create(toCreate)), List.of()));
 
@@ -232,24 +227,19 @@ public abstract class ObjectStoreContract {
         Scope scope = Fixtures.defaultScope();
         ObjectId id = ObjectId.random();
 
-        CommitResult createResult =
-            store.commit(
+        CommitResult createResult = store.commit(
                 scope,
                 new ChangeSet(
-                    List.of(
-                        new Create(newObject(scope, id, TYPE_A, Map.of(TEXT_PROP, Value.text("v1"))))),
-                    List.of()));
+                        List.of(new Create(newObject(scope, id, TYPE_A, Map.of(TEXT_PROP, Value.text("v1"))))),
+                        List.of()));
         assertThat(createResult.objects()).hasSize(1);
         assertThat(createResult.objects().get(0).version()).isEqualTo(1);
 
-        CommitResult updateResult =
-            store.commit(
+        CommitResult updateResult = store.commit(
                 scope,
                 new ChangeSet(
-                    List.of(
-                        new Update(
-                            newObject(scope, id, TYPE_A, Map.of(TEXT_PROP, Value.text("v2"))), 1)),
-                    List.of()));
+                        List.of(new Update(newObject(scope, id, TYPE_A, Map.of(TEXT_PROP, Value.text("v2"))), 1)),
+                        List.of()));
         assertThat(updateResult.objects()).hasSize(1);
         assertThat(updateResult.objects().get(0).version()).isEqualTo(2);
 
@@ -267,18 +257,13 @@ public abstract class ObjectStoreContract {
         ObjectId secondId = ObjectId.random();
         List<UUID> outboxBefore = persistedOutboxIds(scope);
 
-        store.commit(
-            scope, new ChangeSet(List.of(new Create(newObject(scope, id, TYPE_A, Map.of()))), List.of()));
+        store.commit(scope, new ChangeSet(List.of(new Create(newObject(scope, id, TYPE_A, Map.of()))), List.of()));
 
-        Mutation staleUpdate =
-            new Update(newObject(scope, id, TYPE_A, Map.of(TEXT_PROP, Value.text("nope"))), 99);
+        Mutation staleUpdate = new Update(newObject(scope, id, TYPE_A, Map.of(TEXT_PROP, Value.text("nope"))), 99);
         Mutation unrelatedCreate = new Create(newObject(scope, secondId, TYPE_A, Map.of()));
 
-        assertThatThrownBy(
-                () ->
-                    store.commit(
-                        scope, new ChangeSet(List.of(staleUpdate, unrelatedCreate), List.of())))
-            .isInstanceOf(StaleObjectException.class);
+        assertThatThrownBy(() -> store.commit(scope, new ChangeSet(List.of(staleUpdate, unrelatedCreate), List.of())))
+                .isInstanceOf(StaleObjectException.class);
 
         assertThat(store.find(scope, secondId)).isEmpty();
         assertThat(persistedOutboxIds(scope)).hasSameSizeAs(outboxBefore);
@@ -291,9 +276,8 @@ public abstract class ObjectStoreContract {
         ObjectId missing = ObjectId.random();
         Mutation update = new Update(newObject(scope, missing, TYPE_A, Map.of()), 1);
 
-        assertThatThrownBy(
-                () -> store.commit(scope, new ChangeSet(List.of(update), List.of())))
-            .isInstanceOf(ObjectNotFoundException.class);
+        assertThatThrownBy(() -> store.commit(scope, new ChangeSet(List.of(update), List.of())))
+                .isInstanceOf(ObjectNotFoundException.class);
     }
 
     @Test
@@ -303,9 +287,8 @@ public abstract class ObjectStoreContract {
         ObjectId missing = ObjectId.random();
         Mutation delete = new Delete(missing, 1, Instant.now().truncatedTo(ChronoUnit.MICROS), "tester");
 
-        assertThatThrownBy(
-                () -> store.commit(scope, new ChangeSet(List.of(delete), List.of())))
-            .isInstanceOf(ObjectNotFoundException.class);
+        assertThatThrownBy(() -> store.commit(scope, new ChangeSet(List.of(delete), List.of())))
+                .isInstanceOf(ObjectNotFoundException.class);
     }
 
     @Test
@@ -314,11 +297,11 @@ public abstract class ObjectStoreContract {
         Scope scope = Fixtures.defaultScope();
         ObjectId id = ObjectId.random();
 
+        store.commit(scope, new ChangeSet(List.of(new Create(newObject(scope, id, TYPE_A, Map.of()))), List.of()));
         store.commit(
-            scope, new ChangeSet(List.of(new Create(newObject(scope, id, TYPE_A, Map.of()))), List.of()));
-        store.commit(
-            scope,
-            new ChangeSet(List.of(new Delete(id, 1, Instant.now().truncatedTo(ChronoUnit.MICROS), "tester")), List.of()));
+                scope,
+                new ChangeSet(
+                        List.of(new Delete(id, 1, Instant.now().truncatedTo(ChronoUnit.MICROS), "tester")), List.of()));
 
         assertThat(store.find(scope, id)).isEmpty();
         PageResult<BusinessObject> page = store.browse(scope, Set.of(TYPE_A), new Page(0, 20));
@@ -333,9 +316,7 @@ public abstract class ObjectStoreContract {
         ObjectId known = ObjectId.random();
         ObjectId unknown = ObjectId.random();
 
-        store.commit(
-            scope,
-            new ChangeSet(List.of(new Create(newObject(scope, known, TYPE_A, Map.of()))), List.of()));
+        store.commit(scope, new ChangeSet(List.of(new Create(newObject(scope, known, TYPE_A, Map.of()))), List.of()));
 
         Map<ObjectId, TypeRef> resolved = store.typesOf(scope, Set.of(known, unknown));
         assertThat(resolved).containsExactly(Map.entry(known, TYPE_A));
@@ -362,23 +343,16 @@ public abstract class ObjectStoreContract {
         }
         store.commit(scope, new ChangeSet(mutations, List.of()));
 
-        PageResult<BusinessObject> page0 =
-            store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(0, 3));
-        assertThat(page0.items())
-            .extracting(BusinessObject::id)
-            .containsExactlyElementsOf(expectedOrder.subList(0, 3));
+        PageResult<BusinessObject> page0 = store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(0, 3));
+        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 3));
         assertThat(page0.totalItems()).isEqualTo(5);
         assertThat(page0.totalPages()).isEqualTo(2);
 
-        PageResult<BusinessObject> page1 =
-            store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(1, 3));
-        assertThat(page1.items())
-            .extracting(BusinessObject::id)
-            .containsExactlyElementsOf(expectedOrder.subList(3, 5));
+        PageResult<BusinessObject> page1 = store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(1, 3));
+        assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(3, 5));
         assertThat(page1.totalItems()).isEqualTo(5);
 
-        PageResult<BusinessObject> overrun =
-            store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(5, 3));
+        PageResult<BusinessObject> overrun = store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(5, 3));
         assertThat(overrun.items()).isEmpty();
         assertThat(overrun.totalItems()).isEqualTo(5);
         assertThat(overrun.totalPages()).isEqualTo(2);
@@ -393,11 +367,10 @@ public abstract class ObjectStoreContract {
         OutboxEntry entry1 = outboxEntry(first);
         OutboxEntry entry2 = outboxEntry(second);
 
-        ChangeSet changeSet =
-            new ChangeSet(
+        ChangeSet changeSet = new ChangeSet(
                 List.of(
-                    new Create(newObject(scope, first, TYPE_A, Map.of())),
-                    new Create(newObject(scope, second, TYPE_A, Map.of()))),
+                        new Create(newObject(scope, first, TYPE_A, Map.of())),
+                        new Create(newObject(scope, second, TYPE_A, Map.of()))),
                 List.of(entry1, entry2));
 
         CommitResult result = store.commit(scope, changeSet);
@@ -416,11 +389,11 @@ public abstract class ObjectStoreContract {
         Scope otherTenant = new Scope(new TenantId("other-tenant"), Principal.ANONYMOUS);
         ObjectId id = ObjectId.random();
 
-        store.commit(
-            alice, new ChangeSet(List.of(new Create(newObject(alice, id, TYPE_A, Map.of()))), List.of()));
+        store.commit(alice, new ChangeSet(List.of(new Create(newObject(alice, id, TYPE_A, Map.of()))), List.of()));
 
         assertThat(store.find(otherTenant, id)).isEmpty();
-        assertThat(store.browse(otherTenant, Set.of(TYPE_A), new Page(0, 20)).items()).isEmpty();
+        assertThat(store.browse(otherTenant, Set.of(TYPE_A), new Page(0, 20)).items())
+                .isEmpty();
         assertThat(store.typesOf(otherTenant, Set.of(id))).isEmpty();
 
         assertThat(store.find(alice, id)).isPresent();
@@ -450,32 +423,26 @@ public abstract class ObjectStoreContract {
     }
 
     private static BusinessObject newObject(
-        Scope scope, ObjectId id, TypeRef type, Map<PropertyRef, Value> properties) {
+            Scope scope, ObjectId id, TypeRef type, Map<PropertyRef, Value> properties) {
         return objectAt(scope, id, type, properties, Instant.now().truncatedTo(ChronoUnit.MICROS));
     }
 
-    private static BusinessObject objectAt(
-        Scope scope, ObjectId id, TypeRef type, Instant createdAt) {
+    private static BusinessObject objectAt(Scope scope, ObjectId id, TypeRef type, Instant createdAt) {
         return objectAt(scope, id, type, Map.of(), createdAt);
     }
 
     private static BusinessObject objectAt(
-        Scope scope,
-        ObjectId id,
-        TypeRef type,
-        Map<PropertyRef, Value> properties,
-        Instant createdAt) {
+            Scope scope, ObjectId id, TypeRef type, Map<PropertyRef, Value> properties, Instant createdAt) {
         String principalId = scope.principal().id();
         Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
-        return new BusinessObject(
-            id, type, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
+        return new BusinessObject(id, type, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
     }
 
     private static OutboxEntry outboxEntry(ObjectId subject) {
         return new OutboxEntry(
-            UUID.randomUUID(),
-            OutboxEntry.KIND_OBJECT_CREATED,
-            Map.of("objectId", subject.value().toString()),
-            Instant.now().truncatedTo(ChronoUnit.MICROS));
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_CREATED,
+                Map.of("objectId", subject.value().toString()),
+                Instant.now().truncatedTo(ChronoUnit.MICROS));
     }
 }

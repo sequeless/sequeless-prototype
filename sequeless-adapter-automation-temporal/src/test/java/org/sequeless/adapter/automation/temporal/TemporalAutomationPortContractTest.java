@@ -96,13 +96,11 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     @BeforeAll
     static void startEnvironment() throws IOException {
         webhookServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        webhookServer.createContext(
-            "/hook",
-            exchange -> {
-                exchange.getRequestBody().readAllBytes();
-                exchange.sendResponseHeaders(200, -1);
-                exchange.close();
-            });
+        webhookServer.createContext("/hook", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
         webhookServer.start();
         webhookUrl = "http://localhost:" + webhookServer.getAddress().getPort() + "/hook";
 
@@ -112,8 +110,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
 
         // Published before env.start(), mirroring TemporalAutomationAutoConfiguration's own
         // ordering requirement (see ActionWorkflowImpl's javadoc for why this must happen first).
-        ActionWorkflowImpl.ACTIVITY_OPTIONS =
-            ActivityOptions.newBuilder()
+        ActionWorkflowImpl.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofSeconds(10))
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build();
@@ -121,13 +118,13 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         env = TestWorkflowEnvironment.newInstance();
         Worker worker = env.newWorker(TASK_QUEUE);
         worker.registerWorkflowImplementationTypes(
-            ActionWorkflowImpl.class,
-            ChangeEventWorkflowImpl.class,
-            TimerWorkflowImpl.class,
-            SignalEventWorkflowImpl.class);
+                ActionWorkflowImpl.class,
+                ChangeEventWorkflowImpl.class,
+                TimerWorkflowImpl.class,
+                SignalEventWorkflowImpl.class);
         worker.registerActivitiesImplementations(
-            new ActionActivitiesImpl(executorHolder),
-            new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
+                new ActionActivitiesImpl(executorHolder),
+                new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
         env.start();
 
         port = new TemporalAutomationPort(env.getWorkflowClient(), TASK_QUEUE);
@@ -155,17 +152,18 @@ class TemporalAutomationPortContractTest extends AutomationContract {
             port.dispatch(scope, entry);
             switch (entry.kind()) {
                 case OutboxEntry.KIND_ACTION_REQUEST,
-                    OutboxEntry.KIND_OBJECT_CREATED,
-                    OutboxEntry.KIND_OBJECT_UPDATED,
-                    OutboxEntry.KIND_OBJECT_DELETED,
-                    OutboxEntry.KIND_SIGNAL_RECEIVED -> awaitWorkflowResult(entry.id().toString());
+                        OutboxEntry.KIND_OBJECT_CREATED,
+                        OutboxEntry.KIND_OBJECT_UPDATED,
+                        OutboxEntry.KIND_OBJECT_DELETED,
+                        OutboxEntry.KIND_SIGNAL_RECEIVED ->
+                    awaitWorkflowResult(entry.id().toString());
                 case OutboxEntry.KIND_TIMER_SCHEDULED -> {
                     String timerKey = (String) entry.payload().get("timerKey");
                     awaitTimerWorkflowParked(timerKey);
                     dispatchedTimerKeys.add(timerKey);
                 }
-                case OutboxEntry.KIND_TIMER_CANCELLED -> awaitCancellationTakesEffect(
-                    (String) entry.payload().get("timerKey"));
+                case OutboxEntry.KIND_TIMER_CANCELLED ->
+                    awaitCancellationTakesEffect((String) entry.payload().get("timerKey"));
                 default -> {
                     // TransitionFired (and anything else): dispatch() itself already threw
                     // synchronously, nothing further to wait for.

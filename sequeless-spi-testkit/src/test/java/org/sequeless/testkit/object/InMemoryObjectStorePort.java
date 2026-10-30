@@ -73,13 +73,12 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
         }
         Objects.requireNonNull(page, "page must not be null");
         synchronized (lock) {
-            List<BusinessObject> matching =
-                objects.values().stream()
+            List<BusinessObject> matching = objects.values().stream()
                     .filter(object -> !object.deleted())
                     .filter(object -> object.tenant().equals(scope.tenantId()))
                     .filter(object -> types.contains(object.type()))
-                    .sorted(
-                        Comparator.comparing((BusinessObject object) -> object.audit().createdAt())
+                    .sorted(Comparator.comparing(
+                                    (BusinessObject object) -> object.audit().createdAt())
                             .thenComparing(object -> object.id().value()))
                     .toList();
             long totalItems = matching.size();
@@ -172,8 +171,7 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
     private BusinessObject apply(Scope scope, Mutation mutation) {
         return switch (mutation) {
             case Create create -> {
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         create.object().id(),
                         create.object().type(),
                         scope.tenantId(),
@@ -186,8 +184,7 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
                 yield stored;
             }
             case Update update -> {
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         update.object().id(),
                         update.object().type(),
                         scope.tenantId(),
@@ -201,16 +198,14 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
             }
             case Delete delete -> {
                 BusinessObject previous = objects.get(delete.id());
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         previous.id(),
                         previous.type(),
                         scope.tenantId(),
                         delete.expectedVersion() + 1,
                         previous.state(),
                         previous.properties(),
-                        new Audit(
-                            previous.audit().createdAt(), previous.audit().createdBy(), delete.at(), delete.by()),
+                        new Audit(previous.audit().createdAt(), previous.audit().createdBy(), delete.at(), delete.by()),
                         true);
                 objects.put(stored.id(), stored);
                 yield stored;
@@ -245,7 +240,7 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
             synchronized (lock) {
                 int version = nextVersion.merge(scope.tenantId(), 1, Integer::sum);
                 StoredOntologyDocument stored =
-                    new StoredOntologyDocument(UUID.randomUUID(), version, document, Instant.now());
+                        new StoredOntologyDocument(UUID.randomUUID(), version, document, Instant.now());
                 active.put(scope.tenantId(), stored);
                 return stored;
             }

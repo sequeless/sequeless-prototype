@@ -18,7 +18,4 @@ import org.sequeless.spi.meta.StateMachineDefinition;
  * @param transitions every transition this state machine defines
  */
 public record StateMachineResponse(
-        String iri,
-        List<StateResponse> states,
-        String initialState,
-        List<TransitionSummaryResponse> transitions) {}
+        String iri, List<StateResponse> states, String initialState, List<TransitionSummaryResponse> transitions) {}

@@ -44,14 +44,12 @@ class JenaOntologyPortStorePersistenceTest {
         Scope scope = Fixtures.defaultScope();
 
         assertThatIllegalStateException()
-            .isThrownBy(
-                () -> JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL))
-            .withMessageContaining(scope.tenantId().value())
-            .withMessageContaining(SOURCE_PROPERTY);
+                .isThrownBy(() -> JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL))
+                .withMessageContaining(scope.tenantId().value())
+                .withMessageContaining(SOURCE_PROPERTY);
 
         assertThatIllegalStateException()
-            .isThrownBy(
-                () -> JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, "  ", ReasonerSetting.OWL));
+                .isThrownBy(() -> JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, "  ", ReasonerSetting.OWL));
     }
 
     @Test
@@ -60,14 +58,15 @@ class JenaOntologyPortStorePersistenceTest {
         Scope scope = Fixtures.defaultScope();
 
         JenaOntologyPort port =
-            JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, VALID_SOURCE, ReasonerSetting.OWL);
+                JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, VALID_SOURCE, ReasonerSetting.OWL);
 
         Optional<StoredOntologyDocument> active = store.active(scope);
         assertThat(active).isPresent();
         assertThat(active.get().version()).isEqualTo(1);
 
-        MetaModelSnapshot fromStoredDocument =
-            JenaOntologyPort.fromDocument(active.get().document(), ReasonerSetting.OWL).snapshot(scope);
+        MetaModelSnapshot fromStoredDocument = JenaOntologyPort.fromDocument(
+                        active.get().document(), ReasonerSetting.OWL)
+                .snapshot(scope);
         assertThat(port.snapshot(scope)).isEqualTo(fromStoredDocument);
     }
 
@@ -76,11 +75,9 @@ class JenaOntologyPortStorePersistenceTest {
         InMemoryOntologyDocumentStore store = new InMemoryOntologyDocumentStore();
         Scope scope = Fixtures.defaultScope();
 
-        assertThatThrownBy(
-                () ->
-                    JenaOntologyPort.fromStore(
+        assertThatThrownBy(() -> JenaOntologyPort.fromStore(
                         store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL))
-            .isInstanceOf(OntologyException.class);
+                .isInstanceOf(OntologyException.class);
 
         assertThat(store.active(scope)).isEmpty();
     }
@@ -93,14 +90,13 @@ class JenaOntologyPortStorePersistenceTest {
         store.activate(scope, stored);
 
         JenaOntologyPort port =
-            JenaOntologyPort.fromStore(
-                store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL);
+                JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL);
 
         assertThat(store.active(scope)).isPresent();
         assertThat(store.active(scope).get().version()).isEqualTo(1);
 
         MetaModelSnapshot fromStoredDocument =
-            JenaOntologyPort.fromDocument(stored, ReasonerSetting.OWL).snapshot(scope);
+                JenaOntologyPort.fromDocument(stored, ReasonerSetting.OWL).snapshot(scope);
         assertThat(port.snapshot(scope)).isEqualTo(fromStoredDocument);
     }
 
@@ -111,14 +107,14 @@ class JenaOntologyPortStorePersistenceTest {
         OntologyDocument first = Fixtures.referenceOntology();
         store.activate(scope, first);
 
-        JenaOntologyPort port =
-            JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
 
         OntologyDocument second = Fixtures.inverseTransitiveOntology();
         store.activate(scope, second);
 
         MetaModelSnapshot reloaded = port.reload(scope);
-        MetaModelSnapshot expected = JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL).snapshot(scope);
+        MetaModelSnapshot expected =
+                JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL).snapshot(scope);
         assertThat(reloaded).isEqualTo(expected);
     }
 
@@ -128,8 +124,7 @@ class JenaOntologyPortStorePersistenceTest {
         Scope scope = Fixtures.defaultScope();
         store.activate(scope, Fixtures.referenceOntology());
 
-        JenaOntologyPort port =
-            JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
 
         OntologyDocument replacement = Fixtures.inverseTransitiveOntology();
         port.importDocument(scope, replacement, ImportMode.REPLACE);
@@ -140,7 +135,7 @@ class JenaOntologyPortStorePersistenceTest {
         assertThat(active.get().document()).isEqualTo(replacement);
 
         MetaModelSnapshot expected =
-            JenaOntologyPort.fromDocument(replacement, ReasonerSetting.OWL).snapshot(scope);
+                JenaOntologyPort.fromDocument(replacement, ReasonerSetting.OWL).snapshot(scope);
         assertThat(port.snapshot(scope)).isEqualTo(expected);
     }
 
@@ -151,15 +146,11 @@ class JenaOntologyPortStorePersistenceTest {
         OntologyDocument original = Fixtures.referenceOntology();
         store.activate(scope, original);
 
-        JenaOntologyPort port =
-            JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
         MetaModelSnapshot before = port.snapshot(scope);
 
-        assertThatThrownBy(
-                () ->
-                    port.importDocument(
-                        scope, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
-            .isInstanceOf(OntologyException.class);
+        assertThatThrownBy(() -> port.importDocument(scope, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
+                .isInstanceOf(OntologyException.class);
 
         Optional<StoredOntologyDocument> active = store.active(scope);
         assertThat(active).isPresent();
@@ -190,7 +181,7 @@ class JenaOntologyPortStorePersistenceTest {
             Objects.requireNonNull(document, "document must not be null");
             int version = nextVersion.merge(scope.tenantId(), 1, Integer::sum);
             StoredOntologyDocument stored =
-                new StoredOntologyDocument(UUID.randomUUID(), version, document, Instant.now());
+                    new StoredOntologyDocument(UUID.randomUUID(), version, document, Instant.now());
             active.put(scope.tenantId(), stored);
             return stored;
         }

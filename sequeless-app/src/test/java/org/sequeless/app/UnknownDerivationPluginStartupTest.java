@@ -49,24 +49,21 @@ class UnknownDerivationPluginStartupTest extends PostgresTestcontainersSupport {
 
     @Test
     void unknownPluginNameFailsStartupNamingIt() {
-        assertThatThrownBy(
-                        () ->
-                                new SpringApplicationBuilder(SequelessApplication.class)
-                                        .web(WebApplicationType.NONE)
-                                        .run(
-                                                "--sequeless.ontology.source=classpath:ontology/unknown-plugin.ttl",
-                                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
-                .satisfies(
-                        thrown -> {
-                            OntologyException cause = findCause(thrown, OntologyException.class);
-                            assertThat(cause).isNotNull();
-                            assertThat(cause.getMessage())
-                                    .contains("does-not-exist")
-                                    .contains("has no registered DerivationPlugin on the classpath");
-                            assertThat(cause.report().consistent()).isFalse();
-                        });
+        assertThatThrownBy(() -> new SpringApplicationBuilder(SequelessApplication.class)
+                        .web(WebApplicationType.NONE)
+                        .run(
+                                "--sequeless.ontology.source=classpath:ontology/unknown-plugin.ttl",
+                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
+                .satisfies(thrown -> {
+                    OntologyException cause = findCause(thrown, OntologyException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage())
+                            .contains("does-not-exist")
+                            .contains("has no registered DerivationPlugin on the classpath");
+                    assertThat(cause.report().consistent()).isFalse();
+                });
     }
 
     private static <T extends Throwable> T findCause(Throwable root, Class<T> type) {

@@ -43,20 +43,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 public abstract class TemporalTestcontainersSupport extends PostgresTestcontainersSupport {
 
     @Container
-    protected static final GenericContainer<?> TEMPORAL =
-        new GenericContainer<>("temporalio/temporal:1.9.1")
-            .withCommand(
-                "server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db")
+    protected static final GenericContainer<?> TEMPORAL = new GenericContainer<>("temporalio/temporal:1.9.1")
+            .withCommand("server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db")
             .withExposedPorts(7233)
-            .waitingFor(
-                Wait.forSuccessfulCommand(
-                        "temporal operator cluster health --address 127.0.0.1:7233")
+            .waitingFor(Wait.forSuccessfulCommand("temporal operator cluster health --address 127.0.0.1:7233")
                     .withStartupTimeout(Duration.ofSeconds(90)));
 
     @DynamicPropertySource
     static void temporalProperties(DynamicPropertyRegistry registry) {
         registry.add(
-            "sequeless.automation.temporal.target",
-            () -> TEMPORAL.getHost() + ":" + TEMPORAL.getMappedPort(7233));
+                "sequeless.automation.temporal.target", () -> TEMPORAL.getHost() + ":" + TEMPORAL.getMappedPort(7233));
     }
 }

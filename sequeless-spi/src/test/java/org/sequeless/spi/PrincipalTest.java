@@ -30,16 +30,15 @@ class PrincipalTest {
         callerRoles.remove("editor");
 
         assertThat(principal.roles())
-            .as("Principal's roles must not reflect post-construction mutation of the caller's set")
-            .containsExactly("editor");
+                .as("Principal's roles must not reflect post-construction mutation of the caller's set")
+                .containsExactly("editor");
     }
 
     @Test
     void rolesAreUnmodifiable() {
         Principal principal = new Principal("u1", "User One", Set.of("editor"));
 
-        assertThatThrownBy(() -> principal.roles().add("admin"))
-            .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> principal.roles().add("admin")).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test

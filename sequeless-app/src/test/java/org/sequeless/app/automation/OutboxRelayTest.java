@@ -7,10 +7,10 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -116,8 +116,7 @@ class OutboxRelayTest {
         payload.put("self", Map.of());
         payload.put("actionKind", "Log");
         payload.put("message", "project activated");
-        return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
     }
 
     private static ObjectProvider<AutomationPort> providerOf(AutomationPort port) {

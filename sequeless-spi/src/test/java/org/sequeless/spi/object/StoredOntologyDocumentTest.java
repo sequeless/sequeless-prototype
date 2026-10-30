@@ -14,7 +14,7 @@ class StoredOntologyDocumentTest {
 
     private static final Instant NOW = Instant.parse("2026-09-16T10:00:00Z");
     private static final OntologyDocument DOCUMENT =
-        new OntologyDocument("@prefix ex: <https://example.org/> .", OntologyFormat.TURTLE);
+            new OntologyDocument("@prefix ex: <https://example.org/> .", OntologyFormat.TURTLE);
 
     @Test
     void carriesAllFields() {
@@ -36,7 +36,7 @@ class StoredOntologyDocumentTest {
     @Test
     void rejectsVersionLessThanOne() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new StoredOntologyDocument(UUID.randomUUID(), 0, DOCUMENT, NOW));
+                .isThrownBy(() -> new StoredOntologyDocument(UUID.randomUUID(), 0, DOCUMENT, NOW));
     }
 
     @Test
@@ -47,6 +47,6 @@ class StoredOntologyDocumentTest {
     @Test
     void rejectsNullCreatedAt() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new StoredOntologyDocument(UUID.randomUUID(), 1, DOCUMENT, null));
+                .isThrownBy(() -> new StoredOntologyDocument(UUID.randomUUID(), 1, DOCUMENT, null));
     }
 }

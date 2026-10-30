@@ -70,7 +70,7 @@ compile-time dependencies.
 
 | Module | Responsibility | May depend on |
 |---|---|---|
-| `sequeless-parent` | Root POM: versions, plugin management, module list, ArchUnit/japicmp config | none |
+| `sequeless-prototype` | Root POM: parent `sequeless-build-parent`, versions, convergence pins, module list, japicmp config | none |
 | `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | nothing outside the JDK |
 | `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus the reference-domain ontology fixture | `sequeless-spi`, JUnit 5, AssertJ |
 | `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `sequeless-spi` |

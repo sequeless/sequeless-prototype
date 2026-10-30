@@ -34,30 +34,25 @@ class ApiExceptionAdviceTest {
 
     @Test
     void ontologyExceptionMapsTo422WithReport() {
-        OntologyReport report =
-                new OntologyReport(
-                        false,
-                        List.of(
-                                new OntologyIssue(
-                                        Severity.ERROR,
-                                        Optional.of("https://sequeless.dev/ns/ref#Cyborg"),
-                                        "ex:Cyborg is both a Machine and a Person, which are disjoint")));
+        OntologyReport report = new OntologyReport(
+                false,
+                List.of(new OntologyIssue(
+                        Severity.ERROR,
+                        Optional.of("https://sequeless.dev/ns/ref#Cyborg"),
+                        "ex:Cyborg is both a Machine and a Person, which are disjoint")));
 
-        ResponseEntity<OntologyReportResponse> response =
-                advice.handleOntologyException(new OntologyException(report));
+        ResponseEntity<OntologyReportResponse> response = advice.handleOntologyException(new OntologyException(report));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().consistent()).isFalse();
         assertThat(response.getBody().issues()).hasSize(1);
-        assertThat(response.getBody().issues().get(0).subjectIri())
-                .isEqualTo("https://sequeless.dev/ns/ref#Cyborg");
+        assertThat(response.getBody().issues().get(0).subjectIri()).isEqualTo("https://sequeless.dev/ns/ref#Cyborg");
     }
 
     @Test
     void typeNotFoundExceptionMapsTo404WithMessage() {
-        ResponseEntity<ErrorResponse> response =
-                advice.handleTypeNotFound(new TypeNotFoundException("NoSuchType"));
+        ResponseEntity<ErrorResponse> response = advice.handleTypeNotFound(new TypeNotFoundException("NoSuchType"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("No type found for 'NoSuchType'"));
@@ -66,8 +61,7 @@ class ApiExceptionAdviceTest {
     @Test
     void authorizationExceptionMapsTo403WithReason() {
         ResponseEntity<ErrorResponse> response =
-                advice.handleAuthorizationException(
-                        new AuthorizationException(AccessDecision.deny("no ADMIN role")));
+                advice.handleAuthorizationException(new AuthorizationException(AccessDecision.deny("no ADMIN role")));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("no ADMIN role"));
@@ -75,17 +69,12 @@ class ApiExceptionAdviceTest {
 
     @Test
     void transitionNotAvailableExceptionMapsTo409WithReasonAndTransitionName() {
-        ProblemDetail detail =
-                advice.handleTransitionNotAvailable(
-                        new TransitionNotAvailableException(
-                                "activate",
-                                "Project must have an owner before it can be activated"));
+        ProblemDetail detail = advice.handleTransitionNotAvailable(new TransitionNotAvailableException(
+                "activate", "Project must have an owner before it can be activated"));
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
-        assertThat(detail.getDetail())
-                .isEqualTo("Project must have an owner before it can be activated");
-        assertThat(detail.getType())
-                .isEqualTo(URI.create("https://sequeless.dev/problems/transition-not-available"));
+        assertThat(detail.getDetail()).isEqualTo("Project must have an owner before it can be activated");
+        assertThat(detail.getType()).isEqualTo(URI.create("https://sequeless.dev/problems/transition-not-available"));
         assertThat(detail.getTitle()).isEqualTo("Transition not available");
         assertThat(detail.getProperties()).containsEntry("transitionName", "activate");
     }
@@ -93,14 +82,11 @@ class ApiExceptionAdviceTest {
     @Test
     void unknownSignalExceptionMapsTo400WithTypeIriAndSignalName() {
         ProblemDetail detail =
-                advice.handleUnknownSignal(
-                        new UnknownSignalException("https://sequeless.dev/ns/ref#Project", "bogus"));
+                advice.handleUnknownSignal(new UnknownSignalException("https://sequeless.dev/ns/ref#Project", "bogus"));
 
         assertThat(detail.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(detail.getDetail())
-                .isEqualTo(
-                        "No transition on type 'https://sequeless.dev/ns/ref#Project' declares signal"
-                                + " 'bogus'");
+                .isEqualTo("No transition on type 'https://sequeless.dev/ns/ref#Project' declares signal" + " 'bogus'");
         assertThat(detail.getType()).isEqualTo(URI.create("https://sequeless.dev/problems/unknown-signal"));
         assertThat(detail.getTitle()).isEqualTo("Unknown signal");
         assertThat(detail.getProperties())

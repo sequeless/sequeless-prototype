@@ -12,8 +12,7 @@ public final class SignalEventWorkflowImpl implements SignalEventWorkflow {
     public void run(OutboxEntry entry, Scope scope) {
         ActivityOptions activityOptions = ActionWorkflowImpl.ACTIVITY_OPTIONS;
         if (activityOptions == null) {
-            throw new IllegalStateException(
-                "ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
+            throw new IllegalStateException("ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         TriggerActivities activities = Workflow.newActivityStub(TriggerActivities.class, activityOptions);

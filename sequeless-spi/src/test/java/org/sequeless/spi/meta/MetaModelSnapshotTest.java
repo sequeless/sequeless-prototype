@@ -22,8 +22,7 @@ class MetaModelSnapshotTest {
     }
 
     private static MetaModelSnapshot snapshot(List<TypeDefinition> types) {
-        return new MetaModelSnapshot(
-            "https://example.org/ns", Optional.empty(), Map.of(), types, CONSISTENT);
+        return new MetaModelSnapshot("https://example.org/ns", Optional.empty(), Map.of(), types, CONSISTENT);
     }
 
     @Test
@@ -43,14 +42,13 @@ class MetaModelSnapshotTest {
 
     @Test
     void duplicateShortNameThrowsNamingBothIris() {
-        List<TypeDefinition> types = List.of(
-            typeWithIri("https://example.org/ns#Task"),
-            typeWithIri("https://example.org/other#Task"));
+        List<TypeDefinition> types =
+                List.of(typeWithIri("https://example.org/ns#Task"), typeWithIri("https://example.org/other#Task"));
 
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> snapshot(types))
-            .withMessageContaining("https://example.org/ns#Task")
-            .withMessageContaining("https://example.org/other#Task");
+                .isThrownBy(() -> snapshot(types))
+                .withMessageContaining("https://example.org/ns#Task")
+                .withMessageContaining("https://example.org/other#Task");
     }
 
     @Test
@@ -73,9 +71,8 @@ class MetaModelSnapshotTest {
 
     @Test
     void namesReturnsEveryShortNameInTypeOrder() {
-        MetaModelSnapshot snapshot = snapshot(List.of(
-            typeWithIri("https://example.org/ns#Task"),
-            typeWithIri("https://example.org/ns#Project")));
+        MetaModelSnapshot snapshot = snapshot(
+                List.of(typeWithIri("https://example.org/ns#Task"), typeWithIri("https://example.org/ns#Project")));
 
         assertThat(snapshot.names()).containsExactly("Task", "Project");
     }
@@ -83,36 +80,37 @@ class MetaModelSnapshotTest {
     @Test
     void rejectsNullOrBlankOntologyIri() {
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new MetaModelSnapshot(null, Optional.empty(), Map.of(), List.of(), CONSISTENT));
+                .isThrownBy(() -> new MetaModelSnapshot(null, Optional.empty(), Map.of(), List.of(), CONSISTENT));
         assertThatIllegalArgumentException()
-            .isThrownBy(() -> new MetaModelSnapshot("  ", Optional.empty(), Map.of(), List.of(), CONSISTENT));
+                .isThrownBy(() -> new MetaModelSnapshot("  ", Optional.empty(), Map.of(), List.of(), CONSISTENT));
     }
 
     @Test
     void rejectsNullVersionIriWrapper() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new MetaModelSnapshot("https://example.org/ns", null, Map.of(), List.of(), CONSISTENT));
+                .isThrownBy(
+                        () -> new MetaModelSnapshot("https://example.org/ns", null, Map.of(), List.of(), CONSISTENT));
     }
 
     @Test
     void rejectsNullPrefixes() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new MetaModelSnapshot(
-                "https://example.org/ns", Optional.empty(), null, List.of(), CONSISTENT));
+                .isThrownBy(() ->
+                        new MetaModelSnapshot("https://example.org/ns", Optional.empty(), null, List.of(), CONSISTENT));
     }
 
     @Test
     void rejectsNullTypes() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new MetaModelSnapshot(
-                "https://example.org/ns", Optional.empty(), Map.of(), null, CONSISTENT));
+                .isThrownBy(() ->
+                        new MetaModelSnapshot("https://example.org/ns", Optional.empty(), Map.of(), null, CONSISTENT));
     }
 
     @Test
     void rejectsNullReport() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new MetaModelSnapshot(
-                "https://example.org/ns", Optional.empty(), Map.of(), List.of(), null));
+                .isThrownBy(() ->
+                        new MetaModelSnapshot("https://example.org/ns", Optional.empty(), Map.of(), List.of(), null));
     }
 
     @Test
@@ -121,12 +119,11 @@ class MetaModelSnapshotTest {
         callerPrefixes.put("sq", "https://sequeless.dev/ns/meta#");
 
         MetaModelSnapshot snapshot = new MetaModelSnapshot(
-            "https://example.org/ns", Optional.empty(), callerPrefixes, List.of(), CONSISTENT);
+                "https://example.org/ns", Optional.empty(), callerPrefixes, List.of(), CONSISTENT);
         callerPrefixes.put("ex", "https://example.org/ns#");
 
         assertThat(snapshot.prefixes()).containsOnlyKeys("sq");
-        assertThatThrownBy(() -> snapshot.prefixes().put("x", "y"))
-            .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> snapshot.prefixes().put("x", "y")).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
@@ -134,12 +131,12 @@ class MetaModelSnapshotTest {
         List<TypeDefinition> callerTypes = new ArrayList<>();
         callerTypes.add(typeWithIri("https://example.org/ns#Task"));
 
-        MetaModelSnapshot snapshot = new MetaModelSnapshot(
-            "https://example.org/ns", Optional.empty(), Map.of(), callerTypes, CONSISTENT);
+        MetaModelSnapshot snapshot =
+                new MetaModelSnapshot("https://example.org/ns", Optional.empty(), Map.of(), callerTypes, CONSISTENT);
         callerTypes.add(typeWithIri("https://example.org/ns#Project"));
 
         assertThat(snapshot.types()).hasSize(1);
         assertThatThrownBy(() -> snapshot.types().add(typeWithIri("x")))
-            .isInstanceOf(UnsupportedOperationException.class);
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 }

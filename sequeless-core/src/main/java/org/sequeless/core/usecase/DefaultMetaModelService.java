@@ -1,7 +1,6 @@
 package org.sequeless.core.usecase;
 
 import java.util.Objects;
-import java.util.Optional;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.MetaModelService;
 import org.sequeless.core.api.TypeNotFoundException;
@@ -40,8 +39,7 @@ public final class DefaultMetaModelService implements MetaModelService {
      */
     public DefaultMetaModelService(OntologyPort ontologyPort, AuthorizationPort authorizationPort) {
         this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.authorizationPort =
-            Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
     }
 
     @Override
@@ -57,9 +55,7 @@ public final class DefaultMetaModelService implements MetaModelService {
         Objects.requireNonNull(nameOrIri, "nameOrIri must not be null");
 
         MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition type =
-            snapshot
-                .typeByName(nameOrIri)
+        TypeDefinition type = snapshot.typeByName(nameOrIri)
                 .or(() -> snapshot.type(nameOrIri))
                 .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
 

@@ -53,19 +53,18 @@ final class TypeResponseMapper {
      * {@code IS_NULL} -&gt; {@code isnull}, {@code NOT_NULL} -&gt; {@code notnull}); the rest do
      * (e.g. {@code EQ} -&gt; {@code eq}).
      */
-    private static final Map<Operator, String> OPERATOR_TOKENS =
-            Map.ofEntries(
-                    Map.entry(Operator.EQ, "eq"),
-                    Map.entry(Operator.NE, "ne"),
-                    Map.entry(Operator.IN, "in"),
-                    Map.entry(Operator.LT, "lt"),
-                    Map.entry(Operator.LTE, "lte"),
-                    Map.entry(Operator.GT, "gt"),
-                    Map.entry(Operator.GTE, "gte"),
-                    Map.entry(Operator.CONTAINS, "contains"),
-                    Map.entry(Operator.STARTS_WITH, "startswith"),
-                    Map.entry(Operator.IS_NULL, "isnull"),
-                    Map.entry(Operator.NOT_NULL, "notnull"));
+    private static final Map<Operator, String> OPERATOR_TOKENS = Map.ofEntries(
+            Map.entry(Operator.EQ, "eq"),
+            Map.entry(Operator.NE, "ne"),
+            Map.entry(Operator.IN, "in"),
+            Map.entry(Operator.LT, "lt"),
+            Map.entry(Operator.LTE, "lte"),
+            Map.entry(Operator.GT, "gt"),
+            Map.entry(Operator.GTE, "gte"),
+            Map.entry(Operator.CONTAINS, "contains"),
+            Map.entry(Operator.STARTS_WITH, "startswith"),
+            Map.entry(Operator.IS_NULL, "isnull"),
+            Map.entry(Operator.NOT_NULL, "notnull"));
 
     private TypeResponseMapper() {}
 
@@ -77,7 +76,9 @@ final class TypeResponseMapper {
      */
     static List<TypeSummaryResponse> toSummaries(MetaModelSnapshot snapshot) {
         Map<String, String> namesByIri = namesByIri(snapshot);
-        return snapshot.types().stream().map(type -> toSummary(type, namesByIri)).toList();
+        return snapshot.types().stream()
+                .map(type -> toSummary(type, namesByIri))
+                .toList();
     }
 
     /**
@@ -99,7 +100,9 @@ final class TypeResponseMapper {
                 type.displayHints().group().orElse(null),
                 type.displayHints().hidden(),
                 properties,
-                type.stateMachine().map(TypeResponseMapper::toStateMachineResponse).orElse(null));
+                type.stateMachine()
+                        .map(TypeResponseMapper::toStateMachineResponse)
+                        .orElse(null));
     }
 
     /**
@@ -110,22 +113,23 @@ final class TypeResponseMapper {
      * #toDetail(TypeDefinition)}'s identical reliance on {@link TypeDefinition#properties()}'s
      * pre-sorted order.
      *
-     * <p>{@code machine.transitions()} is filtered to {@link TriggerKind#USER_ACTION} transitions
-     * only before mapping: this descriptor backs {@code GET /types/{nameOrIri}}, a type-level view a
-     * client uses to learn which transitions it may itself call via {@code POST
-     * .../transitions/{name}} — a transition only {@code fireAutomated} can ever fire (phase 6's
-     * {@code ON_CHANGE}/{@code TIMER}/{@code EXTERNAL_SIGNAL} kinds) would otherwise appear
-     * indistinguishable from a callable one, mirroring {@link
-     * org.sequeless.app.rest.ObjectsController#transitions}'s identical {@code USER_ACTION}-only
-     * filtering of the per-object availability list.
+     * <p>{@code machine.transitions()} is rendered <em>un</em>filtered: every transition of every
+     * {@link TriggerKind} — {@code USER_ACTION}, {@code ON_CHANGE}, {@code TIMER}, {@code
+     * EXTERNAL_SIGNAL} — is mapped, because this descriptor backs {@code GET
+     * /types/{nameOrIri}}, a read-only type-level view a UI consumes to diagram the complete state
+     * machine, including the automated transitions a client can never itself fire. This is
+     * deliberately asymmetric with {@link
+     * org.sequeless.app.rest.ObjectsController#transitions}: that per-object endpoint still filters
+     * to {@code USER_ACTION}-only transitions, because it lists the transitions a client may
+     * actually fire via {@code POST .../transitions/{name}}, whereas the automated kinds can only
+     * ever be fired by the engine itself ({@code fireAutomated}).
      */
     private static StateMachineResponse toStateMachineResponse(StateMachineDefinition machine) {
-        List<StateResponse> states = machine.states().stream().map(TypeResponseMapper::toState).toList();
-        List<TransitionSummaryResponse> transitions =
-                machine.transitions().stream()
-                        .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
-                        .map(TypeResponseMapper::toTransitionSummary)
-                        .toList();
+        List<StateResponse> states =
+                machine.states().stream().map(TypeResponseMapper::toState).toList();
+        List<TransitionSummaryResponse> transitions = machine.transitions().stream()
+                .map(TypeResponseMapper::toTransitionSummary)
+                .toList();
         return new StateMachineResponse(
                 machine.iri(), states, shortName(machine.initialState().iri()), transitions);
     }
@@ -179,7 +183,7 @@ final class TypeResponseMapper {
     private static List<String> triggerWatch(TriggerSpec trigger) {
         return switch (trigger) {
             case OnChangeTrigger onChange ->
-                    onChange.watchIris().stream().map(TypeResponseMapper::shortName).toList();
+                onChange.watchIris().stream().map(TypeResponseMapper::shortName).toList();
             case UserActionTrigger ignored -> List.of();
             case TimerTrigger ignored -> List.of();
             case ExternalSignalTrigger ignored -> List.of();
@@ -187,10 +191,9 @@ final class TypeResponseMapper {
     }
 
     private static TypeSummaryResponse toSummary(TypeDefinition type, Map<String, String> namesByIri) {
-        List<String> superTypeNames =
-                type.superTypes().stream()
-                        .map(iri -> namesByIri.getOrDefault(iri, shortName(iri)))
-                        .toList();
+        List<String> superTypeNames = type.superTypes().stream()
+                .map(iri -> namesByIri.getOrDefault(iri, shortName(iri)))
+                .toList();
         return new TypeSummaryResponse(
                 type.iri(), namesByIri.get(type.iri()), type.label(), type.isAbstract(), superTypeNames);
     }
@@ -213,47 +216,52 @@ final class TypeResponseMapper {
      */
     private static PropertyResponse toProperty(PropertyDefinition property) {
         return switch (property) {
-            case AttributeDefinition attribute -> new AttributePropertyResponse(
-                    "attribute",
-                    attribute.iri(),
-                    shortName(attribute.iri()),
-                    attribute.label(),
-                    attribute.order(),
-                    attribute.displayHints().group().orElse(null),
-                    attribute.displayHints().hidden(),
-                    attribute.facet(),
-                    attribute.indexed(),
-                    attribute.searchable(),
-                    attribute.readOnly(),
-                    attribute.cardinality().min(),
-                    attribute.cardinality().max().isPresent()
-                            ? attribute.cardinality().max().getAsInt()
-                            : null,
-                    attribute.datatype().name(),
-                    attribute.derivation().map(TypeResponseMapper::toDerivationResponse).orElse(null));
-            case RelationshipDefinition relationship -> new RelationshipPropertyResponse(
-                    "relationship",
-                    relationship.iri(),
-                    shortName(relationship.iri()),
-                    relationship.label(),
-                    relationship.order(),
-                    relationship.displayHints().group().orElse(null),
-                    relationship.displayHints().hidden(),
-                    relationship.facet(),
-                    relationship.indexed(),
-                    relationship.searchable(),
-                    relationship.readOnly(),
-                    relationship.cardinality().min(),
-                    relationship.cardinality().max().isPresent()
-                            ? relationship.cardinality().max().getAsInt()
-                            : null,
-                    relationship.targetTypeIri(),
-                    relationship.inverseIri().orElse(null),
-                    relationship.transitive(),
-                    relationship
-                            .derivation()
-                            .map(TypeResponseMapper::toDerivationResponse)
-                            .orElse(null));
+            case AttributeDefinition attribute ->
+                new AttributePropertyResponse(
+                        "attribute",
+                        attribute.iri(),
+                        shortName(attribute.iri()),
+                        attribute.label(),
+                        attribute.order(),
+                        attribute.displayHints().group().orElse(null),
+                        attribute.displayHints().hidden(),
+                        attribute.facet(),
+                        attribute.indexed(),
+                        attribute.searchable(),
+                        attribute.readOnly(),
+                        attribute.cardinality().min(),
+                        attribute.cardinality().max().isPresent()
+                                ? attribute.cardinality().max().getAsInt()
+                                : null,
+                        attribute.datatype().name(),
+                        attribute
+                                .derivation()
+                                .map(TypeResponseMapper::toDerivationResponse)
+                                .orElse(null));
+            case RelationshipDefinition relationship ->
+                new RelationshipPropertyResponse(
+                        "relationship",
+                        relationship.iri(),
+                        shortName(relationship.iri()),
+                        relationship.label(),
+                        relationship.order(),
+                        relationship.displayHints().group().orElse(null),
+                        relationship.displayHints().hidden(),
+                        relationship.facet(),
+                        relationship.indexed(),
+                        relationship.searchable(),
+                        relationship.readOnly(),
+                        relationship.cardinality().min(),
+                        relationship.cardinality().max().isPresent()
+                                ? relationship.cardinality().max().getAsInt()
+                                : null,
+                        relationship.targetTypeIri(),
+                        relationship.inverseIri().orElse(null),
+                        relationship.transitive(),
+                        relationship
+                                .derivation()
+                                .map(TypeResponseMapper::toDerivationResponse)
+                                .orElse(null));
         };
     }
 
@@ -264,17 +272,15 @@ final class TypeResponseMapper {
      */
     private static DerivationResponse toDerivationResponse(DerivationRule rule) {
         return switch (rule) {
-            case RollupRule rollup -> new DerivationResponse(
-                    "rollup", rollupSummary(rollup), rollup.materialised());
-            case PluginRule plugin -> new DerivationResponse(
-                    "plugin", "plugin(" + plugin.pluginName() + ")", plugin.materialised());
+            case RollupRule rollup -> new DerivationResponse("rollup", rollupSummary(rollup), rollup.materialised());
+            case PluginRule plugin ->
+                new DerivationResponse("plugin", "plugin(" + plugin.pluginName() + ")", plugin.materialised());
         };
     }
 
     private static String rollupSummary(RollupRule rollup) {
         StringBuilder summary = new StringBuilder();
-        summary
-                .append(rollup.function().name().toLowerCase(Locale.ROOT))
+        summary.append(rollup.function().name().toLowerCase(Locale.ROOT))
                 .append('(')
                 .append(shortName(rollup.sourceTypeIri()))
                 .append(" via ")
@@ -283,12 +289,10 @@ final class TypeResponseMapper {
             summary.append(" of ").append(shortName(rollup.ofPropertyIri().get()));
         }
         if (!rollup.criteria().isEmpty()) {
-            summary
-                    .append(" where ")
-                    .append(
-                            rollup.criteria().stream()
-                                    .map(TypeResponseMapper::criterionSummary)
-                                    .collect(Collectors.joining(" and ")));
+            summary.append(" where ")
+                    .append(rollup.criteria().stream()
+                            .map(TypeResponseMapper::criterionSummary)
+                            .collect(Collectors.joining(" and ")));
         }
         summary.append(')');
         return summary.toString();
@@ -316,9 +320,10 @@ final class TypeResponseMapper {
             case DateValue date -> date.value().toString();
             case DateTimeValue dateTime -> dateTime.value().toString();
             case ReferenceValue reference -> reference.target().toString();
-            case ListValue list -> list.values().stream()
-                    .map(TypeResponseMapper::valueSummary)
-                    .collect(Collectors.joining(", ", "[", "]"));
+            case ListValue list ->
+                list.values().stream()
+                        .map(TypeResponseMapper::valueSummary)
+                        .collect(Collectors.joining(", ", "[", "]"));
         };
     }
 

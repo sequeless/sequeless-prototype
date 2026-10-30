@@ -40,10 +40,9 @@ final class RecomputeCoordinator {
      */
     RecomputeCoordinator(DerivationRecomputer derivationRecomputer, InProcessRecomputeProperties.Mode mode) {
         this.derivationRecomputer =
-            Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
+                Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
         this.mode = Objects.requireNonNull(mode, "mode must not be null");
-        this.coalesceExecutor =
-            mode == InProcessRecomputeProperties.Mode.COALESCE
+        this.coalesceExecutor = mode == InProcessRecomputeProperties.Mode.COALESCE
                 ? Executors.newSingleThreadExecutor(RecomputeCoordinator::newDaemonThread)
                 : null;
     }

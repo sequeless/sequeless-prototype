@@ -13,7 +13,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * Boots the real Spring Boot application on a random port and proves the Application phase's
- * headline acceptance criterion end to end: a correctly configured app serves {@code /whoami} and
+ * headline acceptance criterion end to end: a correctly configured app serves {@code /api/whoami} and
  * reports itself healthy over Actuator.
  *
  * <p>{@code sequeless.authz.adapter=permit-all} is set explicitly via {@code properties} rather
@@ -28,31 +28,33 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  *
  * <p>Extends {@link PostgresTestcontainersSupport}: {@code sequeless.persistence.adapter=postgres}
  * is baked into {@code application.yaml}, so every context this module boots needs a reachable
- * Postgres, even a context that never touches {@code /objects}. See that class's javadoc.
+ * Postgres, even a context that never touches {@code /api/objects}. See that class's javadoc.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.authz.adapter=permit-all")
 class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
     void whoAmiReportsDefaultTenantAndAnonymousPrincipal() {
         restTestClient
-            .get()
-            .uri("/whoami")
-            .exchange()
-            .expectStatus()
-            .isOk()
-            .expectBody(WhoAmIResponse.class)
-            .value(
-                response -> {
+                .get()
+                .uri("/api/whoami")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(WhoAmIResponse.class)
+                .value(response -> {
                     assertThat(response.tenant()).isEqualTo("default");
                     assertThat(response.principal()).isEqualTo("anonymous");
                     assertThat(response.displayName()).isEqualTo("Anonymous");
@@ -63,12 +65,12 @@ class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void actuatorHealthReportsUp() {
         restTestClient
-            .get()
-            .uri("/actuator/health")
-            .exchange()
-            .expectStatus()
-            .isOk()
-            .expectBody(String.class)
-            .value(body -> assertThat(body).contains("\"status\":\"UP\""));
+                .get()
+                .uri("/actuator/health")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body).contains("\"status\":\"UP\""));
     }
 }

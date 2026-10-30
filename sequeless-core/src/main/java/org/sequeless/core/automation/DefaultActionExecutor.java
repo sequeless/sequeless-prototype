@@ -66,12 +66,9 @@ public final class DefaultActionExecutor implements ActionExecutor {
      *     {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
-    public DefaultActionExecutor(
-        ExpressionPort expressionPort, ObjectStorePort objectStorePort, Clock clock) {
-        this.expressionPort =
-            Objects.requireNonNull(expressionPort, "expressionPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+    public DefaultActionExecutor(ExpressionPort expressionPort, ObjectStorePort objectStorePort, Clock clock) {
+        this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -103,10 +100,8 @@ public final class DefaultActionExecutor implements ActionExecutor {
 
         Instant now = now();
         String by = scope.principal().id();
-        Audit audit =
-            new Audit(current.audit().createdAt(), current.audit().createdBy(), now, by);
-        BusinessObject candidate =
-            new BusinessObject(
+        Audit audit = new Audit(current.audit().createdAt(), current.audit().createdBy(), now, by);
+        BusinessObject candidate = new BusinessObject(
                 objectId,
                 current.type(),
                 current.tenant(),
@@ -116,15 +111,13 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 audit,
                 false);
 
-        OutboxEntry outboxEntry =
-            new OutboxEntry(
+        OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
                 outboxPayload(objectId, current.version() + 1, current.type().iri()),
                 now);
         ChangeSet changeSet =
-            new ChangeSet(
-                List.<Mutation>of(new Update(candidate, current.version())), List.of(outboxEntry));
+                new ChangeSet(List.<Mutation>of(new Update(candidate, current.version())), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
 
@@ -157,8 +150,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
 
         Instant now = now();
         String by = scope.principal().id();
-        BusinessObject candidate =
-            new BusinessObject(
+        BusinessObject candidate = new BusinessObject(
                 newId,
                 new TypeRef(createType),
                 scope.tenantId(),
@@ -168,14 +160,9 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 new Audit(now, by, now, by),
                 false);
 
-        OutboxEntry outboxEntry =
-            new OutboxEntry(
-                UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_CREATED,
-                outboxPayload(newId, 1L, createType),
-                now);
-        ChangeSet changeSet =
-            new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
+        OutboxEntry outboxEntry = new OutboxEntry(
+                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, outboxPayload(newId, 1L, createType), now);
+        ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
 
@@ -188,8 +175,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
         ExpressionContext context = buildContext(payload);
         String url = expressionPort.renderTemplate((String) payload.get("url"), context);
         String method = (String) payload.get("method");
-        Optional<String> body =
-            payload.containsKey("body")
+        Optional<String> body = payload.containsKey("body")
                 ? Optional.of(expressionPort.renderTemplate((String) payload.get("body"), context))
                 : Optional.empty();
         return new ResolvedWebhookRequest(url, method, body);
@@ -245,8 +231,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
      */
     private static ObjectId derivedCreateId(UUID entryId, int actionIndex) {
         return new ObjectId(
-            UUID.nameUUIDFromBytes(
-                (entryId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
+                UUID.nameUUIDFromBytes((entryId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
     }
 
     /**

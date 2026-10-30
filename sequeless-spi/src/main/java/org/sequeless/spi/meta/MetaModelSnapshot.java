@@ -36,11 +36,11 @@ import org.sequeless.spi.ontology.OntologyReport;
  *     {@code null}
  */
 public record MetaModelSnapshot(
-    String ontologyIri,
-    Optional<String> versionIri,
-    Map<String, String> prefixes,
-    List<TypeDefinition> types,
-    OntologyReport report) {
+        String ontologyIri,
+        Optional<String> versionIri,
+        Map<String, String> prefixes,
+        List<TypeDefinition> types,
+        OntologyReport report) {
 
     public MetaModelSnapshot {
         if (ontologyIri == null || ontologyIri.isBlank()) {
@@ -59,8 +59,7 @@ public record MetaModelSnapshot(
             String existingIri = shortNameToIri.putIfAbsent(shortName, type.iri());
             if (existingIri != null) {
                 throw new IllegalArgumentException(
-                    "Duplicate short name '" + shortName + "' for IRIs " + existingIri + " and "
-                        + type.iri());
+                        "Duplicate short name '" + shortName + "' for IRIs " + existingIri + " and " + type.iri());
             }
         }
     }
@@ -85,7 +84,9 @@ public record MetaModelSnapshot(
      */
     public Optional<TypeDefinition> typeByName(String shortName) {
         Objects.requireNonNull(shortName, "shortName must not be null");
-        return types.stream().filter(type -> shortName(type.iri()).equals(shortName)).findFirst();
+        return types.stream()
+                .filter(type -> shortName(type.iri()).equals(shortName))
+                .findFirst();
     }
 
     /**

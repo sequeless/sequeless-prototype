@@ -22,7 +22,7 @@ import org.sequeless.spi.object.Value;
  *     (the {@link Optional} wrapper itself, not just its contents)
  */
 public record SetPropertyAction(String propertyIri, Optional<Value> value, Optional<String> expression)
-    implements Action {
+        implements Action {
 
     public SetPropertyAction {
         if (propertyIri == null || propertyIri.isBlank()) {

@@ -96,17 +96,19 @@ import org.springframework.test.web.servlet.client.RestTestClient;
         })
 class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSupport {
 
-    private static final String GUARD_MESSAGE =
-            "Project must have an owner before it can be activated";
+    private static final String GUARD_MESSAGE = "Project must have an owner before it can be activated";
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
@@ -125,25 +127,23 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
         assertThat(activateBeforeOwner.available()).isFalse();
         assertThat(activateBeforeOwner.reason()).isEqualTo(GUARD_MESSAGE);
 
-        BusinessObjectResponse withOwner =
-                restTestClient
-                        .put()
-                        .uri("/objects/Project/" + project.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(
-                                Map.of(
-                                        "version",
-                                        1,
-                                        "properties",
-                                        Map.of(
-                                                "title", List.of(projectTitle),
-                                                "owner", owner.id().toString())))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse withOwner = restTestClient
+                .put()
+                .uri("/api/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of(
+                                "title", List.of(projectTitle),
+                                "owner", owner.id().toString())))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(withOwner).isNotNull();
         assertThat(withOwner.version()).isEqualTo(2L);
 
@@ -152,20 +152,19 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
         assertThat(transitions.get(0).available()).as("activate now available").isTrue();
         assertThat(transitions.get(0).reason()).isNull();
 
-        BusinessObjectResponse activated =
-                restTestClient
-                        .post()
-                        .uri("/objects/Project/" + project.id() + "/transitions/activate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("expectedVersion", 2))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .valueEquals("ETag", "\"3\"")
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse activated = restTestClient
+                .post()
+                .uri("/api/objects/Project/" + project.id() + "/transitions/activate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("expectedVersion", 2))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("ETag", "\"3\"")
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(activated).isNotNull();
         assertThat(activated.state()).isEqualTo("Active");
@@ -183,7 +182,7 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
         Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
         boolean found = false;
         while (!found && Instant.now().isBefore(deadline)) {
-            JsonNode page = fetchAsJson("/objects/Task?page=0&size=200");
+            JsonNode page = fetchAsJson("/api/objects/Task?page=0&size=200");
             for (JsonNode item : page.get("items")) {
                 JsonNode title = item.get("properties").get("title");
                 if (title != null && titleMatches(title, expectedTitle)) {
@@ -195,7 +194,9 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
                 sleep(Duration.ofMillis(100));
             }
         }
-        assertThat(found).as("kickoff Task with title '%s' eventually appears", expectedTitle).isTrue();
+        assertThat(found)
+                .as("kickoff Task with title '%s' eventually appears", expectedTitle)
+                .isTrue();
     }
 
     private static boolean titleMatches(JsonNode title, String expectedTitle) {
@@ -222,7 +223,7 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
     private BusinessObjectResponse createProject(String title) {
         return restTestClient
                 .post()
-                .uri("/objects/Project")
+                .uri("/api/objects/Project")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of("title", List.of(title))))
                 .exchange()
@@ -236,7 +237,7 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
     private BusinessObjectResponse createPerson(String name) {
         return restTestClient
                 .post()
-                .uri("/objects/Person")
+                .uri("/api/objects/Person")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("properties", Map.of("name", name)))
                 .exchange()
@@ -250,7 +251,7 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
     private List<TransitionResponse> fetchTransitions(UUID projectId) {
         return restTestClient
                 .get()
-                .uri("/objects/Project/" + projectId + "/transitions")
+                .uri("/api/objects/Project/" + projectId + "/transitions")
                 .exchange()
                 .expectStatus()
                 .isOk()
@@ -260,16 +261,15 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
     }
 
     private JsonNode fetchAsJson(String uri) {
-        byte[] responseBody =
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {

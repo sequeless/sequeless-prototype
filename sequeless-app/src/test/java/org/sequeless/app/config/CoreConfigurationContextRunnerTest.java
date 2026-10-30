@@ -14,10 +14,10 @@ import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.automation.DefaultActionExecutor;
 import org.sequeless.core.usecase.DefaultTransitionService;
 import org.sequeless.spi.Scope;
-import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.expression.ExpressionContext;
 import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.meta.MetaModelSnapshot;
@@ -69,15 +69,14 @@ class CoreConfigurationContextRunnerTest {
     @Test
     void actionExecutorAndTransitionServiceRegisterWithoutAnyPortBeans() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CoreConfiguration.class)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ActionExecutor.class);
-                assertThat(context).hasSingleBean(TransitionService.class);
-                assertThat(context.getBean(ActionExecutor.class)).isInstanceOf(DefaultActionExecutor.class);
-                assertThat(context.getBean(TransitionService.class))
-                    .isInstanceOf(DefaultTransitionService.class);
-            });
+                .withUserConfiguration(CoreConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ActionExecutor.class);
+                    assertThat(context).hasSingleBean(TransitionService.class);
+                    assertThat(context.getBean(ActionExecutor.class)).isInstanceOf(DefaultActionExecutor.class);
+                    assertThat(context.getBean(TransitionService.class)).isInstanceOf(DefaultTransitionService.class);
+                });
     }
 
     /**
@@ -92,12 +91,12 @@ class CoreConfigurationContextRunnerTest {
     @Test
     void actionExecutorAndTransitionServiceRegisterWithStubPortBeans() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ActionExecutor.class);
-                assertThat(context).hasSingleBean(TransitionService.class);
-            });
+                .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ActionExecutor.class);
+                    assertThat(context).hasSingleBean(TransitionService.class);
+                });
     }
 
     /**
@@ -112,8 +111,7 @@ class CoreConfigurationContextRunnerTest {
         Scheduled scheduled = pollOnce.getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
-        assertThat(scheduled.fixedDelayString())
-            .isEqualTo("${sequeless.automation.relay.poll-interval-ms:1000}");
+        assertThat(scheduled.fixedDelayString()).isEqualTo("${sequeless.automation.relay.poll-interval-ms:1000}");
     }
 
     /**
@@ -127,25 +125,22 @@ class CoreConfigurationContextRunnerTest {
     void schedulingConfigurationRegistersScheduledAnnotationProcessor() {
         // OutboxPort#claimNext is itself generic, so a lambda cannot implement it (javac cannot
         // infer a per-call T for a lambda body); an anonymous class is required.
-        OutboxPort neverClaimsOutboxPort =
-            new OutboxPort() {
-                @Override
-                public <T> Optional<T> claimNext(
-                    Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
-                    return Optional.empty();
-                }
-            };
+        OutboxPort neverClaimsOutboxPort = new OutboxPort() {
+            @Override
+            public <T> Optional<T> claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
+                return Optional.empty();
+            }
+        };
 
         new ApplicationContextRunner()
-            .withUserConfiguration(SchedulingConfiguration.class, OutboxRelayConfiguration.class)
-            .withBean(OutboxPort.class, () -> neverClaimsOutboxPort)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(
-                    context.containsBean(
-                        "org.springframework.scheduling.config.internalScheduledAnnotationProcessor"))
-                    .isTrue();
-            });
+                .withUserConfiguration(SchedulingConfiguration.class, OutboxRelayConfiguration.class)
+                .withBean(OutboxPort.class, () -> neverClaimsOutboxPort)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.containsBean(
+                                    "org.springframework.scheduling.config.internalScheduledAnnotationProcessor"))
+                            .isTrue();
+                });
     }
 
     /**
@@ -160,14 +155,12 @@ class CoreConfigurationContextRunnerTest {
 
         @Bean
         OutboxRelay outboxRelay(OutboxPort outboxPort) {
-            return new OutboxRelay(
-                outboxPort,
-                new ObjectProvider<>() {
-                    @Override
-                    public AutomationPort getIfAvailable() {
-                        return null;
-                    }
-                });
+            return new OutboxRelay(outboxPort, new ObjectProvider<>() {
+                @Override
+                public AutomationPort getIfAvailable() {
+                    return null;
+                }
+            });
         }
     }
 
@@ -256,8 +249,7 @@ class CoreConfigurationContextRunnerTest {
                 }
 
                 @Override
-                public AggregateResult aggregate(
-                    Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+                public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
             };

@@ -95,12 +95,9 @@ public final class ValueCoercer {
             }
             if (property.readOnly()) {
                 String reason = property.derivation().isPresent()
-                    ? "is a derived property and cannot be set directly"
-                    : "is read-only";
-                violations.add(
-                    new Violation(
-                        property.iri(),
-                        "Property '" + shortName(property.iri()) + "' " + reason));
+                        ? "is a derived property and cannot be set directly"
+                        : "is read-only";
+                violations.add(new Violation(property.iri(), "Property '" + shortName(property.iri()) + "' " + reason));
                 continue;
             }
 
@@ -114,18 +111,17 @@ public final class ValueCoercer {
     }
 
     private static void coerceProperty(
-        PropertyDefinition property,
-        Object rawValue,
-        Map<PropertyRef, Value> properties,
-        List<Violation> violations) {
+            PropertyDefinition property,
+            Object rawValue,
+            Map<PropertyRef, Value> properties,
+            List<Violation> violations) {
         Cardinality cardinality = property.cardinality();
         OptionalInt max = cardinality.max();
         boolean expectsScalar = max.isPresent() && max.getAsInt() == 1;
 
         if (expectsScalar) {
             if (rawValue instanceof List<?>) {
-                violations.add(
-                    new Violation(property.iri(), "expected a single value, got a list"));
+                violations.add(new Violation(property.iri(), "expected a single value, got a list"));
                 return;
             }
             ScalarCoercion coerced = coerceScalar(property, rawValue);
@@ -148,14 +144,12 @@ public final class ValueCoercer {
             Object element = rawList.get(i);
             if (element instanceof List<?>) {
                 elementViolations.add(
-                    new Violation(
-                        property.iri(), "element " + i + ": expected a scalar value, got a list"));
+                        new Violation(property.iri(), "element " + i + ": expected a scalar value, got a list"));
                 continue;
             }
             ScalarCoercion coerced = coerceScalar(property, element);
             if (coerced.errorReason() != null) {
-                elementViolations.add(
-                    new Violation(property.iri(), "element " + i + ": " + coerced.errorReason()));
+                elementViolations.add(new Violation(property.iri(), "element " + i + ": " + coerced.errorReason()));
                 continue;
             }
             elements.add(coerced.value());
@@ -260,8 +254,7 @@ public final class ValueCoercer {
                 try {
                     yield ScalarCoercion.success(Value.dateTime(Instant.parse(text)));
                 } catch (DateTimeParseException e) {
-                    yield ScalarCoercion.failure(
-                        "expected an ISO-8601 dateTime string with an offset");
+                    yield ScalarCoercion.failure("expected an ISO-8601 dateTime string with an offset");
                 }
             }
         };

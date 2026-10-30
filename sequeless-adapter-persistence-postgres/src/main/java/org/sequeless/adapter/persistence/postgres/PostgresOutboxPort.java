@@ -10,11 +10,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
+import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.object.OutboxPort;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.OutboxPort;
 
 /**
  * The PostgreSQL-backed {@link OutboxPort}: claims at most one unprocessed {@link OutboxEntry} row
@@ -62,10 +62,8 @@ public final class PostgresOutboxPort implements OutboxPort {
         Objects.requireNonNull(handler, "handler must not be null");
 
         return transactionTemplate.execute(status -> {
-            Optional<ClaimedRow> claimed =
-                jdbcClient
-                    .sql(
-                        "SELECT id, tenant_id, kind, payload, occurred_at FROM sq_outbox "
+            Optional<ClaimedRow> claimed = jdbcClient
+                    .sql("SELECT id, tenant_id, kind, payload, occurred_at FROM sq_outbox "
                             + "WHERE kind IN (:kinds) AND processed_at IS NULL "
                             + "ORDER BY occurred_at LIMIT 1 FOR UPDATE SKIP LOCKED")
                     .param("kinds", kinds)
@@ -80,10 +78,10 @@ public final class PostgresOutboxPort implements OutboxPort {
             T result = handler.apply(row.tenantId(), row.entry());
 
             jdbcClient
-                .sql("UPDATE sq_outbox SET processed_at = :processedAt WHERE id = :id")
-                .param("processedAt", Timestamp.from(Instant.now()))
-                .param("id", row.entry().id())
-                .update();
+                    .sql("UPDATE sq_outbox SET processed_at = :processedAt WHERE id = :id")
+                    .param("processedAt", Timestamp.from(Instant.now()))
+                    .param("id", row.entry().id())
+                    .update();
 
             return Optional.ofNullable(result);
         });

@@ -71,8 +71,7 @@ public abstract class AggregateContract {
     private static final PropertyRef TITLE = new PropertyRef(Fixtures.TITLE_IRI);
     private static final PropertyRef STATUS = new PropertyRef(Fixtures.STATUS_IRI);
     private static final PropertyRef ESTIMATED_HOURS = new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI);
-    private static final PropertyRef BELONGS_TO_PROJECT =
-        new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
+    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
 
     /**
      * An {@link ObjectStorePort} paired with the {@link QueryPort} that aggregates over the same
@@ -115,22 +114,17 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(3), "OPEN", null, projectA);
         seedTask(env, scope, base.plusSeconds(4), "done", null, projectA);
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA, projectB),
                 AggregateFunction.COUNT,
                 Optional.empty(),
-                List.of(
-                    new Criterion(
-                        Fixtures.STATUS_IRI, Operator.NE, Optional.of(Value.text("done")))));
+                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(Value.text("done")))));
 
         AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.snapshot(), request);
 
-        assertThat(result.values())
-            .containsEntry(projectA, Value.integer(2))
-            .containsEntry(projectB, Value.integer(0));
+        assertThat(result.values()).containsEntry(projectA, Value.integer(2)).containsEntry(projectB, Value.integer(0));
     }
 
     @Test
@@ -145,8 +139,7 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(2), "OPEN", new BigDecimal("3"), projectA);
         seedTask(env, scope, base.plusSeconds(3), "OPEN", new BigDecimal("4.5"), projectA);
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA, projectB),
@@ -173,28 +166,24 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(2), "OPEN", new BigDecimal("4.5"), projectA);
         seedTask(env, scope, base.plusSeconds(3), "OPEN", new BigDecimal("1"), projectA);
 
-        AggregateRequest minRequest =
-            new AggregateRequest(
+        AggregateRequest minRequest = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.MIN,
                 Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
                 List.of());
-        AggregateResult minResult =
-            env.queryPort().aggregate(scope, QueryFixtures.snapshot(), minRequest);
+        AggregateResult minResult = env.queryPort().aggregate(scope, QueryFixtures.snapshot(), minRequest);
         assertThat(decimalOf(minResult, projectA)).isEqualByComparingTo(new BigDecimal("1"));
 
-        AggregateRequest maxRequest =
-            new AggregateRequest(
+        AggregateRequest maxRequest = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.MAX,
                 Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
                 List.of());
-        AggregateResult maxResult =
-            env.queryPort().aggregate(scope, QueryFixtures.snapshot(), maxRequest);
+        AggregateResult maxResult = env.queryPort().aggregate(scope, QueryFixtures.snapshot(), maxRequest);
         assertThat(decimalOf(maxResult, projectA)).isEqualByComparingTo(new BigDecimal("4.5"));
     }
 
@@ -209,8 +198,7 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(1), "OPEN", new BigDecimal("2"), projectA);
         seedTask(env, scope, base.plusSeconds(2), "OPEN", new BigDecimal("4"), projectA);
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
@@ -238,16 +226,13 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(2), "OPEN", null, projectA);
         seedTask(env, scope, base.plusSeconds(3), "CLOSED", null, projectA);
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.COUNT,
                 Optional.empty(),
-                List.of(
-                    new Criterion(
-                        Fixtures.STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))));
+                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))));
 
         AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.snapshot(), request);
 
@@ -259,7 +244,7 @@ public abstract class AggregateContract {
         Environment env = freshEnvironment();
         Scope defaultScope = Fixtures.defaultScope();
         Scope otherTenantScope =
-            new Scope(new TenantId("other-tenant"), Fixtures.defaultScope().principal());
+                new Scope(new TenantId("other-tenant"), Fixtures.defaultScope().principal());
         Instant base = Instant.parse("2026-01-01T00:00:00Z");
 
         ObjectId projectA = seedProject(env, defaultScope, base, "Project A");
@@ -269,8 +254,7 @@ public abstract class AggregateContract {
         // default tenant's aggregate.
         seedTask(env, otherTenantScope, base.plusSeconds(2), "OPEN", null, projectA);
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
@@ -278,8 +262,7 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of());
 
-        AggregateResult result =
-            env.queryPort().aggregate(defaultScope, QueryFixtures.snapshot(), request);
+        AggregateResult result = env.queryPort().aggregate(defaultScope, QueryFixtures.snapshot(), request);
 
         assertThat(result.values()).containsEntry(projectA, Value.integer(1));
     }
@@ -294,12 +277,9 @@ public abstract class AggregateContract {
         ObjectId task = seedTask(env, scope, base.plusSeconds(1), "OPEN", null, projectA);
 
         env.store()
-            .commit(
-                scope,
-                new ChangeSet(List.of(new Delete(task, 1, base.plusSeconds(2), "tester")), List.of()));
+                .commit(scope, new ChangeSet(List.of(new Delete(task, 1, base.plusSeconds(2), "tester")), List.of()));
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
@@ -317,8 +297,7 @@ public abstract class AggregateContract {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
 
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(),
@@ -336,8 +315,7 @@ public abstract class AggregateContract {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
         MetaModelSnapshot snapshot = QueryFixtures.snapshot();
-        AggregateRequest request =
-            new AggregateRequest(
+        AggregateRequest request = new AggregateRequest(
                 Set.of(Fixtures.TASK_IRI),
                 Fixtures.BELONGS_TO_PROJECT_IRI,
                 Set.of(),
@@ -345,12 +323,9 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of());
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> env.queryPort().aggregate(null, snapshot, request));
-        assertThatNullPointerException()
-            .isThrownBy(() -> env.queryPort().aggregate(scope, null, request));
-        assertThatNullPointerException()
-            .isThrownBy(() -> env.queryPort().aggregate(scope, snapshot, null));
+        assertThatNullPointerException().isThrownBy(() -> env.queryPort().aggregate(null, snapshot, request));
+        assertThatNullPointerException().isThrownBy(() -> env.queryPort().aggregate(scope, null, request));
+        assertThatNullPointerException().isThrownBy(() -> env.queryPort().aggregate(scope, snapshot, null));
     }
 
     // -- Assertion helpers ---------------------------------------------------------------------
@@ -373,12 +348,12 @@ public abstract class AggregateContract {
     }
 
     private static ObjectId seedTask(
-        Environment env,
-        Scope scope,
-        Instant createdAt,
-        String status,
-        BigDecimal estimatedHours,
-        ObjectId belongsToProject) {
+            Environment env,
+            Scope scope,
+            Instant createdAt,
+            String status,
+            BigDecimal estimatedHours,
+            ObjectId belongsToProject) {
         Map<PropertyRef, Value> properties = new HashMap<>();
         properties.put(TITLE, Value.text("Task at " + createdAt));
         properties.put(STATUS, Value.text(status));
@@ -392,12 +367,12 @@ public abstract class AggregateContract {
     }
 
     private static ObjectId seed(
-        Environment env, Scope scope, TypeRef type, Instant createdAt, Map<PropertyRef, Value> properties) {
+            Environment env, Scope scope, TypeRef type, Instant createdAt, Map<PropertyRef, Value> properties) {
         ObjectId id = ObjectId.random();
         String principalId = scope.principal().id();
         Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
         BusinessObject object =
-            new BusinessObject(id, type, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
+                new BusinessObject(id, type, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
         env.store().commit(scope, new ChangeSet(List.of(new Create(object)), List.of()));
         return id;
     }

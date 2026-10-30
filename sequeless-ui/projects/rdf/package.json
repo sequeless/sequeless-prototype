@@ -1,0 +1,13 @@
+{
+  "name": "@sequeless/rdf",
+  "version": "0.0.1",
+  "peerDependencies": {
+    "@angular/common": "^22.2.0",
+    "@angular/core": "^22.2.0"
+  },
+  "dependencies": {
+    "n3": "~2.7",
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

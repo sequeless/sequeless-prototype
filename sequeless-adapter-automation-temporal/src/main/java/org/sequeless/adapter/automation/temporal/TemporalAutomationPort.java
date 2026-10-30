@@ -73,20 +73,17 @@ public final class TemporalAutomationPort implements AutomationPort {
 
         switch (entry.kind()) {
             case OutboxEntry.KIND_ACTION_REQUEST -> startActionWorkflow(entry);
-            case OutboxEntry.KIND_OBJECT_CREATED,
-                OutboxEntry.KIND_OBJECT_UPDATED,
-                OutboxEntry.KIND_OBJECT_DELETED -> startChangeEventWorkflow(scope, entry);
+            case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
+                startChangeEventWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_SCHEDULED -> startTimerWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_CANCELLED -> signalTimerCancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> startSignalEventWorkflow(scope, entry);
-            default -> throw new IllegalArgumentException(
-                "Unsupported OutboxEntry kind for dispatch: " + entry.kind());
+            default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }
 
     private void startActionWorkflow(OutboxEntry entry) {
-        ActionWorkflow workflow =
-            workflowClient.newWorkflowStub(
+        ActionWorkflow workflow = workflowClient.newWorkflowStub(
                 ActionWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::execute, entry);
@@ -96,8 +93,7 @@ public final class TemporalAutomationPort implements AutomationPort {
     }
 
     private void startChangeEventWorkflow(Scope scope, OutboxEntry entry) {
-        ChangeEventWorkflow workflow =
-            workflowClient.newWorkflowStub(
+        ChangeEventWorkflow workflow = workflowClient.newWorkflowStub(
                 ChangeEventWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
@@ -107,8 +103,7 @@ public final class TemporalAutomationPort implements AutomationPort {
     }
 
     private void startSignalEventWorkflow(Scope scope, OutboxEntry entry) {
-        SignalEventWorkflow workflow =
-            workflowClient.newWorkflowStub(
+        SignalEventWorkflow workflow = workflowClient.newWorkflowStub(
                 SignalEventWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
@@ -126,8 +121,7 @@ public final class TemporalAutomationPort implements AutomationPort {
      */
     private void startTimerWorkflow(Scope scope, OutboxEntry entry) {
         String timerKey = (String) entry.payload().get("timerKey");
-        TimerWorkflow workflow =
-            workflowClient.newWorkflowStub(TimerWorkflow.class, workflowOptions(timerKey));
+        TimerWorkflow workflow = workflowClient.newWorkflowStub(TimerWorkflow.class, workflowOptions(timerKey));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
         } catch (WorkflowExecutionAlreadyStarted e) {
@@ -153,9 +147,9 @@ public final class TemporalAutomationPort implements AutomationPort {
 
     private WorkflowOptions workflowOptions(String workflowId) {
         return WorkflowOptions.newBuilder()
-            .setWorkflowId(workflowId)
-            .setTaskQueue(taskQueue)
-            .setWorkflowIdReusePolicy(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE)
-            .build();
+                .setWorkflowId(workflowId)
+                .setTaskQueue(taskQueue)
+                .setWorkflowIdReusePolicy(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE)
+                .build();
     }
 }

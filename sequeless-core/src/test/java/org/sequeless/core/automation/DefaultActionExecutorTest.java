@@ -106,10 +106,18 @@ class DefaultActionExecutorTest {
 
     private static final String OWNER_GUARD = "self.owner != null";
 
-    private static final AttributeDefinition OWNER =
-        new AttributeDefinition(
-            OWNER_IRI, "owner", Cardinality.atMost(1), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    private static final AttributeDefinition OWNER = new AttributeDefinition(
+            OWNER_IRI,
+            "owner",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Optional.empty(),
+            Datatype.STRING);
 
     private static final State DRAFT = new State(DRAFT_IRI, "Draft", 0);
     private static final State ACTIVE = new State(ACTIVE_IRI, "Active", 1);
@@ -119,17 +127,22 @@ class DefaultActionExecutorTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");
     }
 
-    private static BusinessObject project(
-        ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
+    private static BusinessObject project(ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.of(state),
-            properties, new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.of(state),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     // --- the genuine cross-check: real DefaultTransitionService output fed into DefaultActionExecutor ---
@@ -140,45 +153,44 @@ class DefaultActionExecutorTest {
         // action kind, and both the "value" and "expression" payload variants for SetProperty and
         // CreateObject.
         SetPropertyAction setPropertyValue =
-            new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
+                new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
         SetPropertyAction setPropertyExpression =
-            new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner"));
-        CreateObjectAction createObjectValue =
-            new CreateObjectAction(
+                new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner"));
+        CreateObjectAction createObjectValue = new CreateObjectAction(
                 TASK_IRI,
                 List.of(new PropertyAssignment(TITLE_IRI, Optional.of(Value.text("Kickoff")), Optional.empty())));
-        CreateObjectAction createObjectExpression =
-            new CreateObjectAction(
-                TASK_IRI,
-                List.of(new PropertyAssignment(TITLE_IRI, Optional.empty(), Optional.of("self.owner"))));
+        CreateObjectAction createObjectExpression = new CreateObjectAction(
+                TASK_IRI, List.of(new PropertyAssignment(TITLE_IRI, Optional.empty(), Optional.of("self.owner"))));
         WebhookAction webhookWithBody =
-            new WebhookAction(
-                "https://example.com/hook?owner=${self.owner}", "POST", Optional.of("${self.owner}"));
+                new WebhookAction("https://example.com/hook?owner=${self.owner}", "POST", Optional.of("${self.owner}"));
         WebhookAction webhookNoBody = new WebhookAction("https://example.com/reopen", "GET", Optional.empty());
         LogAction logAction = new LogAction("Activated by ${self.owner}");
 
-        Transition activate =
-            new Transition(
-                "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
+        Transition activate = new Transition(
+                "activate",
+                DRAFT_IRI,
+                ACTIVE_IRI,
+                new UserActionTrigger(),
+                Optional.of(OWNER_GUARD),
                 Optional.empty(),
                 List.of(
-                    setPropertyValue,
-                    setPropertyExpression,
-                    createObjectValue,
-                    createObjectExpression,
-                    webhookWithBody,
-                    webhookNoBody,
-                    logAction));
+                        setPropertyValue,
+                        setPropertyExpression,
+                        createObjectValue,
+                        createObjectExpression,
+                        webhookWithBody,
+                        webhookNoBody,
+                        logAction));
         StateMachineDefinition lifecycle =
-            new StateMachineDefinition(NS + "ProjectLifecycle", List.of(DRAFT, ACTIVE), DRAFT, List.of(activate));
-        TypeDefinition projectType =
-            new TypeDefinition(
-                PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false,
-                Optional.of(lifecycle));
-        MetaModelSnapshot snapshot =
-            new MetaModelSnapshot(
-                NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(),
-                List.of(projectType), new OntologyReport(true, List.of()));
+                new StateMachineDefinition(NS + "ProjectLifecycle", List.of(DRAFT, ACTIVE), DRAFT, List.of(activate));
+        TypeDefinition projectType = new TypeDefinition(
+                PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false, Optional.of(lifecycle));
+        MetaModelSnapshot snapshot = new MetaModelSnapshot(
+                NS.substring(0, NS.length() - 1),
+                Optional.empty(),
+                Map.of(),
+                List.of(projectType),
+                new OntologyReport(true, List.of()));
 
         ObjectId projectId = ObjectId.random();
         Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
@@ -188,8 +200,7 @@ class DefaultActionExecutorTest {
         FakeExpressionPort expressionPort = new FakeExpressionPort();
 
         DefaultTransitionService transitionService =
-            new DefaultTransitionService(
-                new FakeOntologyPort(snapshot), store, permitAll(), expressionPort, CLOCK);
+                new DefaultTransitionService(new FakeOntologyPort(snapshot), store, permitAll(), expressionPort, CLOCK);
         transitionService.fire(ALICE, "Project", projectId, "activate", 5);
 
         // The real payload DefaultTransitionService produced — not hand-built.
@@ -215,8 +226,8 @@ class DefaultActionExecutorTest {
         // actionIndex 2: CreateObject, value variant.
         executor.applyCreateObject(ALICE, actionRequests.get(2));
         UUID entryId2 = actionRequests.get(2).id();
-        ObjectId derivedId2 =
-            new ObjectId(UUID.nameUUIDFromBytes((entryId2 + ":2").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        ObjectId derivedId2 = new ObjectId(
+                UUID.nameUUIDFromBytes((entryId2 + ":2").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject task1 = store.store.get(derivedId2);
         assertThat(task1).isNotNull();
         assertThat(task1.type()).isEqualTo(new TypeRef(TASK_IRI));
@@ -232,8 +243,8 @@ class DefaultActionExecutorTest {
         // actionIndex 3: CreateObject, expression variant ("self.owner").
         executor.applyCreateObject(ALICE, actionRequests.get(3));
         UUID entryId3 = actionRequests.get(3).id();
-        ObjectId derivedId3 =
-            new ObjectId(UUID.nameUUIDFromBytes((entryId3 + ":3").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        ObjectId derivedId3 = new ObjectId(
+                UUID.nameUUIDFromBytes((entryId3 + ":3").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject task2 = store.store.get(derivedId3);
         assertThat(task2).isNotNull();
         assertThat(task2.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("alice"));
@@ -260,7 +271,7 @@ class DefaultActionExecutorTest {
         assertThat(expressionPort.renderTemplateCalls).hasSize(1);
         assertThat(expressionPort.renderTemplateCalls.get(0).template()).isEqualTo("Activated by ${self.owner}");
         assertThat(expressionPort.renderTemplateCalls.get(0).context().selfProperties())
-            .containsEntry("owner", Value.text("alice"));
+                .containsEntry("owner", Value.text("alice"));
     }
 
     // --- applySetProperty ---
@@ -269,13 +280,12 @@ class DefaultActionExecutorTest {
     void applySetPropertyIsANoOpWhenValueAlreadyMatchesValueVariant() {
         ObjectId id = ObjectId.random();
         BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("kicked-off")));
+                project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("kicked-off")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "kicked-off-transition", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "kicked-off-transition", 0, Map.of("owner", tag(Value.text("alice"))))
                 .valueVariant(Value.text("kicked-off"))
                 .build();
 
@@ -287,14 +297,12 @@ class DefaultActionExecutorTest {
     @Test
     void applySetPropertyCommitsExactlyOneUpdateWithObjectUpdatedOutboxWhenValueDiffersValueVariant() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .valueVariant(Value.text("new"))
                 .build();
 
@@ -305,26 +313,25 @@ class DefaultActionExecutorTest {
         assertThat(changeSet.mutations()).hasSize(1);
         Update update = (Update) changeSet.mutations().get(0);
         assertThat(update.expectedVersion()).isEqualTo(3);
-        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("new"));
+        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI)))
+                .isEqualTo(Value.text("new"));
         assertThat(changeSet.outbox()).hasSize(1);
         assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
         assertThat(changeSet.outbox().get(0).payload())
-            .containsEntry("objectId", id.value().toString())
-            .containsEntry("version", 4L)
-            .containsEntry("typeIri", PROJECT_IRI);
+                .containsEntry("objectId", id.value().toString())
+                .containsEntry("version", 4L)
+                .containsEntry("typeIri", PROJECT_IRI);
     }
 
     @Test
     void applySetPropertyIsANoOpWhenValueAlreadyMatchesExpressionVariant() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("alice")));
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("alice")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .expressionVariant("self.owner")
                 .build();
 
@@ -336,14 +343,12 @@ class DefaultActionExecutorTest {
     @Test
     void applySetPropertyCommitsWhenValueDiffersExpressionVariant() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .expressionVariant("self.owner")
                 .build();
 
@@ -351,7 +356,8 @@ class DefaultActionExecutorTest {
 
         assertThat(store.commitCalls).isEqualTo(1);
         Update update = (Update) store.commits.get(0).mutations().get(0);
-        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("alice"));
+        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI)))
+                .isEqualTo(Value.text("alice"));
     }
 
     @Test
@@ -360,8 +366,7 @@ class DefaultActionExecutorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(); // nothing seeded
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .valueVariant(Value.text("new"))
                 .build();
 
@@ -395,10 +400,8 @@ class DefaultActionExecutorTest {
 
         executor.applyCreateObject(ALICE, entry);
 
-        ObjectId expectedId =
-            new ObjectId(
-                UUID.nameUUIDFromBytes(
-                    (entryId + ":" + actionIndex).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        ObjectId expectedId = new ObjectId(UUID.nameUUIDFromBytes(
+                (entryId + ":" + actionIndex).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertThat(store.commitCalls).isEqualTo(1);
         BusinessObject created = store.store.get(expectedId);
         assertThat(created).isNotNull();
@@ -436,8 +439,7 @@ class DefaultActionExecutorTest {
 
         executor.applyCreateObject(ALICE, entry);
 
-        ObjectId expectedId =
-            new ObjectId(
+        ObjectId expectedId = new ObjectId(
                 UUID.nameUUIDFromBytes((entryId + ":0").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject created = store.store.get(expectedId);
         assertThat(created.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("alice"));
@@ -526,9 +528,11 @@ class DefaultActionExecutorTest {
         assertThat(expressionPort.renderTemplateCalls).hasSize(1);
         assertThat(expressionPort.renderTemplateCalls.get(0).template()).isEqualTo("Activated by ${self.owner}");
         assertThat(expressionPort.renderTemplateCalls.get(0).context().selfProperties())
-            .containsEntry("owner", Value.text("alice"));
-        assertThat(expressionPort.renderTemplateCalls.get(0).context().selfState()).contains(ACTIVE_IRI);
-        assertThat(expressionPort.renderTemplateCalls.get(0).context().principalId()).isEqualTo("alice");
+                .containsEntry("owner", Value.text("alice"));
+        assertThat(expressionPort.renderTemplateCalls.get(0).context().selfState())
+                .contains(ACTIVE_IRI);
+        assertThat(expressionPort.renderTemplateCalls.get(0).context().principalId())
+                .isEqualTo("alice");
     }
 
     // --- payload-building helpers, mirroring DefaultTransitionService's own map-building style ---
@@ -538,7 +542,7 @@ class DefaultActionExecutorTest {
     }
 
     private static SetPropertyEntryBuilder setPropertyEntry(
-        ObjectId objectId, String transitionName, int actionIndex, Map<String, Object> self) {
+            ObjectId objectId, String transitionName, int actionIndex, Map<String, Object> self) {
         return new SetPropertyEntryBuilder(objectId, transitionName, actionIndex, self);
     }
 
@@ -612,8 +616,7 @@ class DefaultActionExecutorTest {
             if ("principal".equals(expression)) {
                 return Value.text(context.principalId());
             }
-            throw new UnsupportedOperationException(
-                "Unrecognized expression in test fixture: " + expression);
+            throw new UnsupportedOperationException("Unrecognized expression in test fixture: " + expression);
         }
 
         @Override

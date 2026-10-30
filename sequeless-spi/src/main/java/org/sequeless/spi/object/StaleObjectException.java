@@ -25,8 +25,8 @@ public final class StaleObjectException extends RuntimeException {
      * @throws NullPointerException if {@code objectId} is {@code null}
      */
     public StaleObjectException(ObjectId objectId, long expectedVersion) {
-        super("Stale version for " + Objects.requireNonNull(objectId, "objectId must not be null")
-            + ": expected " + expectedVersion);
+        super("Stale version for " + Objects.requireNonNull(objectId, "objectId must not be null") + ": expected "
+                + expectedVersion);
         this.objectId = objectId;
         this.expectedVersion = expectedVersion;
     }

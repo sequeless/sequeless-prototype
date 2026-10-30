@@ -66,6 +66,6 @@ final class OntologySource {
 
     private static IllegalArgumentException unresolved(String propertyName, String location, String reason) {
         return new IllegalArgumentException(
-            "%s: could not resolve ontology source '%s' (%s)".formatted(propertyName, location, reason));
+                "%s: could not resolve ontology source '%s' (%s)".formatted(propertyName, location, reason));
     }
 }

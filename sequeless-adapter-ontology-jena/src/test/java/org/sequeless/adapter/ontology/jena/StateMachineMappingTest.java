@@ -6,7 +6,6 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 import org.apache.jena.ontapi.OntModelFactory;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.rdf.model.Model;
@@ -62,8 +61,7 @@ class StateMachineMappingTest {
      * per-test where a third state is actually needed, to keep each fixture's own state machine
      * block legible.
      */
-    private static final String HEADER =
-        """
+    private static final String HEADER = """
         @prefix sq:   <https://sequeless.dev/ns/meta#> .
         @prefix owl:  <http://www.w3.org/2002/07/owl#> .
         @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -90,8 +88,7 @@ class StateMachineMappingTest {
 
     @Test
     void fullStateMachineMapsToStateMachineDefinitionWithSortedStatesAndTransitions() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -109,14 +106,12 @@ class StateMachineMappingTest {
 
         StateMachineDefinition definition = stateMachine(result, PROJECT_IRI);
         assertThat(definition.iri()).isEqualTo(PROJECT_LIFECYCLE_IRI);
-        assertThat(definition.states().stream().map(State::iri))
-            .containsExactly(DRAFT_IRI, ACTIVE_IRI, ON_HOLD_IRI);
+        assertThat(definition.states().stream().map(State::iri)).containsExactly(DRAFT_IRI, ACTIVE_IRI, ON_HOLD_IRI);
         assertThat(definition.initialState().iri()).isEqualTo(DRAFT_IRI);
         assertThat(definition.initialState().label()).isEqualTo("Draft");
 
         // sq:transition is plain multi-valued (declared out of order above); the mapper sorts by name.
-        assertThat(definition.transitions().stream().map(Transition::name))
-            .containsExactly("activate", "hold");
+        assertThat(definition.transitions().stream().map(Transition::name)).containsExactly("activate", "hold");
 
         Transition activate = transition(definition, "activate");
         assertThat(activate.fromStateIri()).isEqualTo(DRAFT_IRI);
@@ -128,8 +123,7 @@ class StateMachineMappingTest {
 
     @Test
     void transitionWithNoGuardIsAlwaysAvailable() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -148,8 +142,7 @@ class StateMachineMappingTest {
 
     @Test
     void setPropertyActionWithValueMapsToSetPropertyAction() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -172,8 +165,7 @@ class StateMachineMappingTest {
 
     @Test
     void setPropertyActionWithExpressionMapsToSetPropertyAction() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -194,8 +186,7 @@ class StateMachineMappingTest {
 
     @Test
     void createObjectActionMapsToCreateObjectActionWithValueAndExpressionPropertyAssignments() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -230,8 +221,7 @@ class StateMachineMappingTest {
 
     @Test
     void webhookActionMapsToWebhookAction() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -256,8 +246,7 @@ class StateMachineMappingTest {
 
     @Test
     void webhookMethodAbsentDefaultsToPostAndIsNotAnError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -277,8 +266,7 @@ class StateMachineMappingTest {
 
     @Test
     void logActionMapsToLogAction() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -299,8 +287,7 @@ class StateMachineMappingTest {
 
     @Test
     void onChangeTriggerWithWatchMapsToOnChangeTrigger() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:belongsToProject a owl:ObjectProperty ; rdfs:domain ex:Task ; rdfs:range ex:Project .
 
             ex:ProjectLifecycle
@@ -316,14 +303,12 @@ class StateMachineMappingTest {
 
         Transition autoClose = transition(stateMachine(result, PROJECT_IRI), "autoClose");
         assertThat(autoClose.trigger()).isInstanceOf(OnChangeTrigger.class);
-        assertThat(((OnChangeTrigger) autoClose.trigger()).watchIris())
-            .containsExactly(REF_NS + "belongsToProject");
+        assertThat(((OnChangeTrigger) autoClose.trigger()).watchIris()).containsExactly(REF_NS + "belongsToProject");
     }
 
     @Test
     void onChangeTriggerWithoutWatchIsWatchSelfOnlyAndLegal() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -342,8 +327,7 @@ class StateMachineMappingTest {
 
     @Test
     void timerTriggerWithAfterMapsToTimerTrigger() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -362,8 +346,7 @@ class StateMachineMappingTest {
 
     @Test
     void externalSignalTriggerWithSignalNameMapsToExternalSignalTrigger() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -382,8 +365,7 @@ class StateMachineMappingTest {
 
     @Test
     void timerTriggerMissingAfterIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -398,8 +380,7 @@ class StateMachineMappingTest {
 
     @Test
     void timerTriggerMalformedAfterIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -414,8 +395,7 @@ class StateMachineMappingTest {
 
     @Test
     void timerTriggerZeroAfterIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -430,8 +410,7 @@ class StateMachineMappingTest {
 
     @Test
     void externalSignalTriggerMissingSignalNameIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -446,8 +425,7 @@ class StateMachineMappingTest {
 
     @Test
     void onChangeTriggerWatchingDataPropertyIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -462,8 +440,7 @@ class StateMachineMappingTest {
 
     @Test
     void onChangeTriggerWatchingObjectPropertyWithWrongRangeIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -478,8 +455,7 @@ class StateMachineMappingTest {
 
     @Test
     void onChangeTriggerWatchingUnknownIriIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -496,8 +472,7 @@ class StateMachineMappingTest {
 
     @Test
     void missingAppliesToIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:initialState ex:Draft ;
@@ -508,8 +483,7 @@ class StateMachineMappingTest {
 
     @Test
     void missingStateIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -520,8 +494,7 @@ class StateMachineMappingTest {
 
     @Test
     void initialStateNotInDeclaredStatesIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -533,8 +506,7 @@ class StateMachineMappingTest {
 
     @Test
     void transitionMissingNameIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -547,8 +519,7 @@ class StateMachineMappingTest {
 
     @Test
     void transitionMissingFromIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -561,8 +532,7 @@ class StateMachineMappingTest {
 
     @Test
     void transitionMissingToIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -575,8 +545,7 @@ class StateMachineMappingTest {
 
     @Test
     void fromNotADeclaredStateIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -591,8 +560,7 @@ class StateMachineMappingTest {
 
     @Test
     void toNotADeclaredStateIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -607,8 +575,7 @@ class StateMachineMappingTest {
 
     @Test
     void unknownTriggerIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -618,14 +585,12 @@ class StateMachineMappingTest {
                     [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
                       sq:trigger ex:SomeOtherTrigger ] .
             """);
-        assertSingleError(result,
-            "sq:trigger must be one of sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal");
+        assertSingleError(result, "sq:trigger must be one of sq:UserAction, sq:OnChange, sq:Timer, sq:ExternalSignal");
     }
 
     @Test
     void actionNodeUntypedIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -641,8 +606,7 @@ class StateMachineMappingTest {
 
     @Test
     void actionNodeDualTypedIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -660,8 +624,7 @@ class StateMachineMappingTest {
 
     @Test
     void setPropertyWithBothValueAndExpressionIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -678,8 +641,7 @@ class StateMachineMappingTest {
 
     @Test
     void setPropertyWithNeitherValueNorExpressionIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -695,8 +657,7 @@ class StateMachineMappingTest {
 
     @Test
     void propertyAssignmentWithBothValueAndExpressionIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -716,8 +677,7 @@ class StateMachineMappingTest {
 
     @Test
     void createObjectMissingTypeIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -733,8 +693,7 @@ class StateMachineMappingTest {
 
     @Test
     void malformedPropertiesListIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -751,8 +710,7 @@ class StateMachineMappingTest {
 
     @Test
     void malformedActionListIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -768,8 +726,7 @@ class StateMachineMappingTest {
 
     @Test
     void webhookMissingUrlIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -785,8 +742,7 @@ class StateMachineMappingTest {
 
     @Test
     void logMissingMessageIsError() {
-        MappingResult result = mapTurtle(
-            """
+        MappingResult result = mapTurtle("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -825,8 +781,7 @@ class StateMachineMappingTest {
      */
     @Test
     void stateMachineWithSetPropertyMapsUnderTheOwlReasonerTheAppActuallyUses() {
-        MappingResult result = mapTurtleUnderReasoner(
-            """
+        MappingResult result = mapTurtleUnderReasoner("""
             ex:ProjectLifecycle
                 a sq:StateMachine ;
                 sq:appliesTo ex:Project ;
@@ -836,8 +791,7 @@ class StateMachineMappingTest {
                     [ a sq:Transition ; sq:name "activate" ; sq:from ex:Draft ; sq:to ex:Active ;
                       sq:trigger sq:UserAction ;
                       sq:action ( [ a sq:SetProperty ; sq:property ex:title ; sq:value "Kickoff" ] ) ] .
-            """,
-            ReasonerSetting.OWL);
+            """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
         SetPropertyAction setProperty = (SetPropertyAction) onlyAction(result);
@@ -858,10 +812,10 @@ class StateMachineMappingTest {
         StateMachineDefinition definition = project.stateMachine().orElseThrow();
         assertThat(definition.iri()).isEqualTo(Fixtures.PROJECT_LIFECYCLE_IRI);
         assertThat(definition.states().stream().map(State::iri))
-            .containsExactly(Fixtures.DRAFT_IRI, Fixtures.ACTIVE_IRI, Fixtures.ON_HOLD_IRI, Fixtures.CLOSED_IRI);
+                .containsExactly(Fixtures.DRAFT_IRI, Fixtures.ACTIVE_IRI, Fixtures.ON_HOLD_IRI, Fixtures.CLOSED_IRI);
         assertThat(definition.initialState().iri()).isEqualTo(Fixtures.DRAFT_IRI);
         assertThat(definition.transitions().stream().map(Transition::name))
-            .containsExactly("activate", "autoClose", "close", "expireHold", "hold", "reopen", "resume");
+                .containsExactly("activate", "autoClose", "close", "expireHold", "hold", "reopen", "resume");
 
         Transition activate = transition(definition, "activate");
         assertThat(activate.guard()).contains("self.owner != null");
@@ -892,7 +846,7 @@ class StateMachineMappingTest {
         Transition autoClose = transition(definition, "autoClose");
         assertThat(autoClose.trigger()).isInstanceOf(OnChangeTrigger.class);
         assertThat(((OnChangeTrigger) autoClose.trigger()).watchIris())
-            .containsExactly(Fixtures.BELONGS_TO_PROJECT_IRI);
+                .containsExactly(Fixtures.BELONGS_TO_PROJECT_IRI);
         assertThat(autoClose.guard()).contains("self.openTaskCount == 0");
         assertThat(autoClose.guardMessage()).contains("Project still has open tasks");
 
@@ -928,16 +882,18 @@ class StateMachineMappingTest {
     private static OntModel buildModel(String turtle, ReasonerSetting reasoner) {
         Model rdfModel = ModelFactory.createDefaultModel();
         RDFDataMgr.read(
-            rdfModel,
-            new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
-            "https://sequeless.dev/ns/ref",
-            Lang.TURTLE);
+                rdfModel,
+                new ByteArrayInputStream(turtle.getBytes(StandardCharsets.UTF_8)),
+                "https://sequeless.dev/ns/ref",
+                Lang.TURTLE);
         return OntModelFactory.createModel(
-            rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
+                rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
     }
 
     private static List<OntologyIssue> errors(MappingResult result) {
-        return result.issues().stream().filter(issue -> issue.severity() == Severity.ERROR).toList();
+        return result.issues().stream()
+                .filter(issue -> issue.severity() == Severity.ERROR)
+                .toList();
     }
 
     private static void assertSingleError(MappingResult result, String messageFragment) {
@@ -948,21 +904,22 @@ class StateMachineMappingTest {
 
     private static TypeDefinition typeNamed(MappingResult result, String iri) {
         return result.types().stream()
-            .filter(t -> t.iri().equals(iri))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No type mapped for " + iri));
+                .filter(t -> t.iri().equals(iri))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No type mapped for " + iri));
     }
 
     private static StateMachineDefinition stateMachine(MappingResult result, String typeIri) {
-        return typeNamed(result, typeIri).stateMachine()
-            .orElseThrow(() -> new AssertionError("No state machine mapped for " + typeIri));
+        return typeNamed(result, typeIri)
+                .stateMachine()
+                .orElseThrow(() -> new AssertionError("No state machine mapped for " + typeIri));
     }
 
     private static Transition transition(StateMachineDefinition definition, String name) {
         return definition.transitions().stream()
-            .filter(t -> t.name().equals(name))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No transition named " + name));
+                .filter(t -> t.name().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No transition named " + name));
     }
 
     private static Action onlyAction(MappingResult result) {

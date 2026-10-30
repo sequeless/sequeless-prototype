@@ -12,9 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.sequeless.spi.Scope;
 import org.sequeless.spi.TenantId;
 import org.sequeless.spi.object.Audit;
@@ -36,6 +33,9 @@ import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.object.Value;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The PostgreSQL-backed {@link ObjectStorePort}: {@code sq_object} for business objects, {@code
@@ -73,14 +73,13 @@ public final class PostgresObjectStore implements ObjectStorePort {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(id, "id must not be null");
         return jdbcClient
-            .sql(
-                "SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
-                    + "updated_at, updated_by, deleted_at FROM sq_object "
-                    + "WHERE id = :id AND tenant_id = :tenantId AND deleted_at IS NULL")
-            .param("id", id.value())
-            .param("tenantId", scope.tenantId().value())
-            .query(PostgresObjectStore::mapRow)
-            .optional();
+                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
+                        + "updated_at, updated_by, deleted_at FROM sq_object "
+                        + "WHERE id = :id AND tenant_id = :tenantId AND deleted_at IS NULL")
+                .param("id", id.value())
+                .param("tenantId", scope.tenantId().value())
+                .query(PostgresObjectStore::mapRow)
+                .optional();
     }
 
     @Override
@@ -99,20 +98,16 @@ public final class PostgresObjectStore implements ObjectStorePort {
         List<String> typeIris = types.stream().map(TypeRef::iri).toList();
         String tenantId = scope.tenantId().value();
 
-        long totalItems =
-            jdbcClient
-                .sql(
-                    "SELECT COUNT(*) FROM sq_object WHERE tenant_id = :tenantId "
+        long totalItems = jdbcClient
+                .sql("SELECT COUNT(*) FROM sq_object WHERE tenant_id = :tenantId "
                         + "AND type_iri IN (:types) AND deleted_at IS NULL")
                 .param("tenantId", tenantId)
                 .param("types", typeIris)
                 .query(Long.class)
                 .single();
 
-        List<BusinessObject> items =
-            jdbcClient
-                .sql(
-                    "SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
+        List<BusinessObject> items = jdbcClient
+                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
                         + "updated_at, updated_by, deleted_at FROM sq_object "
                         + "WHERE tenant_id = :tenantId AND type_iri IN (:types) AND deleted_at IS NULL "
                         + "ORDER BY created_at, id LIMIT :limit OFFSET :offset")
@@ -138,10 +133,8 @@ public final class PostgresObjectStore implements ObjectStorePort {
         }
 
         List<UUID> rawIds = ids.stream().map(ObjectId::value).toList();
-        List<Map<String, Object>> rows =
-            jdbcClient
-                .sql(
-                    "SELECT id, type_iri FROM sq_object WHERE tenant_id = :tenantId "
+        List<Map<String, Object>> rows = jdbcClient
+                .sql("SELECT id, type_iri FROM sq_object WHERE tenant_id = :tenantId "
                         + "AND id IN (:ids) AND deleted_at IS NULL")
                 .param("tenantId", scope.tenantId().value())
                 .param("ids", rawIds)
@@ -150,8 +143,7 @@ public final class PostgresObjectStore implements ObjectStorePort {
 
         Map<ObjectId, TypeRef> result = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
-            result.put(
-                new ObjectId((UUID) row.get("id")), new TypeRef((String) row.get("type_iri")));
+            result.put(new ObjectId((UUID) row.get("id")), new TypeRef((String) row.get("type_iri")));
         }
         return result;
     }
@@ -201,16 +193,15 @@ public final class PostgresObjectStore implements ObjectStorePort {
                 // Nothing to validate: a Create always succeeds regardless of what, if anything,
                 // is already stored at that id.
             }
-            case Update update -> requireCurrentVersion(tenantId, update.object().id(), update.expectedVersion());
+            case Update update ->
+                requireCurrentVersion(tenantId, update.object().id(), update.expectedVersion());
             case Delete delete -> requireCurrentVersion(tenantId, delete.id(), delete.expectedVersion());
         }
     }
 
     private void requireCurrentVersion(String tenantId, ObjectId id, long expectedVersion) {
-        Optional<Map<String, Object>> row =
-            jdbcClient
-                .sql(
-                    "SELECT version, deleted_at FROM sq_object WHERE id = :id AND tenant_id = :tenantId "
+        Optional<Map<String, Object>> row = jdbcClient
+                .sql("SELECT version, deleted_at FROM sq_object WHERE id = :id AND tenant_id = :tenantId "
                         + "FOR UPDATE")
                 .param("id", id.value())
                 .param("tenantId", tenantId)
@@ -234,70 +225,84 @@ public final class PostgresObjectStore implements ObjectStorePort {
                 BusinessObject object = create.object();
                 Audit audit = object.audit();
                 jdbcClient
-                    .sql(
-                        "INSERT INTO sq_object (id, tenant_id, type_iri, version, state, props, "
-                            + "created_at, created_by, updated_at, updated_by, deleted_at) "
-                            + "VALUES (:id, :tenantId, :typeIri, 1, :state, CAST(:props AS jsonb), "
-                            + ":createdAt, :createdBy, :updatedAt, :updatedBy, NULL)")
-                    .param("id", object.id().value())
-                    .param("tenantId", tenantId)
-                    .param("typeIri", object.type().iri())
-                    .param("state", object.state().orElse(null))
-                    .param("props", ValueJsonCodec.toJson(object.properties()))
-                    .param("createdAt", Timestamp.from(audit.createdAt()))
-                    .param("createdBy", audit.createdBy())
-                    .param("updatedAt", Timestamp.from(audit.updatedAt()))
-                    .param("updatedBy", audit.updatedBy())
-                    .update();
+                        .sql("INSERT INTO sq_object (id, tenant_id, type_iri, version, state, props, "
+                                + "created_at, created_by, updated_at, updated_by, deleted_at) "
+                                + "VALUES (:id, :tenantId, :typeIri, 1, :state, CAST(:props AS jsonb), "
+                                + ":createdAt, :createdBy, :updatedAt, :updatedBy, NULL)")
+                        .param("id", object.id().value())
+                        .param("tenantId", tenantId)
+                        .param("typeIri", object.type().iri())
+                        .param("state", object.state().orElse(null))
+                        .param("props", ValueJsonCodec.toJson(object.properties()))
+                        .param("createdAt", Timestamp.from(audit.createdAt()))
+                        .param("createdBy", audit.createdBy())
+                        .param("updatedAt", Timestamp.from(audit.updatedAt()))
+                        .param("updatedBy", audit.updatedBy())
+                        .update();
                 yield new BusinessObject(
-                    object.id(), object.type(), scope.tenantId(), 1, object.state(),
-                    object.properties(), audit, false);
+                        object.id(),
+                        object.type(),
+                        scope.tenantId(),
+                        1,
+                        object.state(),
+                        object.properties(),
+                        audit,
+                        false);
             }
             case Update update -> {
                 BusinessObject object = update.object();
                 long newVersion = update.expectedVersion() + 1;
                 Audit audit = object.audit();
                 jdbcClient
-                    .sql(
-                        "UPDATE sq_object SET version = :newVersion, state = :state, "
-                            + "props = CAST(:props AS jsonb), updated_at = :updatedAt, "
-                            + "updated_by = :updatedBy WHERE id = :id AND tenant_id = :tenantId "
-                            + "AND version = :expectedVersion")
-                    .param("newVersion", newVersion)
-                    .param("state", object.state().orElse(null))
-                    .param("props", ValueJsonCodec.toJson(object.properties()))
-                    .param("updatedAt", Timestamp.from(audit.updatedAt()))
-                    .param("updatedBy", audit.updatedBy())
-                    .param("id", object.id().value())
-                    .param("tenantId", tenantId)
-                    .param("expectedVersion", update.expectedVersion())
-                    .update();
+                        .sql("UPDATE sq_object SET version = :newVersion, state = :state, "
+                                + "props = CAST(:props AS jsonb), updated_at = :updatedAt, "
+                                + "updated_by = :updatedBy WHERE id = :id AND tenant_id = :tenantId "
+                                + "AND version = :expectedVersion")
+                        .param("newVersion", newVersion)
+                        .param("state", object.state().orElse(null))
+                        .param("props", ValueJsonCodec.toJson(object.properties()))
+                        .param("updatedAt", Timestamp.from(audit.updatedAt()))
+                        .param("updatedBy", audit.updatedBy())
+                        .param("id", object.id().value())
+                        .param("tenantId", tenantId)
+                        .param("expectedVersion", update.expectedVersion())
+                        .update();
                 yield new BusinessObject(
-                    object.id(), object.type(), scope.tenantId(), newVersion, object.state(),
-                    object.properties(), audit, false);
+                        object.id(),
+                        object.type(),
+                        scope.tenantId(),
+                        newVersion,
+                        object.state(),
+                        object.properties(),
+                        audit,
+                        false);
             }
             case Delete delete -> {
                 BusinessObject previous =
-                    find(scope, delete.id())
-                        .orElseThrow(() -> new ObjectNotFoundException(delete.id()));
+                        find(scope, delete.id()).orElseThrow(() -> new ObjectNotFoundException(delete.id()));
                 long newVersion = delete.expectedVersion() + 1;
                 jdbcClient
-                    .sql(
-                        "UPDATE sq_object SET deleted_at = :deletedAt, updated_at = :updatedAt, "
-                            + "updated_by = :updatedBy, version = :newVersion "
-                            + "WHERE id = :id AND tenant_id = :tenantId")
-                    .param("deletedAt", Timestamp.from(delete.at()))
-                    .param("updatedAt", Timestamp.from(delete.at()))
-                    .param("updatedBy", delete.by())
-                    .param("newVersion", newVersion)
-                    .param("id", delete.id().value())
-                    .param("tenantId", tenantId)
-                    .update();
+                        .sql("UPDATE sq_object SET deleted_at = :deletedAt, updated_at = :updatedAt, "
+                                + "updated_by = :updatedBy, version = :newVersion "
+                                + "WHERE id = :id AND tenant_id = :tenantId")
+                        .param("deletedAt", Timestamp.from(delete.at()))
+                        .param("updatedAt", Timestamp.from(delete.at()))
+                        .param("updatedBy", delete.by())
+                        .param("newVersion", newVersion)
+                        .param("id", delete.id().value())
+                        .param("tenantId", tenantId)
+                        .update();
                 Audit audit =
-                    new Audit(previous.audit().createdAt(), previous.audit().createdBy(), delete.at(), delete.by());
+                        new Audit(previous.audit().createdAt(), previous.audit().createdBy(), delete.at(), delete.by());
                 yield new BusinessObject(
-                    previous.id(), previous.type(), scope.tenantId(), newVersion, previous.state(),
-                    previous.properties(), audit, true);
+                        previous.id(),
+                        previous.type(),
+                        scope.tenantId(),
+                        newVersion,
+                        previous.state(),
+                        previous.properties(),
+                        audit,
+                        true);
             }
         };
     }
@@ -305,16 +310,15 @@ public final class PostgresObjectStore implements ObjectStorePort {
     private void insertOutboxEntry(String tenantId, OutboxEntry entry) {
         UUID objectId = UUID.fromString((String) entry.payload().get("objectId"));
         jdbcClient
-            .sql(
-                "INSERT INTO sq_outbox (id, tenant_id, object_id, kind, payload, occurred_at, attempts) "
-                    + "VALUES (:id, :tenantId, :objectId, :kind, CAST(:payload AS jsonb), :occurredAt, 0)")
-            .param("id", entry.id())
-            .param("tenantId", tenantId)
-            .param("objectId", objectId)
-            .param("kind", entry.kind())
-            .param("payload", OutboxPayloadJsonCodec.toJson(entry.payload()))
-            .param("occurredAt", Timestamp.from(entry.occurredAt()))
-            .update();
+                .sql("INSERT INTO sq_outbox (id, tenant_id, object_id, kind, payload, occurred_at, attempts) "
+                        + "VALUES (:id, :tenantId, :objectId, :kind, CAST(:payload AS jsonb), :occurredAt, 0)")
+                .param("id", entry.id())
+                .param("tenantId", tenantId)
+                .param("objectId", objectId)
+                .param("kind", entry.kind())
+                .param("payload", OutboxPayloadJsonCodec.toJson(entry.payload()))
+                .param("occurredAt", Timestamp.from(entry.occurredAt()))
+                .update();
     }
 
     static BusinessObject mapRow(ResultSet rs, int rowNum) throws SQLException {

@@ -34,8 +34,7 @@ import org.sequeless.spi.object.Value;
  * @param principalId the id of the principal the expression is evaluated on behalf of ({@code
  *     principal}); must not be {@code null}
  */
-public record ExpressionContext(
-    Map<String, Value> selfProperties, Optional<String> selfState, String principalId) {
+public record ExpressionContext(Map<String, Value> selfProperties, Optional<String> selfState, String principalId) {
 
     public ExpressionContext {
         Objects.requireNonNull(selfProperties, "selfProperties must not be null");

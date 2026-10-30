@@ -167,7 +167,7 @@ individuals are matched against their own enums:
 
 | Individual | Paired `TriggerSpec` | Required companion terms |
 |---|---|---|
-| `sq:UserAction` | `UserActionTrigger` | none — carries no fields; the transition fires only from `POST /objects/{type}/{id}/transitions/{name}` |
+| `sq:UserAction` | `UserActionTrigger` | none — carries no fields; the transition fires only from `POST /api/objects/{type}/{id}/transitions/{name}` |
 | `sq:OnChange` | `OnChangeTrigger` | `sq:watch` (optional, multi-valued) |
 | `sq:Timer` | `TimerTrigger` | `sq:after` (required) |
 | `sq:ExternalSignal` | `ExternalSignalTrigger` | `sq:signalName` (required) |

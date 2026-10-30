@@ -34,7 +34,6 @@ import org.sequeless.spi.meta.StateMachineDefinition;
 import org.sequeless.spi.meta.TimerTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -87,50 +86,74 @@ class DefaultTriggerEvaluatorTest {
     private static final State CLOSED = new State(CLOSED_IRI, "Closed", 1);
     private static final State ON_HOLD = new State(ON_HOLD_IRI, "OnHold", 2);
 
-    private static final RelationshipDefinition BELONGS_TO_PROJECT =
-        new RelationshipDefinition(
-            BELONGS_TO_PROJECT_IRI, "belongsToProject", Cardinality.optional(), false, false,
-            false, false, false, DisplayHints.none(), Optional.empty(), PROJECT_IRI,
-            Optional.empty(), false);
+    private static final RelationshipDefinition BELONGS_TO_PROJECT = new RelationshipDefinition(
+            BELONGS_TO_PROJECT_IRI,
+            "belongsToProject",
+            Cardinality.optional(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Optional.empty(),
+            PROJECT_IRI,
+            Optional.empty(),
+            false);
 
     /** {@code OnChange}, unguarded: fires whenever any watched {@code Task} changes. */
-    private static final Transition AUTO_CLOSE =
-        new Transition(
-            "autoClose", ACTIVE_IRI, CLOSED_IRI,
-            new OnChangeTrigger(List.of(BELONGS_TO_PROJECT_IRI)), Optional.empty(),
-            Optional.empty(), List.of());
-    private static final Transition EXPIRE_HOLD =
-        new Transition(
-            "expireHold", ON_HOLD_IRI, CLOSED_IRI, new TimerTrigger(java.time.Duration.ofHours(72)),
-            Optional.empty(), Optional.empty(), List.of());
-    private static final Transition REOPEN =
-        new Transition(
-            "reopen", CLOSED_IRI, ACTIVE_IRI, new ExternalSignalTrigger("reopen"), Optional.empty(),
-            Optional.empty(), List.of());
-    /** A second signal-triggered transition, so onSignal's name-matching is actually exercised. */
-    private static final Transition ARCHIVE_SIGNAL =
-        new Transition(
-            "archiveSignal", CLOSED_IRI, CLOSED_IRI, new ExternalSignalTrigger("archive"),
-            Optional.empty(), Optional.empty(), List.of());
+    private static final Transition AUTO_CLOSE = new Transition(
+            "autoClose",
+            ACTIVE_IRI,
+            CLOSED_IRI,
+            new OnChangeTrigger(List.of(BELONGS_TO_PROJECT_IRI)),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
 
-    private static final StateMachineDefinition PROJECT_LIFECYCLE =
-        new StateMachineDefinition(
-            NS + "ProjectLifecycle", List.of(ACTIVE, CLOSED, ON_HOLD), ACTIVE,
+    private static final Transition EXPIRE_HOLD = new Transition(
+            "expireHold",
+            ON_HOLD_IRI,
+            CLOSED_IRI,
+            new TimerTrigger(java.time.Duration.ofHours(72)),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
+    private static final Transition REOPEN = new Transition(
+            "reopen",
+            CLOSED_IRI,
+            ACTIVE_IRI,
+            new ExternalSignalTrigger("reopen"),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
+    /** A second signal-triggered transition, so onSignal's name-matching is actually exercised. */
+    private static final Transition ARCHIVE_SIGNAL = new Transition(
+            "archiveSignal",
+            CLOSED_IRI,
+            CLOSED_IRI,
+            new ExternalSignalTrigger("archive"),
+            Optional.empty(),
+            Optional.empty(),
+            List.of());
+
+    private static final StateMachineDefinition PROJECT_LIFECYCLE = new StateMachineDefinition(
+            NS + "ProjectLifecycle",
+            List.of(ACTIVE, CLOSED, ON_HOLD),
+            ACTIVE,
             List.of(AUTO_CLOSE, EXPIRE_HOLD, REOPEN, ARCHIVE_SIGNAL));
 
-    private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false,
-            Optional.of(PROJECT_LIFECYCLE));
+    private static final TypeDefinition PROJECT = new TypeDefinition(
+            PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false, Optional.of(PROJECT_LIFECYCLE));
 
-    private static final TypeDefinition TASK =
-        new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false,
-            Optional.empty());
+    private static final TypeDefinition TASK = new TypeDefinition(
+            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false, Optional.empty());
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
-            NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(PROJECT, TASK),
+    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+            NS.substring(0, NS.length() - 1),
+            Optional.empty(),
+            Map.of(),
+            List.of(PROJECT, TASK),
             new OntologyReport(true, List.of()));
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-01T00:00:00Z");
@@ -138,7 +161,7 @@ class DefaultTriggerEvaluatorTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");
@@ -146,50 +169,63 @@ class DefaultTriggerEvaluatorTest {
 
     private static BusinessObject project(ObjectId id, long version, String state) {
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.of(state),
-            Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.of(state),
+                Map.of(),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static BusinessObject task(ObjectId id, long version, ObjectId belongsToProjectId) {
-        Map<PropertyRef, Value> properties =
-            belongsToProjectId == null
+        Map<PropertyRef, Value> properties = belongsToProjectId == null
                 ? Map.of()
                 : Map.of(new PropertyRef(BELONGS_TO_PROJECT_IRI), Value.ref(belongsToProjectId));
         return new BusinessObject(
-            id, new TypeRef(TASK_IRI), new TenantId("acme"), version, Optional.empty(), properties,
-            new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(TASK_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.empty(),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static OutboxEntry objectUpdatedEvent(ObjectId taskId) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI), NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI),
+                NOW);
     }
 
     private static OutboxEntry objectDeletedEvent(ObjectId taskId, ObjectId belongsToProjectId) {
         Map<String, Object> properties =
-            Map.of(
-                BELONGS_TO_PROJECT_IRI,
-                PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
+                Map.of(BELONGS_TO_PROJECT_IRI, PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
-            NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_DELETED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
+                NOW);
     }
 
     private static OutboxEntry timerScheduledEvent(ObjectId projectId, String state, String transitionName) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED,
-            Map.of(
-                "objectId", projectId.value().toString(), "state", state, "transitionName",
-                transitionName),
-            NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_TIMER_SCHEDULED,
+                Map.of("objectId", projectId.value().toString(), "state", state, "transitionName", transitionName),
+                NOW);
     }
 
     private static OutboxEntry signalReceivedEvent(ObjectId projectId, String signalName) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED,
-            Map.of("objectId", projectId.value().toString(), "signalName", signalName), NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_SIGNAL_RECEIVED,
+                Map.of("objectId", projectId.value().toString(), "signalName", signalName),
+                NOW);
     }
 
     // --- onChange ---
@@ -234,10 +270,11 @@ class DefaultTriggerEvaluatorTest {
         store.seed(project(projectId, 1, ACTIVE_IRI));
         DefaultTriggerEvaluator evaluator = evaluator(store);
 
-        OutboxEntry projectChanged =
-            new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
-                Map.of("objectId", projectId.value().toString(), "typeIri", PROJECT_IRI), NOW);
+        OutboxEntry projectChanged = new OutboxEntry(
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                Map.of("objectId", projectId.value().toString(), "typeIri", PROJECT_IRI),
+                NOW);
         evaluator.onChange(ALICE, projectChanged);
 
         // AUTO_CLOSE departs Active with no guard, so the changed Project itself is a candidate
@@ -274,9 +311,9 @@ class DefaultTriggerEvaluatorTest {
         // AUTO_CLOSE's own self-candidacy path, which is exercised separately above; here we
         // confirm the *watch* scan does not spuriously match a type that doesn't declare the
         // property, by using a type with no state machine and no relationship of that name.
-        OutboxEntry unrelatedChange =
-            new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
+        OutboxEntry unrelatedChange = new OutboxEntry(
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
                 Map.of("objectId", ObjectId.random().value().toString(), "typeIri", "urn:unknown:Type"),
                 NOW);
 
@@ -317,8 +354,7 @@ class DefaultTriggerEvaluatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         DefaultTriggerEvaluator evaluator = evaluator(store);
 
-        evaluator.onTimerElapsed(
-            ALICE, timerScheduledEvent(ObjectId.random(), ON_HOLD_IRI, "expireHold"));
+        evaluator.onTimerElapsed(ALICE, timerScheduledEvent(ObjectId.random(), ON_HOLD_IRI, "expireHold"));
 
         assertThat(store.commitCalls).isZero();
     }
@@ -377,8 +413,7 @@ class DefaultTriggerEvaluatorTest {
     // --- wiring helper ---
 
     private static DefaultTriggerEvaluator evaluator(FakeObjectStorePort store) {
-        DefaultTransitionService transitionService =
-            new DefaultTransitionService(
+        DefaultTransitionService transitionService = new DefaultTransitionService(
                 new FakeOntologyPort(), store, permitAll(), new FakeExpressionPort(), CLOCK);
         return new DefaultTriggerEvaluator(new FakeOntologyPort(), store, transitionService);
     }
@@ -389,8 +424,7 @@ class DefaultTriggerEvaluatorTest {
 
         @Override
         public Value evaluate(String expression, ExpressionContext context) {
-            throw new UnsupportedOperationException(
-                "no guard is exercised by these fixtures: " + expression);
+            throw new UnsupportedOperationException("no guard is exercised by these fixtures: " + expression);
         }
 
         @Override

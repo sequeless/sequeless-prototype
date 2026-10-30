@@ -2,6 +2,11 @@ spring:
   application:
     name: sequeless-app
 sequeless:
+  api:
+    # Prefix every org.sequeless.app.rest controller is served under (default /api), set in
+    # ApiPathPrefixConfiguration via a package-scoped prefix predicate. Blank restores the
+    # pre-prefix unprefixed routing; springdoc and Actuator are never affected by this value.
+    base-path: /api
   authz:
     adapter: permit-all
   expression:
@@ -22,6 +27,16 @@ sequeless:
     password: sequeless
   validation:
     adapter: shacl
+  # Serves the built Angular single page app from the same port via
+  # SpaWebConfiguration: enabled toggles it, location is the static resource root, and
+  # index is the fallback resource for non-API paths. When no index resource is present the
+  # fallback yields a plain 404 instead of an error, so mvn verify stays green with no UI
+  # build in place.
+  web:
+    spa:
+      enabled: true
+      location: classpath:/static/
+      index: index.html
 management:
   endpoints:
     web:

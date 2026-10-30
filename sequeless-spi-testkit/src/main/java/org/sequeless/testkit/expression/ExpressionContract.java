@@ -64,8 +64,7 @@ public abstract class ExpressionContract {
     @Test
     void renderTemplateRejectsNullTemplate() {
         ExpressionPort port = port();
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.renderTemplate(null, emptyContext()));
+        assertThatNullPointerException().isThrownBy(() -> port.renderTemplate(null, emptyContext()));
     }
 
     @Test
@@ -85,8 +84,7 @@ public abstract class ExpressionContract {
     @Test
     void evaluatesStringConcatenation() {
         ExpressionPort port = port();
-        ExpressionContext context =
-            context(Map.of("title", Value.text("Launch")), Optional.empty(), "user-1");
+        ExpressionContext context = context(Map.of("title", Value.text("Launch")), Optional.empty(), "user-1");
         Value result = port.evaluate("'Kickoff: ' + self.title", context);
         assertThat(result).isEqualTo(new TextValue("Kickoff: Launch"));
     }
@@ -94,21 +92,18 @@ public abstract class ExpressionContract {
     @Test
     void evaluatesBooleanGuardReferencingSelfProperty() {
         ExpressionPort port = port();
-        ExpressionContext withOwner =
-            context(Map.of("owner", Value.text("user-2")), Optional.empty(), "user-1");
+        ExpressionContext withOwner = context(Map.of("owner", Value.text("user-2")), Optional.empty(), "user-1");
         ExpressionContext withoutOwner = context(Map.of(), Optional.empty(), "user-1");
 
         assertThat(port.evaluate("self.owner != null", withOwner)).isEqualTo(new BoolValue(true));
-        assertThat(port.evaluate("self.owner != null", withoutOwner))
-            .isEqualTo(new BoolValue(false));
+        assertThat(port.evaluate("self.owner != null", withoutOwner)).isEqualTo(new BoolValue(false));
     }
 
     @Test
     void evaluatesBooleanGuardReferencingSelfState() {
         ExpressionPort port = port();
         ExpressionContext context = context(Map.of(), Optional.of("Active"), "user-1");
-        assertThat(port.evaluate("self.state == 'Active'", context))
-            .isEqualTo(new BoolValue(true));
+        assertThat(port.evaluate("self.state == 'Active'", context)).isEqualTo(new BoolValue(true));
     }
 
     @Test
@@ -121,8 +116,7 @@ public abstract class ExpressionContract {
     @Test
     void renderTemplateInterpolatesSelfProperty() {
         ExpressionPort port = port();
-        ExpressionContext context =
-            context(Map.of("title", Value.text("Acme")), Optional.empty(), "user-1");
+        ExpressionContext context = context(Map.of("title", Value.text("Acme")), Optional.empty(), "user-1");
         assertThat(port.renderTemplate("Hello ${self.title}", context)).isEqualTo("Hello Acme");
     }
 
@@ -130,21 +124,20 @@ public abstract class ExpressionContract {
     void reflectionAttemptIsRejected() {
         ExpressionPort port = port();
         assertThatThrownBy(() -> port.evaluate("self.getClass().getName()", emptyContext()))
-            .isInstanceOf(ExpressionException.class);
+                .isInstanceOf(ExpressionException.class);
     }
 
     @Test
     void staticMethodCallAttemptIsRejected() {
         ExpressionPort port = port();
         assertThatThrownBy(() -> port.evaluate("System.exit(1)", emptyContext()))
-            .isInstanceOf(ExpressionException.class);
+                .isInstanceOf(ExpressionException.class);
     }
 
     @Test
     void malformedExpressionIsRejected() {
         ExpressionPort port = port();
-        assertThatThrownBy(() -> port.evaluate("self.title +", emptyContext()))
-            .isInstanceOf(ExpressionException.class);
+        assertThatThrownBy(() -> port.evaluate("self.title +", emptyContext())).isInstanceOf(ExpressionException.class);
     }
 
     private static ExpressionContext emptyContext() {
@@ -152,7 +145,7 @@ public abstract class ExpressionContract {
     }
 
     private static ExpressionContext context(
-        Map<String, Value> selfProperties, Optional<String> selfState, String principalId) {
+            Map<String, Value> selfProperties, Optional<String> selfState, String principalId) {
         return new ExpressionContext(selfProperties, selfState, principalId);
     }
 }

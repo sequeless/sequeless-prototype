@@ -60,8 +60,7 @@ final class ObjectPropertyMapper {
      *     own local name (per {@link #shortName}) otherwise, e.g. for a subtype-only property
      *     encountered while browsing one of its abstract supertypes
      */
-    static Map<String, Object> toProperties(
-            TypeDefinition requestType, Map<PropertyRef, Value> properties) {
+    static Map<String, Object> toProperties(TypeDefinition requestType, Map<PropertyRef, Value> properties) {
         Map<String, String> namesByIri = new HashMap<>();
         for (PropertyDefinition property : requestType.properties()) {
             namesByIri.put(property.iri(), shortName(property.iri()));
@@ -90,7 +89,8 @@ final class ObjectPropertyMapper {
             case DateTimeValue dateTime -> dateTime.value();
             case DateValue date -> date.value();
             case ReferenceValue reference -> reference.target().value();
-            case ListValue list -> list.values().stream().map(ObjectPropertyMapper::toWireValue).toList();
+            case ListValue list ->
+                list.values().stream().map(ObjectPropertyMapper::toWireValue).toList();
         };
     }
 

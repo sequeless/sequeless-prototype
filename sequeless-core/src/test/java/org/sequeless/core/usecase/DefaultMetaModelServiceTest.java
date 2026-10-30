@@ -38,27 +38,18 @@ import org.sequeless.spi.ontology.OntologyReport;
 class DefaultMetaModelServiceTest {
 
     private static final Scope SCOPE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
 
     private static final String TASK_IRI = "https://sequeless.org/vocab/sq#Task";
     private static final String PROJECT_IRI = "https://sequeless.org/vocab/sq#Project";
 
     private static final TypeDefinition TASK =
-        new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
+            new TypeDefinition(TASK_IRI, "Task", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
 
-    private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI,
-            "Project",
-            List.of(),
-            List.of(),
-            DisplayHints.none(),
-            false,
-            Optional.empty());
+    private static final TypeDefinition PROJECT = new TypeDefinition(
+            PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
+    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
             "https://sequeless.org/vocab/sq",
             Optional.empty(),
             Map.of(),
@@ -90,14 +81,13 @@ class DefaultMetaModelServiceTest {
     void snapshotConsultsPortWithBrowseOperationAndEverythingResource() {
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOperations.add(operation);
-                capturedResources.add(resource);
-                return AccessDecision.permit("ok");
-            };
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
         DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
+                new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
 
         service.snapshot(SCOPE);
 
@@ -110,18 +100,17 @@ class DefaultMetaModelServiceTest {
         FakeOntologyPort ontologyPort = new FakeOntologyPort(SNAPSHOT);
         AccessDecision denial = AccessDecision.deny("no access");
         DefaultMetaModelService service =
-            new DefaultMetaModelService(ontologyPort, (scope, operation, resource) -> denial);
+                new DefaultMetaModelService(ontologyPort, (scope, operation, resource) -> denial);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.snapshot(SCOPE))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> service.snapshot(SCOPE))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
         assertThat(ontologyPort.snapshotCalls).isZero();
     }
 
     @Test
     void snapshotRejectsNullScope() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         assertThatNullPointerException().isThrownBy(() -> service.snapshot(null));
     }
@@ -130,8 +119,7 @@ class DefaultMetaModelServiceTest {
 
     @Test
     void describeTypeResolvesByShortName() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         TypeDefinition result = service.describeType(SCOPE, "Task");
 
@@ -140,8 +128,7 @@ class DefaultMetaModelServiceTest {
 
     @Test
     void describeTypeResolvesByFullIri() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         TypeDefinition result = service.describeType(SCOPE, TASK_IRI);
 
@@ -150,25 +137,23 @@ class DefaultMetaModelServiceTest {
 
     @Test
     void describeTypeThrowsTypeNotFoundForUnknownName() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         assertThatExceptionOfType(TypeNotFoundException.class)
-            .isThrownBy(() -> service.describeType(SCOPE, "NoSuchType"));
+                .isThrownBy(() -> service.describeType(SCOPE, "NoSuchType"));
     }
 
     @Test
     void describeTypeConsultsPortWithReadOperationAndResolvedTypeIri() {
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOperations.add(operation);
-                capturedResources.add(resource);
-                return AccessDecision.permit("ok");
-            };
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
         DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
+                new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
 
         service.describeType(SCOPE, "Task");
 
@@ -180,42 +165,38 @@ class DefaultMetaModelServiceTest {
     void describeTypeThrowsWithPortsOwnDecisionOnDeny() {
         AccessDecision denial = AccessDecision.deny("no access");
         DefaultMetaModelService service =
-            new DefaultMetaModelService(
-                new FakeOntologyPort(SNAPSHOT), (scope, operation, resource) -> denial);
+                new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), (scope, operation, resource) -> denial);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.describeType(SCOPE, "Task"))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> service.describeType(SCOPE, "Task"))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
     }
 
     @Test
     void describeTypeThrowsTypeNotFoundBeforeConsultingAuthorizationPortForUnknownName() {
         List<Operation> capturedOperations = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOperations.add(operation);
-                return AccessDecision.permit("ok");
-            };
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            return AccessDecision.permit("ok");
+        };
         DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
+                new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
 
         assertThatExceptionOfType(TypeNotFoundException.class)
-            .isThrownBy(() -> service.describeType(SCOPE, "NoSuchType"));
+                .isThrownBy(() -> service.describeType(SCOPE, "NoSuchType"));
         assertThat(capturedOperations).isEmpty();
     }
 
     @Test
     void describeTypeRejectsNullScope() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         assertThatNullPointerException().isThrownBy(() -> service.describeType(null, "Task"));
     }
 
     @Test
     void describeTypeRejectsNullNameOrIri() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         assertThatNullPointerException().isThrownBy(() -> service.describeType(SCOPE, null));
     }
@@ -237,14 +218,13 @@ class DefaultMetaModelServiceTest {
     void reloadConsultsPortWithAdminOperationAndEverythingResource() {
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOperations.add(operation);
-                capturedResources.add(resource);
-                return AccessDecision.permit("ok");
-            };
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
         DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
+                new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), authorizationPort);
 
         service.reload(SCOPE);
 
@@ -257,18 +237,17 @@ class DefaultMetaModelServiceTest {
         FakeOntologyPort ontologyPort = new FakeOntologyPort(SNAPSHOT);
         AccessDecision denial = AccessDecision.deny("no access");
         DefaultMetaModelService service =
-            new DefaultMetaModelService(ontologyPort, (scope, operation, resource) -> denial);
+                new DefaultMetaModelService(ontologyPort, (scope, operation, resource) -> denial);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.reload(SCOPE))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> service.reload(SCOPE))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
         assertThat(ontologyPort.reloadCalls).isZero();
     }
 
     @Test
     void reloadRejectsNullScope() {
-        DefaultMetaModelService service =
-            new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
+        DefaultMetaModelService service = new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), permitAll());
 
         assertThatNullPointerException().isThrownBy(() -> service.reload(null));
     }
@@ -280,12 +259,9 @@ class DefaultMetaModelServiceTest {
         FakeOntologyPort ontologyPort = new FakeOntologyPort(SNAPSHOT);
         DefaultMetaModelService service = new DefaultMetaModelService(ontologyPort, denyAll());
 
-        assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.snapshot(SCOPE));
-        assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.describeType(SCOPE, "Task"));
-        assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.reload(SCOPE));
+        assertThatExceptionOfType(AuthorizationException.class).isThrownBy(() -> service.snapshot(SCOPE));
+        assertThatExceptionOfType(AuthorizationException.class).isThrownBy(() -> service.describeType(SCOPE, "Task"));
+        assertThatExceptionOfType(AuthorizationException.class).isThrownBy(() -> service.reload(SCOPE));
 
         // describeType resolves against the snapshot before authorizing (see its javadoc), so
         // the one snapshot() call above comes from describeType's resolution step, not from
@@ -298,14 +274,13 @@ class DefaultMetaModelServiceTest {
 
     @Test
     void constructorRejectsNullOntologyPort() {
-        assertThatNullPointerException()
-            .isThrownBy(() -> new DefaultMetaModelService(null, permitAll()));
+        assertThatNullPointerException().isThrownBy(() -> new DefaultMetaModelService(null, permitAll()));
     }
 
     @Test
     void constructorRejectsNullAuthorizationPort() {
         assertThatNullPointerException()
-            .isThrownBy(() -> new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), null));
+                .isThrownBy(() -> new DefaultMetaModelService(new FakeOntologyPort(SNAPSHOT), null));
     }
 
     /** Hand-written {@link OntologyPort} double; only {@code snapshot} and {@code reload} are

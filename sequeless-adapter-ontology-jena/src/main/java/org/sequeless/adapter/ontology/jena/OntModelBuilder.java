@@ -59,6 +59,6 @@ final class OntModelBuilder {
         Model rdfModel = ModelFactory.createDefaultModel();
         RDFDataMgr.read(rdfModel, turtle, FALLBACK_BASE_IRI, Lang.TURTLE);
         return OntModelFactory.createModel(
-            rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
+                rdfModel.getGraph(), reasoner.specification(), ImportResolver.withBundledMeta());
     }
 }

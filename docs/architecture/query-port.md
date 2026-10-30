@@ -85,7 +85,7 @@ already has.
 ## REST filter grammar
 
 ```
-GET /objects/{type}?filter[property][op]=value&q=...&sort=...&facets=...&page=&size=
+GET /api/objects/{type}?filter[property][op]=value&q=...&sort=...&facets=...&page=&size=
 ```
 
 Implemented by `ObjectsController#browse`. `filter[<property>][<op>]=<value>` entries are picked out
@@ -259,7 +259,7 @@ successful `OntologyPort.importDocument` call, using the freshly-reloaded snapsh
 **Operational note — a real gap, not covered by this phase.** The ontology loaded at application
 startup via the `sequeless.ontology.source` classpath/file source does **not** go through
 `DefaultOntologyAdministration.importTurtle`, and therefore never triggers `ensureIndexes` on its
-own. Only an explicit `POST /ontology` import does. An operator who only ever boots the application
+own. Only an explicit `POST /api/ontology` import does. An operator who only ever boots the application
 with a static ontology and never calls the import endpoint will find text search and
 indexed-property filtering silently underperforming (sequential scan instead of an expression index)
 or, for text search, returning nothing at all — `search_vector` is never populated for rows inserted
@@ -336,7 +336,7 @@ shape was designed to satisfy, not just an aspiration.
   position. This may be revisited in a later phase (e.g. `CONTAINS`-style "any element matches"
   semantics over an array-valued extraction).
 - **The `ensureIndexes`-on-startup gap** described above: a statically-loaded startup ontology never
-  primes indexes or the searchable-property registry on its own; only an explicit `POST /ontology`
+  primes indexes or the searchable-property registry on its own; only an explicit `POST /api/ontology`
   import does.
 - **OpenAPI schema quality for the bracket-map filter parameter is inherently degraded.** The
   `filter[<property>][<op>]=<value>` parameters are bound as a single raw `MultiValueMap<String,
