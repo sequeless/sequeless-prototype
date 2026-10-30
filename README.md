@@ -35,9 +35,9 @@ The full UI gate (clean install, lint, tests, shell build) is `npm run ci:ui`; `
 
 ### Build notes
 
-- The root POM's parent is `org.sequeless:sequeless-build-parent` (GitHub Packages). It is pinned to 0.1.1.
-  Two version overrides in the root (`maven-dependency-plugin`, `jacoco`) stay until 0.1.2 is released,
-  because 0.1.1 cannot read Java 25 class files. The root is `sequeless-prototype`, formerly `sequeless-parent`.
+- The root POM's parent is `org.sequeless:sequeless-build-parent` 0.1.2 (GitHub Packages). Its
+  dependency analysis and JaCoCo read Java 25 class files; 0.1.1 needed two version overrides for that.
+  The root is `sequeless-prototype`, formerly `sequeless-parent`.
 - The prototype is not released or deployed (`maven.deploy.skip`).
 - `sequeless-app` skips `dependency:analyze`. It depends on its adapters only so their auto-configuration
   runs, and no app code names them. Its boundaries are guarded by `ArchitectureTest`.

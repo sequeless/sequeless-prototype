@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.sequeless</groupId>
     <artifactId>sequeless-build-parent</artifactId>
-    <version>0.1.1</version>
+    <version>0.1.2</version>
     <relativePath/>
   </parent>
 
@@ -40,11 +40,6 @@
     <maven.deploy.skip>true</maven.deploy.skip>
     <sonar.projectKey>sequeless_sequeless-prototype</sonar.projectKey>
 
-    <!-- Fallback until sequeless-build-parent 0.1.2 is released (spec 3 section 3.1). Remove both. -->
-    <!-- remove when sequeless-build-parent >= 0.1.2 -->
-    <maven-dependency-plugin.version>3.10.0</maven-dependency-plugin.version>
-    <!-- remove when sequeless-build-parent >= 0.1.2 -->
-    <jacoco.version>0.8.14</jacoco.version>
 
     <spring-boot.version>4.1.1</spring-boot.version>
     <japicmp.version>0.26.2</japicmp.version>
