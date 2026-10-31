@@ -2,7 +2,7 @@
 
 Roll-up of what is left in the CQRS extraction. **The GitHub issues are the source of truth** (map [#11](https://github.com/sequeless/sequeless-prototype/issues/11), plan [#23](https://github.com/sequeless/sequeless-prototype/issues/23), specs labelled `extraction-spec`); this file summarises them so an agent can see the whole route at a glance.
 
-Last updated: 2026-10-31 (spec 2 done; sequeless-build hardening added as first priority).
+Last updated: 2026-10-31 (spec 2 done; #62 fixes merged; `workflows-v0.1.2` released; parent 0.1.3 waits for its release PR and a publish decision).
 
 ## How to update this file
 - When a spec or task changes state, tick its box, update its status line and link the PR or comment. Do this in the same PR as the work, or in a small docs PR.
@@ -21,7 +21,7 @@ Last updated: 2026-10-31 (spec 2 done; sequeless-build hardening added as first 
 - [ ] Renovate configuration PR [#55](https://github.com/sequeless/sequeless-prototype/pull/55).
 
 ## Next up (unblocked now)
-- [ ] **First priority:** Spec 1 follow-up, harden sequeless-build for consumers ([#62](https://github.com/sequeless/sequeless-prototype/issues/62)). Do this before Spec 4, Spec 6 or any new repo: six gaps found while closing spec 2 (ArchUnit management, undocumented workflow inputs, placeholder refs, parent version pinning, Spotless/local setup, Sonar policy).
+- [ ] **First priority, in progress:** Spec 1 follow-up, harden sequeless-build for consumers ([#62](https://github.com/sequeless/sequeless-prototype/issues/62)). Six gaps found while closing spec 2 (ArchUnit management, undocumented workflow inputs, placeholder refs, parent version pinning, Spotless/local setup, Sonar policy). Done: fixes merged in [sequeless-build #21](https://github.com/sequeless/sequeless-build/pull/21) and [sequeless-template #3](https://github.com/sequeless/sequeless-template/pull/3); `workflows-v0.1.2` released ([#22](https://github.com/sequeless/sequeless-build/pull/22)); release findings in `CLAUDE.md` ([#27](https://github.com/sequeless/sequeless-build/pull/27)). Left, in order: publish parent 0.1.3 (release PR [#26](https://github.com/sequeless/sequeless-build/pull/26), once its CHANGELOG is fixed and the owner confirms); then the template BUMP (parent 0.1.3, `workflows-v0.1.2`, drop the explicit ArchUnit versions) and VERIFY. Do this before Spec 4, Spec 6 or any new repo.
 - [ ] Spec 4: prototype stage 1 prepare ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). `Principal` drops `displayName`.
 - [ ] Spec 6: sequeless-filter 0.1.1 ([#34](https://github.com/sequeless/sequeless-prototype/issues/34)). Includes moving filter from semantic-release to release-please.
 
@@ -51,6 +51,8 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 - **Definition of done for every spec** is in [#23](https://github.com/sequeless/sequeless-prototype/issues/23) and repeated in each spec issue. Specs 1 and 2 have no testkit contracts yet, so the "BOM contracts green" clause applies from stage 1.
 
 ## Open items
+- [ ] **Release PR for the parent 0.1.3 has a bad CHANGELOG** ([sequeless-build #26](https://github.com/sequeless/sequeless-build/pull/26)): a second `0.1.3` heading, a self-referencing compare link, and older commits (#7, #10, #15). Fix: create the missing GitHub release for `sequeless-build-parent-v0.1.2`, remove the duplicate `0.1.3` section that #23 left on `main`, rerun Release. Publishing 0.1.3 waits for the owner's go-ahead.
+- [ ] Template `README.md` lines 21-22 still say CI stays red until `sequeless-build` has a release. That is out of date.
 - [x] The UI track (`sequeless-prototype-ui`, 257 commits) is on `origin/main`, brought in with PR #58. The plan's stage 0/4/5 notes about `sequeless-ui` now describe `main`.
 - [ ] sequeless-filter and sequeless-ontology still use semantic-release and their CI and Release runs fail on `main`. Specs 6 and 11 move them to release-please.
 - [ ] sequeless-ontology's `origin` has the tag `v0.1.0` only; the failed 1.0.0 release was followed by a "reset version" commit. No tag deletion is needed.
