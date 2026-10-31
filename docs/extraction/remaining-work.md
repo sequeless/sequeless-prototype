@@ -2,7 +2,7 @@
 
 Roll-up of what is left in the CQRS extraction. **The GitHub issues are the source of truth** (map [#11](https://github.com/sequeless/sequeless-prototype/issues/11), plan [#23](https://github.com/sequeless/sequeless-prototype/issues/23), specs labelled `extraction-spec`); this file summarises them so an agent can see the whole route at a glance.
 
-Last updated: 2026-10-31.
+Last updated: 2026-10-31 (spec 2 done; sequeless-build hardening added as first priority).
 
 ## How to update this file
 - When a spec or task changes state, tick its box, update its status line and link the PR or comment. Do this in the same PR as the work, or in a small docs PR.
@@ -13,14 +13,15 @@ Last updated: 2026-10-31.
 ## Done
 - [x] Spec 1: sequeless-build ([#29](https://github.com/sequeless/sequeless-prototype/issues/29)). Parent POM 0.1.1, BOM, reusable workflows, Renovate preset. A 0.1.2 release PR is open in sequeless-build.
 - [x] Human tasks: publishing route and group ID `org.sequeless` ([#48](https://github.com/sequeless/sequeless-prototype/issues/48)), repo names ([#49](https://github.com/sequeless/sequeless-prototype/issues/49)), token scopes ([#50](https://github.com/sequeless/sequeless-prototype/issues/50)), org settings ([#51](https://github.com/sequeless/sequeless-prototype/issues/51)), stale filter tags ([#52](https://github.com/sequeless/sequeless-prototype/issues/52)), package read tokens ([#54](https://github.com/sequeless/sequeless-prototype/issues/54)), Renovate token ([#56](https://github.com/sequeless/sequeless-prototype/issues/56)), release-please token ([#57](https://github.com/sequeless/sequeless-prototype/issues/57)).
+- [x] Spec 2: sequeless-template ([#30](https://github.com/sequeless/sequeless-prototype/issues/30)). CI green on `main` after sequeless-template PR #2 (placeholder workflow refs, unpublished parent 0.1.0, CodeQL `languages` input, ArchUnit declarations, Spotless format; Sonar job dropped). Fix log in the repo's spec.
 - [x] Spec 3: prototype adopts the build parent ([#31](https://github.com/sequeless/sequeless-prototype/issues/31)). PR [#58](https://github.com/sequeless/sequeless-prototype/pull/58) merged 2026-10-30; the root POM uses `sequeless-build-parent` 0.1.2, CodeQL runs from the fixed reusable workflow at `workflows-v0.1.1`, and the Sonar job was dropped. The same merge brought the UI track (`sequeless-ui/`) onto `main`.
 - [x] Decisions: all of map #11 (see its "Decisions so far").
 
 ## In flight
-- [ ] Spec 2: sequeless-template ([#30](https://github.com/sequeless/sequeless-prototype/issues/30)). Repo exists with a smoke job. Its last three CI runs failed, two of them after 0 s, which points at a workflow startup or syntax error. Fix CI, then close.
 - [ ] Renovate configuration PR [#55](https://github.com/sequeless/sequeless-prototype/pull/55).
 
 ## Next up (unblocked now)
+- [ ] **First priority:** Spec 1 follow-up, harden sequeless-build for consumers ([#62](https://github.com/sequeless/sequeless-prototype/issues/62)). Do this before Spec 4, Spec 6 or any new repo: six gaps found while closing spec 2 (ArchUnit management, undocumented workflow inputs, placeholder refs, parent version pinning, Spotless/local setup, Sonar policy).
 - [ ] Spec 4: prototype stage 1 prepare ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). `Principal` drops `displayName`.
 - [ ] Spec 6: sequeless-filter 0.1.1 ([#34](https://github.com/sequeless/sequeless-prototype/issues/34)). Includes moving filter from semantic-release to release-please.
 
@@ -57,3 +58,5 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 - [ ] Extraction spec drafts live only on branches or local clones (`docs/extraction/spec-03-prototype-stage0.md` on `spec-03-adopt-build-parent`; spec 1's draft in a local clone). Commit them with their specs.
 - [ ] Deferred human task: Maven Central namespace verification ([#53](https://github.com/sequeless/sequeless-prototype/issues/53)).
 - [ ] Phase 7 maps ([#1](https://github.com/sequeless/sequeless-prototype/issues/1), [#9](https://github.com/sequeless/sequeless-prototype/issues/9), [#10](https://github.com/sequeless/sequeless-prototype/issues/10)) resume only after the extraction.
+- [ ] Local Maven runs against GitHub Packages need the read token in the environment: run `source ~/.bashrc.ext` before `mvn` or `./mvnw` (owner's machine). Agents must not write tokens into files.
+- [ ] Renovate PR [#55](https://github.com/sequeless/sequeless-prototype/pull/55) overlaps the `renovate.json` already on `main` (shared preset); recommend closing it.
