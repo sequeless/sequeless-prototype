@@ -57,7 +57,7 @@ class WhoAmIEndToEndTest extends PostgresTestcontainersSupport {
                 .value(response -> {
                     assertThat(response.tenant()).isEqualTo("default");
                     assertThat(response.principal()).isEqualTo("anonymous");
-                    assertThat(response.displayName()).isEqualTo("Anonymous");
+                    assertThat(response.displayName()).isEqualTo("anonymous");
                     assertThat(response.decision().allowed()).isTrue();
                 });
     }

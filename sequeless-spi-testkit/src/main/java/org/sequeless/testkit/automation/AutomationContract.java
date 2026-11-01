@@ -52,8 +52,7 @@ import org.sequeless.spi.object.OutboxEntry;
  */
 public abstract class AutomationContract {
 
-    private static final Scope SCOPE =
-            new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", Set.of()));
+    private static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
 
     /**
      * @return the {@link AutomationPort} implementation under test, wired with {@link

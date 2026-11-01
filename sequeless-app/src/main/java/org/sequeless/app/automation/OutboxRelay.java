@@ -141,8 +141,8 @@ public class OutboxRelay {
      * (handed back raw by {@link OutboxPort}, by design — see its javadoc) and the payload's own
      * {@code principalId} where one is present.
      *
-     * <p>{@code principalId} is used as both {@link Principal#id()} and {@link
-     * Principal#displayName()}: there is no richer identity to recover from the frozen outbox
+     * <p>{@code principalId} is used as {@link Principal#id()}: there is no richer identity to
+     * recover from the frozen outbox
      * payload, and no "system principal" concept exists anywhere in this codebase. {@code roles} is
      * the empty set — safe because {@code DefaultActionExecutor}, the {@link
      * org.sequeless.spi.automation.ActionExecutor} implementation every automation adapter calls
@@ -157,7 +157,7 @@ public class OutboxRelay {
         if (principalId == null) {
             principalId = LIFECYCLE_EVENT_PRINCIPAL_ID;
         }
-        Principal principal = new Principal(principalId, principalId, Set.of());
+        Principal principal = new Principal(principalId, Set.of());
         return new Scope(new TenantId(tenantId), principal);
     }
 }

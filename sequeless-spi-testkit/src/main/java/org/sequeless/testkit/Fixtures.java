@@ -168,7 +168,7 @@ public final class Fixtures {
      *     principalId} carrying {@code roles}
      */
     public static Scope scope(String principalId, String... roles) {
-        return new Scope(TenantId.DEFAULT, new Principal(principalId, principalId, Set.of(roles)));
+        return new Scope(TenantId.DEFAULT, new Principal(principalId, Set.of(roles)));
     }
 
     /**

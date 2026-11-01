@@ -39,8 +39,7 @@ import org.sequeless.spi.query.QueryResult;
  */
 class DefaultOntologyAdministrationTest {
 
-    private static final Scope SCOPE =
-            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope SCOPE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     private static final OntologyDocument DOCUMENT =
             new OntologyDocument("@prefix sq: <https://sequeless.org/vocab/sq#> .", OntologyFormat.TURTLE);

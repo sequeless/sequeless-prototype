@@ -93,7 +93,6 @@ class OutboxRelayTest {
         Scope scope = automationPort.dispatchedScopes.get(0);
         assertThat(scope.tenantId().value()).isEqualTo("acme-tenant");
         assertThat(scope.principal().id()).isEqualTo("alice");
-        assertThat(scope.principal().displayName()).isEqualTo("alice");
         assertThat(scope.principal().roles()).isEmpty();
     }
 

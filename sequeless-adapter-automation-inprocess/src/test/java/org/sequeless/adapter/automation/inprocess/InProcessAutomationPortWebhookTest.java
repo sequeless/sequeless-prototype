@@ -33,8 +33,7 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
  */
 class InProcessAutomationPortWebhookTest {
 
-    private static final Scope SCOPE =
-            new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", java.util.Set.of()));
+    private static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", java.util.Set.of()));
 
     private HttpServer server;
 

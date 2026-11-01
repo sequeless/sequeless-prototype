@@ -14,7 +14,6 @@ class PrincipalTest {
     @Test
     void anonymousHasNoRoles() {
         assertThat(Principal.ANONYMOUS.id()).isEqualTo("anonymous");
-        assertThat(Principal.ANONYMOUS.displayName()).isEqualTo("Anonymous");
         assertThat(Principal.ANONYMOUS.roles()).isEmpty();
     }
 
@@ -23,7 +22,7 @@ class PrincipalTest {
         Set<String> callerRoles = new HashSet<>();
         callerRoles.add("editor");
 
-        Principal principal = new Principal("u1", "User One", callerRoles);
+        Principal principal = new Principal("u1", callerRoles);
 
         // Mutate the caller's own set AFTER construction.
         callerRoles.add("admin");
@@ -36,32 +35,26 @@ class PrincipalTest {
 
     @Test
     void rolesAreUnmodifiable() {
-        Principal principal = new Principal("u1", "User One", Set.of("editor"));
+        Principal principal = new Principal("u1", Set.of("editor"));
 
         assertThatThrownBy(() -> principal.roles().add("admin")).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
     void rejectsNullRoles() {
-        assertThatNullPointerException().isThrownBy(() -> new Principal("u1", "User One", null));
+        assertThatNullPointerException().isThrownBy(() -> new Principal("u1", null));
     }
 
     @Test
     void rejectsNullOrBlankId() {
-        assertThatIllegalArgumentException().isThrownBy(() -> new Principal(null, "User One", Set.of()));
-        assertThatIllegalArgumentException().isThrownBy(() -> new Principal("  ", "User One", Set.of()));
-    }
-
-    @Test
-    void rejectsNullOrBlankDisplayName() {
-        assertThatIllegalArgumentException().isThrownBy(() -> new Principal("u1", null, Set.of()));
-        assertThatIllegalArgumentException().isThrownBy(() -> new Principal("u1", "  ", Set.of()));
+        assertThatIllegalArgumentException().isThrownBy(() -> new Principal(null, Set.of()));
+        assertThatIllegalArgumentException().isThrownBy(() -> new Principal("  ", Set.of()));
     }
 
     @Test
     void rejectsNullElementWithinRoles() {
         Set<String> rolesWithNull = new HashSet<>();
         rolesWithNull.add(null);
-        assertThatNullPointerException().isThrownBy(() -> new Principal("u1", "User One", rolesWithNull));
+        assertThatNullPointerException().isThrownBy(() -> new Principal("u1", rolesWithNull));
     }
 }

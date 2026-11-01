@@ -37,8 +37,7 @@ import org.sequeless.spi.ontology.OntologyReport;
  */
 class DefaultMetaModelServiceTest {
 
-    private static final Scope SCOPE =
-            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope SCOPE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     private static final String TASK_IRI = "https://sequeless.org/vocab/sq#Task";
     private static final String PROJECT_IRI = "https://sequeless.org/vocab/sq#Project";

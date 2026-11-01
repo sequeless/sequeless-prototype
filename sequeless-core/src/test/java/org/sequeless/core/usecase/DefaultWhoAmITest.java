@@ -28,8 +28,7 @@ import org.sequeless.spi.authz.Operation;
  */
 class DefaultWhoAmITest {
 
-    private static final Scope SCOPE =
-            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope SCOPE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     @Test
     void whoAmIEchoesScopeTenantAndPrincipalOnPermit() {

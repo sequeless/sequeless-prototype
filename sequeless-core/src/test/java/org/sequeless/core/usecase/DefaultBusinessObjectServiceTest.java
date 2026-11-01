@@ -249,9 +249,8 @@ class DefaultBusinessObjectServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-17T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final Scope ALICE =
-            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
-    private static final Scope BOB = new Scope(new TenantId("acme"), new Principal("bob", "Bob", Set.of("member")));
+    private static final Scope ALICE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
+    private static final Scope BOB = new Scope(new TenantId("acme"), new Principal("bob", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");

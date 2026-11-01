@@ -83,8 +83,7 @@ class DefaultDerivationRecomputerTest {
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final Scope ALICE =
-            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope ALICE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     private static final RelationshipDefinition BELONGS_TO_PROJECT = new RelationshipDefinition(
             BELONGS_TO_PROJECT_IRI,

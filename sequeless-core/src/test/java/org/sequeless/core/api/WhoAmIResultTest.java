@@ -12,7 +12,7 @@ import org.sequeless.spi.authz.AccessDecision;
 class WhoAmIResultTest {
 
     private static final TenantId TENANT = TenantId.DEFAULT;
-    private static final Principal PRINCIPAL = new Principal("alice", "Alice", Set.of());
+    private static final Principal PRINCIPAL = new Principal("alice", Set.of());
     private static final AccessDecision DECISION = AccessDecision.permit("ok");
 
     @Test
