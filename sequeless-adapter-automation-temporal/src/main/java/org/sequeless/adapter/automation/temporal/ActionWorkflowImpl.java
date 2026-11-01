@@ -65,13 +65,12 @@ public final class ActionWorkflowImpl implements ActionWorkflow {
     /**
      * Reconstructs a {@link Scope} from {@code entry.payload()}'s own {@code tenantId}/{@code
      * principalId} fields, following the same convention {@code org.sequeless.testkit.Fixtures#scope}
-     * uses: the principal's {@code displayName} is not carried in the payload, so the id is reused
-     * for both.
+     * uses: the principal is rebuilt from its id alone.
      */
     private static Scope scopeFrom(OutboxEntry entry) {
         Map<String, Object> payload = entry.payload();
         String tenantId = (String) payload.get("tenantId");
         String principalId = (String) payload.get("principalId");
-        return new Scope(new TenantId(tenantId), new Principal(principalId, principalId, Set.of()));
+        return new Scope(new TenantId(tenantId), new Principal(principalId, Set.of()));
     }
 }

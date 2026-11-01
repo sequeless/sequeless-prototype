@@ -62,7 +62,7 @@ mvn -pl sequeless-app spring-boot:run
 
 ```
 $ curl localhost:8080/api/whoami
-{"tenant":"default","principal":"anonymous","displayName":"Anonymous","roles":[],"decision":{"allowed":true,"reason":"permit-all adapter: all requests are allowed"}}
+{"tenant":"default","principal":"anonymous","displayName":"anonymous","roles":[],"decision":{"allowed":true,"reason":"permit-all adapter: all requests are allowed"}}
 
 $ curl localhost:8080/actuator/health
 {"groups":["liveness","readiness"],"status":"UP"}

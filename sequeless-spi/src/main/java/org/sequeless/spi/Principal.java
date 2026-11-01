@@ -16,21 +16,17 @@ import java.util.Set;
  * for free.
  *
  * @param id unique identifier for the principal; must not be blank
- * @param displayName human-readable name for the principal; must not be blank
  * @param roles the principal's roles; must not be {@code null} (individual role strings are not
  *     further validated — role vocabulary is a concern for the authorization adapter, not this SPI)
  */
-public record Principal(String id, String displayName, Set<String> roles) {
+public record Principal(String id, Set<String> roles) {
 
     /** The unauthenticated caller, used wherever no identity provider has run. */
-    public static final Principal ANONYMOUS = new Principal("anonymous", "Anonymous", Set.of());
+    public static final Principal ANONYMOUS = new Principal("anonymous", Set.of());
 
     public Principal {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Principal id must not be blank");
-        }
-        if (displayName == null || displayName.isBlank()) {
-            throw new IllegalArgumentException("Principal displayName must not be blank");
         }
         Objects.requireNonNull(roles, "roles must not be null");
         roles = Set.copyOf(roles);

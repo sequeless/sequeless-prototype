@@ -39,8 +39,7 @@ import org.sequeless.spi.validation.Violation;
 /** Unit tests for {@link StructuralValidator}. */
 class StructuralValidatorTest {
 
-    private static final Scope SCOPE =
-            new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope SCOPE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     private static final String NS = "https://sequeless.dev/ns/ref#";
     private static final String TITLE_IRI = NS + "title";
