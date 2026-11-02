@@ -17,12 +17,12 @@ Last updated: 2026-11-02 (spec 2 done; #62 closed and moved to Done; `workflows-
 - [x] Spec 3: prototype adopts the build parent ([#31](https://github.com/sequeless/sequeless-prototype/issues/31)). PR [#58](https://github.com/sequeless/sequeless-prototype/pull/58) merged 2026-10-30; the root POM uses `sequeless-build-parent` 0.1.2, CodeQL runs from the fixed reusable workflow at `workflows-v0.1.1`, and the Sonar job was dropped. The same merge brought the UI track (`sequeless-ui/`) onto `main`.
 - [x] Decisions: all of map #11 (see its "Decisions so far").
 - [x] Spec 1 follow-up, harden sequeless-build for consumers ([#62](https://github.com/sequeless/sequeless-prototype/issues/62)). Six gaps found while closing spec 2 (ArchUnit management, undocumented workflow inputs, placeholder refs, parent version pinning, Spotless/local setup, Sonar policy) are fixed: [sequeless-build #21](https://github.com/sequeless/sequeless-build/pull/21), [sequeless-template #3](https://github.com/sequeless/sequeless-template/pull/3), `workflows-v0.1.2` ([#22](https://github.com/sequeless/sequeless-build/pull/22)), the parent 0.1.3 release (PR [#26](https://github.com/sequeless/sequeless-build/pull/26), tag `sequeless-build-parent-v0.1.3`) and the template BUMP ([sequeless-template #4](https://github.com/sequeless/sequeless-template/pull/4)). Verified 2026-11-02: template CI, CodeQL and Template smoke green on `main` (`7b294a2`); prototype CI and CodeQL green on `main` (`7963431`). The prototype stays on parent 0.1.2 until Renovate moves it (#62's DoD was amended to match). Issue #62 is closed.
+- [x] Spec 4: prototype stage 1 prepare ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). `Principal` is `(id, roles)` and `displayName` is gone. `GET /api/whoami` keeps its `displayName` field, now filled from the principal id, so the anonymous caller's value changes from `Anonymous` to `anonymous`. Spec draft: `docs/extraction/spec-04-prototype-stage1-prepare.md`.
 
 ## In flight
 - [ ] Renovate configuration PR [#55](https://github.com/sequeless/sequeless-prototype/pull/55).
 
 ## Next up (unblocked now)
-- [ ] Spec 4: prototype stage 1 prepare ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). `Principal` drops `displayName`.
 - [ ] Spec 6: sequeless-filter 0.1.1 ([#34](https://github.com/sequeless/sequeless-prototype/issues/34)). Includes moving filter from semantic-release to release-please.
 
 ## Remaining specs, in dependency order
@@ -30,7 +30,7 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 
 | Done | Spec | Issue | Stage | Waits for |
 |---|---|---|---|---|
-| [ ] | 4 prototype stage 1 prepare (`Principal` drops `displayName`) | [#32](https://github.com/sequeless/sequeless-prototype/issues/32) | 1 | none (spec 3 done): unblocked |
+| [x] | 4 prototype stage 1 prepare (`Principal` drops `displayName`) | [#32](https://github.com/sequeless/sequeless-prototype/issues/32) | 1 | none (spec 3 done): unblocked |
 | [ ] | 5 sequeless-kernel | [#33](https://github.com/sequeless/sequeless-prototype/issues/33) | 1 | 1, 4 |
 | [ ] | 7 prototype stage 1 cut-over | [#35](https://github.com/sequeless/sequeless-prototype/issues/35) | 1 | 5, 6 |
 | [ ] | 8 sequeless-expression | [#36](https://github.com/sequeless/sequeless-prototype/issues/36) | 2 | 5, 7 |
