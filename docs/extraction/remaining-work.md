@@ -2,7 +2,7 @@
 
 Roll-up of what is left in the CQRS extraction. **The GitHub issues are the source of truth** (map [#11](https://github.com/sequeless/sequeless-prototype/issues/11), plan [#23](https://github.com/sequeless/sequeless-prototype/issues/23), specs labelled `extraction-spec`); this file summarises them so an agent can see the whole route at a glance.
 
-Last updated: 2026-11-03 (spec 4 PR #69 merged; spec 6 migration merged on sequeless-filter, release gated by sequeless-filter PR #13 and the extra-approval ruleset; #62 closed; `workflows-v0.1.2` and `sequeless-build-parent` 0.1.3 released; the prototype stays on parent 0.1.2 until Renovate moves it).
+Last updated: 2026-11-03 (spec 4 PR #69 merged; spec 6 migration merged on sequeless-filter, release gated by sequeless-filter PR #13 and the extra-approval ruleset, whose admin merge was refused on 2026-11-03 (see Open items); #62 closed; `workflows-v0.1.2` and `sequeless-build-parent` 0.1.3 released; the prototype stays on parent 0.1.2 until Renovate moves it).
 
 ## How to update this file
 - When a spec or task changes state, tick its box, update its status line and link the PR or comment. Do this in the same PR as the work, or in a small docs PR.
@@ -31,6 +31,8 @@ Last updated: 2026-11-03 (spec 4 PR #69 merged; spec 6 migration merged on seque
   5. Tick this item and move it to Done with the release PR link.
   6. Spec 6 section 3.3 (field-expression port) is not started. Its design goes into the spec and an ADR is needed before code (spec 6 section 8).
   - Decisions taken in this run: `always-bump-patch` on both packages; Java 25 for both modules; the root pom is a parent-less aggregator and each module takes `sequeless-build-parent` 0.1.3; the SonarCloud job is dropped; the reset tags at `63d5437` were deleted, because they left no user-facing commits and release-please skipped both packages; the manifest is 0.0.0, not spec 6's 0.1.0 (the reset tags were never published).
+
+- [ ] **Next unblocked after spec 6: spec 5 sequeless-kernel ([#33](https://github.com/sequeless/sequeless-prototype/issues/33)).** Its waits-for (specs 1 and 4) are done. Read decisions [#12](https://github.com/sequeless/sequeless-prototype/issues/12), [#17](https://github.com/sequeless/sequeless-prototype/issues/17) and [#23](https://github.com/sequeless/sequeless-prototype/issues/23) before writing its spec. It is a multi-repo extraction, so it was deferred from the 2026-11-03 run.
 
 ## Remaining specs, in dependency order
 Stage numbers are from the plan. "Waits for" lists spec numbers.
@@ -62,7 +64,7 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 - [x] Template `README.md` lines 21-22 no longer say CI stays red; they say CI runs against the released parent and workflows (checked 2026-11-02 on template `main` at `7b294a2`).
 - [x] The UI track (`sequeless-prototype-ui`, 257 commits) is on `origin/main`, brought in with PR #58. The plan's stage 0/4/5 notes about `sequeless-ui` now describe `main`.
 - [ ] sequeless-ontology still uses semantic-release, and its CI and Release runs fail on `main`. Spec 11 moves it to release-please. (sequeless-filter moved in spec 6; see Next up.)
-- [ ] **sequeless-filter rulesets block the release (owner decision).** The `main` ruleset (id 23522899) requires `build / maven`, `analyze / analyze (java-kotlin)` and `SonarCloud Code Analysis`. Its pull-request rule has `require_extra_approval_for_unattributed_changes: true`, and so does `main-pr-bypass` (id 23576037). With that on, normal merges are refused, so PR #13 and the release PR need an admin merge. Turning it off was requested on 2026-11-03 but not done: the change was blocked by a permission check. The owner decides: turn it off, or keep admin merges and record each use.
+- [ ] **sequeless-filter rulesets block the release (owner decision).** The `main` ruleset (id 23522899) requires `build / maven`, `analyze / analyze (java-kotlin)` and `SonarCloud Code Analysis`. Its pull-request rule has `require_extra_approval_for_unattributed_changes: true`, and so does `main-pr-bypass` (id 23576037). With that on, normal merges are refused, so PR #13 and the release PR need an admin merge. Turning it off was requested on 2026-11-03 but not done: the change was blocked by a permission check. The owner decides: turn it off, or keep admin merges and record each use. On 2026-11-03 an agent's admin merge of PR #13 (`gh pr merge --rebase --admin`) was refused by the auto-mode classifier as "Merge Without Review"; nothing was merged. Spec 6 steps 1 to 4 stay blocked until the owner merges PR #13 and the release PR, or changes the ruleset.
 - [ ] **Renovate PRs on sequeless-filter** [#8](https://github.com/sequeless/sequeless-filter/pull/8) and [#9](https://github.com/sequeless/sequeless-filter/pull/9) are open and not from this run. The owner decides on them.
 - [ ] **Java 25 floor on sequeless-filter** (`filter-core`, `filter-sql-adapter`) is consumer-facing. No POM in this repo references the filter yet. Record it in an ADR together with spec 6 section 3.3.
 - [ ] sequeless-ontology's `origin` has the tag `v0.1.0` only; the failed 1.0.0 release was followed by a "reset version" commit. No tag deletion is needed.
@@ -71,5 +73,5 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 - [ ] Deferred human task: Maven Central namespace verification ([#53](https://github.com/sequeless/sequeless-prototype/issues/53)).
 - [ ] Phase 7 maps ([#1](https://github.com/sequeless/sequeless-prototype/issues/1), [#9](https://github.com/sequeless/sequeless-prototype/issues/9), [#10](https://github.com/sequeless/sequeless-prototype/issues/10)) resume only after the extraction.
 - [ ] Local Maven runs against GitHub Packages need the read token in the environment: run `source ~/.bashrc.ext` before `mvn` or `./mvnw` (owner's machine). Agents must not write tokens into files.
-- [ ] Renovate PR [#55](https://github.com/sequeless/sequeless-prototype/pull/55) overlaps the `renovate.json` already on `main` (shared preset); recommend closing it.
+- [ ] Renovate PR [#55](https://github.com/sequeless/sequeless-prototype/pull/55) overlaps the `renovate.json` already on `main` (shared preset); recommend closing it. Closing it awaits the owner's confirmation.
 - [ ] The prototype's `.github/workflows/ci.yml` pins `maven-ci.yml` at `workflows-v0.1.0` (line 13), and `codeql.yml` pins `maven-codeql.yml` at `workflows-v0.1.1` (line 15). Renovate moves them with the parent bump.
