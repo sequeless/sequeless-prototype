@@ -15,7 +15,7 @@ Issue: [#33](https://github.com/sequeless/sequeless-prototype/issues/33). Map: [
 
 ## 1. Identity, stage and dependencies
 
-- Stage 1. Waits for spec 1 ([#29](https://github.com/sequeless/sequeless-prototype/issues/29), done) and spec 4 ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). The spec 4 code is merged ([#69](https://github.com/sequeless/sequeless-prototype/pull/69), `ab6d9eb`); the issue is still open.
+- Stage 1. Waits for spec 1 ([#29](https://github.com/sequeless/sequeless-prototype/issues/29), done) and spec 4 ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). The spec 4 code is merged ([#69](https://github.com/sequeless/sequeless-prototype/pull/69), `ab6d9eb`), and its issue is closed.
 - Runs in parallel with spec 6 ([#34](https://github.com/sequeless/sequeless-prototype/issues/34), sequeless-filter).
 - Unblocks spec 7 ([#35](https://github.com/sequeless/sequeless-prototype/issues/35), prototype stage 1 cut-over), which also waits for spec 6.
 
@@ -110,4 +110,4 @@ Already done in [spec 4](spec-04-prototype-stage1-prepare.md). `Principal` is `(
 - The BOM CI runs every testkit contract green, and the BOM is re-released.
 - The section 3.1 javadoc fix is merged in the prototype before the move.
 - The prototype's CI against released artifacts (never a SNAPSHOT on `main`) applies from spec 7, not from this spec.
-- Not done here, and needing the owner: repo creation, the 0.1.0 release, the BOM re-release, and closing [#33](https://github.com/sequeless/sequeless-prototype/issues/33) and [#32](https://github.com/sequeless/sequeless-prototype/issues/32).
+- Not done here, and needing the owner: repo creation, the 0.1.0 release, the BOM re-release, and closing [#33](https://github.com/sequeless/sequeless-prototype/issues/33).
