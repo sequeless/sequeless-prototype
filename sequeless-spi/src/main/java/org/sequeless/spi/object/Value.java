@@ -6,12 +6,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * A single property value carried by a {@link BusinessObject}, sealed to exactly the variants an
+ * A single property value carried by a {@code BusinessObject}, sealed to exactly the variants an
  * ontology-typed property value can take: {@link TextValue} (the lexical form of {@code STRING},
  * {@code ANY_URI}, {@code TIME}, and {@code DURATION}), {@link IntegerValue} ({@code INTEGER} and
  * {@code LONG}), {@link DecimalValue} ({@code DECIMAL} and {@code DOUBLE}), {@link BoolValue},
  * {@link DateTimeValue} (UTC instants), {@link DateValue}, {@link ReferenceValue} (a pointer to
- * another {@link BusinessObject}), and {@link ListValue} (a multi-valued property's values,
+ * another {@code BusinessObject}), and {@link ListValue} (a multi-valued property's values,
  * non-nested). Which variant a given property's values must be is dictated by the property's
  * {@code Datatype} in the meta-model; this package does not enforce that mapping itself.
  *
