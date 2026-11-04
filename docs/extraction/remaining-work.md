@@ -2,7 +2,7 @@
 
 Roll-up of what is left in the CQRS extraction. **The GitHub issues are the source of truth** (map [#11](https://github.com/sequeless/sequeless-prototype/issues/11), plan [#23](https://github.com/sequeless/sequeless-prototype/issues/23), specs labelled `extraction-spec`); this file summarises them so an agent can see the whole route at a glance.
 
-Last updated: 2026-11-04 (sequeless-filter PR #19 and release PR #18 merged, with admin merges at the owner's direction; `filter-core` and `filter-sql-adapter` 0.1.3 are in GitHub Packages under the sequeless-filter namespace; spec 4 PR #69 merged but issue #32 is still open; `sequeless-kernel` does not exist yet; #62 closed; `workflows-v0.1.2` and `sequeless-build-parent` 0.1.3 released; the prototype stays on parent 0.1.2 because no Renovate PR is open to move it).
+Last updated: 2026-11-04 (sequeless-filter PR #19 and release PR #18 merged, with admin merges at the owner's direction; `filter-core` and `filter-sql-adapter` 0.1.3 are in GitHub Packages under the sequeless-filter namespace; spec 4 is Done (PR #69 merged, issue #32 closed); `sequeless-kernel` does not exist yet; #62 closed; `workflows-v0.1.2` and `sequeless-build-parent` 0.1.3 released; the prototype stays on parent 0.1.2 because no Renovate PR is open to move it).
 
 ## How to update this file
 - When a spec or task changes state, tick its box, update its status line and link the PR or comment. Do this in the same PR as the work, or in a small docs PR.
@@ -17,9 +17,10 @@ Last updated: 2026-11-04 (sequeless-filter PR #19 and release PR #18 merged, wit
 - [x] Spec 3: prototype adopts the build parent ([#31](https://github.com/sequeless/sequeless-prototype/issues/31)). PR [#58](https://github.com/sequeless/sequeless-prototype/pull/58) merged 2026-10-30; the root POM uses `sequeless-build-parent` 0.1.2, CodeQL runs from the fixed reusable workflow at `workflows-v0.1.1`, and the Sonar job was dropped. The same merge brought the UI track (`sequeless-ui/`) onto `main`.
 - [x] Decisions: all of map #11 (see its "Decisions so far").
 - [x] Spec 1 follow-up, harden sequeless-build for consumers ([#62](https://github.com/sequeless/sequeless-prototype/issues/62)). Six gaps found while closing spec 2 (ArchUnit management, undocumented workflow inputs, placeholder refs, parent version pinning, Spotless/local setup, Sonar policy) are fixed: [sequeless-build #21](https://github.com/sequeless/sequeless-build/pull/21), [sequeless-template #3](https://github.com/sequeless/sequeless-template/pull/3), `workflows-v0.1.2` ([#22](https://github.com/sequeless/sequeless-build/pull/22)), the parent 0.1.3 release (PR [#26](https://github.com/sequeless/sequeless-build/pull/26), tag `sequeless-build-parent-v0.1.3`) and the template BUMP ([sequeless-template #4](https://github.com/sequeless/sequeless-template/pull/4)). Verified 2026-11-02: template CI, CodeQL and Template smoke green on `main` (`7b294a2`); prototype CI and CodeQL green on `main` (`7963431`). The prototype stays on parent 0.1.2 because no Renovate PR is open to move it (#62's DoD was amended to match). Issue #62 is closed.
+- [x] Spec 4: prototype stage 1 prepare ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). `Principal` is `(id, roles)` and `displayName` is gone. `GET /api/whoami` keeps its `displayName` field, now filled from the principal id, so the anonymous caller's value changes from `Anonymous` to `anonymous`. Spec draft: `docs/extraction/spec-04-prototype-stage1-prepare.md`. PR [#69](https://github.com/sequeless/sequeless-prototype/pull/69), merged as `ab6d9eb`. Issue #32 closed on 2026-11-04 with a link to #69.
 
 ## In flight
-- [ ] Spec 4: prototype stage 1 prepare ([#32](https://github.com/sequeless/sequeless-prototype/issues/32)). `Principal` is `(id, roles)` and `displayName` is gone. `GET /api/whoami` keeps its `displayName` field, now filled from the principal id, so the anonymous caller's value changes from `Anonymous` to `anonymous`. Spec draft: `docs/extraction/spec-04-prototype-stage1-prepare.md`. PR [#69](https://github.com/sequeless/sequeless-prototype/pull/69), merged as `ab6d9eb`. **Issue #32 is still open**: close it after confirming, then tick this item and move it to Done.
+- None.
 
 ## Next up (unblocked now)
 - [ ] **Spec 6 released, issue still open:** sequeless-filter ([#34](https://github.com/sequeless/sequeless-prototype/issues/34)). The migration to release-please and the build parent is merged on sequeless-filter: PRs [#7](https://github.com/sequeless/sequeless-filter/pull/7), [#11](https://github.com/sequeless/sequeless-filter/pull/11) and [#12](https://github.com/sequeless/sequeless-filter/pull/12). Done on GitHub:
@@ -36,14 +37,14 @@ Last updated: 2026-11-04 (sequeless-filter PR #19 and release PR #18 merged, wit
   2. Close issue #34 once the owner confirms it. Decide whether 0.1.2 is republished (see Open items).
   - Decisions taken in this run: `always-bump-patch` on both packages; Java 25 for both modules; the root pom is a parent-less aggregator and each module takes `sequeless-build-parent` 0.1.3; the SonarCloud job is dropped; the reset tags at `63d5437` were deleted, because they left no user-facing commits and release-please skipped both packages; the manifest is 0.0.0, not spec 6's 0.1.0 (the reset tags were never published).
 
-- [ ] **Next unblocked after spec 6: spec 5 sequeless-kernel ([#33](https://github.com/sequeless/sequeless-prototype/issues/33)).** Its waits-for: spec 1 is done, and spec 4 is merged but its issue #32 is open. Read decisions [#12](https://github.com/sequeless/sequeless-prototype/issues/12), [#17](https://github.com/sequeless/sequeless-prototype/issues/17) and [#23](https://github.com/sequeless/sequeless-prototype/issues/23) before writing its spec. The `sequeless-kernel` repo does not exist on GitHub (checked 2026-11-04), so creating it comes before the first code PR. That is an owner-level action (see Open items).
+- [ ] **Next unblocked after spec 6: spec 5 sequeless-kernel ([#33](https://github.com/sequeless/sequeless-prototype/issues/33)).** Its waits-for: spec 1 is done, and spec 4 is Done (issue #32 closed). Read decisions [#12](https://github.com/sequeless/sequeless-prototype/issues/12), [#17](https://github.com/sequeless/sequeless-prototype/issues/17) and [#23](https://github.com/sequeless/sequeless-prototype/issues/23) before writing its spec. The `sequeless-kernel` repo does not exist on GitHub (checked 2026-11-04), so creating it comes before the first code PR. That is an owner-level action (see Open items).
 
 ## Remaining specs, in dependency order
 Stage numbers are from the plan. "Waits for" lists spec numbers.
 
 | Done | Spec | Issue | Stage | Waits for |
 |---|---|---|---|---|
-| [ ] | 4 prototype stage 1 prepare (`Principal` drops `displayName`; PR #69 merged, issue open) | [#32](https://github.com/sequeless/sequeless-prototype/issues/32) | 1 | none (spec 3 done): unblocked |
+| [x] | 4 prototype stage 1 prepare (`Principal` drops `displayName`; PR #69 merged, issue #32 closed) | [#32](https://github.com/sequeless/sequeless-prototype/issues/32) | 1 | none (spec 3 done): unblocked |
 | [ ] | 5 sequeless-kernel | [#33](https://github.com/sequeless/sequeless-prototype/issues/33) | 1 | 1, 4 |
 | [ ] | 7 prototype stage 1 cut-over | [#35](https://github.com/sequeless/sequeless-prototype/issues/35) | 1 | 5, 6 |
 | [ ] | 8 sequeless-expression | [#36](https://github.com/sequeless/sequeless-prototype/issues/36) | 2 | 5, 7 |
@@ -73,7 +74,7 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 - [ ] **Renovate PRs on sequeless-filter** [#8](https://github.com/sequeless/sequeless-filter/pull/8) and [#9](https://github.com/sequeless/sequeless-filter/pull/9) are open with green checks and are not from this run. The owner decides on them.
 - [ ] **Java 25 floor on sequeless-filter** (`filter-core`, `filter-sql-adapter`) is consumer-facing. No POM in this repo references the filter yet. Record it in an ADR together with spec 6 section 3.3. The ADR goes in sequeless-filter's `docs/adr/`, not in this repo.
 - [ ] **`sequeless-kernel` repo does not exist.** Spec 5 needs it. Creating a GitHub repo is outward-facing, so the owner creates it or approves the driver to create it.
-- [ ] **Spec 4 issue [#32](https://github.com/sequeless/sequeless-prototype/issues/32) is open** although PR #69 merged. Close it after confirming, then tick spec 4 in Done.
+- [x] **Spec 4 issue [#32](https://github.com/sequeless/sequeless-prototype/issues/32) closed** on 2026-11-04 with a link to PR #69. Spec 4 is in Done.
 - [ ] sequeless-ontology's `origin` has the tag `v0.1.0` only; the failed 1.0.0 release was followed by a "reset version" commit. No tag deletion is needed.
 - [ ] `docs/specs/README.md` status text predates the UI track's finish (it says phases 5 to 8 are unimplemented).
 - [ ] Extraction spec drafts live only on branches or local clones (`docs/extraction/spec-03-prototype-stage0.md` on `spec-03-adopt-build-parent`; spec 1's draft in a local clone). Commit them with their specs.
