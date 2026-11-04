@@ -24,7 +24,7 @@ Last updated: 2026-11-04 (spec 5 done: `sequeless-kernel` 0.1.0 and `sequeless-b
 - None.
 
 ## Next up (unblocked now)
-- [ ] **Spec 6 released, issue still open:** sequeless-filter ([#34](https://github.com/sequeless/sequeless-prototype/issues/34)). The migration to release-please and the build parent is merged on sequeless-filter: PRs [#7](https://github.com/sequeless/sequeless-filter/pull/7), [#11](https://github.com/sequeless/sequeless-filter/pull/11) and [#12](https://github.com/sequeless/sequeless-filter/pull/12). Done on GitHub:
+- [x] **Spec 6 done, issue #34 still open:** sequeless-filter ([#34](https://github.com/sequeless/sequeless-prototype/issues/34)). The port is merged: [sequeless-filter #20](https://github.com/sequeless/sequeless-filter/pull/20) (spec and ADR 0002), [#21](https://github.com/sequeless/sequeless-filter/pull/21) (port, `f106056`), [#23](https://github.com/sequeless/sequeless-filter/pull/23) (unified semantics and `filter-sql-testkit`, `c0e68bf`), [#24](https://github.com/sequeless/sequeless-filter/pull/24) (`filter-sql-postgres-adapter`, `481ce0b`). Release PR [#22](https://github.com/sequeless/sequeless-filter/pull/22) (merged `c901a88`) published `filter-sql-adapter` 0.1.4, `filter-sql-testkit` 0.1.0 and `filter-sql-postgres-adapter` 0.1.0 to GitHub Packages under `sequeless-filter`. The BOM is re-released as `sequeless-bom` 0.1.1 ([sequeless-build #35](https://github.com/sequeless/sequeless-build/pull/35) and release [#36](https://github.com/sequeless/sequeless-build/pull/36)). The earlier migration PRs are below. The migration to release-please and the build parent is merged on sequeless-filter: PRs [#7](https://github.com/sequeless/sequeless-filter/pull/7), [#11](https://github.com/sequeless/sequeless-filter/pull/11) and [#12](https://github.com/sequeless/sequeless-filter/pull/12). Done on GitHub:
   - [#13](https://github.com/sequeless/sequeless-filter/pull/13) merged 2026-11-03 (`73b1543`): the release-please manifest was reset to 0.0.0.
   - [#14](https://github.com/sequeless/sequeless-filter/pull/14) merged 2026-11-03 03:28Z: GitHub releases for `filter-core` and `filter-sql-adapter` 0.1.1. Its Release run failed at javadoc before the deploy step, so Maven publication of 0.1.1 is unverified.
   - [#16](https://github.com/sequeless/sequeless-filter/pull/16) merged (`fa008ff`): the `release-as` pins are removed from `release-please-config.json`; `skip-snapshot` is kept.
@@ -34,8 +34,7 @@ Last updated: 2026-11-04 (spec 5 done: `sequeless-kernel` 0.1.0 and `sequeless-b
   - #19 and #18 were admin rebase-merges, each pinned to the head commit that CI had checked, at the owner's direction (see Open items).
 
   Left:
-  1. Spec 6 section 3.3 (field-expression port) is not started. Its design goes into the spec and an ADR is needed before code (spec 6 section 8). Both belong in sequeless-filter (`docs/specs/spec-06-filter-0.1.1.md` section 3.3 and `docs/adr/`), not in this repo.
-  2. Close issue #34 once the owner confirms it. Decide whether 0.1.2 is republished (see Open items).
+  1. Close issue #34 once the owner confirms it. The definition of done (release and BOM re-release) is met. Decide whether 0.1.2 is republished (see Open items).
   - Decisions taken in this run: `always-bump-patch` on both packages; Java 25 for both modules; the root pom is a parent-less aggregator and each module takes `sequeless-build-parent` 0.1.3; the SonarCloud job is dropped; the reset tags at `63d5437` were deleted, because they left no user-facing commits and release-please skipped both packages; the manifest is 0.0.0, not spec 6's 0.1.0 (the reset tags were never published).
 
 
