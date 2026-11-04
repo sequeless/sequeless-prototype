@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The identity of a {@link BusinessObject}: an opaque, tenant-scoped UUID. Identity is deliberately
+ * The identity of a {@code BusinessObject}: an opaque, tenant-scoped UUID. Identity is deliberately
  * a UUID rather than an ontology-derived key — objects of any type share the same id space, so a
  * {@link ReferenceValue} never needs to carry its target's type alongside the id.
  *

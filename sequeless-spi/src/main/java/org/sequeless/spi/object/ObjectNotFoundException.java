@@ -3,12 +3,12 @@ package org.sequeless.spi.object;
 import java.util.Objects;
 
 /**
- * Thrown by {@link ObjectStorePort#commit} when an {@link Update} or {@link Delete} targets an
- * {@link ObjectId} that does not exist, or that has already been soft-deleted. The whole {@link
- * ChangeSet} the mutation appeared in is rolled back, the same as for {@link
+ * Thrown by {@code ObjectStorePort#commit} when an {@code Update} or {@code Delete} targets an
+ * {@link ObjectId} that does not exist, or that has already been soft-deleted. The whole {@code
+ * ChangeSet} the mutation appeared in is rolled back, the same as for {@code
  * StaleObjectException}.
  *
- * <p>This is deliberately unchecked, for the same reason {@link StaleObjectException} is: the
+ * <p>This is deliberately unchecked, for the same reason {@code StaleObjectException} is: the
  * caller is expected to catch it once, at the edge, to produce an HTTP 404 response.
  */
 public final class ObjectNotFoundException extends RuntimeException {
