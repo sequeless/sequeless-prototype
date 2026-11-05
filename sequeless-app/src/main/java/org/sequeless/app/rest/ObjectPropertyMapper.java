@@ -2,19 +2,19 @@ package org.sequeless.app.rest;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
 
 /**
  * Maps sequeless-core's {@code org.sequeless.spi.object} types onto {@link ObjectsController}'s

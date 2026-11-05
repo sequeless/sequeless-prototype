@@ -10,7 +10,7 @@ import org.apache.jena.shacl.ValidationReport;
 import org.apache.jena.shacl.validation.ReportEntry;
 import org.apache.jena.sparql.path.P_Link;
 import org.apache.jena.sparql.path.Path;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.validation.ValidationPort;

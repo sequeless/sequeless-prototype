@@ -5,10 +5,10 @@
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
  * the JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
- * org.sequeless.spi.Scope} from its parent package, {@link
+ * org.sequeless.kernel.identity.Scope} from its parent package, {@link
  * org.sequeless.spi.meta.MetaModelSnapshot} and {@link org.sequeless.spi.meta.AggregateFunction}
- * from {@code org.sequeless.spi.meta}, and {@link org.sequeless.spi.object.Value}, {@link
- * org.sequeless.spi.object.BusinessObject}, {@link org.sequeless.spi.object.ObjectId}, and {@link
+ * from {@code org.sequeless.spi.meta}, and {@link org.sequeless.kernel.values.Value}, {@link
+ * org.sequeless.spi.object.BusinessObject}, {@link org.sequeless.kernel.values.ObjectId}, and {@link
  * org.sequeless.spi.object.Page} from {@code org.sequeless.spi.object}. {@link
  * org.sequeless.spi.query.QueryPort} is the port interface. {@link org.sequeless.spi.query.Query},
  * {@link org.sequeless.spi.query.Criterion}, {@link org.sequeless.spi.query.Operator}, {@link
@@ -27,7 +27,7 @@
  * org.sequeless.spi.meta.AggregateFunction} to compute, an optional aggregated property, and filter
  * criteria; a result carries back the computed value per target id.
  *
- * <p>This package deliberately reuses {@link org.sequeless.spi.object.Value} for {@link
+ * <p>This package deliberately reuses {@link org.sequeless.kernel.values.Value} for {@link
  * org.sequeless.spi.query.Criterion} values and {@link org.sequeless.spi.query.AggregateResult}
  * values rather than inventing a parallel value type — a criterion compares a property against, and
  * an aggregate computes, the same {@code TextValue}/{@code IntegerValue}/{@code DecimalValue}/{@code

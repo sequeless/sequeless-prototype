@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntModel;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.PluginRule;

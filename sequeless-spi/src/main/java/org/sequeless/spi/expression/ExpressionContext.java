@@ -3,7 +3,7 @@ package org.sequeless.spi.expression;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.object.Value;
+import org.sequeless.kernel.values.Value;
 
 /**
  * The request-scoped state an {@link ExpressionPort} call is evaluated against: a single object's

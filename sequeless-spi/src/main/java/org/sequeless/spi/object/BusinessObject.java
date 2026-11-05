@@ -3,7 +3,9 @@ package org.sequeless.spi.object;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 
 /**
  * An instance of an ontology type, as stored by an {@link ObjectStorePort}: its identity, type,

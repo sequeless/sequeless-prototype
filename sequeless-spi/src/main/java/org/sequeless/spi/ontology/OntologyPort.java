@@ -1,6 +1,6 @@
 package org.sequeless.spi.ontology;
 
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 
 /**

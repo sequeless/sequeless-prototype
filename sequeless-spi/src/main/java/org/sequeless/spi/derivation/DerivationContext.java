@@ -1,7 +1,7 @@
 package org.sequeless.spi.derivation;
 
 import java.util.Objects;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.query.QueryPort;
 

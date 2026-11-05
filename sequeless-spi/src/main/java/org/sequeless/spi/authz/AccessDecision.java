@@ -3,7 +3,7 @@ package org.sequeless.spi.authz;
 import java.util.Objects;
 
 /**
- * The outcome of an {@link AuthorizationPort#decide(org.sequeless.spi.Scope, Operation, String)}
+ * The outcome of an {@link AuthorizationPort#decide(org.sequeless.kernel.identity.Scope, Operation, String)}
  * call: whether the operation is allowed, and a human-readable reason a caller can log or surface
  * back to an end user without needing to know anything about the adapter that produced it.
  *

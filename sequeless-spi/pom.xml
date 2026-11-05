@@ -12,10 +12,10 @@
   <artifactId>sequeless-spi</artifactId>
 
   <name>sequeless-spi</name>
-  <description>Outbound port interfaces and immutable value types (records) for Sequeless: SpiVersion,
-    TenantId, Principal, Scope, AdapterDescriptor, AdapterDescriptorProvider, and per-port packages
-    such as org.sequeless.spi.authz. Imports nothing outside the JDK; enforced both by Maven
-    (bannedDependencies below) and by ArchUnit in sequeless-app.</description>
+  <description>Outbound port interfaces for Sequeless: SpiVersion, AdapterDescriptor,
+    AdapterDescriptorProvider, and per-port packages such as org.sequeless.spi.authz. Identity and
+    value types come from sequeless-kernel. Imports nothing outside the JDK and sequeless-kernel;
+    enforced both by Maven (bannedDependencies below) and by ArchUnit in sequeless-app.</description>
 
   <properties>
     <!-- Core modules: ban Spring, Jena and Lombok from the compile classpath. -->
@@ -23,6 +23,15 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>kernel-identity</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>kernel-values</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

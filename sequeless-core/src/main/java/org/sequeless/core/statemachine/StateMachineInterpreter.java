@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.expression.ExpressionContext;
 import org.sequeless.spi.expression.ExpressionException;
 import org.sequeless.spi.expression.ExpressionPort;
@@ -14,10 +16,8 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.StateMachineDefinition;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.Value;
 
 /**
  * Resolves every {@link Transition} available from a {@link BusinessObject}'s current {@link

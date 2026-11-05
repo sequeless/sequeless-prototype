@@ -3,16 +3,16 @@
  * ontology types, independent of any RDF library, JSON library, or SQL dialect.
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
- * the JDK ({@code java.*}) except {@link org.sequeless.spi.TenantId} from its parent package and
+ * the JDK ({@code java.*}) except {@link org.sequeless.kernel.identity.TenantId} from its parent package and
  * sibling types within this package. {@link org.sequeless.spi.object.BusinessObject} is the
- * aggregate root: an {@link org.sequeless.spi.object.ObjectId}, a {@link
+ * aggregate root: an {@link org.sequeless.kernel.values.ObjectId}, a {@link
  * org.sequeless.spi.object.TypeRef}, an optimistic-locking version, an optional state, a map of
- * {@link org.sequeless.spi.object.PropertyRef} to {@link org.sequeless.spi.object.Value}, and an
- * {@link org.sequeless.spi.object.Audit} trail. {@link org.sequeless.spi.object.Value} is sealed to
- * {@link org.sequeless.spi.object.TextValue}, {@link org.sequeless.spi.object.IntegerValue}, {@link
- * org.sequeless.spi.object.DecimalValue}, {@link org.sequeless.spi.object.BoolValue}, {@link
- * org.sequeless.spi.object.DateTimeValue}, {@link org.sequeless.spi.object.DateValue}, {@link
- * org.sequeless.spi.object.ReferenceValue}, and {@link org.sequeless.spi.object.ListValue}.
+ * {@link org.sequeless.spi.object.PropertyRef} to {@link org.sequeless.kernel.values.Value}, and an
+ * {@link org.sequeless.spi.object.Audit} trail. {@link org.sequeless.kernel.values.Value} is sealed to
+ * {@link org.sequeless.kernel.values.TextValue}, {@link org.sequeless.kernel.values.IntegerValue}, {@link
+ * org.sequeless.kernel.values.DecimalValue}, {@link org.sequeless.kernel.values.BoolValue}, {@link
+ * org.sequeless.kernel.values.DateTimeValue}, {@link org.sequeless.kernel.values.DateValue}, {@link
+ * org.sequeless.kernel.values.ReferenceValue}, and {@link org.sequeless.kernel.values.ListValue}.
  *
  * <p>{@link org.sequeless.spi.object.Mutation}, sealed to {@link org.sequeless.spi.object.Create},
  * {@link org.sequeless.spi.object.Update}, and {@link org.sequeless.spi.object.Delete}, together
@@ -23,7 +23,7 @@
  * org.sequeless.spi.object.PageResult} are the paging vocabulary for {@link
  * org.sequeless.spi.object.ObjectStorePort#browse}. {@link
  * org.sequeless.spi.object.StaleObjectException} and {@link
- * org.sequeless.spi.object.ObjectNotFoundException} are the unchecked exceptions {@code commit}
+ * org.sequeless.kernel.values.ObjectNotFoundException} are the unchecked exceptions {@code commit}
  * throws when a mutation's optimistic-locking expectation is not met or its target does not exist.
  *
  * <p>The {@link org.sequeless.spi.object.ObjectStorePort} outbound port interface (together with

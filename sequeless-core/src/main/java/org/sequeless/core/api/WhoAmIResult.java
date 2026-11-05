@@ -1,12 +1,12 @@
 package org.sequeless.core.api;
 
 import java.util.Objects;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.authz.AccessDecision;
 
 /**
- * The result of a successful {@link WhoAmI#whoAmI(org.sequeless.spi.Scope)} call.
+ * The result of a successful {@link WhoAmI#whoAmI(org.sequeless.kernel.identity.Scope)} call.
  *
  * <p>This carries the SPI's own {@link AccessDecision} directly rather than duplicating its {@code
  * allowed}/{@code reason} fields as separate components: the decision that authorized this very

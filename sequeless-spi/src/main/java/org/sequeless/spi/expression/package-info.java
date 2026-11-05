@@ -7,12 +7,12 @@
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
  * the JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
- * org.sequeless.spi.object.Value} from {@code org.sequeless.spi.object} is the only cross-package
+ * org.sequeless.kernel.values.Value} from {@code org.sequeless.spi.object} is the only cross-package
  * reference this package makes. {@link org.sequeless.spi.expression.ExpressionPort} is the
  * outbound port itself, split into two methods rather than one because the ontology carries two
  * distinct kinds of expression source: {@link org.sequeless.spi.expression.ExpressionPort#evaluate}
  * takes a plain JEXL expression (no {@code ${}} wrapper) and returns a single {@link
- * org.sequeless.spi.object.Value} — this is what {@code sq:guard} and {@code sq:SetProperty}/{@code
+ * org.sequeless.kernel.values.Value} — this is what {@code sq:guard} and {@code sq:SetProperty}/{@code
  * sq:CreateObject}'s {@code sq:value}/{@code sq:expression} use — while {@link
  * org.sequeless.spi.expression.ExpressionPort#renderTemplate} takes a JXLT {@code ${expr}} template
  * and returns the fully-substituted string, which is what {@code sq:Webhook}'s {@code sq:url}/

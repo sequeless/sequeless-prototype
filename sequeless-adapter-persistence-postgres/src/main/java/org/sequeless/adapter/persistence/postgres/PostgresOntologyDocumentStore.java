@@ -6,7 +6,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.ontology.OntologyDocument;

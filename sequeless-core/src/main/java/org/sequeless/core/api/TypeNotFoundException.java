@@ -1,7 +1,7 @@
 package org.sequeless.core.api;
 
 /**
- * Thrown by {@link MetaModelService#describeType(org.sequeless.spi.Scope, String)} when no type
+ * Thrown by {@link MetaModelService#describeType(org.sequeless.kernel.identity.Scope, String)} when no type
  * in the current snapshot matches the requested short name or IRI.
  *
  * <p>This sits beside {@link MetaModelService} in the {@code api} package — mirroring {@link

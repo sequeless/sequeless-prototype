@@ -1,7 +1,7 @@
 package org.sequeless.spi.object;
 
 import java.util.Optional;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.ontology.OntologyDocument;
 
 /**

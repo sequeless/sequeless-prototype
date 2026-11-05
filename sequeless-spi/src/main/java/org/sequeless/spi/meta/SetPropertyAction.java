@@ -2,7 +2,7 @@ package org.sequeless.spi.meta;
 
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.object.Value;
+import org.sequeless.kernel.values.Value;
 
 /**
  * An {@link Action} that sets a property on the object whose transition fired ({@code

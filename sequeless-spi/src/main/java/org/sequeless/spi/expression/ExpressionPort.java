@@ -1,6 +1,6 @@
 package org.sequeless.spi.expression;
 
-import org.sequeless.spi.object.Value;
+import org.sequeless.kernel.values.Value;
 
 /**
  * The outbound port every expression authored in the ontology is evaluated through — {@code

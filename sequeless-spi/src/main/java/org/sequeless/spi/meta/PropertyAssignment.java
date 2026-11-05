@@ -2,7 +2,7 @@ package org.sequeless.spi.meta;
 
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.object.Value;
+import org.sequeless.kernel.values.Value;
 
 /**
  * A single property assignment within a {@link CreateObjectAction#properties()} list ({@code

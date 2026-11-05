@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.authz.AccessDecision;
 
 class WhoAmIResultTest {

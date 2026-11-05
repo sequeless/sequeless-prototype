@@ -58,6 +58,15 @@
         <scope>import</scope>
       </dependency>
 
+      <!-- Released Sequeless kernel and filter versions (spec 7, issue #35). -->
+      <dependency>
+        <groupId>org.sequeless</groupId>
+        <artifactId>sequeless-bom</artifactId>
+        <version>0.1.1</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
       <!--
         junit-jupiter, assertj-core, mockito and testcontainers versions come from the Spring Boot
         BOM above (imported as spring-boot-dependencies) and must NOT be repinned here.

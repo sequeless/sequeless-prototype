@@ -26,9 +26,9 @@
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
  * the JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
- * org.sequeless.spi.Scope} and {@link org.sequeless.spi.object.OutboxEntry} are the only
+ * org.sequeless.kernel.identity.Scope} and {@link org.sequeless.spi.object.OutboxEntry} are the only
  * cross-package references this package makes. Every method on all three inbound ports takes the
- * same two arguments — a {@link org.sequeless.spi.Scope} reconstructed from the {@code
+ * same two arguments — a {@link org.sequeless.kernel.identity.Scope} reconstructed from the {@code
  * OutboxEntry} payload's own {@code tenantId}/{@code principalId} fields, and the {@link
  * org.sequeless.spi.object.OutboxEntry} itself, whose {@code payload()} is the sole source of
  * every field the method needs — because every outbox payload is frozen, self-contained, and

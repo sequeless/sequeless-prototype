@@ -31,6 +31,8 @@ import org.apache.jena.vocabulary.OWL;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.meta.Action;
 import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.AttributeDefinition;
@@ -56,8 +58,6 @@ import org.sequeless.spi.meta.TriggerSpec;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.meta.WebhookAction;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.Severity;
 import org.sequeless.spi.query.Criterion;
@@ -832,7 +832,7 @@ final class SnapshotMapper {
      * here exactly once. This keeps a downstream {@link Value} always correct for every consumer (in
      * particular {@code PostgresQueryStore}, which casts the JSONB extraction per datatype): a value
      * against a numeric or date property must never be forced through a lexical {@link
-     * org.sequeless.spi.object.TextValue}.
+     * org.sequeless.kernel.values.TextValue}.
      *
      * @param errorSubjectIri the IRI an {@code ERROR} issue is named on
      * @param context a human-readable description of what is being parsed, e.g. {@code "sq:filter

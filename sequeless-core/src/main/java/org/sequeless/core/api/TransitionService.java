@@ -3,14 +3,14 @@ package org.sequeless.core.api;
 import java.util.Map;
 import java.util.Optional;
 import org.sequeless.core.AuthorizationException;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.StaleObjectException;
 
 /**

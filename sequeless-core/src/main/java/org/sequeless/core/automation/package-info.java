@@ -9,7 +9,7 @@
  *
  * <p>This package has exactly one cross-package dependency within {@code sequeless-core} itself:
  * {@link org.sequeless.core.statemachine.PayloadValueCodec}, the {@link
- * org.sequeless.spi.object.Value}-to-outbox-payload codec {@code DefaultTransitionService} uses to
+ * org.sequeless.kernel.values.Value}-to-outbox-payload codec {@code DefaultTransitionService} uses to
  * encode each {@code ActionRequest} payload's {@code self}/{@code value}/{@code createProperties}
  * fields. {@link org.sequeless.core.automation.DefaultActionExecutor} is the symmetric decode
  * side, calling {@link org.sequeless.core.statemachine.PayloadValueCodec#fromPayload} rather than

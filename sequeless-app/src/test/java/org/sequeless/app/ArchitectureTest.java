@@ -34,6 +34,7 @@ class ArchitectureTest {
     private static final String CORE_PACKAGE = "org.sequeless.core..";
     private static final String APP_PACKAGE = "org.sequeless.app..";
     private static final String ADAPTER_PACKAGE = "org.sequeless.adapter..";
+    private static final String KERNEL_PACKAGE = "org.sequeless.kernel..";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -51,10 +52,11 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(SPI_PACKAGE)
             .should()
-            .onlyDependOnClassesThat(resideInAnyPackage("java..", SPI_PACKAGE).or(PRIMITIVE_OR_ARRAY))
-            .because("sequeless-spi is the outermost, dependency-free layer of the hexagon: it must be "
-                    + "usable by any adapter or client without pulling in anything beyond the JDK "
-                    + "and its own port and value types.");
+            .onlyDependOnClassesThat(
+                    resideInAnyPackage("java..", SPI_PACKAGE, KERNEL_PACKAGE).or(PRIMITIVE_OR_ARRAY))
+            .because("sequeless-spi is the outermost layer of the hexagon: it must be usable by any "
+                    + "adapter or client without pulling in anything beyond the JDK, the released "
+                    + "sequeless-kernel types it is built on, and its own port types.");
 
     /**
      * {@code org.slf4j} (the facade, not any concrete provider) is allowed alongside the JDK: it is
@@ -72,8 +74,9 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(CORE_PACKAGE)
             .should()
-            .onlyDependOnClassesThat(resideInAnyPackage("java..", CORE_PACKAGE, SPI_PACKAGE, SLF4J_PACKAGE)
-                    .or(PRIMITIVE_OR_ARRAY))
+            .onlyDependOnClassesThat(
+                    resideInAnyPackage("java..", CORE_PACKAGE, SPI_PACKAGE, KERNEL_PACKAGE, SLF4J_PACKAGE)
+                            .or(PRIMITIVE_OR_ARRAY))
             .because("sequeless-core holds the use cases and orchestration logic; it may depend on the "
                     + "ports it calls through (sequeless-spi), the JDK, and the SLF4J logging facade "
                     + "(a dependency-free API, not an adapter-specific technology), but nothing "
@@ -198,7 +201,8 @@ class ArchitectureTest {
      */
     @ArchTest
     static void suiteActuallyAnalyzesEveryModule(JavaClasses classes) {
-        assertThat(classes.get("org.sequeless.spi.Scope").getFullName()).isEqualTo("org.sequeless.spi.Scope");
+        assertThat(classes.get("org.sequeless.kernel.identity.Scope").getFullName())
+                .isEqualTo("org.sequeless.kernel.identity.Scope");
         assertThat(classes.get("org.sequeless.core.usecase.DefaultWhoAmI").getFullName())
                 .isEqualTo("org.sequeless.core.usecase.DefaultWhoAmI");
         assertThat(classes.get("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort")

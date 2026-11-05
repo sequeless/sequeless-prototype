@@ -8,7 +8,11 @@ import java.util.Optional;
 import java.util.Set;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.statemachine.PayloadValueCodec;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.meta.ExternalSignalTrigger;
 import org.sequeless.spi.meta.MetaModelSnapshot;
@@ -18,13 +22,9 @@ import org.sequeless.spi.meta.Transition;
 import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.ontology.OntologyPort;
 
 /**

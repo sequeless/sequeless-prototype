@@ -8,7 +8,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -16,8 +18,6 @@ import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.OutboxEntry;
@@ -112,7 +112,7 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
 
     /**
      * @param scope the tenant to read for; only objects with a matching {@link
-     *     org.sequeless.spi.TenantId} are returned
+     *     org.sequeless.kernel.identity.TenantId} are returned
      * @param typeIris the type IRIs to include, matched as a union exactly like {@link
      *     ObjectStorePort#browse}'s {@code types}
      * @return every non-deleted object of {@code scope.tenantId()} whose type is in {@code
