@@ -39,7 +39,7 @@ import org.sequeless.testkit.Fixtures;
  * satisfy every clause of that javadoc, and this class exercises each clause once, against
  * whatever {@link Environment} {@link #freshEnvironment()} supplies.
  *
- * <p>This is deliberately not a subclass of {@link QueryContract}: {@link #aggregate} needs its
+ * <p>This is deliberately not a subclass of {@link QueryContract}: {@code aggregate} needs its
  * own source data shaped around a {@code Project}/{@code Task} rollup rather than the flat
  * filter/sort/facet fixtures {@link QueryContract} seeds, so it declares its own {@link
  * Environment} of the same shape.
