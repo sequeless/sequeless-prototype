@@ -36,7 +36,7 @@ import org.springframework.web.servlet.resource.ResourceResolverChain;
  * <p><b>Why the dot guard.</b> After a redeploy, a browser holding a stale {@code index.html}
  * asks for a bundle hash that no longer exists (e.g. {@code assets/app-deadbeef.js}). If the
  * fallback answered that with {@code index.html}, the browser would receive HTML where it
- * expected JavaScript and surface the baffling "Unexpected token '<'" / strict-MIME-type error
+ * expected JavaScript and surface the baffling "Unexpected token '&lt;'" / strict-MIME-type error
  * instead of an honest 404. Any path whose last segment contains a {@code .} is therefore
  * treated as an asset request and left to 404.
  *

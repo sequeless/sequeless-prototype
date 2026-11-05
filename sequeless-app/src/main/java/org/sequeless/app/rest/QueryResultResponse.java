@@ -11,7 +11,7 @@ import org.sequeless.spi.query.QueryResult;
  * <p>{@code page} — not {@code number} — is the field name, a deliberate wire-vs-SPI divergence:
  * {@code org.sequeless.spi.object.Page} uses {@code number}, but plan.md §8's wire shape
  * explicitly spells this field {@code page}, and this record keeps that same convention from
- * {@link PageResultResponse}, the plain-paging shape this record replaces now that {@code GET
+ * {@code PageResultResponse}, the plain-paging shape this record replaces now that {@code GET
  * /objects/{type}} also filters, sorts, free-text searches, and facets.
  *
  * @param items the objects on this page

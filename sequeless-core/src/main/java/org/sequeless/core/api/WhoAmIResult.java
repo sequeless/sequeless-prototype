@@ -15,7 +15,7 @@ import org.sequeless.spi.authz.AccessDecision;
  *
  * @param tenantId the tenant the reported scope belongs to; must not be {@code null}
  * @param principal the caller the reported scope was made on behalf of; must not be {@code null}
- * @param decision the {@link AuthorizationPort} decision that authorized this read; must not be
+ * @param decision the {@code AuthorizationPort} decision that authorized this read; must not be
  *     {@code null}
  */
 public record WhoAmIResult(TenantId tenantId, Principal principal, AccessDecision decision) {
