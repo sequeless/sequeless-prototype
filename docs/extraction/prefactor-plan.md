@@ -1,8 +1,8 @@
 # Extraction: pre-factor plan
 
-These are behaviour-preserving package moves inside the prototype. They make spec 7's cut-over smaller, and they let the later specs run in parallel: 10 with 11, and 13 with 14 and 15.
+**Superseded on 2026-11-05.** The seams below were proposed as behaviour-preserving package moves inside the prototype. The decided specs now cover them, so no pre-factor code PRs will be opened, and spec 7 runs first. The parallelism claim was wrong: specs 14 and 15 both wait for spec 13 (#41), and spec 11 waits for spec 10 (#38). Each seam below points to the decision that settles it. The original analysis is kept for history.
 
-Status: proposal, 2026-11-05. Each claim was checked against `main` at `52fa2a5`. Paths are relative to `sequeless-spi/src/main/java/org/sequeless/spi/` unless they start with a module name. The spec issues are the source of truth; where a seam overlaps a spec's scope, the spec issue decides the design. See [remaining-work.md](remaining-work.md) for the route.
+Status: superseded, 2026-11-05 (see above). Each claim was checked against `main` at `52fa2a5`. Paths are relative to `sequeless-spi/src/main/java/org/sequeless/spi/` unless they start with a module name. The spec issues are the source of truth; where a seam overlaps a spec's scope, the spec issue decides the design. See [remaining-work.md](remaining-work.md) for the route.
 
 ## Why pre-factor
 
@@ -14,12 +14,16 @@ The seams are ordered by how many specs each one unblocks. "Verified" means the 
 
 ### 1. Break the `meta` ↔ `ontology` cycle (specs 10, 11, 12)
 
+**Superseded by #13 decision 5 and spec 10 (#38).** `OntologyReport` leaves the schema-contract, so no `spi.snapshot` package is created.
+
 - **Coupling (verified):** `ontology/OntologyPort.java:4` imports `meta.MetaModelSnapshot`. `meta/MetaModelSnapshot.java:8` imports `ontology.OntologyReport`. No other imports cross between `ontology` and `meta` in either direction.
 - **Proposal:** move `MetaModelSnapshot` out of `meta` into its own package, `spi.snapshot`. Move `OntologyReport` with it, because the snapshot carries the report. The result is acyclic: `ontology → snapshot → meta`.
 - **Overlap:** this is part of spec 10's scope, "ontology and snapshot splits". Pull it forward only if the spec 10 issue agrees with the target package.
 - **Size:** medium. Snapshot importers span every module.
 
 ### 2. Break the `meta` ↔ `query` cycle (specs 14, 15)
+
+**Superseded by #16 decision 5.** `FilterNode` replaces `Criterion`, so `Criterion` is not moved. #16 decision 2 moves aggregates off the Query side.
 
 - **Coupling (verified):**
   - `meta/RollupRule.java:6` imports `query.Criterion`.
@@ -31,6 +35,8 @@ The seams are ordered by how many specs each one unblocks. "Verified" means the 
 
 ### 3. Move ontology documents out of `object` (specs 10, 11)
 
+**Superseded by #13 decision 7.** `OntologyDocumentStore` moves into ontology-core in spec 11/12. No pre-factor PR. The `object → ontology` edge stays, which is the allowed direction.
+
 - **Coupling (verified):** `object/OntologyDocumentStore.java:5` and `object/StoredOntologyDocument.java:6` import `ontology.OntologyDocument`. This makes `object → ontology`. Meanwhile `meta/PropertyAssignment.java:5` and `meta/SetPropertyAction.java:5` import `object.Value`, so the chain `object → ontology → (snapshot) → meta → object` is a cycle.
 - **Proposal:** move `OntologyDocumentStore` and `StoredOntologyDocument` into `ontology`. `ObjectStorePort` uses `OntologyDocumentStore` from the same package without an import, so it needs an import added. The decision is whether `ObjectStorePort` should keep extending or exposing the ontology store. If it should not, give the store its own port.
 - **Blast radius (verified):**
@@ -41,6 +47,8 @@ The seams are ordered by how many specs each one unblocks. "Verified" means the 
 
 ### 4. Give the outbox its own package (specs 13, 15)
 
+**Superseded by #41 (spec 13).** Spec 13 rewrites `OutboxEntry` and picks its package. No pre-factor PR.
+
 - **Coupling (verified):**
   - `object/OutboxEntry.java` and `object/OutboxPort.java` live in `object`.
   - Four `automation` files import `object.OutboxEntry` at line 4: `ActionExecutor`, `TriggerEvaluator`, `DerivationRecomputer` and `AutomationPort`.
@@ -50,6 +58,8 @@ The seams are ordered by how many specs each one unblocks. "Verified" means the 
 - **Size:** medium. The change is mechanical, mostly import rewrites.
 
 ### 5. Split `meta` into schema and behaviour (specs 10, 15). Inferred.
+
+**Superseded by #20 and spec 10.** The behaviour-contract split is spec 10 work. The cross-references listed below are why it cannot be a pre-factor move.
 
 - **Contents (verified):** `meta` has 28 files.
 - **Classification (inferred):**
@@ -67,7 +77,9 @@ The seams are ordered by how many specs each one unblocks. "Verified" means the 
 
 `spi/expression` has one non-JDK import, `object.Value`, at `expression/ExpressionPort.java:3` and `expression/ExpressionContext.java:6`. Spec 7 rewrites it to `kernel-values`, and after that spec 8 can extract the package as it is.
 
-## Decision needed before spec 14
+## Decision needed before spec 14 (settled)
+
+Settled: `BusinessObject` stays out of the query side (#16 decision 9). `ValidationPort` stays Command-side (#13 decision 6). `Page` is query-owned (owner decision, 2026-11-05). The analysis below is kept for history; its options are no longer open.
 
 `BusinessObject` (`object/BusinessObject.java:25`) and `Page` (`object/Page.java:9`) stay in the prototype under spec 5. Four files import them:
 
@@ -84,7 +96,7 @@ If `query` moves to `sequeless-query` as it is now, that repo would depend back 
 
 Record the decision in the spec 14 issue before spec 14 starts.
 
-## Sequencing and conflicts
+## Sequencing and conflicts (superseded: spec 7 runs first)
 
 - **Spec 7 runs alone.** Spec 5 §4 counts 125 importers of the six moving kernel types at `a2e402a`. Spec 7 also owns these changes:
   - `sequeless-app/src/test/java/org/sequeless/app/ArchitectureTest.java:50` (`spiDependsOnlyOnJdkAndItself`), which fails once `spi` imports the kernel.
@@ -95,14 +107,13 @@ Record the decision in the spec 14 issue before spec 14 starts.
   3. Seam 5 follows 1 and 2.
 - **Shared hot files:**
   - The root `pom.xml:23-34` module list. Serialize any PR that adds a module.
-  - `sequeless-spi-testkit/src/main/java/org/sequeless/testkit/Fixtures.java`, referenced by 18 test files. Expect conflicts there between parallel seam PRs.
-- **Worktrees:** four `research/*` worktrees under `.claude/worktrees/`, plus `sequeless-prototype-ui` and `test/ui-kit`, are checked out. Check them for `pom.xml` and `ArchitectureTest` changes before spec 7.
+  - `sequeless-spi-testkit/src/main/java/org/sequeless/testkit/Fixtures.java`, referenced by 18 test files.- **Worktrees:** four `research/*` worktrees under `.claude/worktrees/`, plus `sequeless-prototype-ui` and `test/ui-kit`, are checked out. Check them for `pom.xml` and `ArchitectureTest` changes before spec 7.
 
-## PR breakdown
+## PR breakdown (superseded: no pre-factor PRs)
 
 Each seam ships as one PR, whose title is a `refactor(spi)` conventional commit. Each PR must meet these conditions:
 
 - No behaviour change. Package moves and import rewrites only.
-- `./mvnw verify` passes. On the owner's machine, run `source ~/.bashrc.ext` in the same command.
+- `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` passes. (`./mvnw` does not exist in this repo.)
 - `ArchitectureTest` still passes. If the PR adds a package, add a rule that pins the new direction of dependency, for example `ontology` must not depend on `object`.
 - `remaining-work.md` is updated in the same PR.
