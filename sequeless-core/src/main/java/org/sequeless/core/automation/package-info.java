@@ -19,7 +19,7 @@
  * org.sequeless.spi.object.ObjectStorePort} (every mutation {@link
  * org.sequeless.core.automation.DefaultActionExecutor} performs — a property update, a new
  * object's creation — goes through it, exactly like {@code DefaultBusinessObjectService}) and
- * {@link org.sequeless.spi.expression.ExpressionPort} (every {@code value}/{@code expression}/
+ * {@link org.sequeless.expression.api.ExpressionPort} (every {@code value}/{@code expression}/
  * template field an {@code ActionRequest} payload carries is resolved through it, never evaluated
  * by hand here).
  */

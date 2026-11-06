@@ -19,7 +19,7 @@
  * org.sequeless.spi.object}, {@link org.sequeless.spi.ontology}, {@link org.sequeless.spi.query},
  * {@link org.sequeless.spi.validation}, {@link org.sequeless.spi.derivation} — the {@code
  * sq:Plugin} vocabulary for derived properties computed by named, {@code ServiceLoader}-discovered
- * code rather than declaratively — and {@link org.sequeless.spi.expression} — the {@code
+ * code rather than declaratively — and {@code org.sequeless.expression.api} — the {@code
  * ExpressionPort} that evaluates JEXL-family expressions authored in the ontology, such as {@code
  * sq:guard}.
  */

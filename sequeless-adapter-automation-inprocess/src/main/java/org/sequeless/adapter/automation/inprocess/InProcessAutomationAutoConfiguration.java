@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Bean;
 /**
  * Wires {@link InProcessAutomationPort} into the Spring context when {@code
  * sequeless.automation.adapter} is set to {@code inprocess}, mirroring {@code
- * sequeless-adapter-expression-jexl}'s {@code JexlExpressionAutoConfiguration} pattern exactly (no
+ * expression-spring-boot-autoconfig}'s {@code JexlExpressionAutoConfiguration} pattern exactly (no
  * {@code matchIfMissing}, no {@code @ConditionalOnMissingBean} — the application's port registry,
  * not Spring, is what detects an absent or ambiguous port configuration).
  *

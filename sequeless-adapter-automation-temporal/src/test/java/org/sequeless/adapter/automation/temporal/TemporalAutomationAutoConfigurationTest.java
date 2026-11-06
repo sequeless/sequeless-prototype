@@ -18,7 +18,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
  * Exercises {@link TemporalAutomationAutoConfiguration} via a real Spring context ({@link
- * ApplicationContextRunner}), mirroring {@code sequeless-adapter-expression-jexl}'s {@code
+ * ApplicationContextRunner}), mirroring {@code expression-spring-boot-autoconfig}'s {@code
  * JexlExpressionAutoConfigurationTest} and {@code sequeless-adapter-automation-inprocess}'s {@code
  * InProcessAutomationAutoConfigurationTest}.
  *
