@@ -2,7 +2,7 @@
 
 Issue: [#36](https://github.com/sequeless/sequeless-prototype/issues/36). Map: [#11](https://github.com/sequeless/sequeless-prototype/issues/11). Plan: [#23](https://github.com/sequeless/sequeless-prototype/issues/23). Tracker: `docs/extraction/remaining-work.md`.
 
-Status: planning spec. Nothing in it is done yet. The new repo holds only the template, no expression code has moved, and there is no release or BOM change. Sections 2 to 7 are plan items unless they say "verified".
+Status: done (2026-11-06). The moves, the four-module layout, the 0.1.1 release and the BOM 0.1.2 release are complete; see remaining-work.md. Sections below record the planning state and are kept as history.
 
 ## 1. Identity, stage and dependencies
 

@@ -22,6 +22,8 @@ Last updated: 2026-11-05 (pre-factor plan superseded, no pre-factor PRs, spec 7 
 
 - [x] Spec 7: prototype stage 1 cut-over ([#35](https://github.com/sequeless/sequeless-prototype/issues/35)). PR [#80](https://github.com/sequeless/sequeless-prototype/pull/80): the prototype consumes `kernel-identity` and `kernel-values` 0.1.0 through `sequeless-bom` 0.1.1, and the moved classes and their tests are deleted (20 files). Preceded by two javadoc-only commits (`c31a6df`, `5d2df27`), because five javadoc errors already in HEAD failed the release javadoc run. Spec draft: `docs/extraction/spec-07-prototype-stage1-cutover.md`. CI on the PR is green against released artifacts (build / maven, ui, CodeQL, SonarCloud). `sequeless-build` CI on `main` is green (`b0e1a84`). Open for the owner: the issue title says "kernel and filter", but the cut-over consumes only the kernel (spec draft, section 1).
 
+- [x] Spec 8: sequeless-expression ([#36](https://github.com/sequeless/sequeless-prototype/issues/36)). The repo `sequeless/sequeless-expression` (public, from sequeless-template) holds four modules: `expression-api`, `expression-testkit`, `expression-jexl-adapter` and `expression-spring-boot-autoconfig`. The owner chose the four-module layout from #36 and the repo-segment package names. Import: [sequeless-expression #2](https://github.com/sequeless/sequeless-expression/pull/2). The first release (0.1.0) was tagged but its Maven deploy failed on a javadoc error, so 0.1.0 is GitHub-only, and the owner chose 0.1.1 as the first published version. Release 0.1.1 is in GitHub Packages for all four modules. The BOM lists them: [sequeless-build #37](https://github.com/sequeless/sequeless-build/pull/37), released as `sequeless-bom` 0.1.2. Prototype prerequisite: [#82](https://github.com/sequeless/sequeless-prototype/pull/82). Spec draft: `docs/extraction/spec-08-sequeless-expression.md` ([#81](https://github.com/sequeless/sequeless-prototype/pull/81)). The prototype keeps its copy of the expression code until spec 9 deletes it.
+
 ## In flight
 - None.
 
@@ -48,7 +50,7 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 | [x] | 4 prototype stage 1 prepare (`Principal` drops `displayName`; PR #69 merged, issue #32 closed) | [#32](https://github.com/sequeless/sequeless-prototype/issues/32) | 1 | none (spec 3 done): unblocked |
 | [x] | 5 sequeless-kernel (0.1.0 released; BOM 0.1.0 released; #33 closed) | [#33](https://github.com/sequeless/sequeless-prototype/issues/33) | 1 | 1, 4 |
 | [x] | 7 prototype stage 1 cut-over (PR [#80](https://github.com/sequeless/sequeless-prototype/pull/80)) | [#35](https://github.com/sequeless/sequeless-prototype/issues/35) | 1 | 5, 6 |
-| [ ] | 8 sequeless-expression | [#36](https://github.com/sequeless/sequeless-prototype/issues/36) | 2 | 5, 7 |
+| [x] | 8 sequeless-expression (repo released 0.1.1; BOM 0.1.2) | [#36](https://github.com/sequeless/sequeless-prototype/issues/36) | 2 | 5, 7 |
 | [ ] | 9 prototype stage 2 cut-over | [#37](https://github.com/sequeless/sequeless-prototype/issues/37) | 2 | 8 |
 | [ ] | 10 prototype stage 3 prepare (ontology and snapshot splits) | [#38](https://github.com/sequeless/sequeless-prototype/issues/38) | 3 | 9 |
 | [ ] | 11 sequeless-ontology gains the prototype's ontology | [#39](https://github.com/sequeless/sequeless-prototype/issues/39) | 3 | 5, 8, 10 |
