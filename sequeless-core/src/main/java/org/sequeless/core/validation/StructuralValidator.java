@@ -9,18 +9,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Set;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.meta.PropertyDefinition;
 import org.sequeless.spi.meta.RelationshipDefinition;
 import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.validation.Violation;
 
 /**

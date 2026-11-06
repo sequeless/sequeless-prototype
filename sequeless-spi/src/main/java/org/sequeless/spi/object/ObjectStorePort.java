@@ -3,7 +3,9 @@ package org.sequeless.spi.object;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
 
 /**
  * The outbound port every instance of an ontology type is stored, read, and mutated through.

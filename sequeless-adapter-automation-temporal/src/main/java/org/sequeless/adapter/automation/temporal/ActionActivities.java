@@ -2,7 +2,7 @@ package org.sequeless.adapter.automation.temporal;
 
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.object.OutboxEntry;
 

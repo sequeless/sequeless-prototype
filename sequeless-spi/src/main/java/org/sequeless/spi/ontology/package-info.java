@@ -3,7 +3,7 @@
  * vocabulary of consistency reporting, documents, and formats it is expressed in terms of.
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
- * the JDK ({@code java.*}) except {@link org.sequeless.spi.Scope} from its parent package and
+ * the JDK ({@code java.*}) except {@link org.sequeless.kernel.identity.Scope} from its parent package and
  * {@link org.sequeless.spi.meta.MetaModelSnapshot} from its sibling {@code org.sequeless.spi.meta}
  * package. {@link org.sequeless.spi.ontology.OntologyPort} is the port interface; {@link
  * org.sequeless.spi.ontology.OntologyDocument}, {@link org.sequeless.spi.ontology.OntologyFormat},

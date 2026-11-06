@@ -1,7 +1,7 @@
 package org.sequeless.core.api;
 
 import org.sequeless.core.AuthorizationException;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.ontology.ImportMode;

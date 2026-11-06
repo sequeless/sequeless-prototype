@@ -6,7 +6,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.object.OutboxEntry;
 

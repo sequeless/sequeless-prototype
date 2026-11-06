@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.OutboxEntry;
 

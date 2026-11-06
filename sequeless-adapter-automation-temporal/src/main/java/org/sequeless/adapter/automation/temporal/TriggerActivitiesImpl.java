@@ -1,7 +1,7 @@
 package org.sequeless.adapter.automation.temporal;
 
 import java.util.Objects;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.OutboxEntry;

@@ -5,7 +5,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.testkit.object.ObjectStoreContract;
 import org.springframework.jdbc.core.simple.JdbcClient;

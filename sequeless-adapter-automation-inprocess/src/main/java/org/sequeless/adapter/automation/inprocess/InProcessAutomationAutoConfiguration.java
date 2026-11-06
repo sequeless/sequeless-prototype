@@ -77,7 +77,7 @@ public class InProcessAutomationAutoConfiguration {
      *     {@link ActionExecutor} parameter)
      * @param timerTickExecutor the executor the periodic sweep is scheduled on
      * @param tickMillis the {@code sequeless.automation.inprocess.timer-tick-ms} sweep interval,
-     *     bound as a raw {@code long} rather than a {@link Duration}-typed {@code @Value} — see
+     *     bound as a raw {@code long} rather than a {@code Duration}-typed {@code @Value} — see
      *     {@code CoreConfiguration}'s own precedent (T7's finding) for why a {@code @Value}-bound
      *     temporal type is unsafe under a bare {@code ApplicationContextRunner}; defaults to 100ms,
      *     short enough that a test relying on the real production tick (rather than {@code

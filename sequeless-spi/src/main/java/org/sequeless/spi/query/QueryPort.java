@@ -1,6 +1,6 @@
 package org.sequeless.spi.query;
 
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 
@@ -60,7 +60,7 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
  *       the most load-bearing, easiest-to-get-wrong part of this contract. For {@link
  *       AggregateFunction#COUNT}, the returned {@link AggregateResult#values()} is <em>dense</em>:
  *       every id in {@code request.targetIds()} is present as a key, with an {@link
- *       org.sequeless.spi.object.IntegerValue} of {@code 0} when that target has no matching source
+ *       org.sequeless.kernel.values.IntegerValue} of {@code 0} when that target has no matching source
  *       rows. For {@link AggregateFunction#SUM}, {@link AggregateFunction#MIN}, {@link
  *       AggregateFunction#MAX}, and {@link AggregateFunction#AVG}, a target with no matching source
  *       rows is simply <em>absent</em> from {@link AggregateResult#values()} — never present with a

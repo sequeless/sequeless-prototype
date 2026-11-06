@@ -10,7 +10,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 
 class BusinessObjectTest {
 

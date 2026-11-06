@@ -2,9 +2,9 @@ package org.sequeless.spi.derivation;
 
 import java.util.List;
 import java.util.Map;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.Value;
 
 /**
  * Computes a {@code sq:Plugin}-derived property's value for a batch of objects, named by {@link

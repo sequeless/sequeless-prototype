@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.ontology.ImportMode;
 import org.sequeless.spi.ontology.OntologyDocument;

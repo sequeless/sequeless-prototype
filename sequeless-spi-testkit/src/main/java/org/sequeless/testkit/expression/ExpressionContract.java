@@ -7,13 +7,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.expression.ExpressionContext;
 import org.sequeless.spi.expression.ExpressionException;
 import org.sequeless.spi.expression.ExpressionPort;
-import org.sequeless.spi.object.BoolValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
 
 /**
  * The mechanical form of the behavioural contract documented on {@link ExpressionPort}'s

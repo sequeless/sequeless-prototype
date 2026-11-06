@@ -12,8 +12,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.meta.AggregateFunction;
 import org.sequeless.spi.meta.MetaModelSnapshot;
 import org.sequeless.spi.object.Audit;
@@ -21,11 +23,9 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
@@ -39,7 +39,7 @@ import org.sequeless.testkit.Fixtures;
  * satisfy every clause of that javadoc, and this class exercises each clause once, against
  * whatever {@link Environment} {@link #freshEnvironment()} supplies.
  *
- * <p>This is deliberately not a subclass of {@link QueryContract}: {@link #aggregate} needs its
+ * <p>This is deliberately not a subclass of {@link QueryContract}: {@code aggregate} needs its
  * own source data shaped around a {@code Project}/{@code Task} rollup rather than the flat
  * filter/sort/facet fixtures {@link QueryContract} seeds, so it declares its own {@link
  * Environment} of the same shape.
@@ -334,8 +334,8 @@ public abstract class AggregateContract {
         Value value = result.values().get(target);
         assertThat(value).as("value for %s", target).isNotNull();
         return switch (value) {
-            case org.sequeless.spi.object.DecimalValue decimal -> decimal.value();
-            case org.sequeless.spi.object.IntegerValue integer -> BigDecimal.valueOf(integer.value());
+            case org.sequeless.kernel.values.DecimalValue decimal -> decimal.value();
+            case org.sequeless.kernel.values.IntegerValue integer -> BigDecimal.valueOf(integer.value());
             default -> throw new AssertionError("Expected a numeric Value but got " + value);
         };
     }

@@ -4,9 +4,9 @@ import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Workflow;
 import java.util.Map;
 import java.util.Set;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.object.OutboxEntry;
 
 /**

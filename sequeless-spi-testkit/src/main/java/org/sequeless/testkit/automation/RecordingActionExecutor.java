@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.object.OutboxEntry;

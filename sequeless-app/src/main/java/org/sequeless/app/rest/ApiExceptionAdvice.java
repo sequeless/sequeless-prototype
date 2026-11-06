@@ -7,7 +7,7 @@ import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.api.UnknownSignalException;
 import org.sequeless.core.validation.ValidationException;
-import org.sequeless.spi.object.ObjectNotFoundException;
+import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.validation.Violation;

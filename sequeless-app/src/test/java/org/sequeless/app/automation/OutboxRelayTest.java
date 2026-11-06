@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.OutboxPort;

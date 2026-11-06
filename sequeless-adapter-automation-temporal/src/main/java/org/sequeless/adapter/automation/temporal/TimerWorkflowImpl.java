@@ -3,7 +3,7 @@ package org.sequeless.adapter.automation.temporal;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.object.OutboxEntry;
 
 /**

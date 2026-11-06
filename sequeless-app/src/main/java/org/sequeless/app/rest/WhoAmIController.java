@@ -3,9 +3,9 @@ package org.sequeless.app.rest;
 import java.util.Objects;
 import org.sequeless.core.api.WhoAmI;
 import org.sequeless.core.api.WhoAmIResult;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
