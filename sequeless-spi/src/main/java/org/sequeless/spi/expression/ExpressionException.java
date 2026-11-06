@@ -6,7 +6,7 @@ package org.sequeless.spi.expression;
  * rejection (an attempt at reflection or a static method/class reference), or a JEXL-{@code null}
  * result.
  *
- * <p>This is deliberately unchecked, for the same reason {@link
+ * <p>This is deliberately unchecked, for the same reason {@code
  * org.sequeless.spi.ontology.OntologyException} and {@code
  * org.sequeless.spi.object.StaleObjectException} are: a malformed or rejected expression is a
  * condition every intermediate signature up the call chain — the core interpreter, the automation
