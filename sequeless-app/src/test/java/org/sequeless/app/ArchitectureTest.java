@@ -35,6 +35,7 @@ class ArchitectureTest {
     private static final String APP_PACKAGE = "org.sequeless.app..";
     private static final String ADAPTER_PACKAGE = "org.sequeless.adapter..";
     private static final String KERNEL_PACKAGE = "org.sequeless.kernel..";
+    private static final String EXPRESSION_PACKAGE = "org.sequeless.expression..";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -74,9 +75,9 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(CORE_PACKAGE)
             .should()
-            .onlyDependOnClassesThat(
-                    resideInAnyPackage("java..", CORE_PACKAGE, SPI_PACKAGE, KERNEL_PACKAGE, SLF4J_PACKAGE)
-                            .or(PRIMITIVE_OR_ARRAY))
+            .onlyDependOnClassesThat(resideInAnyPackage(
+                            "java..", CORE_PACKAGE, SPI_PACKAGE, KERNEL_PACKAGE, EXPRESSION_PACKAGE, SLF4J_PACKAGE)
+                    .or(PRIMITIVE_OR_ARRAY))
             .because("sequeless-core holds the use cases and orchestration logic; it may depend on the "
                     + "ports it calls through (sequeless-spi), the JDK, and the SLF4J logging facade "
                     + "(a dependency-free API, not an adapter-specific technology), but nothing "

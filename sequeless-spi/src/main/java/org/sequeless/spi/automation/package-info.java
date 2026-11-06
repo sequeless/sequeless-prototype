@@ -6,7 +6,7 @@
  * org.sequeless.spi.automation.AutomationPort}, that composes with all three.
  *
  * <p>Every other {@code sequeless-spi} port ({@link org.sequeless.spi.object.ObjectStorePort},
- * {@link org.sequeless.spi.expression.ExpressionPort}, {@code AuthorizationPort},
+ * {@code org.sequeless.expression.api.ExpressionPort}, {@code AuthorizationPort},
  * {@code ValidationPort}, {@code QueryPort}, {@code OntologyPort}, ...) is <em>outbound</em>:
  * {@code sequeless-core} calls it, and an adapter module implements it, so {@code sequeless-core}
  * never depends on adapter-specific libraries. The three inbound ports in this package are

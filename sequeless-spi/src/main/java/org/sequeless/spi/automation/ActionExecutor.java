@@ -33,8 +33,8 @@ import org.sequeless.spi.object.OutboxEntry;
  *       object's type, and its <em>new</em> state (the transition's {@code toStateIri}) after the
  *       transition that produced this request.
  *   <li>{@code self} ({@code Map<String, Object>}) — a snapshot of the transitioning object's own
- *       properties, keyed by property <em>short name</em> (not IRI) — matching {@link
- *       org.sequeless.spi.expression.ExpressionContext#selfProperties()} exactly, so it decodes
+ *       properties, keyed by property <em>short name</em> (not IRI) — matching {@code
+ *       org.sequeless.expression.api.ExpressionContext#selfProperties()} exactly, so it decodes
  *       straight into an {@code ExpressionContext} with zero re-keying — each value tagged per
  *       {@code org.sequeless.core.statemachine.PayloadValueCodec}'s scheme.
  *   <li>{@code actionKind} ({@code String}) — one of {@code "SetProperty"}, {@code "CreateObject"},

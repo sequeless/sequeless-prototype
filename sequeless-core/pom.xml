@@ -35,6 +35,10 @@
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>expression-api</artifactId>
+    </dependency>
 
     <!--
       First direct SLF4J usage in sequeless-core (org.sequeless.core.automation.DefaultActionExecutor's

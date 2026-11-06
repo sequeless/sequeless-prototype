@@ -27,7 +27,6 @@
     <module>sequeless-adapter-authz-permitall</module>
     <module>sequeless-adapter-ontology-jena</module>
     <module>sequeless-adapter-persistence-postgres</module>
-    <module>sequeless-adapter-expression-jexl</module>
     <module>sequeless-adapter-automation-temporal</module>
     <module>sequeless-adapter-automation-inprocess</module>
     <module>sequeless-app</module>
@@ -62,7 +61,7 @@
       <dependency>
         <groupId>org.sequeless</groupId>
         <artifactId>sequeless-bom</artifactId>
-        <version>0.1.1</version>
+        <version>0.1.2</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

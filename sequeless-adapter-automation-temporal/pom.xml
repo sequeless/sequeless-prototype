@@ -55,7 +55,7 @@
 
     <!--
       TemporalAutomationAutoConfigurationTest uses ApplicationContextRunner, mirroring
-      sequeless-adapter-expression-jexl's JexlExpressionAutoConfigurationTest.
+      expression-spring-boot-autoconfig's JexlExpressionAutoConfigurationTest.
     -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

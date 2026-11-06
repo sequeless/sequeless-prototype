@@ -15,7 +15,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
  * Exercises {@link InProcessAutomationAutoConfiguration} via a real Spring context ({@link
- * ApplicationContextRunner}), mirroring {@code sequeless-adapter-expression-jexl}'s {@code
+ * ApplicationContextRunner}), mirroring {@code expression-spring-boot-autoconfig}'s {@code
  * JexlExpressionAutoConfigurationTest}. Registers a {@link RecordingActionExecutor} as the
  * context's {@link ActionExecutor} bean in place of the real {@code DefaultActionExecutor} this
  * adapter module cannot depend on — standing in for the later, application-level task that wires
