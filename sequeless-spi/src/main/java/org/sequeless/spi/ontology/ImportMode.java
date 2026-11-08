@@ -9,7 +9,7 @@ package org.sequeless.spi.ontology;
 public enum ImportMode {
 
     /**
-     * Discard the ontology currently loaded and rebuild the snapshot entirely from the imported
+     * Discard the ontology currently loaded and rebuild the ontology entirely from the imported
      * document.
      */
     REPLACE

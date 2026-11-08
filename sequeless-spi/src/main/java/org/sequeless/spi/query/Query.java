@@ -12,7 +12,7 @@ import org.sequeless.spi.object.Page;
  *
  * @param types the resolved set of concrete type IRIs to query; the caller (core) expands an
  *     abstract type such as {@code WorkItem} to its concrete subtypes ({@code Task}, {@code
- *     Project}) using the meta-model snapshot's hierarchy before constructing this {@code Query} —
+ *     Project}) using the schema's hierarchy before constructing this {@code Query} —
  *     the port itself never does hierarchy reasoning and never sees an abstract type IRI here;
  *     must not be {@code null}, must not be empty; returned as an unmodifiable copy so callers
  *     cannot mutate this query after construction
