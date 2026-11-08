@@ -142,7 +142,7 @@ sq:materialised
     rdfs:comment "Domain is the union of sq:Rollup and sq:Plugin (Phase 6): whether this rule's value is kept correct in sq_object.props from domain events, making it filterable/sortable, in addition to always being recomputed on read; defaults to false when absent. No rdfs:domain is asserted, for the same reason sq:derivedBy's comment records for its own union range." .
 
 #
-# Function individuals — mirror org.sequeless.spi.meta.AggregateFunction; matched by IRI local
+# Function individuals — mirror org.sequeless.spi.meta.schema.AggregateFunction; matched by IRI local
 # name against the enum's constant names.
 #
 
@@ -228,7 +228,7 @@ sq:appliesTo
     a owl:AnnotationProperty ;
     rdfs:domain sq:StateMachine ;
     rdfs:range owl:Class ;
-    rdfs:comment "Attaches the sq:StateMachine node to the type it governs; feeds TypeDefinition.stateMachine()." .
+    rdfs:comment "Attaches the sq:StateMachine node to the type it governs; feeds Behaviour.stateMachine(typeIri)." .
 
 sq:initialState
     a owl:AnnotationProperty ;

@@ -190,7 +190,7 @@ public final class Fixtures {
     /**
      * A deliberately inconsistent ontology: {@code Cyborg} is declared a subclass of two classes
      * stated to be {@code owl:disjointWith} one another, and an individual is asserted into it. Any
-     * conforming port must reject this rather than return a degraded snapshot.
+     * conforming port must reject this rather than return degraded halves.
      *
      * @return a fresh {@link OntologyDocument} holding the inconsistent ontology as Turtle
      */

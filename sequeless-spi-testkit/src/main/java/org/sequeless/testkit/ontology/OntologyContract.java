@@ -30,7 +30,7 @@ import org.sequeless.testkit.Fixtures;
  * interface-level javadoc, and of the read-port contract every {@link SchemaSource}, {@link
  * BehaviourSource} and {@link AutomationSource} must satisfy. Every implementation — adapter or test
  * double — is expected to satisfy every clause of those contracts, and this class exercises each
- * clause once, against whatever {@link OntologyPorts} {@link #portFor(OntologyDocument)} supplies for
+ * clause it can test once, against whatever {@link OntologyPorts} {@link #portFor(OntologyDocument)} supplies for
  * a given fixture document.
  *
  * <p>To use this contract, extend it from a test class in your own module and implement {@link
@@ -50,9 +50,11 @@ import org.sequeless.testkit.Fixtures;
  * any other value that depends on which reasoner setting an adapter happens to run with. Every
  * assertion is about shape (non-null, well-formed results), null-safety (rejecting missing
  * arguments), determinism (repeated calls agreeing with <em>each other</em>, not with some fixed
- * expectation), and the structural guarantees the interface javadocs make: a failed mutation leaves
+ * expectation), and the structural guarantees the interface javadocs make: a failed import leaves
  * the previous halves intact, export and import round-trip, versions move as the administration
- * port documents, and an inconsistent ontology is always thrown, never returned. A trivial in-memory
+ * port documents, and an inconsistent ontology is always thrown, never returned. A failed reload is
+ * not tested here: these interfaces cannot make a port's source inconsistent, so each adapter tests
+ * that clause itself. A trivial in-memory
  * port that does no OWL reasoning at all and a full OWL reasoner must both be able to pass this
  * contract unmodified; reasoner-specific assertions (which superTypes appear, whether an inverse is
  * inferred) belong to an adapter's own test suite, never here. A contract that only a reasoning

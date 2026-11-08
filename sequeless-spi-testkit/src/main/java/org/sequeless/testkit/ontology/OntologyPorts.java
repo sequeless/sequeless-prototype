@@ -9,7 +9,7 @@ import org.sequeless.spi.ontology.OntologyAdministration;
 /**
  * The four ports one ontology implementation exposes to {@link OntologyContract}: the three read
  * ports, one per half of an activation, and the administration port. An implementation that
- * implements all four interfaces is passed to every component through {@link #of(SchemaSource)}.
+ * implements all four interfaces fills every component through {@link #of(SchemaSource)}.
  *
  * @param schemaSource the read port for the Schema half; must not be {@code null}
  * @param behaviourSource the read port for the Behaviour half; must not be {@code null}
