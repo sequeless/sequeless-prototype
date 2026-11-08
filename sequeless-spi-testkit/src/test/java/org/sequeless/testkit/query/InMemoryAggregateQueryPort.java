@@ -13,7 +13,7 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.query.AggregateRequest;
@@ -48,21 +48,21 @@ final class InMemoryAggregateQueryPort implements QueryPort {
     }
 
     @Override
-    public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+    public QueryResult query(Scope scope, Schema schema, Query query) {
         throw new UnsupportedOperationException(
                 "query is not exercised by AggregateContract; use QueryContract against a real "
                         + "QueryPort implementation for that surface");
     }
 
     @Override
-    public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+    public void ensureIndexes(Scope scope, Schema schema) {
         throw new UnsupportedOperationException("ensureIndexes is not exercised by AggregateContract");
     }
 
     @Override
-    public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+    public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(request, "request must not be null");
 
         List<BusinessObject> sources = store.snapshot(scope, request.sourceTypes());
