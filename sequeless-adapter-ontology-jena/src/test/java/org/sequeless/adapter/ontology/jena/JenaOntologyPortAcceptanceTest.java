@@ -7,36 +7,46 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.TextValue;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.DerivationRule;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.Automation;
+import org.sequeless.spi.meta.automation.CreateObjectAction;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.PluginRule;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.ontology.OntologyFormat;
+import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.testkit.Fixtures;
 
 /**
  * Proves, at the {@link JenaOntologyPort} level (not the lower-level {@code SnapshotMapper} /
- * {@code ConsistencyChecker} unit tests T8 already wrote), the three acceptance criteria the whole
+ * {@code ConsistencyChecker} unit tests already written), the three acceptance criteria the whole
  * phase is stated against, plus every other clause the step plan's §6 test list calls for that is
  * not already covered by an existing T7/T8 test class:
  *
  * <ul>
- *   <li>the reference snapshot shows {@code Task} with {@code superTypes} containing {@code
- *       WorkItem}, {@code hasTask} inferred as the inverse of {@code belongsToProject}, and labels
- *       and display hints populated (acceptance criterion 1);
+ *   <li>the reference schema shows {@code Task} with {@code superTypes} containing {@code WorkItem},
+ *       {@code hasTask} inferred as the inverse of {@code belongsToProject}, and labels and display
+ *       hints populated (acceptance criterion 1);
  *   <li>the inconsistent ontology is rejected with an {@code OntologyReport} that names the
  *       offending class, {@code ex:Cyborg} (acceptance criterion 2);
- *   <li>{@code reasoner=none} yields a snapshot without inferred {@code superTypes} — {@code
+ *   <li>{@code reasoner=none} yields a schema without inferred {@code superTypes} — {@code
  *       Task.superTypes()} contains {@code WorkItem} but not {@code Deliverable} (acceptance
  *       criterion 3).
  * </ul>
@@ -44,6 +54,7 @@ import org.sequeless.testkit.Fixtures;
 class JenaOntologyPortAcceptanceTest {
 
     private static final Scope SCOPE = Fixtures.defaultScope();
+    private static final TenantId TENANT = TenantId.DEFAULT;
 
     /**
      * {@code inverse-transitive.ttl} reuses the same {@code ex:} namespace as {@code reference.ttl}
@@ -61,16 +72,16 @@ class JenaOntologyPortAcceptanceTest {
     private static final String CHILD_OF_IRI = REF_NS + "childOf";
 
     @Test
-    void referenceSnapshotProvesAcceptanceCriterion1() {
+    void referenceSchemaProvesAcceptanceCriterion1() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        MetaModelSnapshot snapshot = port.snapshot(SCOPE);
+        Schema schema = port.schema(TENANT);
 
-        TypeDefinition task = type(snapshot, Fixtures.TASK_IRI);
+        TypeDefinition task = type(schema, Fixtures.TASK_IRI);
         assertThat(task.superTypes()).contains(Fixtures.WORK_ITEM_IRI);
         assertThat(task.label()).isEqualTo("Task");
         assertThat(task.displayHints()).isNotNull();
 
-        TypeDefinition project = type(snapshot, Fixtures.PROJECT_IRI);
+        TypeDefinition project = type(schema, Fixtures.PROJECT_IRI);
         RelationshipDefinition hasTask = relationship(project, Fixtures.HAS_TASK_IRI);
         assertThat(hasTask.inverseIri()).contains(Fixtures.BELONGS_TO_PROJECT_IRI);
         assertThat(hasTask.label()).isEqualTo("Has Task");
@@ -84,7 +95,7 @@ class JenaOntologyPortAcceptanceTest {
     void inconsistentOntologyReportNamesTheOffendingClassProvingAcceptanceCriterion2() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.OWL);
 
-        assertThatThrownBy(() -> port.snapshot(SCOPE))
+        assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
                 .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;
@@ -101,10 +112,10 @@ class JenaOntologyPortAcceptanceTest {
         JenaOntologyPort owlPort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
         JenaOntologyPort nonePort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.NONE);
 
-        TypeDefinition taskUnderOwl = type(owlPort.snapshot(SCOPE), Fixtures.TASK_IRI);
+        TypeDefinition taskUnderOwl = type(owlPort.schema(TENANT), Fixtures.TASK_IRI);
         assertThat(taskUnderOwl.superTypes()).contains(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI);
 
-        TypeDefinition taskUnderNone = type(nonePort.snapshot(SCOPE), Fixtures.TASK_IRI);
+        TypeDefinition taskUnderNone = type(nonePort.schema(TENANT), Fixtures.TASK_IRI);
         assertThat(taskUnderNone.superTypes()).contains(Fixtures.WORK_ITEM_IRI);
         assertThat(taskUnderNone.superTypes()).doesNotContain(Fixtures.DELIVERABLE_IRI);
     }
@@ -114,11 +125,11 @@ class JenaOntologyPortAcceptanceTest {
         JenaOntologyPort owlPort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
         JenaOntologyPort nonePort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.NONE);
 
-        TypeDefinition projectUnderOwl = type(owlPort.snapshot(SCOPE), Fixtures.PROJECT_IRI);
+        TypeDefinition projectUnderOwl = type(owlPort.schema(TENANT), Fixtures.PROJECT_IRI);
         assertThat(relationship(projectUnderOwl, Fixtures.HAS_TASK_IRI).inverseIri())
                 .contains(Fixtures.BELONGS_TO_PROJECT_IRI);
 
-        TypeDefinition projectUnderNone = type(nonePort.snapshot(SCOPE), Fixtures.PROJECT_IRI);
+        TypeDefinition projectUnderNone = type(nonePort.schema(TENANT), Fixtures.PROJECT_IRI);
         assertThat(relationship(projectUnderNone, Fixtures.HAS_TASK_IRI).inverseIri())
                 .isEmpty();
     }
@@ -127,7 +138,7 @@ class JenaOntologyPortAcceptanceTest {
     void inverseTransitiveFixtureShowsTransitiveFlagAndReverseAssertedInverse() {
         JenaOntologyPort port =
                 JenaOntologyPort.fromDocument(Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL);
-        TypeDefinition component = type(port.snapshot(SCOPE), COMPONENT_IRI);
+        TypeDefinition component = type(port.schema(TENANT), COMPONENT_IRI);
 
         RelationshipDefinition partOf = relationship(component, PART_OF_IRI);
         assertThat(partOf.transitive()).isTrue();
@@ -152,7 +163,7 @@ class JenaOntologyPortAcceptanceTest {
     @Test
     void cardinalityFromRestrictionsAndFromFunctionalPropertyIsMapped() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        TypeDefinition task = type(port.snapshot(SCOPE), Fixtures.TASK_IRI);
+        TypeDefinition task = type(port.schema(TENANT), Fixtures.TASK_IRI);
 
         AttributeDefinition title = attribute(task, Fixtures.TITLE_IRI);
         assertThat(title.cardinality().min()).isEqualTo(1);
@@ -168,7 +179,7 @@ class JenaOntologyPortAcceptanceTest {
     @Test
     void displayHintsAndFlagsMapCorrectlyForEveryAnnotatedProperty() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        TypeDefinition task = type(port.snapshot(SCOPE), Fixtures.TASK_IRI);
+        TypeDefinition task = type(port.schema(TENANT), Fixtures.TASK_IRI);
 
         AttributeDefinition title = attribute(task, Fixtures.TITLE_IRI);
         assertThat(title.searchable()).isTrue();
@@ -205,7 +216,7 @@ class JenaOntologyPortAcceptanceTest {
         JenaOntologyPort port =
                 JenaOntologyPort.fromDocument(new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL);
 
-        assertThatThrownBy(() -> port.snapshot(SCOPE))
+        assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
                 .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;
@@ -227,13 +238,15 @@ class JenaOntologyPortAcceptanceTest {
      * and reads back correctly.
      */
     @Test
-    void referenceSnapshotMapsProjectRollupsUnderTheOwlReasonerTheAppActuallyUses() {
+    void referenceBehaviourMapsProjectRollupsUnderTheOwlReasonerTheAppActuallyUses() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        TypeDefinition project = type(port.snapshot(SCOPE), Fixtures.PROJECT_IRI);
+        TypeDefinition project = type(port.schema(TENANT), Fixtures.PROJECT_IRI);
+        Behaviour behaviour = port.behaviour(TENANT);
 
         AttributeDefinition openTaskCount = attribute(project, Fixtures.OPEN_TASK_COUNT_IRI);
         assertThat(openTaskCount.readOnly()).isTrue();
-        DerivationRule openTaskCountDerivation = openTaskCount.derivation().orElseThrow();
+        DerivationRule openTaskCountDerivation =
+                behaviour.derivation(Fixtures.OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(openTaskCountDerivation).isInstanceOf(RollupRule.class);
         RollupRule openTaskCountRule = (RollupRule) openTaskCountDerivation;
         assertThat(openTaskCountRule.sourceTypeIri()).isEqualTo(Fixtures.TASK_IRI);
@@ -246,7 +259,7 @@ class JenaOntologyPortAcceptanceTest {
         AttributeDefinition totalEstimatedHours = attribute(project, Fixtures.TOTAL_ESTIMATED_HOURS_IRI);
         assertThat(totalEstimatedHours.readOnly()).isTrue();
         DerivationRule totalEstimatedHoursDerivation =
-                totalEstimatedHours.derivation().orElseThrow();
+                behaviour.derivation(Fixtures.TOTAL_ESTIMATED_HOURS_IRI).orElseThrow();
         assertThat(totalEstimatedHoursDerivation).isInstanceOf(RollupRule.class);
         RollupRule totalEstimatedHoursRule = (RollupRule) totalEstimatedHoursDerivation;
         assertThat(totalEstimatedHoursRule.sourceTypeIri()).isEqualTo(Fixtures.TASK_IRI);
@@ -254,6 +267,44 @@ class JenaOntologyPortAcceptanceTest {
         assertThat(totalEstimatedHoursRule.function()).isEqualTo(AggregateFunction.SUM);
         assertThat(totalEstimatedHoursRule.ofPropertyIri()).hasValue(Fixtures.ESTIMATED_HOURS_IRI);
         assertThat(totalEstimatedHoursRule.criteria()).isEmpty();
+    }
+
+    /**
+     * The reference ontology's Behaviour and Automation halves answer what the accessors this split
+     * removed answered at {@code aafb5a9}: {@code TypeDefinition.stateMachine()}, {@code
+     * PropertyDefinition.derivation()} and {@code Transition.actions()}. The expected values are the
+     * ones {@code StateMachineMappingTest} and this class's rollup test asserted there.
+     */
+    @Test
+    void referenceBehaviourAndAutomationAnswerWhatTheRemovedAccessorsAnsweredAtAafb5a9() {
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        Behaviour behaviour = port.behaviour(TENANT);
+        Automation automation = port.automation(TENANT);
+
+        // Was TypeDefinition.stateMachine(): only ex:Project is governed, and by ProjectLifecycle.
+        StateMachineDefinition lifecycle =
+                behaviour.stateMachine(Fixtures.PROJECT_IRI).orElseThrow();
+        assertThat(lifecycle.iri()).isEqualTo(Fixtures.PROJECT_LIFECYCLE_IRI);
+        assertThat(lifecycle.initialState().iri()).isEqualTo(Fixtures.DRAFT_IRI);
+        assertThat(lifecycle.transitions().stream().map(Transition::name))
+                .containsExactly("activate", "autoClose", "close", "expireHold", "hold", "reopen", "resume");
+        assertThat(behaviour.stateMachine(Fixtures.TASK_IRI)).isEmpty();
+        assertThat(behaviour.stateMachines()).hasSize(1);
+
+        // Was PropertyDefinition.derivation(): the two Project rollups, and nothing else.
+        assertThat(behaviour.derivation(Fixtures.TITLE_IRI)).isEmpty();
+        assertThat(behaviour.derivations())
+                .containsOnlyKeys(Fixtures.OPEN_TASK_COUNT_IRI, Fixtures.TOTAL_ESTIMATED_HOURS_IRI);
+
+        // Was Transition.actions(): only "activate" has actions, so it is the only entry.
+        TransitionRef activate = new TransitionRef(Fixtures.PROJECT_LIFECYCLE_IRI, Fixtures.DRAFT_IRI, "activate");
+        List<Action> activateActions = automation.actions(activate);
+        assertThat(activateActions).hasSize(2);
+        assertThat(activateActions.get(0)).isInstanceOf(CreateObjectAction.class);
+        assertThat(activateActions.get(1)).isInstanceOf(WebhookAction.class);
+        assertThat(automation.transitionActions()).hasSize(1);
+        assertThat(automation.actions(new TransitionRef(Fixtures.PROJECT_LIFECYCLE_IRI, Fixtures.ACTIVE_IRI, "close")))
+                .isEmpty();
     }
 
     /**
@@ -267,28 +318,30 @@ class JenaOntologyPortAcceptanceTest {
     @Test
     void referencePluginFixtureActivatesCleanlyNowThatWorkloadIsRegistered() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referencePluginOntology(), ReasonerSetting.OWL);
-        MetaModelSnapshot snapshot = port.snapshot(SCOPE);
+        Schema schema = port.schema(TENANT);
 
-        assertThat(snapshot.report().consistent()).isTrue();
-        assertThat(snapshot.report().issues()).isEmpty();
+        OntologyReport report = port.reload(SCOPE);
+        assertThat(report.consistent()).isTrue();
+        assertThat(report.issues()).isEmpty();
 
-        TypeDefinition person = type(snapshot, Fixtures.PERSON_IRI);
+        TypeDefinition person = type(schema, Fixtures.PERSON_IRI);
         AttributeDefinition workload = attribute(person, Fixtures.WORKLOAD_IRI);
         assertThat(workload.readOnly()).isTrue();
-        DerivationRule derivation = workload.derivation().orElseThrow();
+        DerivationRule derivation =
+                port.behaviour(TENANT).derivation(Fixtures.WORKLOAD_IRI).orElseThrow();
         assertThat(derivation).isInstanceOf(PluginRule.class);
         assertThat(((PluginRule) derivation).pluginName()).isEqualTo("workload");
     }
 
     private static List<String> propertyIris(ReasonerSetting reasoner, String typeIri) {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), reasoner);
-        return type(port.snapshot(SCOPE), typeIri).properties().stream()
+        return type(port.schema(TENANT), typeIri).properties().stream()
                 .map(PropertyDefinition::iri)
                 .toList();
     }
 
-    private static TypeDefinition type(MetaModelSnapshot snapshot, String iri) {
-        return snapshot.type(iri).orElseThrow(() -> new AssertionError("No type mapped for " + iri));
+    private static TypeDefinition type(Schema schema, String iri) {
+        return schema.type(iri).orElseThrow(() -> new AssertionError("No type mapped for " + iri));
     }
 
     private static AttributeDefinition attribute(TypeDefinition type, String propertyIri) {

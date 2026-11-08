@@ -1,8 +1,8 @@
 package org.sequeless.adapter.ontology.jena;
 
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.testkit.Fixtures;
 import org.sequeless.testkit.validation.ValidationContract;
 
 /**
@@ -16,7 +16,7 @@ class ShaclValidationPortContractTest extends ValidationContract {
     @Override
     protected Fixture fixtureFor(OntologyDocument document) {
         JenaOntologyPort ontologyPort = JenaOntologyPort.fromDocument(document, ReasonerSetting.OWL);
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(Fixtures.defaultScope());
-        return new Fixture(new ShaclValidationPort(ontologyPort), snapshot);
+        Schema schema = ontologyPort.schema(TenantId.DEFAULT);
+        return new Fixture(new ShaclValidationPort(ontologyPort), schema);
     }
 }

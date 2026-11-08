@@ -15,13 +15,13 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.values.IntegerValue;
 import org.sequeless.kernel.values.TextValue;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.DerivationRule;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.PluginRule;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.Severity;
 import org.sequeless.spi.query.Criterion;
@@ -96,8 +96,8 @@ class DerivationMappingTest {
         assertThat(errors(result)).isEmpty();
 
         AttributeDefinition property = attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI);
-        assertThat(property.derivation()).isPresent();
-        RollupRule rule = (RollupRule) property.derivation().orElseThrow();
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isPresent();
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.sourceTypeIri()).isEqualTo(TASK_IRI);
         assertThat(rule.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
         assertThat(rule.function()).isEqualTo(AggregateFunction.COUNT);
@@ -126,8 +126,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule = (RollupRule)
-                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.criteria())
                 .containsExactly(new Criterion(PRIORITY_IRI, Operator.GT, Optional.of(new IntegerValue(3))));
     }
@@ -149,7 +148,8 @@ class DerivationMappingTest {
         assertThat(errors(result)).isEmpty();
 
         AttributeDefinition property = attribute(result, PROJECT_IRI, TOTAL_ESTIMATED_HOURS_IRI);
-        RollupRule rule = (RollupRule) property.derivation().orElseThrow();
+        RollupRule rule =
+                (RollupRule) derivation(result, TOTAL_ESTIMATED_HOURS_IRI).orElseThrow();
         assertThat(rule.sourceTypeIri()).isEqualTo(TASK_IRI);
         assertThat(rule.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
         assertThat(rule.function()).isEqualTo(AggregateFunction.SUM);
@@ -172,7 +172,7 @@ class DerivationMappingTest {
         assertThat(errors(result)).isEmpty();
 
         AttributeDefinition property = attribute(result, REF_NS + "Person", REF_NS + "workload");
-        DerivationRule derivation = property.derivation().orElseThrow();
+        DerivationRule derivation = derivation(result, REF_NS + "workload").orElseThrow();
         assertThat(derivation).isInstanceOf(PluginRule.class);
         assertThat(((PluginRule) derivation).pluginName()).isEqualTo("workload");
         assertThat(property.readOnly()).isTrue();
@@ -195,8 +195,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule = (RollupRule)
-                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.materialised()).isFalse();
     }
 
@@ -216,8 +215,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule = (RollupRule)
-                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.materialised()).isTrue();
     }
 
@@ -232,9 +230,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
-        PluginRule rule = (PluginRule) attribute(result, REF_NS + "Person", REF_NS + "workload")
-                .derivation()
-                .orElseThrow();
+        PluginRule rule = (PluginRule) derivation(result, REF_NS + "workload").orElseThrow();
         assertThat(rule.materialised()).isFalse();
     }
 
@@ -243,7 +239,7 @@ class DerivationMappingTest {
         // A materialised sq:Plugin cannot be generically recomputed: unlike a sq:Rollup it carries
         // no sq:over/sq:via, so DefaultDerivationRecomputer (T5) has no generic way to discover which
         // targets a changed object affects. Rejecting the combination here, at mapping time, keeps
-        // that gap from ever reaching a MetaModelSnapshot.
+        // that gap from ever reaching the Behaviour half.
         MappingResult result = mapTurtle("""
             ex:workload
                 a owl:DatatypeProperty ;
@@ -528,8 +524,7 @@ class DerivationMappingTest {
             """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
-        AttributeDefinition property = attribute(result, REF_NS + "Person", REF_NS + "workload");
-        DerivationRule derivation = property.derivation().orElseThrow();
+        DerivationRule derivation = derivation(result, REF_NS + "workload").orElseThrow();
         assertThat(derivation).isInstanceOf(PluginRule.class);
         assertThat(((PluginRule) derivation).pluginName()).isEqualTo("workload");
     }
@@ -560,8 +555,7 @@ class DerivationMappingTest {
             """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
-        RollupRule rule = (RollupRule)
-                attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).derivation().orElseThrow();
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.sourceTypeIri()).isEqualTo(TASK_IRI);
         assertThat(rule.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);
         assertThat(rule.function()).isEqualTo(AggregateFunction.COUNT);
@@ -615,6 +609,11 @@ class DerivationMappingTest {
         assertThat(errors).hasSize(1);
         assertThat(errors.get(0).subjectIri()).contains(propertyIri);
         assertThat(errors.get(0).message()).contains(messageFragment);
+    }
+
+    /** The derivation rule of {@code propertyIri}, as the behaviour half holds it. */
+    private static Optional<DerivationRule> derivation(MappingResult result, String propertyIri) {
+        return Optional.ofNullable(result.derivations().get(propertyIri));
     }
 
     private static AttributeDefinition attribute(MappingResult result, String typeIri, String propertyIri) {

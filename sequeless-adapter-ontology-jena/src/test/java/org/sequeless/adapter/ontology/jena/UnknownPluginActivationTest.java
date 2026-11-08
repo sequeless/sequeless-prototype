@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.ontology.ImportMode;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
@@ -26,13 +26,14 @@ import org.sequeless.testkit.Fixtures;
  *
  * <p>These are deliberately activation-level tests, not {@code SnapshotMapper}/{@code
  * DerivationMappingTest}-level ones: they assert the documented behaviour of {@link
- * JenaOntologyPort#fromDocument}/{@link JenaOntologyPort#snapshot} and {@link
+ * JenaOntologyPort#fromDocument}, the ontology reads and {@link
  * JenaOntologyPort#importDocument} — an {@link OntologyException} thrown at activation — not merely
  * that some report field ends up set.
  */
 class UnknownPluginActivationTest {
 
     private static final Scope SCOPE = Fixtures.defaultScope();
+    private static final TenantId TENANT = TenantId.DEFAULT;
     private static final String REF_NS = "https://sequeless.dev/ns/ref#";
     private static final String WORKLOAD_IRI = REF_NS + "workload";
     private static final String UNREGISTERED_PLUGIN_NAME = "totally-unregistered-plugin";
@@ -56,14 +57,14 @@ class UnknownPluginActivationTest {
         """;
 
     @Test
-    void fromDocumentThenSnapshotThrowsForAnUnknownPluginName() {
+    void fromDocumentThenReadThrowsForAnUnknownPluginName() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
                 new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ReasonerSetting.NONE);
 
         // fromDocument itself never throws, even for a bad document (F20) -- the failure surfaces
         // only once something asks this port to actually serve what it built, exactly like the
         // existing reserved-term and inconsistent-ontology activation tests.
-        assertThatThrownBy(() -> port.snapshot(SCOPE))
+        assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
                 .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;
@@ -76,7 +77,7 @@ class UnknownPluginActivationTest {
     @Test
     void importDocumentRejectsAnUnknownPluginNameAndLeavesTheActivePortUnchanged() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.NONE);
-        MetaModelSnapshot before = port.snapshot(SCOPE);
+        Halves before = Halves.of(port);
 
         assertThatThrownBy(() -> port.importDocument(
                         SCOPE, new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ImportMode.REPLACE))
@@ -88,10 +89,11 @@ class UnknownPluginActivationTest {
                             .anyMatch(issue -> isUnknownWorkloadPluginIssue(issue, WORKLOAD_IRI));
                 });
 
-        // The rejected import must never have replaced this port's active state.
-        MetaModelSnapshot after = port.snapshot(SCOPE);
-        assertThat(after.ontologyIri()).isEqualTo(before.ontologyIri());
-        assertThat(after.type(Fixtures.TASK_IRI)).isPresent();
+        // The rejected import must never have replaced this port's active halves, version included.
+        Halves after = Halves.of(port);
+        assertThat(after).isEqualTo(before);
+        assertThat(after.schema().ontologyIri()).isEqualTo(before.schema().ontologyIri());
+        assertThat(after.schema().type(Fixtures.TASK_IRI)).isPresent();
     }
 
     @Test
@@ -118,7 +120,7 @@ class UnknownPluginActivationTest {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
                 new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.NONE);
 
-        assertThatThrownBy(() -> port.snapshot(SCOPE))
+        assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
                 .satisfies(thrown -> {
                     OntologyException exception = (OntologyException) thrown;

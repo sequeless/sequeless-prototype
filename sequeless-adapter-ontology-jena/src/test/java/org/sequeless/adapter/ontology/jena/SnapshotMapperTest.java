@@ -13,10 +13,15 @@ import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.testkit.Fixtures;
 
 /**
@@ -126,6 +131,98 @@ class SnapshotMapperTest {
                         Fixtures.REFERENCE_ONTOLOGY_IRI + "#TaskShape",
                         Fixtures.REFERENCE_ONTOLOGY_IRI + "#PersonShape");
         assertThat(owl.issues()).isEmpty();
+    }
+
+    /**
+     * Two transitions of one state machine that share a {@link TransitionRef} (same from-state and
+     * name) can never both fire, because a request fires the first match. The automation half keeps
+     * the actions of the first one in {@code transitions()} order and drops the second's. Their
+     * guards differ, so the test can tell which action list belongs to which transition.
+     */
+    @Test
+    void firstTransitionWinsWhenTwoShareATransitionRef() {
+        String turtle = """
+            @prefix sq:   <https://sequeless.dev/ns/meta#> .
+            @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+            @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+            @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+            @prefix ex:   <https://sequeless.dev/ns/ref#> .
+
+            <https://sequeless.dev/ns/ref> a owl:Ontology ; owl:imports <https://sequeless.dev/ns/meta> .
+
+            ex:Project a owl:Class .
+            ex:Draft  a sq:State ; sq:label "Draft"  ; sq:displayOrder "1"^^xsd:integer .
+            ex:Active a sq:State ; sq:label "Active" ; sq:displayOrder "2"^^xsd:integer .
+
+            ex:Lifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:UserAction ; sq:guard "first" ;
+                      sq:action ( [ a sq:Webhook ; sq:url "https://example.org/hooks/first" ; sq:method "POST" ] ) ] ,
+                    [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:UserAction ; sq:guard "second" ;
+                      sq:action ( [ a sq:Webhook ; sq:url "https://example.org/hooks/second" ; sq:method "POST" ] ) ] .
+            """;
+        OntModel model = buildModel(turtle, ReasonerSetting.NONE);
+
+        MappingResult result = SnapshotMapper.map(model);
+
+        assertThat(result.issues()).isEmpty();
+        StateMachineDefinition machine = result.stateMachines().get(Fixtures.PROJECT_IRI);
+        assertThat(machine.transitions()).hasSize(2);
+        String firstGuard = machine.transitions().get(0).guard().orElseThrow();
+
+        TransitionRef shared = new TransitionRef(machine.iri(), Fixtures.DRAFT_IRI, "fire");
+        List<Action> kept = result.transitionActions().get(shared);
+        assertThat(kept).hasSize(1);
+        assertThat(kept.get(0)).isInstanceOf(WebhookAction.class);
+        assertThat(((WebhookAction) kept.get(0)).url()).isEqualTo("https://example.org/hooks/" + firstGuard);
+        assertThat(result.transitionActions()).hasSize(1);
+    }
+
+    /**
+     * The same rule when the first of the two has no actions: it still claims the TransitionRef, so
+     * the second one's actions are not promoted into its place. Which of the two comes first is
+     * whatever {@code transitions()} says, so the expectation is read from that order.
+     */
+    @Test
+    void aFirstTransitionWithNoActionsStillClaimsItsTransitionRef() {
+        String turtle = """
+            @prefix sq:   <https://sequeless.dev/ns/meta#> .
+            @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+            @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+            @prefix ex:   <https://sequeless.dev/ns/ref#> .
+
+            <https://sequeless.dev/ns/ref> a owl:Ontology ; owl:imports <https://sequeless.dev/ns/meta> .
+
+            ex:Project a owl:Class .
+            ex:Draft  a sq:State ; sq:label "Draft"  ; sq:displayOrder "1"^^xsd:integer .
+            ex:Active a sq:State ; sq:label "Active" ; sq:displayOrder "2"^^xsd:integer .
+
+            ex:Lifecycle
+                a sq:StateMachine ;
+                sq:appliesTo ex:Project ;
+                sq:initialState ex:Draft ;
+                sq:state ex:Draft, ex:Active ;
+                sq:transition
+                    [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:UserAction ; sq:guard "plain" ] ,
+                    [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:UserAction ; sq:guard "act" ;
+                      sq:action ( [ a sq:Webhook ; sq:url "https://example.org/hooks/act" ; sq:method "POST" ] ) ] .
+            """;
+        MappingResult result = SnapshotMapper.map(buildModel(turtle, ReasonerSetting.NONE));
+
+        assertThat(result.issues()).isEmpty();
+        StateMachineDefinition machine = result.stateMachines().get(Fixtures.PROJECT_IRI);
+        Transition first = machine.transitions().get(0);
+        List<Action> kept = result.transitionActions()
+                .getOrDefault(new TransitionRef(machine.iri(), Fixtures.DRAFT_IRI, "fire"), List.of());
+        assertThat(kept).hasSize(first.guard().orElseThrow().equals("act") ? 1 : 0);
     }
 
     private static MappingResult mapReferenceOntology(ReasonerSetting reasoner) {

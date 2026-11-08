@@ -6,6 +6,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import org.apache.jena.ontapi.OntModelFactory;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.rdf.model.Model;
@@ -15,20 +16,21 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.values.IntegerValue;
 import org.sequeless.kernel.values.TextValue;
-import org.sequeless.spi.meta.Action;
-import org.sequeless.spi.meta.CreateObjectAction;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.LogAction;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.PropertyAssignment;
-import org.sequeless.spi.meta.SetPropertyAction;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
-import org.sequeless.spi.meta.WebhookAction;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.CreateObjectAction;
+import org.sequeless.spi.meta.automation.LogAction;
+import org.sequeless.spi.meta.automation.PropertyAssignment;
+import org.sequeless.spi.meta.automation.SetPropertyAction;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TimerTrigger;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.UserActionTrigger;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.Severity;
 import org.sequeless.testkit.Fixtures;
@@ -118,7 +120,7 @@ class StateMachineMappingTest {
         assertThat(activate.toStateIri()).isEqualTo(ACTIVE_IRI);
         assertThat(activate.guard()).contains("self.owner != null");
         assertThat(activate.guardMessage()).contains("Project must have an owner");
-        assertThat(activate.actions()).isEmpty();
+        assertThat(actionsOf(result, definition, activate)).isEmpty();
     }
 
     @Test
@@ -807,9 +809,7 @@ class StateMachineMappingTest {
         MappingResult result = SnapshotMapper.map(model);
         assertThat(errors(result)).isEmpty();
 
-        TypeDefinition project = typeNamed(result, Fixtures.PROJECT_IRI);
-        assertThat(project.stateMachine()).isPresent();
-        StateMachineDefinition definition = project.stateMachine().orElseThrow();
+        StateMachineDefinition definition = stateMachine(result, Fixtures.PROJECT_IRI);
         assertThat(definition.iri()).isEqualTo(Fixtures.PROJECT_LIFECYCLE_IRI);
         assertThat(definition.states().stream().map(State::iri))
                 .containsExactly(Fixtures.DRAFT_IRI, Fixtures.ACTIVE_IRI, Fixtures.ON_HOLD_IRI, Fixtures.CLOSED_IRI);
@@ -820,17 +820,18 @@ class StateMachineMappingTest {
         Transition activate = transition(definition, "activate");
         assertThat(activate.guard()).contains("self.owner != null");
         assertThat(activate.guardMessage()).contains("Project must have an owner before it can be activated");
-        assertThat(activate.actions()).hasSize(2);
-        assertThat(activate.actions().get(0)).isInstanceOf(CreateObjectAction.class);
-        assertThat(activate.actions().get(1)).isInstanceOf(WebhookAction.class);
+        List<Action> activateActions = actionsOf(result, definition, activate);
+        assertThat(activateActions).hasSize(2);
+        assertThat(activateActions.get(0)).isInstanceOf(CreateObjectAction.class);
+        assertThat(activateActions.get(1)).isInstanceOf(WebhookAction.class);
 
-        CreateObjectAction kickoff = (CreateObjectAction) activate.actions().get(0);
+        CreateObjectAction kickoff = (CreateObjectAction) activateActions.get(0);
         assertThat(kickoff.typeIri()).isEqualTo(Fixtures.TASK_IRI);
         assertThat(kickoff.properties()).hasSize(1);
         assertThat(kickoff.properties().get(0).propertyIri()).isEqualTo(Fixtures.TITLE_IRI);
         assertThat(kickoff.properties().get(0).expression()).contains("'Kickoff: ' + self.title");
 
-        WebhookAction webhook = (WebhookAction) activate.actions().get(1);
+        WebhookAction webhook = (WebhookAction) activateActions.get(1);
         assertThat(webhook.url()).isEqualTo("https://example.org/hooks/project-activated");
         assertThat(webhook.method()).isEqualTo("POST");
         assertThat(webhook.body()).isPresent();
@@ -858,8 +859,7 @@ class StateMachineMappingTest {
         assertThat(reopen.trigger()).isInstanceOf(ExternalSignalTrigger.class);
         assertThat(((ExternalSignalTrigger) reopen.trigger()).signalName()).isEqualTo("reopen");
 
-        TypeDefinition task = typeNamed(result, Fixtures.TASK_IRI);
-        assertThat(task.stateMachine()).isEmpty();
+        assertThat(result.stateMachines()).doesNotContainKey(Fixtures.TASK_IRI);
     }
 
     // -- Fixtures ---------------------------------------------------------------------------------
@@ -910,8 +910,7 @@ class StateMachineMappingTest {
     }
 
     private static StateMachineDefinition stateMachine(MappingResult result, String typeIri) {
-        return typeNamed(result, typeIri)
-                .stateMachine()
+        return Optional.ofNullable(result.stateMachines().get(typeIri))
                 .orElseThrow(() -> new AssertionError("No state machine mapped for " + typeIri));
     }
 
@@ -922,9 +921,18 @@ class StateMachineMappingTest {
                 .orElseThrow(() -> new AssertionError("No transition named " + name));
     }
 
+    /** The actions the automation half files under {@code transition}; empty when it has none. */
+    private static List<Action> actionsOf(MappingResult result, StateMachineDefinition machine, Transition transition) {
+        return result.transitionActions()
+                .getOrDefault(
+                        new TransitionRef(machine.iri(), transition.fromStateIri(), transition.name()), List.of());
+    }
+
     private static Action onlyAction(MappingResult result) {
-        Transition activate = transition(stateMachine(result, PROJECT_IRI), "activate");
-        assertThat(activate.actions()).hasSize(1);
-        return activate.actions().get(0);
+        StateMachineDefinition machine = stateMachine(result, PROJECT_IRI);
+        Transition activate = transition(machine, "activate");
+        List<Action> actions = actionsOf(result, machine, activate);
+        assertThat(actions).hasSize(1);
+        return actions.get(0);
     }
 }
