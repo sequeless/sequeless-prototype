@@ -170,8 +170,8 @@ class DefaultBusinessObjectServiceTest {
     /**
      * {@code sq:Rollup}-derived: {@code count} of {@code Task} via {@code belongsToProject},
      * filtered to {@code status != "open"}. The rule lives in {@link #BEHAVIOUR}, not on the
-     * attribute; it mirrors the rule {@code QueryFixtures.behaviour()} carries for {@code
-     * openTaskCount}.
+     * attribute. It has the shape of the rule in {@code QueryFixtures.behaviour()} (different filter
+     * value; materialised).
      */
     private static final AttributeDefinition OPEN_TASK_COUNT = new AttributeDefinition(
             OPEN_TASK_COUNT_IRI,
@@ -239,7 +239,7 @@ class DefaultBusinessObjectServiceTest {
     private static final TypeDefinition ABSTRACT_THING =
             new TypeDefinition(ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true);
 
-    private static final Schema SNAPSHOT = new Schema(
+    private static final Schema SCHEMA = new Schema(
             new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
@@ -275,7 +275,7 @@ class DefaultBusinessObjectServiceTest {
     }
 
     private static ValidationPort noViolations() {
-        return (scope, snapshot, object) -> List.of();
+        return (scope, schema, object) -> List.of();
     }
 
     private static BrowseQuery browseQuery(Page page) {
@@ -746,7 +746,7 @@ class DefaultBusinessObjectServiceTest {
                 false);
         RollupRule rule = (RollupRule) BEHAVIOUR.derivation(OPEN_TASK_COUNT_IRI).orElseThrow();
 
-        Map<ObjectId, Value> values = planner.computeRule(ALICE, SNAPSHOT, rule, Set.of(projectId), List.of(project));
+        Map<ObjectId, Value> values = planner.computeRule(ALICE, SCHEMA, rule, Set.of(projectId), List.of(project));
 
         assertThat(queryPort.aggregateRequests).hasSize(1);
         AggregateRequest request = queryPort.aggregateRequests.get(0);
@@ -1270,16 +1270,16 @@ class DefaultBusinessObjectServiceTest {
         private QueryResult response = new QueryResult(List.of(), 0, Map.of());
 
         @Override
-        public QueryResult query(Scope scope, Schema snapshot, Query query) {
+        public QueryResult query(Scope scope, Schema schema, Query query) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(query, "query must not be null");
             queries.add(query);
             return response;
         }
 
         @Override
-        public void ensureIndexes(Scope scope, Schema snapshot) {
+        public void ensureIndexes(Scope scope, Schema schema) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
@@ -1292,9 +1292,9 @@ class DefaultBusinessObjectServiceTest {
          * response that still respects the density contract.
          */
         @Override
-        public AggregateResult aggregate(Scope scope, Schema snapshot, AggregateRequest request) {
+        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(request, "request must not be null");
             aggregateRequests.add(request);
             if (request.function() == AggregateFunction.COUNT) {
@@ -1310,7 +1310,7 @@ class DefaultBusinessObjectServiceTest {
 
     /**
      * Hand-written stand-in for the two read ports, serving one schema and one behaviour. Defaults
-     * to the shared {@link #SNAPSHOT} schema and {@link #BEHAVIOUR} (every pre-existing test uses
+     * to the shared {@link #SCHEMA} schema and {@link #BEHAVIOUR} (every pre-existing test uses
      * the no-arg constructor), but a test that needs its own isolated schema and behaviour, e.g. a
      * state machine on its own type, can supply both directly rather than growing the shared
      * fixtures.
@@ -1321,7 +1321,7 @@ class DefaultBusinessObjectServiceTest {
         private final Behaviour behaviour;
 
         FakeOntology() {
-            this(SNAPSHOT, BEHAVIOUR);
+            this(SCHEMA, BEHAVIOUR);
         }
 
         FakeOntology(Schema schema, Behaviour behaviour) {
@@ -1357,9 +1357,9 @@ class DefaultBusinessObjectServiceTest {
         }
 
         @Override
-        public List<Violation> validate(Scope scope, Schema snapshot, BusinessObject object) {
+        public List<Violation> validate(Scope scope, Schema schema, BusinessObject object) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(object, "object must not be null");
             calls++;
             return violations;

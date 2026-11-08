@@ -139,7 +139,7 @@ class DefaultTriggerEvaluatorTest {
     private static final TypeDefinition TASK =
             new TypeDefinition(TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false);
 
-    private static final Schema SNAPSHOT = new Schema(
+    private static final Schema SCHEMA = new Schema(
             new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
@@ -436,7 +436,7 @@ class DefaultTriggerEvaluatorTest {
         @Override
         public Schema schema(TenantId tenant) {
             Objects.requireNonNull(tenant, "tenant must not be null");
-            return SNAPSHOT;
+            return SCHEMA;
         }
 
         @Override

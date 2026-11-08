@@ -222,7 +222,7 @@ class DefaultTransitionServiceTest {
     private static final TypeDefinition TIMER_WIDGET =
             new TypeDefinition(TIMER_WIDGET_IRI, "TimerWidget", List.of(), List.of(), DisplayHints.none(), false);
 
-    private static final Schema SNAPSHOT = new Schema(
+    private static final Schema SCHEMA = new Schema(
             new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
@@ -261,7 +261,7 @@ class DefaultTransitionServiceTest {
     }
 
     private static DefaultTransitionService service(FakeObjectStorePort store, AuthorizationPort authorizationPort) {
-        return service(store, authorizationPort, new FakeOntology(SNAPSHOT, BEHAVIOUR, AUTOMATION));
+        return service(store, authorizationPort, new FakeOntology(SCHEMA, BEHAVIOUR, AUTOMATION));
     }
 
     private static DefaultTransitionService service(
@@ -304,7 +304,7 @@ class DefaultTransitionServiceTest {
         store.seed(project(id, 5, DRAFT_IRI, properties));
         Automation otherVersion = new Automation(new OntologyVersion(2), AUTOMATION.transitionActions());
         DefaultTransitionService service =
-                service(store, permitAll(), new FakeOntology(SNAPSHOT, BEHAVIOUR, otherVersion));
+                service(store, permitAll(), new FakeOntology(SCHEMA, BEHAVIOUR, otherVersion));
 
         assertThatExceptionOfType(IllegalStateException.class)
                 .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 5));

@@ -338,19 +338,19 @@ class DefaultDerivationRecomputerTest {
         }
 
         @Override
-        public QueryResult query(Scope scope, Schema snapshot, Query query) {
+        public QueryResult query(Scope scope, Schema schema, Query query) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override
-        public void ensureIndexes(Scope scope, Schema snapshot) {
+        public void ensureIndexes(Scope scope, Schema schema) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override
-        public AggregateResult aggregate(Scope scope, Schema snapshot, AggregateRequest request) {
+        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(request, "request must not be null");
             aggregateRequests.add(request);
             Map<ObjectId, Value> values = new HashMap<>();

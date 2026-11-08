@@ -162,6 +162,29 @@ class DefaultMetaModelServiceTest {
     }
 
     @Test
+    void behaviourConsultsPortWithBrowseOperationAndEverythingResource() {
+        List<Operation> capturedOperations = new ArrayList<>();
+        List<String> capturedResources = new ArrayList<>();
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
+
+        service(new FakeOntology(SCHEMA, BEHAVIOUR), authorizationPort).behaviour(SCOPE);
+
+        assertThat(capturedOperations).containsExactly(Operation.BROWSE);
+        assertThat(capturedResources).containsExactly(AuthorizationPort.EVERYTHING);
+    }
+
+    @Test
+    void behaviourRejectsNullScope() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> service(new FakeOntology(SCHEMA, BEHAVIOUR), permitAll())
+                        .behaviour(null));
+    }
+
+    @Test
     void behaviourThrowsWithPortsOwnDecisionOnDenyAndDoesNotCallBehaviourSource() {
         FakeOntology ontology = new FakeOntology(SCHEMA, BEHAVIOUR);
         AccessDecision denial = AccessDecision.deny("no access");

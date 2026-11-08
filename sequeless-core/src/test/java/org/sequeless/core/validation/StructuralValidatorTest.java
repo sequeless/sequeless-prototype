@@ -72,7 +72,7 @@ class StructuralValidatorTest {
     private static final TypeDefinition ABSTRACT_THING =
             new TypeDefinition(ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true);
 
-    private static final Schema SNAPSHOT = new Schema(
+    private static final Schema SCHEMA = new Schema(
             new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
@@ -116,7 +116,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, Map.of(), store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, Map.of(), store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(TITLE_IRI);
@@ -127,7 +127,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, propsWithTitle(), store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, propsWithTitle(), store);
 
         assertThat(violations).isEmpty();
     }
@@ -143,7 +143,7 @@ class StructuralValidatorTest {
                 new ListValue(List.of(new TextValue("a"), new TextValue("b"), new TextValue("c"))));
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, props, store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, props, store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(TAGS_IRI);
@@ -159,7 +159,7 @@ class StructuralValidatorTest {
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(missing));
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, props, store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, props, store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(ASSIGNED_TO_IRI);
@@ -174,7 +174,7 @@ class StructuralValidatorTest {
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(projectId));
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, props, store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, props, store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEqualTo(ASSIGNED_TO_IRI);
@@ -188,7 +188,7 @@ class StructuralValidatorTest {
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(personId));
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, props, store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, props, store);
 
         assertThat(violations).isEmpty();
     }
@@ -201,7 +201,7 @@ class StructuralValidatorTest {
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(employeeId));
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, props, store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, props, store);
 
         assertThat(violations).isEmpty();
     }
@@ -213,7 +213,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, ABSTRACT_THING, Map.of(), store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, ABSTRACT_THING, Map.of(), store);
 
         assertThat(violations).hasSize(1);
         assertThat(violations.get(0).path()).isEmpty();
@@ -225,7 +225,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-                StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, BEHAVIOUR, ABSTRACT_THING, Map.of(), store);
+                StructuralValidator.validateForUpdate(SCOPE, SCHEMA, BEHAVIOUR, ABSTRACT_THING, Map.of(), store);
 
         assertThat(violations).isEmpty();
     }
@@ -248,8 +248,8 @@ class StructuralValidatorTest {
         props.put(new PropertyRef(ASSIGNED_TO_IRI), new ReferenceValue(personId));
         props.put(new PropertyRef(NS + "backup"), new ReferenceValue(personId));
 
-        List<Violation> violations = StructuralValidator.validateForCreate(
-                SCOPE, SNAPSHOT, BEHAVIOUR, typeWithTwoRelationships, props, store);
+        List<Violation> violations =
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, typeWithTwoRelationships, props, store);
 
         assertThat(violations).isEmpty();
         assertThat(store.typesOfCalls).isEqualTo(1);
@@ -263,7 +263,7 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
 
         List<Violation> violations =
-                StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, PERSON, Map.of(), store);
+                StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, PERSON, Map.of(), store);
 
         assertThat(violations).isEmpty();
     }
@@ -275,19 +275,19 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
         assertThatNullPointerException()
                 .isThrownBy(
-                        () -> StructuralValidator.validateForCreate(null, SNAPSHOT, BEHAVIOUR, TASK, Map.of(), store));
+                        () -> StructuralValidator.validateForCreate(null, SCHEMA, BEHAVIOUR, TASK, Map.of(), store));
         assertThatNullPointerException()
                 .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, null, BEHAVIOUR, TASK, Map.of(), store));
         assertThatNullPointerException()
-                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, null, TASK, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SCHEMA, null, TASK, Map.of(), store));
         assertThatNullPointerException()
                 .isThrownBy(
-                        () -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, null, Map.of(), store));
+                        () -> StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, null, Map.of(), store));
         assertThatNullPointerException()
-                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, null, store));
+                .isThrownBy(() -> StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, null, store));
         assertThatNullPointerException()
                 .isThrownBy(
-                        () -> StructuralValidator.validateForCreate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, Map.of(), null));
+                        () -> StructuralValidator.validateForCreate(SCOPE, SCHEMA, BEHAVIOUR, TASK, Map.of(), null));
     }
 
     @Test
@@ -295,19 +295,19 @@ class StructuralValidatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(Map.of());
         assertThatNullPointerException()
                 .isThrownBy(
-                        () -> StructuralValidator.validateForUpdate(null, SNAPSHOT, BEHAVIOUR, TASK, Map.of(), store));
+                        () -> StructuralValidator.validateForUpdate(null, SCHEMA, BEHAVIOUR, TASK, Map.of(), store));
         assertThatNullPointerException()
                 .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, null, BEHAVIOUR, TASK, Map.of(), store));
         assertThatNullPointerException()
-                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, null, TASK, Map.of(), store));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SCHEMA, null, TASK, Map.of(), store));
         assertThatNullPointerException()
                 .isThrownBy(
-                        () -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, BEHAVIOUR, null, Map.of(), store));
+                        () -> StructuralValidator.validateForUpdate(SCOPE, SCHEMA, BEHAVIOUR, null, Map.of(), store));
         assertThatNullPointerException()
-                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, null, store));
+                .isThrownBy(() -> StructuralValidator.validateForUpdate(SCOPE, SCHEMA, BEHAVIOUR, TASK, null, store));
         assertThatNullPointerException()
                 .isThrownBy(
-                        () -> StructuralValidator.validateForUpdate(SCOPE, SNAPSHOT, BEHAVIOUR, TASK, Map.of(), null));
+                        () -> StructuralValidator.validateForUpdate(SCOPE, SCHEMA, BEHAVIOUR, TASK, Map.of(), null));
     }
 
     /**

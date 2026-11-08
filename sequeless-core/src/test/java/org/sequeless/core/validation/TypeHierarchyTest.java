@@ -34,7 +34,7 @@ class TypeHierarchyTest {
     private static final TypeDefinition PROJECT = type(PROJECT_IRI, List.of(WORK_ITEM_IRI));
     private static final TypeDefinition PERSON = type(PERSON_IRI, List.of());
 
-    private static final Schema SNAPSHOT = new Schema(
+    private static final Schema SCHEMA = new Schema(
             new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
@@ -47,46 +47,44 @@ class TypeHierarchyTest {
 
     @Test
     void taskIsSubtypeOfWorkItem() {
-        assertThat(TypeHierarchy.isSubtypeOf(SNAPSHOT, TASK_IRI, WORK_ITEM_IRI)).isTrue();
+        assertThat(TypeHierarchy.isSubtypeOf(SCHEMA, TASK_IRI, WORK_ITEM_IRI)).isTrue();
     }
 
     @Test
     void taskIsTransitiveSubtypeOfDeliverable() {
-        assertThat(TypeHierarchy.isSubtypeOf(SNAPSHOT, TASK_IRI, DELIVERABLE_IRI))
-                .isTrue();
+        assertThat(TypeHierarchy.isSubtypeOf(SCHEMA, TASK_IRI, DELIVERABLE_IRI)).isTrue();
     }
 
     @Test
     void taskIsReflexivelyASubtypeOfItself() {
-        assertThat(TypeHierarchy.isSubtypeOf(SNAPSHOT, TASK_IRI, TASK_IRI)).isTrue();
+        assertThat(TypeHierarchy.isSubtypeOf(SCHEMA, TASK_IRI, TASK_IRI)).isTrue();
     }
 
     @Test
     void personIsNotASubtypeOfWorkItem() {
-        assertThat(TypeHierarchy.isSubtypeOf(SNAPSHOT, PERSON_IRI, WORK_ITEM_IRI))
-                .isFalse();
+        assertThat(TypeHierarchy.isSubtypeOf(SCHEMA, PERSON_IRI, WORK_ITEM_IRI)).isFalse();
     }
 
     @Test
     void workItemIsNotASubtypeOfTaskWrongDirection() {
-        assertThat(TypeHierarchy.isSubtypeOf(SNAPSHOT, WORK_ITEM_IRI, TASK_IRI)).isFalse();
+        assertThat(TypeHierarchy.isSubtypeOf(SCHEMA, WORK_ITEM_IRI, TASK_IRI)).isFalse();
     }
 
     @Test
     void candidateNotInSnapshotIsFalseNotAThrow() {
-        assertThat(TypeHierarchy.isSubtypeOf(SNAPSHOT, "urn:unknown", WORK_ITEM_IRI))
+        assertThat(TypeHierarchy.isSubtypeOf(SCHEMA, "urn:unknown", WORK_ITEM_IRI))
                 .isFalse();
     }
 
     @Test
     void typeAndSubtypesOfWorkItemReturnsWorkItemTaskAndProjectOnly() {
-        assertThat(TypeHierarchy.typeAndSubtypes(SNAPSHOT, WORK_ITEM_IRI))
+        assertThat(TypeHierarchy.typeAndSubtypes(SCHEMA, WORK_ITEM_IRI))
                 .containsExactlyInAnyOrder(new TypeRef(WORK_ITEM_IRI), new TypeRef(TASK_IRI), new TypeRef(PROJECT_IRI));
     }
 
     @Test
     void typeAndSubtypesOfDeliverableReturnsAllFourWorkItemHierarchyTypes() {
-        assertThat(TypeHierarchy.typeAndSubtypes(SNAPSHOT, DELIVERABLE_IRI))
+        assertThat(TypeHierarchy.typeAndSubtypes(SCHEMA, DELIVERABLE_IRI))
                 .containsExactlyInAnyOrder(
                         new TypeRef(DELIVERABLE_IRI),
                         new TypeRef(WORK_ITEM_IRI),
@@ -96,21 +94,21 @@ class TypeHierarchyTest {
 
     @Test
     void typeAndSubtypesOfLeafPersonReturnsOnlyItself() {
-        assertThat(TypeHierarchy.typeAndSubtypes(SNAPSHOT, PERSON_IRI)).containsExactly(new TypeRef(PERSON_IRI));
+        assertThat(TypeHierarchy.typeAndSubtypes(SCHEMA, PERSON_IRI)).containsExactly(new TypeRef(PERSON_IRI));
     }
 
     @Test
     void concreteTypeAndSubtypesOfConcreteLeafResolvesToItselfOnly() {
-        assertThat(TypeHierarchy.concreteTypeAndSubtypes(SNAPSHOT, TASK_IRI)).containsExactly(TASK_IRI);
+        assertThat(TypeHierarchy.concreteTypeAndSubtypes(SCHEMA, TASK_IRI)).containsExactly(TASK_IRI);
     }
 
     @Test
     void concreteTypeAndSubtypesOfAbstractTypeExcludesAbstractAncestorsAndSelf() {
-        Schema snapshotWithAbstractWorkItem = new Schema(
-                SNAPSHOT.ontologyVersion(),
-                SNAPSHOT.ontologyIri(),
-                SNAPSHOT.versionIri(),
-                SNAPSHOT.prefixes(),
+        Schema schemaWithAbstractWorkItem = new Schema(
+                SCHEMA.ontologyVersion(),
+                SCHEMA.ontologyIri(),
+                SCHEMA.versionIri(),
+                SCHEMA.prefixes(),
                 List.of(
                         DELIVERABLE,
                         new TypeDefinition(
@@ -124,26 +122,26 @@ class TypeHierarchyTest {
                         PROJECT,
                         PERSON));
 
-        assertThat(TypeHierarchy.concreteTypeAndSubtypes(snapshotWithAbstractWorkItem, WORK_ITEM_IRI))
+        assertThat(TypeHierarchy.concreteTypeAndSubtypes(schemaWithAbstractWorkItem, WORK_ITEM_IRI))
                 .containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
     }
 
     @Test
     void concreteTypeAndSubtypesRejectsNullArguments() {
         assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.concreteTypeAndSubtypes(null, WORK_ITEM_IRI));
-        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.concreteTypeAndSubtypes(SNAPSHOT, null));
+        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.concreteTypeAndSubtypes(SCHEMA, null));
     }
 
     @Test
     void isSubtypeOfRejectsNullArguments() {
         assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.isSubtypeOf(null, TASK_IRI, WORK_ITEM_IRI));
-        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.isSubtypeOf(SNAPSHOT, null, WORK_ITEM_IRI));
-        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.isSubtypeOf(SNAPSHOT, TASK_IRI, null));
+        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.isSubtypeOf(SCHEMA, null, WORK_ITEM_IRI));
+        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.isSubtypeOf(SCHEMA, TASK_IRI, null));
     }
 
     @Test
     void typeAndSubtypesRejectsNullArguments() {
         assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.typeAndSubtypes(null, WORK_ITEM_IRI));
-        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.typeAndSubtypes(SNAPSHOT, null));
+        assertThatNullPointerException().isThrownBy(() -> TypeHierarchy.typeAndSubtypes(SCHEMA, null));
     }
 }
