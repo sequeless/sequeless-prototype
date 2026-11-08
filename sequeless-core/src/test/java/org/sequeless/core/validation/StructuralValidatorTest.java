@@ -313,7 +313,7 @@ class StructuralValidatorTest {
     /**
      * Hand-written {@link ObjectStorePort} double; only {@code typesOf} is exercised by these
      * tests, so every other method throws {@link UnsupportedOperationException}, the same idiom as
-     * {@code DefaultMetaModelServiceTest}'s {@code FakeOntologyPort}.
+     * {@code DefaultMetaModelServiceTest}'s {@code FakeOntology}.
      */
     private static final class FakeObjectStorePort implements ObjectStorePort {
 

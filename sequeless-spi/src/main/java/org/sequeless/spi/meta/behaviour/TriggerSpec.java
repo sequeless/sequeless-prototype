@@ -9,7 +9,7 @@ package org.sequeless.spi.meta.behaviour;
  * its states: a user calls {@code activate}; {@code autoClose} reacts to a {@code ex:Task}
  * changing; {@code expireHold} reacts to 72 hours passing in {@code ex:OnHold}; {@code reopen}
  * reacts to a {@code "reopen"} signal. Sealed to exactly these four permitted implementations, so a
- * {@code switch} over {@code TriggerSpec} is exhaustive without a default case, mirroring {@link org.sequeless.spi.meta.automation.Action} and {@link DerivationRule}.
+ * {@code switch} over {@code TriggerSpec} is exhaustive without a default case, mirroring {@code org.sequeless.spi.meta.automation.Action} and {@link DerivationRule}.
  *
  * <p>{@code permits} is declared explicitly rather than left implicit because each permitted type
  * lives in its own file, not nested inside this one; implicit permits only works for subtypes

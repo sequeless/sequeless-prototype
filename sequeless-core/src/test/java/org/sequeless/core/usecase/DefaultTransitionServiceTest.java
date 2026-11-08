@@ -79,11 +79,11 @@ import org.sequeless.spi.object.Update;
  * Unit tests for {@link DefaultTransitionService}, built against a hand-written {@code Project}
  * type carrying a {@code ProjectLifecycle} state machine (Draft/Active/Closed/Archived), the same
  * idiom {@link DefaultBusinessObjectServiceTest} uses: every port double is either a plain lambda
- * ({@link AuthorizationPort}) or a small hand-written fake ({@link FakeOntologyPort}, {@link
+ * ({@link AuthorizationPort}) or a small hand-written fake ({@link FakeOntology}, {@link
  * FakeObjectStorePort}, {@link FakeExpressionPort}) rather than a mocking framework. There is no
  * {@link ExpressionPort} adapter {@code sequeless-core} can depend on (the JEXL adapter lives in a
  * different module), so {@link FakeExpressionPort} hand-special-cases the one guard expression
- * these fixtures use, exactly as {@link FakeOntologyPort}/{@code FakeQueryPort} elsewhere in this
+ * these fixtures use, exactly as {@link FakeOntology}/{@code FakeQueryPort} elsewhere in this
  * package are hand-rolled rather than mocked.
  */
 class DefaultTransitionServiceTest {
