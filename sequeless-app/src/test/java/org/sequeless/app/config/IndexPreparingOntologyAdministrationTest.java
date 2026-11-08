@@ -21,7 +21,9 @@ import org.sequeless.spi.ontology.OntologyAdministration;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.ontology.OntologyFormat;
+import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.ontology.Severity;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Query;
@@ -112,7 +114,8 @@ class IndexPreparingOntologyAdministrationTest {
     }
 
     private static OntologyReport inconsistentReport() {
-        return new OntologyReport(false, List.of());
+        OntologyIssue error = new OntologyIssue(Severity.ERROR, Optional.empty(), "inconsistent by fixture");
+        return new OntologyReport(false, List.of(error));
     }
 
     /** One {@link QueryPort#ensureIndexes} invocation: the scope and the Schema it was given. */
