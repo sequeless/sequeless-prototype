@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.AggregateFunction;
+import org.sequeless.spi.meta.schema.AggregateFunction;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -107,7 +107,7 @@ class PostgresQueryStoreIndexUsageIT {
         Scope scope = Fixtures.defaultScope();
         String tenantId = scope.tenantId().value();
 
-        queryPort.ensureIndexes(scope, QueryFixtures.snapshot());
+        queryPort.ensureIndexes(scope, QueryFixtures.schema());
 
         String indexName = jdbcClient
                 .sql("SELECT index_name FROM sq_index_registry WHERE tenant_id = :tenantId "
@@ -159,7 +159,7 @@ class PostgresQueryStoreIndexUsageIT {
         Scope scope = Fixtures.defaultScope();
         String tenantId = scope.tenantId().value();
 
-        queryPort.ensureIndexes(scope, QueryFixtures.snapshot());
+        queryPort.ensureIndexes(scope, QueryFixtures.schema());
 
         int projectCount = 8;
         List<ObjectId> projectIds = seedProjects(scope, projectCount);
@@ -173,7 +173,7 @@ class PostgresQueryStoreIndexUsageIT {
                 Optional.empty(),
                 List.of());
 
-        AggregateResult result = queryPort.aggregate(scope, QueryFixtures.snapshot(), request);
+        AggregateResult result = queryPort.aggregate(scope, QueryFixtures.schema(), request);
         assertThat(result.values()).hasSize(projectCount);
 
         // Reconstructs the exact SQL PostgresQueryStore.aggregate builds for this request: a single

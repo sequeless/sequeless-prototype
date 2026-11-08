@@ -27,7 +27,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * the same underlying data.
  *
  * <p>{@link #freshEnvironment()} also calls {@code ensureIndexes(Fixtures.defaultScope(),
- * QueryFixtures.snapshot())} before returning, mirroring the order every real caller uses:
+ * QueryFixtures.schema())} before returning, mirroring the order every real caller uses:
  * ontology activation always calls {@code ensureIndexes} before any query runs (plan.md
  * "PostgreSQL adapter design"). This matters for correctness, not just performance, for this
  * adapter: {@code query}'s free-text search matches against the persisted {@code search_vector}
@@ -43,7 +43,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * {@code sq_object}, {@code sq_ontology_document}, and {@code sq_outbox} are truncated, matching
  * what {@link PostgresObjectStoreContractIT} truncates. Since every test's {@code
  * freshEnvironment()} calls {@code ensureIndexes} against the same {@code
- * QueryFixtures#snapshot()}, leaving the registries populated across tests exercises {@code
+ * QueryFixtures#schema()}, leaving the registries populated across tests exercises {@code
  * ensureIndexes}'s idempotent "skip if already registered" path on every test after the first.
  */
 @Testcontainers
@@ -74,7 +74,7 @@ class PostgresQueryStoreContractIT extends QueryContract {
         JdbcClient jdbcClient = JdbcClient.create(dataSource);
         PostgresObjectStore store = new PostgresObjectStore(jdbcClient, transactionManager);
         PostgresQueryStore queryPort = new PostgresQueryStore(jdbcClient, transactionManager);
-        queryPort.ensureIndexes(Fixtures.defaultScope(), QueryFixtures.snapshot());
+        queryPort.ensureIndexes(Fixtures.defaultScope(), QueryFixtures.schema());
         return new Environment(store, queryPort);
     }
 }
