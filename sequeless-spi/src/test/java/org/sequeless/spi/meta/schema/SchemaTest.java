@@ -25,6 +25,17 @@ class SchemaTest {
     }
 
     @Test
+    void carriesTheVersionOfTheActivationItWasReadFrom() {
+        assertThat(schema(List.of()).ontologyVersion()).isEqualTo(VERSION);
+    }
+
+    @Test
+    void rejectsNullOntologyVersion() {
+        assertThatNullPointerException()
+                .isThrownBy(() -> new Schema(null, "https://example.org/ns", Optional.empty(), Map.of(), List.of()));
+    }
+
+    @Test
     void shortNameIsDerivedFromTheHashFragment() {
         Schema schema = schema(List.of(typeWithIri("https://example.org/ns#Task")));
 
