@@ -46,7 +46,7 @@ import org.sequeless.spi.validation.Violation;
  *
  * <p>A {@code readOnly} property supplied by the caller is always a violation, but the message
  * distinguishes two different reasons: a plain read-only property (e.g. {@code createdAt}) reports
- * "is read-only", while a property with a {@link PropertyDefinition#derivation()} present — one
+ * "is read-only", while a property with a {@link Behaviour#derivation(String)} present — one
  * whose value is computed, not stored, such as an {@code sq:Rollup} — reports "is a derived
  * property and cannot be set directly", since that is a more specific and more actionable message
  * for a caller who tried to PUT/POST one. Whether a property is derived is read from the {@link
@@ -177,7 +177,7 @@ public final class ValueCoercer {
      * Coerces a single raw scalar value against {@code property}'s datatype, independent of {@code
      * property}'s own declared cardinality.
      *
-     * <p>This exists because the public {@link #coerce(TypeDefinition, Map)} entry point branches
+     * <p>This exists because the public {@link #coerce(TypeDefinition, Behaviour, Map)} entry point branches
      * on the property's own cardinality and rejects a {@code List} input outright for a
      * scalar-cardinality property — but query filter coercion needs exactly that combination: an
      * {@code Operator#IN} filter must coerce N candidate values against a single-cardinality
