@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
@@ -73,7 +74,8 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void referenceSchemaProvesAcceptanceCriterion1() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         Schema schema = port.schema(TENANT);
 
         TypeDefinition task = type(schema, Fixtures.TASK_IRI);
@@ -93,7 +95,8 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void inconsistentOntologyReportNamesTheOffendingClassProvingAcceptanceCriterion2() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.inconsistentOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
@@ -109,8 +112,10 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void reasonerNoneOmitsInferredSuperTypesProvingAcceptanceCriterion3() {
-        JenaOntologyPort owlPort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        JenaOntologyPort nonePort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.NONE);
+        JenaOntologyPort owlPort = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
+        JenaOntologyPort nonePort = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.NONE, () -> Set.of("workload"));
 
         TypeDefinition taskUnderOwl = type(owlPort.schema(TENANT), Fixtures.TASK_IRI);
         assertThat(taskUnderOwl.superTypes()).contains(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI);
@@ -122,8 +127,10 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void inverseIsVisibleOnlyUnderTheOwlReasoner() {
-        JenaOntologyPort owlPort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        JenaOntologyPort nonePort = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.NONE);
+        JenaOntologyPort owlPort = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
+        JenaOntologyPort nonePort = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.NONE, () -> Set.of("workload"));
 
         TypeDefinition projectUnderOwl = type(owlPort.schema(TENANT), Fixtures.PROJECT_IRI);
         assertThat(relationship(projectUnderOwl, Fixtures.HAS_TASK_IRI).inverseIri())
@@ -136,8 +143,8 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void inverseTransitiveFixtureShowsTransitiveFlagAndReverseAssertedInverse() {
-        JenaOntologyPort port =
-                JenaOntologyPort.fromDocument(Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         TypeDefinition component = type(port.schema(TENANT), COMPONENT_IRI);
 
         RelationshipDefinition partOf = relationship(component, PART_OF_IRI);
@@ -162,7 +169,8 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void cardinalityFromRestrictionsAndFromFunctionalPropertyIsMapped() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         TypeDefinition task = type(port.schema(TENANT), Fixtures.TASK_IRI);
 
         AttributeDefinition title = attribute(task, Fixtures.TITLE_IRI);
@@ -178,7 +186,8 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void displayHintsAndFlagsMapCorrectlyForEveryAnnotatedProperty() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         TypeDefinition task = type(port.schema(TENANT), Fixtures.TASK_IRI);
 
         AttributeDefinition title = attribute(task, Fixtures.TITLE_IRI);
@@ -213,8 +222,8 @@ class JenaOntologyPortAcceptanceTest {
 
             ex:Widget a owl:Class ; sq:permission true .
             """;
-        JenaOntologyPort port =
-                JenaOntologyPort.fromDocument(new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
@@ -239,7 +248,8 @@ class JenaOntologyPortAcceptanceTest {
      */
     @Test
     void referenceBehaviourMapsProjectRollupsUnderTheOwlReasonerTheAppActuallyUses() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         TypeDefinition project = type(port.schema(TENANT), Fixtures.PROJECT_IRI);
         Behaviour behaviour = port.behaviour(TENANT);
 
@@ -277,7 +287,8 @@ class JenaOntologyPortAcceptanceTest {
      */
     @Test
     void referenceBehaviourAndAutomationAnswerWhatTheRemovedAccessorsAnsweredAtAafb5a9() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         Behaviour behaviour = port.behaviour(TENANT);
         Automation automation = port.automation(TENANT);
 
@@ -310,14 +321,15 @@ class JenaOntologyPortAcceptanceTest {
     /**
      * T5 regression guard, first positive proof {@code ServiceLoader} plug-in discovery works end
      * to end: {@code reference-plugin.ttl}'s {@code ex:workload} names {@code "workload"}, which
-     * this reactor's {@code sequeless-spi-testkit} module now registers via {@code
-     * META-INF/services/org.sequeless.spi.derivation.DerivationPlugin} (the sample {@code
-     * WorkloadDerivationPlugin}). Activation must succeed — T4 already proves the opposite case
-     * (an unregistered name fails activation) in {@code UnknownPluginActivationTest}.
+     * this reactor's {@code sequeless-spi-testkit} module now registers via the testkit's services
+     * registration of the sample plugin ({@code WorkloadDerivationPlugin}). Activation must succeed
+     * — T4 already proves the opposite case (an unregistered name fails activation) in {@code
+     * UnknownPluginActivationTest}.
      */
     @Test
     void referencePluginFixtureActivatesCleanlyNowThatWorkloadIsRegistered() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referencePluginOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referencePluginOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         Schema schema = port.schema(TENANT);
 
         OntologyReport report = port.reload(SCOPE);
@@ -334,7 +346,8 @@ class JenaOntologyPortAcceptanceTest {
     }
 
     private static List<String> propertyIris(ReasonerSetting reasoner, String typeIri) {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), reasoner);
+        JenaOntologyPort port =
+                JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), reasoner, () -> Set.of("workload"));
         return type(port.schema(TENANT), typeIri).properties().stream()
                 .map(PropertyDefinition::iri)
                 .toList();

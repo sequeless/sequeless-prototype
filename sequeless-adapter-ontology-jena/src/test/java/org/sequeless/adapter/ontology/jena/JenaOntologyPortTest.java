@@ -3,6 +3,7 @@ package org.sequeless.adapter.ontology.jena;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
@@ -32,14 +33,16 @@ class JenaOntologyPortTest {
     void fromDocumentNeverThrowsEvenForAnInconsistentDocument() {
         // F20: building must succeed regardless of what the document contains; only the reads (and
         // friends) may throw.
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.inconsistentOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         assertThatThrownBy(() -> Halves.of(port)).isInstanceOf(OntologyException.class);
     }
 
     @Test
     void schemaOfACleanDocumentIsCachedAndStable() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         Schema first = port.schema(TenantId.DEFAULT);
         Schema second = port.schema(TenantId.DEFAULT);
@@ -50,7 +53,8 @@ class JenaOntologyPortTest {
 
     @Test
     void reloadOnAnUnchangedDocumentKeepsTheContent() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         Halves before = Halves.of(port);
         OntologyReport reloaded = port.reload(SCOPE);
@@ -66,7 +70,10 @@ class JenaOntologyPortTest {
         // genuinely valid, consistent ontology, so it doubles as a convenient fixture here without
         // needing a dedicated test-only resource.
         JenaOntologyPort port = JenaOntologyPort.fromSource(
-                "test.ontology.source", "classpath:ontology/sq-meta.ttl", ReasonerSetting.OWL);
+                "test.ontology.source",
+                "classpath:ontology/sq-meta.ttl",
+                ReasonerSetting.OWL,
+                () -> Set.of("workload"));
 
         Halves before = Halves.of(port);
         assertThat(before.schema().ontologyIri()).isEqualTo(ImportResolver.SQ_META_IRI);
@@ -81,14 +88,18 @@ class JenaOntologyPortTest {
         // "inconsistent ontology" -- it must fail fast, unlike F20's deferred-validation guarantee
         // for a document whose *content* is merely inconsistent.
         assertThatThrownBy(() -> JenaOntologyPort.fromSource(
-                        "test.ontology.source", "classpath:ontology/does-not-exist.ttl", ReasonerSetting.OWL))
+                        "test.ontology.source",
+                        "classpath:ontology/does-not-exist.ttl",
+                        ReasonerSetting.OWL,
+                        () -> Set.of("workload")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("test.ontology.source");
     }
 
     @Test
     void failedImportDocumentPreservesThePreviousGoodHalves() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         Halves before = Halves.of(port);
 
         assertThatThrownBy(() -> port.importDocument(SCOPE, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
@@ -105,7 +116,8 @@ class JenaOntologyPortTest {
      */
     @Test
     void failedReloadLeavesTheThreeHalvesAndTheirVersionUnchanged() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.inconsistentOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         port.importDocument(SCOPE, Fixtures.referenceOntology(), ImportMode.REPLACE);
         Halves before = Halves.of(port);
         assertThat(before.version()).isEqualTo(new OntologyVersion(2));
@@ -121,7 +133,8 @@ class JenaOntologyPortTest {
 
     @Test
     void successfulImportDocumentReplacesTheLiveState() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         Halves before = Halves.of(port);
 
         ImportReport report = port.importDocument(SCOPE, Fixtures.inverseTransitiveOntology(), ImportMode.REPLACE);
@@ -136,7 +149,8 @@ class JenaOntologyPortTest {
 
     @Test
     void exportThenImportRoundTripsToEqualHalvesWithAGreaterVersion() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         Halves before = Halves.of(port);
 
         OntologyDocument exported = port.export(SCOPE, OntologyFormat.TURTLE);
@@ -149,8 +163,10 @@ class JenaOntologyPortTest {
 
     @Test
     void twoIndependentlyBuiltPortsFromTheSameDocumentAgreeOnTheHalves() {
-        JenaOntologyPort first = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
-        JenaOntologyPort second = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort first = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
+        JenaOntologyPort second = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         assertThat(Halves.of(first)).isEqualTo(Halves.of(second));
     }
@@ -160,7 +176,8 @@ class JenaOntologyPortTest {
         // Documents the reasoner=none / rdfs hazard: this is a property of the reasoner, not a
         // defect, and is exactly why the shipped default (JenaOntologyProperties, added in a later
         // task) is `owl`.
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.inconsistentOntology(), ReasonerSetting.NONE);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.inconsistentOntology(), ReasonerSetting.NONE, () -> Set.of("workload"));
 
         assertThat(Halves.of(port)).isNotNull();
         assertThat(port.reload(SCOPE).consistent()).isTrue();
@@ -168,7 +185,8 @@ class JenaOntologyPortTest {
 
     @Test
     void withoutAStoreTheVersionIsACounterThatOnlySuccessfulActivationsAdvance() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.OWL);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(1));
 
         port.importDocument(SCOPE, Fixtures.inverseTransitiveOntology(), ImportMode.REPLACE);

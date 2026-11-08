@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
@@ -33,7 +34,7 @@ import org.sequeless.testkit.Fixtures;
 class ShaclDataGraphBuilderTest {
 
     private static final Schema SCHEMA = JenaOntologyPort.fromDocument(
-                    Fixtures.referenceOntology(), ReasonerSetting.OWL)
+                    Fixtures.referenceOntology(), ReasonerSetting.OWL, () -> Set.of("workload"))
             .schema(TenantId.DEFAULT);
 
     @Test
