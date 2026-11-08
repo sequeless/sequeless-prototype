@@ -6,7 +6,7 @@
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
  * the JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
  * org.sequeless.kernel.identity.Scope} from its parent package, {@link
- * org.sequeless.spi.meta.MetaModelSnapshot} and {@link org.sequeless.spi.meta.AggregateFunction}
+ * org.sequeless.spi.meta.schema.MetaModelSnapshot} and {@link org.sequeless.spi.meta.schema.AggregateFunction}
  * from {@code org.sequeless.spi.meta}, and {@link org.sequeless.kernel.values.Value}, {@link
  * org.sequeless.spi.object.BusinessObject}, {@link org.sequeless.kernel.values.ObjectId}, and {@link
  * org.sequeless.spi.object.Page} from {@code org.sequeless.spi.object}. {@link
@@ -24,7 +24,7 @@
  * the analogous request/response pair for {@link org.sequeless.spi.query.QueryPort#aggregate},
  * which backs {@code sq:Rollup}-derived properties: a request bundles the source types to aggregate,
  * the relationship pointing back to the targets, the target ids, the {@link
- * org.sequeless.spi.meta.AggregateFunction} to compute, an optional aggregated property, and filter
+ * org.sequeless.spi.meta.schema.AggregateFunction} to compute, an optional aggregated property, and filter
  * criteria; a result carries back the computed value per target id.
  *
  * <p>This package deliberately reuses {@link org.sequeless.kernel.values.Value} for {@link

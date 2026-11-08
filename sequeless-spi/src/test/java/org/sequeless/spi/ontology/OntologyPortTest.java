@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.MetaModelSnapshot;
 
 /**
  * Unit-level tests for the {@link OntologyPort} interface shape itself. The full behavioural

@@ -11,7 +11,7 @@ import java.util.function.BiFunction;
  * next poll. Originally shaped around {@link OutboxEntry#KIND_ACTION_REQUEST} alone, this port now
  * claims across whatever set of kinds the caller names — {@code OutboxRelay} passes the full
  * dispatchable set ({@link OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, and
- * the three automation kinds introduced alongside {@link org.sequeless.spi.meta.TriggerSpec}) —
+ * the three automation kinds introduced alongside {@link org.sequeless.spi.meta.behaviour.TriggerSpec}) —
  * because a single relay now fans one polling loop out to several inbound ports rather than always
  * calling {@code ActionExecutor}. {@link OutboxEntry#KIND_TRANSITION_FIRED} stays audit-only and
  * must never appear in the requested {@code kinds}, since nothing ever claims it.

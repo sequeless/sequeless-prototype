@@ -1,7 +1,7 @@
 package org.sequeless.spi.ontology;
 
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.MetaModelSnapshot;
 
 /**
  * The outbound port that gives the application its type system. Exactly one implementation is

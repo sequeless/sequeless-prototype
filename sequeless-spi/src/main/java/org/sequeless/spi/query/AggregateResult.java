@@ -9,7 +9,7 @@ import org.sequeless.kernel.values.Value;
  * The outcome of a single {@link QueryPort#aggregate} call: the computed value per target id, per
  * the density contract documented on {@link QueryPort#aggregate} — dense (every requested target
  * id present, {@link org.sequeless.kernel.values.IntegerValue} {@code 0} when it has no matching
- * source rows) for {@link org.sequeless.spi.meta.AggregateFunction#COUNT}, and simply absent for a
+ * source rows) for {@link org.sequeless.spi.meta.schema.AggregateFunction#COUNT}, and simply absent for a
  * target with no matching source rows for every other function, so "no sources" stays
  * distinguishable from "sources totalling zero".
  *

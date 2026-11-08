@@ -2,7 +2,7 @@ package org.sequeless.spi.validation;
 
 import java.util.List;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.MetaModelSnapshot;
 import org.sequeless.spi.object.BusinessObject;
 
 /**
