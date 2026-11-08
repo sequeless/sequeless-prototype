@@ -1,6 +1,10 @@
 package org.sequeless.app;
 
+import static com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn;
+import static com.tngtech.archunit.core.domain.JavaCall.Predicates.target;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.name;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
@@ -13,8 +17,6 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.query.QueryPort;
 
 /**
@@ -45,7 +47,8 @@ class ArchitectureTest {
     private static final String QUERY_PACKAGE = "org.sequeless.spi.query..";
     private static final String ONTOLOGY_PACKAGE = "org.sequeless.spi.ontology..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
-    private static final String TESTKIT_PACKAGE = "org.sequeless.testkit..";
+    private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
+    private static final String ENSURE_INDEXES = "ensureIndexes";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -257,15 +260,16 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule onlyHostPreparesIndexes = noClasses()
             .that()
-            .resideOutsideOfPackages(HOST_CONFIG_PACKAGE, TESTKIT_PACKAGE)
+            .resideOutsideOfPackages(HOST_CONFIG_PACKAGE, TESTKIT_QUERY_PACKAGE)
             .should()
-            .callMethod(QueryPort.class, "ensureIndexes", Scope.class, Schema.class)
+            .callMethodWhere(target(name(ENSURE_INDEXES)).and(target(declaredIn(assignableTo(QueryPort.class)))))
             .because("index preparation after an ontology activation is a host responsibility (#24). Only the "
                     + "host's configuration package may call QueryPort#ensureIndexes in production code, so that "
                     + "the use cases never see QueryPort for that purpose and the host can swap it to the "
-                    + "prepare(tenant, version) call of spec 13 in one place. The testkit's contract kit "
-                    + "(org.sequeless.testkit) is excluded: it exercises the port's own contract, including the "
-                    + "null-argument clause, and is not a production caller.");
+                    + "prepare(tenant, version) call of spec 13 in one place. The call is matched on its owner "
+                    + "type, so a call through a concrete store such as PostgresQueryStore is caught too. The "
+                    + "testkit's query contract kit (org.sequeless.testkit.query) is excluded: it exercises the "
+                    + "port's own contract, including the null-argument clause, and is not a production caller.");
 
     /**
      * Proves this suite is analyzing real classes from every module rather than passing
