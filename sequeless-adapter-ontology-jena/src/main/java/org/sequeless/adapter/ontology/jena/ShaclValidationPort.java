@@ -11,7 +11,7 @@ import org.apache.jena.shacl.validation.ReportEntry;
 import org.apache.jena.sparql.path.P_Link;
 import org.apache.jena.sparql.path.Path;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
@@ -22,18 +22,17 @@ import org.sequeless.spi.validation.Violation;
  * API shapes — see this class's constructor javadoc and plan §4 "Validation split").
  *
  * <h2>Why this class depends on the concrete {@link JenaOntologyPort}, not {@link
- * org.sequeless.spi.ontology.OntologyPort}</h2>
+ * org.sequeless.spi.ontology.OntologyAdministration}</h2>
  *
- * <p>SHACL shapes live in the same ontology document the running {@link
- * org.sequeless.spi.ontology.OntologyPort} serves, and must always reflect whatever that port's
- * current ontology is — including after a live {@code importDocument} swaps it. {@link
- * JenaOntologyPort#currentModel(Scope)} is the package-private accessor that exposes the live
- * {@code OntModel} (and, via {@link org.apache.jena.rdf.model.Model#getGraph()}, the shapes graph
- * embedded in it) to code in this same package. The SPI's {@code OntologyPort} interface
- * deliberately has no such accessor — see the ArchUnit rule that nothing outside this adapter may
- * see Jena types — so this class must be constructed with the concrete {@link JenaOntologyPort}
- * rather than the interface. {@link ShaclValidationAutoConfiguration} is what guarantees the same
- * {@link JenaOntologyPort} instance backs both the {@code OntologyPort} and this {@code
+ * <p>SHACL shapes live in the same ontology document the running {@link JenaOntologyPort} serves,
+ * and must always reflect whatever that port's current ontology is — including after a live {@code
+ * importDocument} swaps it. {@link JenaOntologyPort#currentModel(Scope)} is the package-private
+ * accessor that exposes the live {@code OntModel} (and, via {@link
+ * org.apache.jena.rdf.model.Model#getGraph()}, the shapes graph embedded in it) to code in this same
+ * package. The SPI's ports deliberately have no such accessor — see the ArchUnit rule that nothing
+ * outside this adapter may see Jena types — so this class must be constructed with the concrete
+ * {@link JenaOntologyPort} rather than an interface. {@link ShaclValidationAutoConfiguration} is what
+ * guarantees the same {@link JenaOntologyPort} instance backs both the ontology ports and this {@code
  * ValidationPort} bean.
  */
 public final class ShaclValidationPort implements ValidationPort {
@@ -50,14 +49,14 @@ public final class ShaclValidationPort implements ValidationPort {
     }
 
     @Override
-    public List<Violation> validate(Scope scope, MetaModelSnapshot snapshot, BusinessObject object) {
+    public List<Violation> validate(Scope scope, Schema schema, BusinessObject object) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(object, "object must not be null");
 
         Graph shapesGraph = ontologyPort.currentModel(scope).getGraph();
         Shapes shapes = Shapes.parse(shapesGraph);
-        Graph dataGraph = ShaclDataGraphBuilder.build(snapshot, object);
+        Graph dataGraph = ShaclDataGraphBuilder.build(schema, object);
 
         ValidationReport report = ShaclValidator.get().validate(shapes, dataGraph);
 

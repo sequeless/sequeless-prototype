@@ -21,7 +21,7 @@ import org.apache.jena.riot.RDFDataMgr;
  * {@link OntModel}, however malformed the result might turn out to be. That separation is what lets
  * {@link JenaOntologyPort#fromDocument} build eagerly without throwing (F20): building always
  * succeeds as long as the Turtle itself parses, and every judgement about whether the result is
- * *usable* is deferred to whoever asks for a snapshot.
+ * *usable* is deferred to whoever reads the ontology.
  *
  * <p><b>Unresolved {@code owl:imports} do not throw.</b> Verified empirically against Jena 6.1.0,
  * contrary to the design assumption on record before this task ran the probe: {@code

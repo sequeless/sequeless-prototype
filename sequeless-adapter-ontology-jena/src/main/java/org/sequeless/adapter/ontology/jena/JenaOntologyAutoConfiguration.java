@@ -4,7 +4,7 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.ontology.OntologyAdministration;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,13 +17,19 @@ import org.springframework.context.annotation.Bean;
  * PermitAllAuthorizationAutoConfiguration} exactly.
  *
  * <p>Deliberately has no {@code matchIfMissing}: when the property is unset, the condition must
- * evaluate to {@code false} and no {@link OntologyPort} bean must exist here at all, so the
+ * evaluate to {@code false} and no {@link JenaOntologyPort} bean must exist here at all, so the
  * application's port registry can detect the absent-property case itself and report it, rather than
  * this auto-configuration silently conjuring a default.
  *
+ * <p>The bean is typed as the concrete {@link JenaOntologyPort}, so one bean serves all four of its
+ * interfaces ({@link org.sequeless.spi.meta.schema.SchemaSource}, {@link
+ * org.sequeless.spi.meta.behaviour.BehaviourSource}, {@link
+ * org.sequeless.spi.meta.automation.AutomationSource} and {@link OntologyAdministration}) and the
+ * port registry can see it without eager initialisation.
+ *
  * <p>Deliberately has no {@code @ConditionalOnMissingBean}: if another adapter's auto-configuration
- * also produces an {@link OntologyPort} bean under the same property value, both beans must be
- * allowed to exist so the application's port registry — not Spring — is the thing that detects and
+ * also produces an {@link OntologyAdministration} bean under the same property value, both beans must
+ * be allowed to exist so the application's port registry — not Spring — is the thing that detects and
  * rejects the ambiguity.
  *
  * <p>Takes an {@link ObjectProvider} of {@link ObjectStorePort} — not a plain {@link ObjectStorePort}
@@ -48,7 +54,7 @@ public class JenaOntologyAutoConfiguration {
      *     JenaOntologyProperties#getSource()} exactly as before
      */
     @Bean
-    public OntologyPort ontologyPort(
+    public JenaOntologyPort ontologyPort(
             JenaOntologyProperties properties, ObjectProvider<ObjectStorePort> objectStoreProvider) {
         ObjectStorePort store = objectStoreProvider.getIfAvailable();
         if (store == null) {

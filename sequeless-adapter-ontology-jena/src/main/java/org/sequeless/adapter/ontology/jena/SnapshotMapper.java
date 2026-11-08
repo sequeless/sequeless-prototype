@@ -8,6 +8,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,31 +34,32 @@ import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.Action;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.CreateObjectAction;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DerivationRule;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.LogAction;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyAssignment;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.SetPropertyAction;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerSpec;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
-import org.sequeless.spi.meta.WebhookAction;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.CreateObjectAction;
+import org.sequeless.spi.meta.automation.LogAction;
+import org.sequeless.spi.meta.automation.PropertyAssignment;
+import org.sequeless.spi.meta.automation.SetPropertyAction;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
+import org.sequeless.spi.meta.behaviour.PluginRule;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TimerTrigger;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.TriggerSpec;
+import org.sequeless.spi.meta.behaviour.UserActionTrigger;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.ontology.OntologyIssue;
 import org.sequeless.spi.ontology.Severity;
 import org.sequeless.spi.query.Criterion;
@@ -65,20 +67,31 @@ import org.sequeless.spi.query.Operator;
 
 /**
  * The outcome of {@link SnapshotMapper#map(OntModel)}: every {@link TypeDefinition} the model
- * contains, deterministically ordered, plus every {@link OntologyIssue} found while mapping.
- * {@code WARNING} issues (currently only the unmapped-datatype fallback) describe a degraded but
- * still-usable mapping; {@code ERROR} issues describe a malformed {@code sq:derivedBy} rule (a
- * node typed as both/neither {@code sq:Rollup}/{@code sq:Plugin}, an unknown {@code sq:function}/
- * {@code sq:operator}, a missing required term, or a {@code sq:via} that is not an object property
- * of the {@code sq:over} type) — {@code JenaOntologyPort.buildStateFrom} folds these into the
- * overall consistency verdict exactly like every other activation-time source of truth, the same
- * way it already does for unresolved imports and reserved terms.
+ * contains, deterministically ordered, the state machines and derivation rules that govern them, the
+ * actions of each transition, and every {@link OntologyIssue} found while mapping. {@code WARNING}
+ * issues (currently only the unmapped-datatype fallback) describe a degraded but still-usable
+ * mapping; {@code ERROR} issues describe a malformed {@code sq:derivedBy} rule (a node typed as
+ * both/neither {@code sq:Rollup}/{@code sq:Plugin}, an unknown {@code sq:function}/{@code
+ * sq:operator}, a missing required term, or a {@code sq:via} that is not an object property of the
+ * {@code sq:over} type) — {@code JenaOntologyPort.buildStateFrom} folds these into the overall
+ * consistency verdict exactly like every other activation-time source of truth, the same way it
+ * already does for unresolved imports and reserved terms.
  *
- * @param types every named, non-builtin type in the model, sorted by IRI
+ * @param types every named, non-builtin type in the model, sorted by IRI; carries no behaviour
+ * @param stateMachines the state machine of each type that has one, keyed by the type's IRI
+ * @param derivations the derivation rule of each derived property, keyed by the property's IRI
+ * @param transitionActions the actions of each transition that has any, keyed by {@link
+ *     TransitionRef}; where two transitions share a key the first in {@link
+ *     StateMachineDefinition#transitions()} order is kept, because the second can never fire
  * @param issues every issue found while mapping, in the order produced; may contain {@code ERROR}
  *     severity for a malformed derivation rule
  */
-record MappingResult(List<TypeDefinition> types, List<OntologyIssue> issues) {}
+record MappingResult(
+        List<TypeDefinition> types,
+        Map<String, StateMachineDefinition> stateMachines,
+        Map<String, DerivationRule> derivations,
+        Map<TransitionRef, List<Action>> transitionActions,
+        List<OntologyIssue> issues) {}
 
 /**
  * Translates a built {@link OntModel} into the SPI's {@link TypeDefinition} snapshot shape,
@@ -194,15 +207,32 @@ final class SnapshotMapper {
         // Fourth pass: sq:StateMachine nodes, top-down (state machine -> its sq:appliesTo type)
         // rather than bottom-up like the sq:derivedBy passes above, since a state machine names
         // its target type instead of being discovered by walking that type's own properties.
-        Map<String, StateMachineDefinition> stateMachineByTypeIri =
-                stateMachinesOf(model, classByIri, propertyByIri, issues);
+        // Only the machines that survive stateMachinesOf's one-per-type rule contribute their actions.
+        Map<String, StateMachineByType> machinesByType = stateMachinesOf(model, classByIri, propertyByIri, issues);
+        Map<String, StateMachineDefinition> stateMachines = new LinkedHashMap<>();
+        Map<TransitionRef, List<Action>> transitionActions = new LinkedHashMap<>();
+        for (StateMachineByType machine : machinesByType.values()) {
+            stateMachines.put(machine.typeIri(), machine.definition());
+            machine.transitionActions().forEach(transitionActions::putIfAbsent);
+        }
 
         List<TypeDefinition> types = classes.stream()
-                .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo, stateMachineByTypeIri))
+                .map(cls -> toTypeDefinition(cls, classByIri, declaredByOwner, memo))
                 .sorted(Comparator.comparing(TypeDefinition::iri))
                 .toList();
 
-        return new MappingResult(types, List.copyOf(issues));
+        // Every derived property any type carries, keyed by its IRI. Walks the same memoized
+        // effective properties the types were built from, so the set is exactly the properties
+        // that appear in some TypeDefinition.
+        Map<String, DerivationRule> derivations = new LinkedHashMap<>();
+        for (OntClass.Named cls : classes) {
+            for (PropertyMeta meta : effectivePropertyMeta(cls.getURI(), classByIri, declaredByOwner, memo)
+                    .values()) {
+                meta.derivation().ifPresent(rule -> derivations.putIfAbsent(meta.iri(), rule));
+            }
+        }
+
+        return new MappingResult(types, stateMachines, derivations, transitionActions, List.copyOf(issues));
     }
 
     /**
@@ -238,8 +268,7 @@ final class SnapshotMapper {
             OntClass.Named cls,
             Map<String, OntClass.Named> classByIri,
             Map<String, List<PropertyMeta>> declaredByOwner,
-            Map<String, LinkedHashMap<String, PropertyMeta>> memo,
-            Map<String, StateMachineDefinition> stateMachineByTypeIri) {
+            Map<String, LinkedHashMap<String, PropertyMeta>> memo) {
         LinkedHashMap<String, PropertyMeta> effective =
                 effectivePropertyMeta(cls.getURI(), classByIri, declaredByOwner, memo);
 
@@ -259,14 +288,7 @@ final class SnapshotMapper {
         DisplayHints displayHints = displayHintsOf(cls);
         boolean isAbstract = SqAnnotations.bool(cls, SqVocabulary.ABSTRACT, false);
 
-        return new TypeDefinition(
-                cls.getURI(),
-                label,
-                superTypes,
-                properties,
-                displayHints,
-                isAbstract,
-                Optional.ofNullable(stateMachineByTypeIri.get(cls.getURI())));
+        return new TypeDefinition(cls.getURI(), label, superTypes, properties, displayHints, isAbstract);
     }
 
     /**
@@ -411,7 +433,6 @@ final class SnapshotMapper {
                     meta.readOnly(),
                     meta.displayLabel(),
                     meta.displayHints(),
-                    meta.derivation(),
                     meta.targetTypeIri(),
                     meta.inverseIri(),
                     meta.transitive());
@@ -426,7 +447,6 @@ final class SnapshotMapper {
                 meta.readOnly(),
                 meta.displayLabel(),
                 meta.displayHints(),
-                meta.derivation(),
                 meta.datatype());
     }
 
@@ -650,7 +670,7 @@ final class SnapshotMapper {
             // carries no sourceTypeIri/viaIri, so there is no generic way for DefaultDerivationRecomputer
             // to discover "which targets does this changed object affect" for a plug-in-backed
             // property. Rejecting this combination at mapping time keeps that gap from ever reaching
-            // a MetaModelSnapshot rather than silently accepting a rule core can never keep correct.
+            // the Behaviour half rather than silently accepting a rule core can never keep correct.
             issues.add(error(
                     propertyIri,
                     "sq:derivedBy on " + propertyIri + " is a sq:Plugin with sq:materialised true, which is"
@@ -927,29 +947,30 @@ final class SnapshotMapper {
 
     /**
      * Finds every {@code sq:StateMachine} node in {@code model} and parses each into a {@link
-     * StateMachineDefinition} keyed by the IRI of the type it governs ({@code sq:appliesTo}). A
-     * top-down pass — state-machine node to governed type — rather than the bottom-up shape {@link
+     * StateMachineByType} keyed by the IRI of the type it governs ({@code sq:appliesTo}). A top-down
+     * pass — state-machine node to governed type — rather than the bottom-up shape {@link
      * #derivationOf} uses (property to its own rule), since a state machine names its target type
      * instead of being discovered by walking that type's own properties; that is also why this
      * builds its own map once here rather than folding into the per-property loops that build
      * {@code declaredByOwner} above. A malformed state machine is skipped — absent from the
-     * returned map, so its type resolves to {@link Optional#empty()} for {@code stateMachine()}) —
-     * rather than aborting the whole document mapping, exactly like a malformed {@code sq:derivedBy}
-     * rule is skipped for just the one property that declared it.
+     * returned map, so its type has no state machine — rather than aborting the whole document
+     * mapping, exactly like a malformed {@code sq:derivedBy} rule is skipped for just the one
+     * property that declared it. Two machines governing one type: the later one (in node order)
+     * replaces the earlier, as it always has.
      */
-    private static Map<String, StateMachineDefinition> stateMachinesOf(
+    private static Map<String, StateMachineByType> stateMachinesOf(
             OntModel model,
             Map<String, OntClass.Named> classByIri,
             Map<String, PropertyMeta> propertyByIri,
             List<OntologyIssue> issues) {
-        Map<String, StateMachineDefinition> byTypeIri = new LinkedHashMap<>();
+        Map<String, StateMachineByType> byTypeIri = new LinkedHashMap<>();
         List<Resource> nodes = model.listResourcesWithProperty(RDF.type, SqVocabulary.STATE_MACHINE)
                 .toList();
         for (Resource node : nodes.stream()
                 .sorted(Comparator.comparing(SnapshotMapper::identifierOf))
                 .toList()) {
             stateMachineOf(node, model, classByIri, propertyByIri, issues)
-                    .ifPresent(byType -> byTypeIri.put(byType.typeIri(), byType.definition()));
+                    .ifPresent(byType -> byTypeIri.put(byType.typeIri(), byType));
         }
         return byTypeIri;
     }
@@ -1016,7 +1037,7 @@ final class SnapshotMapper {
 
         List<Statement> transitionStmts =
                 node.listProperties(SqVocabulary.TRANSITION).toList();
-        List<Transition> transitions = new ArrayList<>();
+        List<ParsedTransition> parsed = new ArrayList<>();
         for (Statement stmt : transitionStmts) {
             if (!stmt.getObject().isResource()) {
                 issues.add(error(
@@ -1024,18 +1045,36 @@ final class SnapshotMapper {
                         "sq:StateMachine " + stateMachineIri + " has a sq:transition that is not a node"));
                 return Optional.empty();
             }
-            Optional<Transition> transition = transitionOf(
+            Optional<ParsedTransition> transition = transitionOf(
                     stateMachineIri, typeIri, stmt.getObject().asResource(), stateIris, propertyByIri, model, issues);
             if (transition.isEmpty()) {
                 return Optional.empty();
             }
-            transitions.add(transition.get());
+            parsed.add(transition.get());
         }
-        transitions.sort(Comparator.comparing(Transition::name));
+        // Stable sort: transitions that share a name keep their listing order.
+        parsed.sort(Comparator.comparing((ParsedTransition p) -> p.transition().name()));
 
         try {
-            return Optional.of(new StateMachineByType(
-                    typeIri, new StateMachineDefinition(stateMachineIri, states, initialState, transitions)));
+            List<Transition> transitions =
+                    parsed.stream().map(ParsedTransition::transition).toList();
+            StateMachineDefinition definition =
+                    new StateMachineDefinition(stateMachineIri, states, initialState, transitions);
+            // First wins: the second of two transitions with one TransitionRef can never fire, so its
+            // actions are not kept, and neither are the first's if it has none. Walking parsed in the
+            // same order as definition.transitions() makes the first one claim the key.
+            Map<TransitionRef, List<Action>> transitionActions = new LinkedHashMap<>();
+            Set<TransitionRef> claimed = new HashSet<>();
+            for (ParsedTransition p : parsed) {
+                TransitionRef ref = new TransitionRef(
+                        stateMachineIri,
+                        p.transition().fromStateIri(),
+                        p.transition().name());
+                if (claimed.add(ref) && !p.actions().isEmpty()) {
+                    transitionActions.put(ref, p.actions());
+                }
+            }
+            return Optional.of(new StateMachineByType(typeIri, definition, transitionActions));
         } catch (IllegalArgumentException e) {
             issues.add(
                     error(stateMachineIri, "sq:StateMachine " + stateMachineIri + " is malformed: " + e.getMessage()));
@@ -1050,7 +1089,8 @@ final class SnapshotMapper {
      * #timerTriggerOf}/{@link #externalSignalTriggerOf} for the per-kind required terms and
      * validation, and {@link UserActionTrigger} for the fourth, field-less kind), {@code
      * sq:guard}/{@code sq:guardMessage} (optional strings), and {@code sq:action} (an ordered
-     * {@code rdf:List}, absent meaning {@code []}).
+     * {@code rdf:List}, absent meaning {@code []}). The actions are returned beside the transition,
+     * not on it: they belong to the automation half.
      *
      * @param typeIri the IRI of the type this transition's owning state machine governs ({@code
      *     sq:appliesTo}'s target) — needed only to validate a {@code sq:OnChange} trigger's {@code
@@ -1060,7 +1100,7 @@ final class SnapshotMapper {
      *     needed here where {@link #effectivePropertyMeta}'s owner-scoped lookup (used by {@link
      *     #validateVia}) is not enough
      */
-    private static Optional<Transition> transitionOf(
+    private static Optional<ParsedTransition> transitionOf(
             String stateMachineIri,
             String typeIri,
             Resource node,
@@ -1132,8 +1172,8 @@ final class SnapshotMapper {
         }
 
         try {
-            return Optional.of(
-                    new Transition(name, fromStateIri, toStateIri, trigger.get(), guard, guardMessage, actions.get()));
+            Transition transition = new Transition(name, fromStateIri, toStateIri, trigger.get(), guard, guardMessage);
+            return Optional.of(new ParsedTransition(transition, actions.get()));
         } catch (IllegalArgumentException e) {
             issues.add(error(
                     stateMachineIri,
@@ -1510,8 +1550,15 @@ final class SnapshotMapper {
         return resource.isURIResource() ? resource.getURI() : resource.toString();
     }
 
-    /** {@code sq:appliesTo}'s target type IRI, paired with the {@link StateMachineDefinition} it maps to. */
-    private record StateMachineByType(String typeIri, StateMachineDefinition definition) {}
+    /**
+     * {@code sq:appliesTo}'s target type IRI, paired with the {@link StateMachineDefinition} it maps
+     * to, and the actions of that machine's transitions keyed by {@link TransitionRef}.
+     */
+    private record StateMachineByType(
+            String typeIri, StateMachineDefinition definition, Map<TransitionRef, List<Action>> transitionActions) {}
+
+    /** A parsed {@code sq:Transition} together with the actions {@code sq:action} gave it. */
+    private record ParsedTransition(Transition transition, List<Action> actions) {}
 
     /**
      * The parsed {@code sq:value}/{@code sq:expression} of a {@code sq:SetProperty} or {@code
