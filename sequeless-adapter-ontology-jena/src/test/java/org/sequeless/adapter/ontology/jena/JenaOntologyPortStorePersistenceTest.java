@@ -63,17 +63,15 @@ class JenaOntologyPortStorePersistenceTest {
         InMemoryOntologyDocumentStore store = new InMemoryOntologyDocumentStore();
         Scope scope = Fixtures.defaultScope();
 
-        JenaOntologyPort port =
-                JenaOntologyPort.fromStore(
-                        store, scope, SOURCE_PROPERTY, VALID_SOURCE, ReasonerSetting.OWL, () -> Set.of("workload"));
+        JenaOntologyPort port = JenaOntologyPort.fromStore(
+                store, scope, SOURCE_PROPERTY, VALID_SOURCE, ReasonerSetting.OWL, () -> Set.of("workload"));
 
         Optional<StoredOntologyDocument> active = store.active(scope);
         assertThat(active).isPresent();
         assertThat(active.get().version()).isEqualTo(1);
 
-        Halves fromStoredDocument =
-                Halves.of(JenaOntologyPort.fromDocument(
-                        active.get().document(), ReasonerSetting.OWL, () -> Set.of("workload")));
+        Halves fromStoredDocument = Halves.of(
+                JenaOntologyPort.fromDocument(active.get().document(), ReasonerSetting.OWL, () -> Set.of("workload")));
         assertThat(Halves.of(port)).isEqualTo(fromStoredDocument);
         assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(1));
     }
@@ -84,7 +82,11 @@ class JenaOntologyPortStorePersistenceTest {
         Scope scope = Fixtures.defaultScope();
 
         assertThatThrownBy(() -> JenaOntologyPort.fromStore(
-                        store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL,
+                        store,
+                        scope,
+                        SOURCE_PROPERTY,
+                        INCONSISTENT_SOURCE,
+                        ReasonerSetting.OWL,
                         () -> Set.of("workload")))
                 .isInstanceOf(OntologyException.class);
 
@@ -99,16 +101,14 @@ class JenaOntologyPortStorePersistenceTest {
         OntologyDocument stored = Fixtures.referenceOntology();
         store.activate(scope, stored); // version 2 is the active one
 
-        JenaOntologyPort port =
-                JenaOntologyPort.fromStore(
-                        store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL,
-                        () -> Set.of("workload"));
+        JenaOntologyPort port = JenaOntologyPort.fromStore(
+                store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL, () -> Set.of("workload"));
 
         assertThat(store.active(scope)).isPresent();
         assertThat(store.active(scope).get().version()).isEqualTo(2);
 
-        Halves fromStoredDocument = Halves.of(JenaOntologyPort.fromDocument(
-                stored, ReasonerSetting.OWL, () -> Set.of("workload")));
+        Halves fromStoredDocument =
+                Halves.of(JenaOntologyPort.fromDocument(stored, ReasonerSetting.OWL, () -> Set.of("workload")));
         assertThat(Halves.of(port).withoutVersion()).isEqualTo(fromStoredDocument.withoutVersion());
         assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(2));
     }
@@ -136,8 +136,8 @@ class JenaOntologyPortStorePersistenceTest {
                 .isEqualTo(JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL, () -> Set.of("workload"))
                         .reload(scope)
                         .issues());
-        Halves expected = Halves.of(JenaOntologyPort.fromDocument(
-                second, ReasonerSetting.OWL, () -> Set.of("workload")));
+        Halves expected =
+                Halves.of(JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL, () -> Set.of("workload")));
         assertThat(Halves.of(port).withoutVersion()).isEqualTo(expected.withoutVersion());
         assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(3));
     }
@@ -179,8 +179,8 @@ class JenaOntologyPortStorePersistenceTest {
         assertThat(active.get().version()).isEqualTo(3);
         assertThat(active.get().document()).isEqualTo(replacement);
 
-        Halves expected = Halves.of(JenaOntologyPort.fromDocument(
-                replacement, ReasonerSetting.OWL, () -> Set.of("workload")));
+        Halves expected =
+                Halves.of(JenaOntologyPort.fromDocument(replacement, ReasonerSetting.OWL, () -> Set.of("workload")));
         assertThat(Halves.of(port).withoutVersion()).isEqualTo(expected.withoutVersion());
         assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(3));
         assertThat(report.typeCount())

@@ -143,9 +143,8 @@ class JenaOntologyPortAcceptanceTest {
 
     @Test
     void inverseTransitiveFixtureShowsTransitiveFlagAndReverseAssertedInverse() {
-        JenaOntologyPort port =
-                JenaOntologyPort.fromDocument(
-                        Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.inverseTransitiveOntology(), ReasonerSetting.OWL, () -> Set.of("workload"));
         TypeDefinition component = type(port.schema(TENANT), COMPONENT_IRI);
 
         RelationshipDefinition partOf = relationship(component, PART_OF_IRI);
@@ -223,10 +222,8 @@ class JenaOntologyPortAcceptanceTest {
 
             ex:Widget a owl:Class ; sq:permission true .
             """;
-        JenaOntologyPort port =
-                JenaOntologyPort.fromDocument(
-                        new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL,
-                        () -> Set.of("workload"));
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.OWL, () -> Set.of("workload"));
 
         assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
@@ -349,8 +346,8 @@ class JenaOntologyPortAcceptanceTest {
     }
 
     private static List<String> propertyIris(ReasonerSetting reasoner, String typeIri) {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(
-                Fixtures.referenceOntology(), reasoner, () -> Set.of("workload"));
+        JenaOntologyPort port =
+                JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), reasoner, () -> Set.of("workload"));
         return type(port.schema(TENANT), typeIri).properties().stream()
                 .map(PropertyDefinition::iri)
                 .toList();

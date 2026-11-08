@@ -16,8 +16,8 @@ class ShaclValidationPortContractTest extends ValidationContract {
 
     @Override
     protected Fixture fixtureFor(OntologyDocument document) {
-        JenaOntologyPort ontologyPort = JenaOntologyPort.fromDocument(
-                document, ReasonerSetting.OWL, () -> Set.of("workload"));
+        JenaOntologyPort ontologyPort =
+                JenaOntologyPort.fromDocument(document, ReasonerSetting.OWL, () -> Set.of("workload"));
         Schema schema = ontologyPort.schema(TenantId.DEFAULT);
         return new Fixture(new ShaclValidationPort(ontologyPort), schema);
     }

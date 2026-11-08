@@ -60,7 +60,8 @@ class UnknownPluginActivationTest {
     @Test
     void fromDocumentThenReadThrowsForAnUnknownPluginName() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
-                new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ReasonerSetting.NONE,
+                new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE),
+                ReasonerSetting.NONE,
                 () -> Set.of("workload"));
 
         // fromDocument itself never throws, even for a bad document (F20) -- the failure surfaces

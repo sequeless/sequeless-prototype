@@ -70,7 +70,9 @@ class JenaOntologyPortTest {
         // genuinely valid, consistent ontology, so it doubles as a convenient fixture here without
         // needing a dedicated test-only resource.
         JenaOntologyPort port = JenaOntologyPort.fromSource(
-                "test.ontology.source", "classpath:ontology/sq-meta.ttl", ReasonerSetting.OWL,
+                "test.ontology.source",
+                "classpath:ontology/sq-meta.ttl",
+                ReasonerSetting.OWL,
                 () -> Set.of("workload"));
 
         Halves before = Halves.of(port);
@@ -86,7 +88,9 @@ class JenaOntologyPortTest {
         // "inconsistent ontology" -- it must fail fast, unlike F20's deferred-validation guarantee
         // for a document whose *content* is merely inconsistent.
         assertThatThrownBy(() -> JenaOntologyPort.fromSource(
-                        "test.ontology.source", "classpath:ontology/does-not-exist.ttl", ReasonerSetting.OWL,
+                        "test.ontology.source",
+                        "classpath:ontology/does-not-exist.ttl",
+                        ReasonerSetting.OWL,
                         () -> Set.of("workload")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("test.ontology.source");
