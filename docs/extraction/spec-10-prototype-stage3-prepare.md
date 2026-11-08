@@ -38,6 +38,7 @@ Out of scope, and which spec takes it:
 - Waits for spec 9 ([#37](https://github.com/sequeless/sequeless-prototype/issues/37)). Spec 9 is done (`remaining-work.md`, Done).
 - Unblocks spec 11 ([#39](https://github.com/sequeless/sequeless-prototype/issues/39)). Spec 11 imports `spi.meta` (by then three packages), the Jena adapter and the `sq:` vocabulary into sequeless-ontology.
 - Branch `spec-10-prototype-stage3-prepare`, cut from `origin/main` at `aafb5a9`. Every implementation slice (section 9) commits to this branch. One PR merges it.
+- Status: slices S1 to S7 are committed on the branch, and the PR is pending. No PR number yet.
 
 ## 2. Moves
 
@@ -58,6 +59,11 @@ All moves are in-repo. Provenance:
 
 - `spi/ontology/OntologyPort.java` → `spi/ontology/OntologyAdministration.java`.
 - Tests: the six schema-type tests in `spi/meta/` (`TypeDefinitionTest`, `AttributeDefinitionTest`, `RelationshipDefinitionTest`, `CardinalityTest`, `DatatypeTest`, `DisplayHintsTest`) move to `spi/meta/schema/`. `MetaModelSnapshotTest` → `spi/meta/schema/SchemaTest`. `OntologyPortTest` → `OntologyAdministrationTest`.
+
+**Known limitations**
+
+- **Rename tracking.** `git log --follow` does not trace `SchemaTest` from `MetaModelSnapshotTest`, or `OntologyAdministrationTest` from `OntologyPortTest`. Each was rewritten by more than half, so git records a delete and an add. This is recorded here and in the PR body. The history was not rewritten.
+- **Bisecting.** Commit `2020711` (app), the first two spi commits (`d4e31d7`, `ed7a16f`) and the first two testkit commits (`44fe03c`, `aa27d4f`) do not compile their tests on their own. The branch compiles from the first buildable commit of each slice onward.
 
 ## 3. Prerequisite refactors
 
@@ -173,6 +179,7 @@ Constructors. The new ports replace `OntologyPort` in its position, and the othe
 - `DefaultTriggerEvaluator(SchemaSource, BehaviourSource, ObjectStorePort, TransitionService)`
 - `DefaultDerivationRecomputer(SchemaSource, BehaviourSource, ObjectStorePort, DerivationPlanner, int, Duration, Clock)`
 - `StateMachineInterpreter.availableTransitions(Scope, Behaviour, BusinessObject)`. It now looks up the machine by `object.type().iri()`.
+- `DefaultBusinessObjectService` keeps its 7-argument convenience constructor, which leaves out `DerivationPlanner`. Core tests use it. It is not in the list above, and it is retained.
 
 `MetaModelService`:
 
@@ -261,7 +268,7 @@ Grep at `aafb5a9`:
   - `behaviourDependsOnlyOnSchema`: classes in `..spi.meta.behaviour..` only depend on `java..`, the behaviour and schema packages, the kernel, and `org.sequeless.spi.query..`. The `because` text names `Criterion` and spec 14.
   - `automationDependsOnlyOnBehaviourAndSchema`: classes in `..spi.meta.automation..` only depend on `java..`, the automation, behaviour and schema packages, and the kernel.
   - `querySeesOnlySchema`: no class in `org.sequeless.spi.query..` depends on `..spi.meta.behaviour..`, `..spi.meta.automation..` or `org.sequeless.spi.ontology..` (#13 decision 3).
-  - `onlyHostPreparesIndexes`: no class outside `org.sequeless.app.config..` calls `QueryPort.ensureIndexes(Scope, Schema)` (#24).
+  - `onlyHostPreparesIndexes`: no class outside `org.sequeless.app.config..` or `org.sequeless.testkit.query..` calls `QueryPort.ensureIndexes(Scope, Schema)` (#24). The testkit's query contract kit exercises the port and is test-scoped, so it is not a production caller. The rule matches calls through the owner type (assignable to `QueryPort`), so calls on a concrete store type are caught too.
   - The existing 12 rules stay. `suiteActuallyAnalyzesEveryModule` still finds `JenaOntologyPort` (D11).
 
 ## 6. Release config (first version, tags, BOM change)
@@ -309,7 +316,8 @@ Quoted from #38, with this spec's reading:
 
 What each slice must not do:
 
-- No slice touches a POM, `.github/`, `GLOSSARY.md` or `sequeless-ui/`.
+- No slice touches a POM, `.github/`, `GLOSSARY.md` or `sequeless-ui/`, except the S7 description change below.
+- S7 may change the `<description>` of `sequeless-adapter-ontology-jena/pom.xml` (description text only; no dependency, version or build change). It may also change the one javadoc sentence in `OntologyAdministration.java` (javadoc only).
 - S3 and S4 do not edit the testkit to make their tests compile.
 - S5 does not touch `sequeless-app`.
 - S6 does not change a core signature.
@@ -361,6 +369,8 @@ Every slice check runs as `source ~/.bashrc.ext && mvn spotless:apply && mvn -B 
   - `QueryEndToEndTest` drops `triggerEnsureIndexes()` and the javadoc about the gap, so the class now proves the startup call.
   - `CoreConfigurationContextRunnerTest`, `PortRegistryContextRunnerTest` and `PortBindingStartupFailureTest` change port names and stubs.
   - `OntologyEndToEndTest`, `OntologyPersistenceAcrossRestartIT`, `InconsistentOntologyStartupTest`, `UnknownDerivationPluginStartupTest` and `PostgresTestcontainersSupport` change types.
+  - `OntologyPersistenceAcrossRestartIT` and `UnknownDerivationPluginStartupTest`, listed above, reference no moved type. `TypesEndToEndTest` and `ApiExceptionAdviceTest` reference none either. All four compile and pass unchanged, so they were not edited.
+- Answers to section 11 questions 2 to 4 are recorded there. Question 1 stays open.
 
 ### 10.4 Behaviour that may change (only these)
 
@@ -384,3 +394,10 @@ Everything else is identical, including the REST bodies and the order of the iss
 2. **Two `OntologyAdministration` interfaces (D10).** Rename core's use case (for example to `OntologyAdministrationService`, 7 files) now, or at spec 12 when the spi port comes from sequeless-ontology?
 3. **Where (tenant, Ontology version) keying lands (D3).** In spec 11, before `behaviour-contract` 0.1.0 is published, or in spec 15 with its first caller? This spec recommends spec 15, as a default method.
 4. **Is actions-only the right automation half (D4)?** The alternative is to also move timer durations and on-change watch lists into it now, and leave only the kind and signal name on `Transition`.
+
+**Answers recorded.** The orchestrator accepted the defaults for questions 2 to 4. Question 1 stays open.
+
+- **Question 1: open.** Decision for the owner on [#39](https://github.com/sequeless/sequeless-prototype/issues/39), before spec 11 starts.
+- **Question 2:** the core use case keeps the name `OntologyAdministration`. The rename waits for spec 12.
+- **Question 3:** (tenant, Ontology version) keying lands in spec 15, as default methods.
+- **Question 4:** actions-only automation is accepted.
