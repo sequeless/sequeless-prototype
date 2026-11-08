@@ -1,5 +1,6 @@
 package org.sequeless.adapter.ontology.jena;
 
+import java.util.Set;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.testkit.ontology.OntologyContract;
 import org.sequeless.testkit.ontology.OntologyPorts;
@@ -20,6 +21,6 @@ class JenaOntologyPortContractTest extends OntologyContract {
 
     @Override
     protected OntologyPorts portFor(OntologyDocument document) {
-        return OntologyPorts.of(JenaOntologyPort.fromDocument(document, ReasonerSetting.OWL));
+        return OntologyPorts.of(JenaOntologyPort.fromDocument(document, ReasonerSetting.OWL, () -> Set.of("workload")));
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
@@ -18,11 +19,11 @@ import org.sequeless.testkit.Fixtures;
 /**
  * Proves the T4 acceptance criterion — "Unknown pluginName in the ontology is reported at snapshot
  * activation, not at read time" — at the {@link JenaOntologyPort} level, against inline Turtle
- * fixtures declaring a {@code sq:Plugin} rule whose {@code sq:pluginName} has no registered {@link
- * org.sequeless.spi.derivation.DerivationPlugin} on the classpath. At the time this test was
- * written no {@code DerivationPlugin} is registered anywhere on this module's test classpath (T5
- * adds the first, real one, to the testkit — a dependency of a different module), so every
- * {@code pluginName} used below is guaranteed unknown without needing a specially-chosen name.
+ * fixtures declaring a {@code sq:Plugin} rule whose {@code sq:pluginName} has no registered {@code
+ * org.sequeless.spi.derivation.DerivationPlugin} on the classpath. This module's own test classpath
+ * registers none; the only one registered is the testkit's sample plugin, named {@code "workload"},
+ * so every {@code pluginName} used below is guaranteed unknown without needing a specially-chosen
+ * name.
  *
  * <p>These are deliberately activation-level tests, not {@code SnapshotMapper}/{@code
  * DerivationMappingTest}-level ones: they assert the documented behaviour of {@link
@@ -59,7 +60,8 @@ class UnknownPluginActivationTest {
     @Test
     void fromDocumentThenReadThrowsForAnUnknownPluginName() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
-                new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ReasonerSetting.NONE);
+                new OntologyDocument(UNKNOWN_PLUGIN_TURTLE, OntologyFormat.TURTLE), ReasonerSetting.NONE,
+                () -> Set.of("workload"));
 
         // fromDocument itself never throws, even for a bad document (F20) -- the failure surfaces
         // only once something asks this port to actually serve what it built, exactly like the
@@ -76,7 +78,8 @@ class UnknownPluginActivationTest {
 
     @Test
     void importDocumentRejectsAnUnknownPluginNameAndLeavesTheActivePortUnchanged() {
-        JenaOntologyPort port = JenaOntologyPort.fromDocument(Fixtures.referenceOntology(), ReasonerSetting.NONE);
+        JenaOntologyPort port = JenaOntologyPort.fromDocument(
+                Fixtures.referenceOntology(), ReasonerSetting.NONE, () -> Set.of("workload"));
         Halves before = Halves.of(port);
 
         assertThatThrownBy(() -> port.importDocument(
@@ -118,7 +121,7 @@ class UnknownPluginActivationTest {
                 sq:derivedBy [ a sq:Plugin ; sq:pluginName "totally-unregistered-plugin" ] .
             """;
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
-                new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.NONE);
+                new OntologyDocument(turtle, OntologyFormat.TURTLE), ReasonerSetting.NONE, () -> Set.of("workload"));
 
         assertThatThrownBy(() -> port.schema(TENANT))
                 .isInstanceOf(OntologyException.class)
