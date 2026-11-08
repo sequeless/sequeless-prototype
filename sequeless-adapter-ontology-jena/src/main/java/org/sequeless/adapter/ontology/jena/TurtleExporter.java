@@ -19,8 +19,8 @@ import org.sequeless.spi.ontology.OntologyFormat;
  * union view — to Turtle. Using the base model is not a style preference: verified empirically that
  * the base model for the reference fixture carries 70 triples while the {@code owl} reasoner's
  * union view carries several times that many inferred statements; exporting the union would mean an
- * {@link org.sequeless.spi.ontology.OntologyPort#importDocument} of a previously exported document
- * re-imports the reasoner's own inferences as if they had been asserted by the source document,
+ * {@link org.sequeless.spi.ontology.OntologyAdministration#importDocument} of a previously exported
+ * document re-imports the reasoner's own inferences as if they had been asserted by the source document,
  * silently growing the ontology on every export/import cycle.
  *
  * <p><b>Reproducibility.</b> {@link Model#write} on the base model directly delegates to Jena's
@@ -33,9 +33,9 @@ import org.sequeless.spi.ontology.OntologyFormat;
  * can still differ at the byte level solely because of blank-node id renumbering (Jena assigns
  * fresh internal ids per parse), which sorts differently; this is a Jena limitation, not something
  * this exporter can paper over, and it is not a problem in practice because nothing in this adapter
- * (or the {@code OntologyPort} contract) ever compares two independently-produced export byte
- * strings — only the *mapped* {@link org.sequeless.spi.meta.MetaModelSnapshot}, which never
- * observes blank node identity, is compared for equality anywhere.
+ * (or the {@code OntologyAdministration} contract) ever compares two independently-produced export
+ * byte strings — only the *mapped* halves, {@link org.sequeless.spi.meta.schema.Schema} and its
+ * siblings, which never observe blank node identity, are compared for equality anywhere.
  *
  * <p>Package-private: only {@link JenaOntologyPort} calls this.
  */

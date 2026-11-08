@@ -25,25 +25,25 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 
 /**
  * Builds the single-object RDF data graph {@link ShaclValidationPort} runs {@code
  * org.apache.jena.shacl.ShaclValidator} against: {@code object} becomes {@code urn:uuid:<id>},
- * typed with its own type IRI plus every ancestor type IRI from {@code snapshot} (the full
+ * typed with its own type IRI plus every ancestor type IRI from {@code schema} (the full
  * transitive closure, not just direct superclasses — see this class's package-private {@link
- * #typeAndSupertypes(MetaModelSnapshot, String)} javadoc for why that is necessary, not merely
+ * #typeAndSupertypes(Schema, String)} javadoc for why that is necessary, not merely
  * thorough), and each property either as a typed literal (an {@link AttributeDefinition}'s
  * declared {@link Datatype} drives the XSD type) or as an {@code urn:uuid:<target>} object
  * reference, expanding a {@link ListValue} into one triple per element rather than an RDF
  * collection.
  *
- * <p>Package-private and stateless: this is a pure function of {@link MetaModelSnapshot} and
+ * <p>Package-private and stateless: this is a pure function of {@link Schema} and
  * {@link BusinessObject}, with no dependency on any live Jena model, so {@code
  * ShaclDataGraphBuilderTest} exercises it directly without going through {@link
  * ShaclValidationPort} or a Spring context at all.
@@ -53,21 +53,21 @@ final class ShaclDataGraphBuilder {
     private ShaclDataGraphBuilder() {}
 
     /**
-     * @param snapshot the type system {@code object}'s type and properties are resolved against;
+     * @param schema the type system {@code object}'s type and properties are resolved against;
      *     must not be {@code null}
      * @param object the single object to render as an RDF data graph; must not be {@code null}
      * @return a freshly built {@link Graph} containing exactly {@code object}'s triples
-     * @throws IllegalArgumentException if {@code object}'s type is not in {@code snapshot}
+     * @throws IllegalArgumentException if {@code object}'s type is not in {@code schema}
      */
-    static Graph build(MetaModelSnapshot snapshot, BusinessObject object) {
+    static Graph build(Schema schema, BusinessObject object) {
         Model model = ModelFactory.createDefaultModel();
         Resource subject = model.createResource(subjectUri(object));
 
-        for (String typeIri : typeAndSupertypes(snapshot, object.type().iri())) {
+        for (String typeIri : typeAndSupertypes(schema, object.type().iri())) {
             model.add(subject, RDF.type, model.createResource(typeIri));
         }
 
-        TypeDefinition typeDef = snapshot.type(object.type().iri())
+        TypeDefinition typeDef = schema.type(object.type().iri())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Unknown type: " + object.type().iri()));
         Map<String, PropertyDefinition> byIri = new HashMap<>();
@@ -92,11 +92,11 @@ final class ShaclDataGraphBuilder {
      * present in the graph, so a shape targeting an indirect ancestor would silently never apply
      * unless every ancestor's IRI is asserted here explicitly.
      *
-     * @param snapshot the type system to walk {@code superTypes()} edges against
+     * @param schema the type system to walk {@code superTypes()} edges against
      * @param typeIri the starting (most specific) type IRI
      * @return every type IRI in the closure, starting with {@code typeIri} itself
      */
-    private static Set<String> typeAndSupertypes(MetaModelSnapshot snapshot, String typeIri) {
+    private static Set<String> typeAndSupertypes(Schema schema, String typeIri) {
         Set<String> visited = new LinkedHashSet<>();
         Deque<String> queue = new ArrayDeque<>(List.of(typeIri));
         while (!queue.isEmpty()) {
@@ -104,7 +104,7 @@ final class ShaclDataGraphBuilder {
             if (!visited.add(iri)) {
                 continue;
             }
-            snapshot.type(iri).ifPresent(def -> queue.addAll(def.superTypes()));
+            schema.type(iri).ifPresent(def -> queue.addAll(def.superTypes()));
         }
         return visited;
     }
@@ -135,7 +135,7 @@ final class ShaclDataGraphBuilder {
     }
 
     /**
-     * @param def the property's declared definition, or {@code null} if {@code snapshot} has no
+     * @param def the property's declared definition, or {@code null} if {@code schema} has no
      *     property with this IRI (an object carrying an unknown property is still rendered, typed
      *     as {@code xsd:string}, rather than making graph construction itself fail)
      */

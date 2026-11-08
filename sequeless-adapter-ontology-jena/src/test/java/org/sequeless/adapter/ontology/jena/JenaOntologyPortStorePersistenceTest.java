@@ -13,18 +13,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.OntologyVersion;
 import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.ontology.ImportMode;
+import org.sequeless.spi.ontology.ImportReport;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
+import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.testkit.Fixtures;
 
 /**
  * Covers {@link JenaOntologyPort#fromStore} and the store-aware {@link JenaOntologyPort#reload} and
  * {@link JenaOntologyPort#importDocument} paths added on top of the plain {@code fromDocument}/
- * {@code fromSource} behaviour already covered by {@link JenaOntologyPortContractTest}.
+ * {@code fromSource} behaviour already covered by {@link JenaOntologyPortContractTest}. With a store,
+ * every adopted activation takes the version the store gives it, not the in-memory counter's.
  *
  * <p>Uses a small local fake of {@link OntologyDocumentStore} rather than {@code
  * sequeless-spi-testkit}'s own in-memory implementation: that one is nested inside a test-scoped
@@ -64,10 +67,10 @@ class JenaOntologyPortStorePersistenceTest {
         assertThat(active).isPresent();
         assertThat(active.get().version()).isEqualTo(1);
 
-        MetaModelSnapshot fromStoredDocument = JenaOntologyPort.fromDocument(
-                        active.get().document(), ReasonerSetting.OWL)
-                .snapshot(scope);
-        assertThat(port.snapshot(scope)).isEqualTo(fromStoredDocument);
+        Halves fromStoredDocument =
+                Halves.of(JenaOntologyPort.fromDocument(active.get().document(), ReasonerSetting.OWL));
+        assertThat(Halves.of(port)).isEqualTo(fromStoredDocument);
+        assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(1));
     }
 
     @Test
@@ -83,25 +86,26 @@ class JenaOntologyPortStorePersistenceTest {
     }
 
     @Test
-    void activeDocumentPresentIsUsedInsteadOfSourceAndIsNotReactivated() {
+    void activeDocumentPresentIsUsedInsteadOfSourceAtItsStoredVersion() {
         InMemoryOntologyDocumentStore store = new InMemoryOntologyDocumentStore();
         Scope scope = Fixtures.defaultScope();
+        store.activate(scope, Fixtures.inverseTransitiveOntology());
         OntologyDocument stored = Fixtures.referenceOntology();
-        store.activate(scope, stored);
+        store.activate(scope, stored); // version 2 is the active one
 
         JenaOntologyPort port =
                 JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, INCONSISTENT_SOURCE, ReasonerSetting.OWL);
 
         assertThat(store.active(scope)).isPresent();
-        assertThat(store.active(scope).get().version()).isEqualTo(1);
+        assertThat(store.active(scope).get().version()).isEqualTo(2);
 
-        MetaModelSnapshot fromStoredDocument =
-                JenaOntologyPort.fromDocument(stored, ReasonerSetting.OWL).snapshot(scope);
-        assertThat(port.snapshot(scope)).isEqualTo(fromStoredDocument);
+        Halves fromStoredDocument = Halves.of(JenaOntologyPort.fromDocument(stored, ReasonerSetting.OWL));
+        assertThat(Halves.of(port).withoutVersion()).isEqualTo(fromStoredDocument.withoutVersion());
+        assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(2));
     }
 
     @Test
-    void reloadReReadsWhateverIsCurrentlyActiveInTheStore() {
+    void reloadReReadsWhateverIsCurrentlyActiveAndTakesItsStoredVersion() {
         InMemoryOntologyDocumentStore store = new InMemoryOntologyDocumentStore();
         Scope scope = Fixtures.defaultScope();
         OntologyDocument first = Fixtures.referenceOntology();
@@ -109,34 +113,64 @@ class JenaOntologyPortStorePersistenceTest {
 
         JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
 
+        // Two activations behind the port's back: the store is now at version 3, while the in-memory
+        // counter would only say 2. The reload must take the store's number.
         OntologyDocument second = Fixtures.inverseTransitiveOntology();
         store.activate(scope, second);
+        store.activate(scope, second);
 
-        MetaModelSnapshot reloaded = port.reload(scope);
-        MetaModelSnapshot expected =
-                JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL).snapshot(scope);
-        assertThat(reloaded).isEqualTo(expected);
+        OntologyReport reloaded = port.reload(scope);
+
+        assertThat(reloaded.consistent()).isTrue();
+        assertThat(reloaded.issues())
+                .isEqualTo(JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL)
+                        .reload(scope)
+                        .issues());
+        Halves expected = Halves.of(JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL));
+        assertThat(Halves.of(port).withoutVersion()).isEqualTo(expected.withoutVersion());
+        assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(3));
     }
 
     @Test
-    void importDocumentActivatesInTheStoreBeforeSwapping() {
+    void aFailedStoreBackedReloadKeepsTheHalvesAndTheirVersion() {
         InMemoryOntologyDocumentStore store = new InMemoryOntologyDocumentStore();
         Scope scope = Fixtures.defaultScope();
         store.activate(scope, Fixtures.referenceOntology());
 
         JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
+        Halves before = Halves.of(port);
+
+        // Activated behind the port's back: the store now holds an inconsistent document at version 2.
+        store.activate(scope, Fixtures.inconsistentOntology());
+
+        assertThatThrownBy(() -> port.reload(scope)).isInstanceOf(OntologyException.class);
+
+        assertThat(Halves.of(port)).isEqualTo(before);
+        assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(1));
+    }
+
+    @Test
+    void importDocumentActivatesInTheStoreBeforeSwappingAndTakesTheVersionItReturns() {
+        InMemoryOntologyDocumentStore store = new InMemoryOntologyDocumentStore();
+        Scope scope = Fixtures.defaultScope();
+        store.activate(scope, Fixtures.referenceOntology());
+        store.activate(scope, Fixtures.referenceOntology()); // store is at version 2
+
+        JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
 
         OntologyDocument replacement = Fixtures.inverseTransitiveOntology();
-        port.importDocument(scope, replacement, ImportMode.REPLACE);
+        ImportReport report = port.importDocument(scope, replacement, ImportMode.REPLACE);
 
         Optional<StoredOntologyDocument> active = store.active(scope);
         assertThat(active).isPresent();
-        assertThat(active.get().version()).isEqualTo(2);
+        assertThat(active.get().version()).isEqualTo(3);
         assertThat(active.get().document()).isEqualTo(replacement);
 
-        MetaModelSnapshot expected =
-                JenaOntologyPort.fromDocument(replacement, ReasonerSetting.OWL).snapshot(scope);
-        assertThat(port.snapshot(scope)).isEqualTo(expected);
+        Halves expected = Halves.of(JenaOntologyPort.fromDocument(replacement, ReasonerSetting.OWL));
+        assertThat(Halves.of(port).withoutVersion()).isEqualTo(expected.withoutVersion());
+        assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(3));
+        assertThat(report.typeCount())
+                .isEqualTo(Halves.of(port).schema().types().size());
     }
 
     @Test
@@ -147,7 +181,7 @@ class JenaOntologyPortStorePersistenceTest {
         store.activate(scope, original);
 
         JenaOntologyPort port = JenaOntologyPort.fromStore(store, scope, SOURCE_PROPERTY, null, ReasonerSetting.OWL);
-        MetaModelSnapshot before = port.snapshot(scope);
+        Halves before = Halves.of(port);
 
         assertThatThrownBy(() -> port.importDocument(scope, Fixtures.inconsistentOntology(), ImportMode.REPLACE))
                 .isInstanceOf(OntologyException.class);
@@ -156,7 +190,7 @@ class JenaOntologyPortStorePersistenceTest {
         assertThat(active).isPresent();
         assertThat(active.get().version()).isEqualTo(1);
         assertThat(active.get().document()).isEqualTo(original);
-        assertThat(port.snapshot(scope)).isEqualTo(before);
+        assertThat(Halves.of(port)).isEqualTo(before);
     }
 
     /**

@@ -53,7 +53,7 @@ final class SqVocabulary {
     /** {@code sq:abstract} — feeds {@code TypeDefinition.isAbstract()}. */
     static final Property ABSTRACT = property("abstract");
 
-    /** {@code sq:derivedBy} — feeds {@code PropertyDefinition.derivation()}. */
+    /** {@code sq:derivedBy} — feeds {@code Behaviour.derivation(propertyIri)}, keyed by the property. */
     static final Property DERIVED_BY = property("derivedBy");
 
     /** {@code sq:function} — feeds {@code RollupRule.function()}. */
@@ -89,7 +89,7 @@ final class SqVocabulary {
      */
     static final Property MATERIALISED = property("materialised");
 
-    /** {@code sq:appliesTo} — feeds the type key of {@code TypeDefinition.stateMachine()}. */
+    /** {@code sq:appliesTo} — feeds the type key of {@code Behaviour.stateMachine(typeIri)}. */
     static final Property APPLIES_TO = property("appliesTo");
 
     /** {@code sq:initialState} — feeds {@code StateMachineDefinition.initialState()}. */
@@ -122,7 +122,10 @@ final class SqVocabulary {
     /** {@code sq:guardMessage} — feeds {@code Transition.guardMessage()}. */
     static final Property GUARD_MESSAGE = property("guardMessage");
 
-    /** {@code sq:action} — feeds {@code Transition.actions()}; an {@code rdf:List}. */
+    /**
+     * {@code sq:action} — feeds {@code Automation.actions(TransitionRef)}, keyed by the transition's
+     * state machine, from-state and name; an {@code rdf:List}.
+     */
     static final Property ACTION = property("action");
 
     /**
