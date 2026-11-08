@@ -124,7 +124,8 @@ import org.sequeless.spi.ontology.Severity;
  * {@code synchronized}. Each one activates a store version (when there is a store) and swaps {@link
  * #current} in one step, so two concurrent activations cannot leave the store and the in-memory
  * state in different orders, and the counter cannot hand a lower version to a later swap. Reads do
- * not take the lock.
+ * not take the lock. Do not call {@code reload} or {@code importDocument} inside an outer
+ * transaction: the store's activation lock would outlive this monitor and the two could deadlock.
  *
  * <h2>Merging the sources of an {@link OntologyReport}</h2>
  *
