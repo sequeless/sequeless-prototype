@@ -186,8 +186,9 @@ class SnapshotMapperTest {
 
     /**
      * The same rule when the first of the two has no actions: it still claims the TransitionRef, so
-     * the second one's actions are not promoted into its place. Which of the two comes first is
-     * whatever {@code transitions()} says, so the expectation is read from that order.
+     * the second one's actions are not promoted into its place. The {@code act} transition is written
+     * first in the Turtle so that {@code plain} is first in {@code transitions()}; the precondition
+     * asserts that order, so the test cannot pass by accident if the listing order changes.
      */
     @Test
     void aFirstTransitionWithNoActionsStillClaimsItsTransitionRef() {
@@ -210,19 +211,18 @@ class SnapshotMapperTest {
                 sq:state ex:Draft, ex:Active ;
                 sq:transition
                     [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
-                      sq:trigger sq:UserAction ; sq:guard "plain" ] ,
-                    [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
                       sq:trigger sq:UserAction ; sq:guard "act" ;
-                      sq:action ( [ a sq:Webhook ; sq:url "https://example.org/hooks/act" ; sq:method "POST" ] ) ] .
+                      sq:action ( [ a sq:Webhook ; sq:url "https://example.org/hooks/act" ; sq:method "POST" ] ) ] ,
+                    [ a sq:Transition ; sq:name "fire" ; sq:from ex:Draft ; sq:to ex:Active ;
+                      sq:trigger sq:UserAction ; sq:guard "plain" ] .
             """;
         MappingResult result = SnapshotMapper.map(buildModel(turtle, ReasonerSetting.NONE));
 
         assertThat(result.issues()).isEmpty();
         StateMachineDefinition machine = result.stateMachines().get(Fixtures.PROJECT_IRI);
         Transition first = machine.transitions().get(0);
-        List<Action> kept = result.transitionActions()
-                .getOrDefault(new TransitionRef(machine.iri(), Fixtures.DRAFT_IRI, "fire"), List.of());
-        assertThat(kept).hasSize(first.guard().orElseThrow().equals("act") ? 1 : 0);
+        assertThat(first.guard()).contains("plain");
+        assertThat(result.transitionActions()).isEmpty();
     }
 
     private static MappingResult mapReferenceOntology(ReasonerSetting reasoner) {

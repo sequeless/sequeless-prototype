@@ -122,6 +122,10 @@ class JenaOntologyPortStorePersistenceTest {
         OntologyReport reloaded = port.reload(scope);
 
         assertThat(reloaded.consistent()).isTrue();
+        assertThat(reloaded.issues())
+                .isEqualTo(JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL)
+                        .reload(scope)
+                        .issues());
         Halves expected = Halves.of(JenaOntologyPort.fromDocument(second, ReasonerSetting.OWL));
         assertThat(Halves.of(port).withoutVersion()).isEqualTo(expected.withoutVersion());
         assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(3));

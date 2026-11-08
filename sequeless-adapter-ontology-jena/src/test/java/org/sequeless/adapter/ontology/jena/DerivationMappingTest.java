@@ -126,6 +126,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
+        assertThat(attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).iri()).isEqualTo(OPEN_TASK_COUNT_IRI);
         RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.criteria())
                 .containsExactly(new Criterion(PRIORITY_IRI, Operator.GT, Optional.of(new IntegerValue(3))));
@@ -195,6 +196,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
+        assertThat(attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).iri()).isEqualTo(OPEN_TASK_COUNT_IRI);
         RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.materialised()).isFalse();
     }
@@ -215,6 +217,7 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
+        assertThat(attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).iri()).isEqualTo(OPEN_TASK_COUNT_IRI);
         RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.materialised()).isTrue();
     }
@@ -230,6 +233,8 @@ class DerivationMappingTest {
             """);
         assertThat(errors(result)).isEmpty();
 
+        assertThat(attribute(result, REF_NS + "Person", REF_NS + "workload").iri())
+                .isEqualTo(REF_NS + "workload");
         PluginRule rule = (PluginRule) derivation(result, REF_NS + "workload").orElseThrow();
         assertThat(rule.materialised()).isFalse();
     }
@@ -524,6 +529,8 @@ class DerivationMappingTest {
             """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
+        assertThat(attribute(result, REF_NS + "Person", REF_NS + "workload").iri())
+                .isEqualTo(REF_NS + "workload");
         DerivationRule derivation = derivation(result, REF_NS + "workload").orElseThrow();
         assertThat(derivation).isInstanceOf(PluginRule.class);
         assertThat(((PluginRule) derivation).pluginName()).isEqualTo("workload");
@@ -555,6 +562,7 @@ class DerivationMappingTest {
             """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
 
+        assertThat(attribute(result, PROJECT_IRI, OPEN_TASK_COUNT_IRI).iri()).isEqualTo(OPEN_TASK_COUNT_IRI);
         RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.sourceTypeIri()).isEqualTo(TASK_IRI);
         assertThat(rule.viaIri()).isEqualTo(BELONGS_TO_PROJECT_IRI);

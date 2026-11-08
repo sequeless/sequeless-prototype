@@ -113,6 +113,10 @@ class JenaOntologyPortTest {
         assertThatThrownBy(() -> port.reload(SCOPE)).isInstanceOf(OntologyException.class);
 
         assertThat(Halves.of(port)).isEqualTo(before);
+
+        // The failed reload took no number, so the next accepted activation is 3, not 4.
+        port.importDocument(SCOPE, Fixtures.inverseTransitiveOntology(), ImportMode.REPLACE);
+        assertThat(Halves.of(port).version()).isEqualTo(new OntologyVersion(3));
     }
 
     @Test
