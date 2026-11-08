@@ -1,17 +1,16 @@
 package org.sequeless.spi.meta.behaviour;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.meta.automation.Action;
 
 /**
  * A single named transition within a {@link StateMachineDefinition} ({@code sq:Transition}),
  * exactly as {@code activate} moves an {@code ex:Project} from {@code ex:Draft} to {@code
  * ex:Active}. The core interpreter evaluates {@link #guard()} (when present) through the {@code
- * ExpressionPort} to decide whether this transition is available from an object's current state,
- * and — once fired — dispatches {@link #actions()} as outbox-recorded {@code ActionRequest}s, in
- * order.
+ * ExpressionPort} to decide whether this transition is available from an object's current state.
+ * The actions dispatched when this transition fires are not part of this record: they are held by
+ * the automation half, keyed by a {@code TransitionRef} built from this transition's machine, its
+ * from-state and its name.
  *
  * <p>This record does not itself enforce that {@link #fromStateIri()}/{@link #toStateIri()}
  * reference states that actually exist in the owning {@link StateMachineDefinition#states()}; per
@@ -33,9 +32,6 @@ import org.sequeless.spi.meta.automation.Action;
  * @param guardMessage optional reason text shown when {@link #guard()} evaluates false ({@code
  *     sq:guardMessage}); must not be {@code null} (the {@link Optional} wrapper itself, not just
  *     its contents)
- * @param actions the actions dispatched, in order, when this transition fires ({@code sq:action});
- *     must not be {@code null}; returned as an unmodifiable copy so callers cannot mutate this
- *     transition after construction
  */
 public record Transition(
         String name,
@@ -43,8 +39,7 @@ public record Transition(
         String toStateIri,
         TriggerSpec trigger,
         Optional<String> guard,
-        Optional<String> guardMessage,
-        List<Action> actions) {
+        Optional<String> guardMessage) {
 
     public Transition {
         if (name == null || name.isBlank()) {
@@ -59,7 +54,5 @@ public record Transition(
         Objects.requireNonNull(trigger, "trigger must not be null");
         Objects.requireNonNull(guard, "guard must not be null");
         Objects.requireNonNull(guardMessage, "guardMessage must not be null");
-        Objects.requireNonNull(actions, "actions must not be null");
-        actions = List.copyOf(actions);
     }
 }

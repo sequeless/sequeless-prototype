@@ -2,28 +2,25 @@ package org.sequeless.spi.meta.schema;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
-import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
 
 /**
  * A single OWL class as the application sees it: its supertypes, the properties attributed to it,
- * its display hints, whether it is abstract, and its state machine if it has one. See the OWL →
- * snapshot mapping table for how each component is derived, and note in particular that {@code
- * superTypes} is reasoner-dependent (see "What the reasoner setting changes" in the vocabulary
- * specification) while {@code properties} attribution is not.
+ * its display hints, and whether it is abstract. See the OWL → snapshot mapping table for how each
+ * component is derived, and note in particular that {@code superTypes} is reasoner-dependent (see
+ * "What the reasoner setting changes" in the vocabulary specification) while {@code properties}
+ * attribution is not. A type's state machine is not part of this record: it is held by the
+ * behaviour half, keyed by this type's IRI.
  *
  * @param iri the type's IRI; must not be blank
  * @param label the type's display label; must not be blank
  * @param superTypes the IRIs of this type's named superclasses; must not be {@code null}; returned
- *     as an unmodifiable copy so callers cannot mutate a snapshot after construction
+ *     as an unmodifiable copy so callers cannot mutate this type after construction
  * @param properties the properties attributed to this type; must not be {@code null}; returned as
- *     an unmodifiable copy so callers cannot mutate a snapshot after construction
+ *     an unmodifiable copy so callers cannot mutate this type after construction
  * @param displayHints this type's ordering, grouping, and visibility hints; must not be {@code
  *     null}
  * @param isAbstract whether this type exists purely for other types to specialise and should not
  *     be offered as directly instantiable
- * @param stateMachine this type's state machine, if it has one; must not be {@code null} (the
- *     {@link Optional} wrapper itself, not just its contents)
  */
 public record TypeDefinition(
         String iri,
@@ -31,8 +28,7 @@ public record TypeDefinition(
         List<String> superTypes,
         List<PropertyDefinition> properties,
         DisplayHints displayHints,
-        boolean isAbstract,
-        Optional<StateMachineDefinition> stateMachine) {
+        boolean isAbstract) {
 
     public TypeDefinition {
         if (iri == null || iri.isBlank()) {
@@ -46,6 +42,5 @@ public record TypeDefinition(
         Objects.requireNonNull(properties, "properties must not be null");
         properties = List.copyOf(properties);
         Objects.requireNonNull(displayHints, "displayHints must not be null");
-        Objects.requireNonNull(stateMachine, "stateMachine must not be null");
     }
 }

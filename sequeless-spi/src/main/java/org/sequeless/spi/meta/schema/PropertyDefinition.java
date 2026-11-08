@@ -1,8 +1,5 @@
 package org.sequeless.spi.meta.schema;
 
-import java.util.Optional;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
-
 /**
  * A property declared on a {@link TypeDefinition}: either an {@link AttributeDefinition} (a
  * scalar-valued property, {@code rdfs:range} a datatype) or a {@link RelationshipDefinition} (an
@@ -64,12 +61,6 @@ public sealed interface PropertyDefinition permits AttributeDefinition, Relation
      * @return this property's ordering, grouping, and visibility hints
      */
     DisplayHints displayHints();
-
-    /**
-     * @return the rule that derives this property's value, if it is a derived property; {@link
-     *     Optional#empty()} for an ordinary stored property
-     */
-    Optional<DerivationRule> derivation();
 
     /**
      * @return {@link #displayHints()}' {@code order()} — a convenience so callers sorting

@@ -2,7 +2,7 @@ package org.sequeless.spi.derivation;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.schema.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.query.QueryPort;
 
 /**
@@ -13,15 +13,15 @@ import org.sequeless.spi.query.QueryPort;
  * there is no mutable init step it could otherwise be handed through.
  *
  * @param scope the tenant and principal the request is made on behalf of; must not be {@code null}
- * @param snapshot the type system the request is interpreted against; must not be {@code null}
+ * @param schema the type system the request is interpreted against; must not be {@code null}
  * @param queryPort the port a plug-in may use to issue its own aggregate or query calls; must not
  *     be {@code null}
  */
-public record DerivationContext(Scope scope, MetaModelSnapshot snapshot, QueryPort queryPort) {
+public record DerivationContext(Scope scope, Schema schema, QueryPort queryPort) {
 
     public DerivationContext {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(queryPort, "queryPort must not be null");
     }
 }

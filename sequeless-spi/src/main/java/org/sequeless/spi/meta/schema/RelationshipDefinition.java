@@ -2,12 +2,12 @@ package org.sequeless.spi.meta.schema;
 
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
 
 /**
  * An object-valued property: an OWL object property whose most-specific declared {@code
  * rdfs:range} is another type. See the OWL → snapshot mapping table for how each component is
- * derived from the ontology.
+ * derived from the ontology. Whether the property is derived is not part of this record: the
+ * behaviour half holds derivation rules, keyed by property IRI.
  *
  * @param iri the property's IRI; must not be blank
  * @param label the property's display label; must not be blank
@@ -20,8 +20,6 @@ import org.sequeless.spi.meta.behaviour.DerivationRule;
  *     rendering a reference to an instance of that type
  * @param displayHints this property's ordering, grouping, and visibility hints; must not be
  *     {@code null}
- * @param derivation the rule that derives this property's value, if any; must not be {@code null}
- *     (the {@link Optional} wrapper itself, not just its contents)
  * @param targetTypeIri the IRI of the type this relationship points to; must not be {@code null}
  * @param inverseIri the IRI of this relationship's {@code owl:inverseOf} partner, if declared;
  *     must not be {@code null} (the {@link Optional} wrapper itself, not just its contents)
@@ -37,7 +35,6 @@ public record RelationshipDefinition(
         boolean readOnly,
         boolean displayLabel,
         DisplayHints displayHints,
-        Optional<DerivationRule> derivation,
         String targetTypeIri,
         Optional<String> inverseIri,
         boolean transitive)
@@ -52,7 +49,6 @@ public record RelationshipDefinition(
         }
         Objects.requireNonNull(cardinality, "cardinality must not be null");
         Objects.requireNonNull(displayHints, "displayHints must not be null");
-        Objects.requireNonNull(derivation, "derivation must not be null");
         Objects.requireNonNull(targetTypeIri, "targetTypeIri must not be null");
         Objects.requireNonNull(inverseIri, "inverseIri must not be null");
     }

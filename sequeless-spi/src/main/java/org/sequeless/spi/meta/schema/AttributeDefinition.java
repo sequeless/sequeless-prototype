@@ -1,13 +1,12 @@
 package org.sequeless.spi.meta.schema;
 
 import java.util.Objects;
-import java.util.Optional;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
 
 /**
  * A scalar-valued property: an OWL datatype property whose most-specific declared {@code
  * rdfs:range} is an XSD datatype rather than another type. See the OWL → snapshot mapping table
- * for how each component is derived from the ontology.
+ * for how each component is derived from the ontology. Whether the property is derived is not part
+ * of this record: the behaviour half holds derivation rules, keyed by property IRI.
  *
  * @param iri the property's IRI; must not be blank
  * @param label the property's display label; must not be blank
@@ -20,8 +19,6 @@ import org.sequeless.spi.meta.behaviour.DerivationRule;
  *     rendering a reference to an instance of that type
  * @param displayHints this property's ordering, grouping, and visibility hints; must not be
  *     {@code null}
- * @param derivation the rule that derives this property's value, if any; must not be {@code null}
- *     (the {@link Optional} wrapper itself, not just its contents)
  * @param datatype the scalar type this property's values hold; must not be {@code null}
  */
 public record AttributeDefinition(
@@ -34,7 +31,6 @@ public record AttributeDefinition(
         boolean readOnly,
         boolean displayLabel,
         DisplayHints displayHints,
-        Optional<DerivationRule> derivation,
         Datatype datatype)
         implements PropertyDefinition {
 
@@ -47,7 +43,6 @@ public record AttributeDefinition(
         }
         Objects.requireNonNull(cardinality, "cardinality must not be null");
         Objects.requireNonNull(displayHints, "displayHints must not be null");
-        Objects.requireNonNull(derivation, "derivation must not be null");
         Objects.requireNonNull(datatype, "datatype must not be null");
     }
 }

@@ -20,7 +20,6 @@ class AttributeDefinitionTest {
                 false,
                 false,
                 DisplayHints.none(),
-                Optional.empty(),
                 Datatype.STRING);
     }
 
@@ -36,7 +35,6 @@ class AttributeDefinitionTest {
                 false,
                 false,
                 new DisplayHints(2, Optional.empty(), false),
-                Optional.empty(),
                 Datatype.STRING);
 
         assertThat(attribute.order()).isEqualTo(2);
@@ -55,7 +53,6 @@ class AttributeDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         Datatype.STRING));
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new AttributeDefinition(
@@ -68,7 +65,6 @@ class AttributeDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         Datatype.STRING));
     }
 
@@ -85,7 +81,6 @@ class AttributeDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         Datatype.STRING));
     }
 
@@ -102,7 +97,6 @@ class AttributeDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         Datatype.STRING));
     }
 
@@ -118,24 +112,6 @@ class AttributeDefinitionTest {
                         false,
                         false,
                         false,
-                        null,
-                        Optional.empty(),
-                        Datatype.STRING));
-    }
-
-    @Test
-    void rejectsNullDerivationWrapper() {
-        assertThatNullPointerException()
-                .isThrownBy(() -> new AttributeDefinition(
-                        "https://example.org/ns#title",
-                        "Title",
-                        Cardinality.optional(),
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        DisplayHints.none(),
                         null,
                         Datatype.STRING));
     }
@@ -153,7 +129,6 @@ class AttributeDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         null));
     }
 

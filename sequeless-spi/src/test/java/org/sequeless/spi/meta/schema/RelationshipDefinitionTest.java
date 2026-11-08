@@ -20,7 +20,6 @@ class RelationshipDefinitionTest {
                 false,
                 false,
                 displayHints,
-                Optional.empty(),
                 "https://example.org/ns#Task",
                 Optional.of("https://example.org/ns#belongsToProject"),
                 false);
@@ -55,7 +54,6 @@ class RelationshipDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         "https://example.org/ns#Task",
                         Optional.empty(),
                         false));
@@ -74,7 +72,6 @@ class RelationshipDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         "https://example.org/ns#Task",
                         Optional.empty(),
                         false));
@@ -93,7 +90,6 @@ class RelationshipDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         "https://example.org/ns#Task",
                         Optional.empty(),
                         false));
@@ -111,26 +107,6 @@ class RelationshipDefinitionTest {
                         false,
                         false,
                         false,
-                        null,
-                        Optional.empty(),
-                        "https://example.org/ns#Task",
-                        Optional.empty(),
-                        false));
-    }
-
-    @Test
-    void rejectsNullDerivationWrapper() {
-        assertThatNullPointerException()
-                .isThrownBy(() -> new RelationshipDefinition(
-                        "https://example.org/ns#hasTask",
-                        "Has task",
-                        Cardinality.optional(),
-                        false,
-                        false,
-                        false,
-                        false,
-                        false,
-                        DisplayHints.none(),
                         null,
                         "https://example.org/ns#Task",
                         Optional.empty(),
@@ -150,7 +126,6 @@ class RelationshipDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         null,
                         Optional.empty(),
                         false));
@@ -169,7 +144,6 @@ class RelationshipDefinitionTest {
                         false,
                         false,
                         DisplayHints.none(),
-                        Optional.empty(),
                         "https://example.org/ns#Task",
                         null,
                         false));

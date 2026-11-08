@@ -2,7 +2,7 @@ package org.sequeless.spi.validation;
 
 import java.util.List;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.schema.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.object.BusinessObject;
 
 /**
@@ -25,34 +25,34 @@ import org.sequeless.spi.object.BusinessObject;
  * content of any particular violation.
  *
  * <ul>
- *   <li><b>Null handling.</b> Every argument — {@code scope}, {@code snapshot}, and {@code object}
+ *   <li><b>Null handling.</b> Every argument — {@code scope}, {@code schema}, and {@code object}
  *       — must be non-{@code null}. A conforming implementation throws {@link
  *       NullPointerException} when any argument is {@code null}.
  *   <li><b>Never throws for a well-formed object.</b> For any non-null {@code scope}, {@code
- *       snapshot}, and {@code object}, {@link #validate(Scope, MetaModelSnapshot, BusinessObject)}
+ *       schema}, and {@code object}, {@link #validate(Scope, Schema, BusinessObject)}
  *       must never throw and must return a non-null, unmodifiable {@link List}. An object that
  *       fails every shape in the ontology still gets a normal return value — a non-empty list of
  *       {@link Violation}s — never an exception.
  *   <li><b>Empty means valid.</b> An empty list means {@code object} satisfies every applicable
- *       shape in {@code snapshot}; a non-empty list means it does not, with one {@link Violation}
+ *       shape in {@code schema}; a non-empty list means it does not, with one {@link Violation}
  *       per failed constraint.
  *   <li><b>Determinism.</b> Repeated calls with equal arguments (an equal {@code scope}, an equal
- *       {@code snapshot}, an equal {@code object}) must return lists that are equal in content,
+ *       {@code schema}, an equal {@code object}) must return lists that are equal in content,
  *       independent of call count or wall-clock time.
  * </ul>
  */
 public interface ValidationPort {
 
     /**
-     * Validates {@code object} against every shape in {@code snapshot} that applies to its type.
+     * Validates {@code object} against every shape in {@code schema} that applies to its type.
      * See the interface-level javadoc for the full contract this method must satisfy.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the type system {@code object} is validated against; must not be {@code null}
+     * @param schema the type system {@code object} is validated against; must not be {@code null}
      * @param object the object to validate; must not be {@code null}
      * @return a non-null, unmodifiable list of violations; empty if {@code object} is valid
      * @throws NullPointerException if any argument is {@code null}
      */
-    List<Violation> validate(Scope scope, MetaModelSnapshot snapshot, BusinessObject object);
+    List<Violation> validate(Scope scope, Schema schema, BusinessObject object);
 }

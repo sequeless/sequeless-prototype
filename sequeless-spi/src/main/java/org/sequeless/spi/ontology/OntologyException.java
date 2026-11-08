@@ -3,8 +3,9 @@ package org.sequeless.spi.ontology;
 import java.util.Objects;
 
 /**
- * Thrown by {@link OntologyPort#snapshot} and {@link OntologyPort#reload} when the ontology they
- * would otherwise return is inconsistent, carrying the {@link OntologyReport} that explains why.
+ * Thrown by the three read ports ({@code SchemaSource}, {@code BehaviourSource} and {@code
+ * AutomationSource}) and by {@link OntologyAdministration#reload} when the ontology they would
+ * otherwise return is inconsistent, carrying the {@link OntologyReport} that explains why.
  *
  * <p>This is deliberately unchecked, for the same reason {@code
  * org.sequeless.core.AuthorizationException} is: inconsistency is a condition every intermediate
@@ -13,8 +14,8 @@ import java.util.Objects;
  * from {@link OntologyReport#describe()}.
  *
  * <p>Unlike {@code AuthorizationException}, which lives in {@code sequeless-core}, this exception
- * lives in the SPI. That is deliberate: {@link OntologyPort}'s own contract javadoc specifies that
- * {@code snapshot()} and {@code reload()} throw {@code OntologyException} on inconsistency, so the
+ * lives in the SPI. That is deliberate: the read ports and {@link OntologyAdministration}'s own
+ * contract javadoc specify that they throw {@code OntologyException} on inconsistency, so the
  * SPI must define the exception its own interface promises to throw, the same way {@link
  * org.sequeless.spi.authz.AccessDecision} is SPI-level because it is a port return type. {@code
  * AuthorizationPort} by contrast never throws — denial is a return value a core use case escalates

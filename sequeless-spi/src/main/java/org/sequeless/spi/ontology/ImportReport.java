@@ -3,7 +3,7 @@ package org.sequeless.spi.ontology;
 import java.util.Objects;
 
 /**
- * The outcome of an {@link OntologyPort#importDocument} call: whether the imported document was
+ * The outcome of an {@link OntologyAdministration#importDocument} call: whether the imported document was
  * accepted, the {@link OntologyReport} produced while validating it, and how many types the
  * resulting snapshot contains. {@code accepted} is {@code false} only when the caller opted into
  * seeing a rejection rather than an {@link OntologyException} — the port contract itself throws on

@@ -7,7 +7,7 @@
  *
  * <p>Every other {@code sequeless-spi} port ({@link org.sequeless.spi.object.ObjectStorePort},
  * {@code org.sequeless.expression.api.ExpressionPort}, {@code AuthorizationPort},
- * {@code ValidationPort}, {@code QueryPort}, {@code OntologyPort}, ...) is <em>outbound</em>:
+ * {@code ValidationPort}, {@code QueryPort}, {@code OntologyAdministration}, ...) is <em>outbound</em>:
  * {@code sequeless-core} calls it, and an adapter module implements it, so {@code sequeless-core}
  * never depends on adapter-specific libraries. The three inbound ports in this package are
  * deliberately the opposite shape: {@code sequeless-core} implements each one ({@code
