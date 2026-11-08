@@ -45,6 +45,7 @@ class ArchitectureTest {
     private static final String QUERY_PACKAGE = "org.sequeless.spi.query..";
     private static final String ONTOLOGY_PACKAGE = "org.sequeless.spi.ontology..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
+    private static final String TESTKIT_PACKAGE = "org.sequeless.testkit..";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -256,13 +257,15 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule onlyHostPreparesIndexes = noClasses()
             .that()
-            .resideOutsideOfPackage(HOST_CONFIG_PACKAGE)
+            .resideOutsideOfPackages(HOST_CONFIG_PACKAGE, TESTKIT_PACKAGE)
             .should()
             .callMethod(QueryPort.class, "ensureIndexes", Scope.class, Schema.class)
             .because("index preparation after an ontology activation is a host responsibility (#24). Only the "
-                    + "host's configuration package may call QueryPort#ensureIndexes, so that the use cases "
-                    + "never see QueryPort for that purpose and the host can swap it to the prepare(tenant, "
-                    + "version) call of spec 13 in one place.");
+                    + "host's configuration package may call QueryPort#ensureIndexes in production code, so that "
+                    + "the use cases never see QueryPort for that purpose and the host can swap it to the "
+                    + "prepare(tenant, version) call of spec 13 in one place. The testkit's contract kit "
+                    + "(org.sequeless.testkit) is excluded: it exercises the port's own contract, including the "
+                    + "null-argument clause, and is not a production caller.");
 
     /**
      * Proves this suite is analyzing real classes from every module rather than passing
