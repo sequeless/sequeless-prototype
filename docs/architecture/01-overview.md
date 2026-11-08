@@ -9,10 +9,10 @@ validation shapes, display hints, facets, indexing hints, state machines and der
 Concepts OWL lacks are expressed with a small custom annotation vocabulary (`sq:`) inside the same
 ontology.
 
-The domain core never sees Jena. It defines an immutable **meta-model snapshot** and asks the
-ontology port for it. The Jena adapter parses the ontology, runs Jena's built-in OWL reasoner over
-the type level, resolves imports and the `sq:` vocabulary, and returns the snapshot. Business object
-instances live in PostgreSQL in one generic JSONB table. Every type gets Browse (with facets), Read,
+The domain core never sees Jena. It defines immutable **schema, behaviour and automation** records
+and reads them through read ports. The Jena adapter parses the ontology, runs Jena's built-in OWL
+reasoner over the type level, resolves imports and the `sq:` vocabulary, and returns those records.
+Business object instances live in PostgreSQL in one generic JSONB table. Every type gets Browse (with facets), Read,
 Edit, Add and Delete through a generic REST API. Any type may declare derived properties and a state
 machine. Transitions are interpreted in the core, guarded by JEXL expressions behind an expression
 port, and their actions are recorded in a transactional outbox and executed durably by Temporal.
@@ -34,7 +34,7 @@ flowchart LR
     DV[Derivation planner]
   end
   subgraph spi[sequeless-spi: ports + value types]
-    P1[OntologyPort]
+    P1[OntologyAdministration, SchemaSource,<br/>BehaviourSource, AutomationSource]
     P2[ValidationPort]
     P3[ObjectStorePort]
     P4[QueryPort]
@@ -74,7 +74,7 @@ compile-time dependencies.
 | `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | nothing outside the JDK |
 | `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus the reference-domain ontology fixture | `sequeless-spi`, JUnit 5, AssertJ |
 | `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `sequeless-spi` |
-| `sequeless-adapter-ontology-jena` | `OntologyPort` and `ValidationPort` via Jena 6 ontapi, built-in OWL reasoner, jena-shacl; Turtle import/export | `sequeless-spi`, Jena, Spring Boot autoconfigure (optional scope), Lombok |
+| `sequeless-adapter-ontology-jena` | `OntologyAdministration`, `SchemaSource`, `BehaviourSource`, `AutomationSource` and `ValidationPort` via Jena 6 ontapi, built-in OWL reasoner, jena-shacl; Turtle import/export | `sequeless-spi`, Jena, Spring Boot autoconfigure (optional scope), Lombok |
 | `sequeless-adapter-persistence-postgres` | `ObjectStorePort` and `QueryPort` on PostgreSQL 18 JSONB; Flyway migrations; outbox table; hint-driven indexes | `sequeless-spi`, JDBC/Spring JDBC, Flyway, Lombok |
 | `sequeless-adapter-expression-jexl` | `ExpressionPort` via Commons JEXL 3 in a sandboxed, side-effect-free configuration | `sequeless-spi`, JEXL |
 | `sequeless-adapter-automation-temporal` | `AutomationPort` via Temporal Java SDK: outbox relay, action workflows, timers, signals | `sequeless-spi`, Temporal SDK, Spring Boot starter |
@@ -97,7 +97,7 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 
 | Port | Purpose | Default adapter | Plausible alternatives | Property |
 |---|---|---|---|---|
-| `OntologyPort` | Parse, reason, resolve and snapshot the ontology; import/export Turtle | `jena` | `rdf4j`, external DL reasoner, static YAML for tests | `sequeless.ontology.adapter=jena` |
+| `OntologyAdministration`, `SchemaSource`, `BehaviourSource`, `AutomationSource` | Parse, reason, resolve and activate the ontology; import/export Turtle; read the Schema, Behaviour and Automation halves of the active version. One adapter bean implements all four | `jena` | `rdf4j`, external DL reasoner, static YAML for tests | `sequeless.ontology.adapter=jena` |
 | `ValidationPort` | Validate a business object against shapes | `shacl` (Jena module) | `noop`, JSON Schema | `sequeless.validation.adapter=shacl` |
 | `ObjectStorePort` | Atomic commit of object mutations plus outbox rows; read by id; ontology document storage | `postgres` | `inmemory`, MongoDB, Neo4j | `sequeless.persistence.adapter=postgres` |
 | `QueryPort` | Filtered, sorted, paged browse; facet counts; text search; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
@@ -110,8 +110,20 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 Illustrative signatures (final shape is decided in the phase that introduces the port):
 
 ```java
-public interface OntologyPort {
-    MetaModelSnapshot snapshot(Scope scope);                 // reasoned, imports resolved
+public interface SchemaSource {
+    Schema schema(TenantId tenant);                          // reasoned, imports resolved
+}
+
+public interface BehaviourSource {
+    Behaviour behaviour(TenantId tenant);                    // state machines and derivations
+}
+
+public interface AutomationSource {
+    Automation automation(TenantId tenant);                  // transition actions
+}
+
+public interface OntologyAdministration {
+    OntologyReport reload(Scope scope);                      // rebuilds from the source
     OntologyDocument export(Scope scope, OntologyFormat format);
     ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode);
 }
@@ -122,8 +134,8 @@ public interface ObjectStorePort {
 }
 
 public interface QueryPort {
-    QueryResult query(Scope scope, MetaModelSnapshot model, Query query);
-    AggregateResult aggregate(Scope scope, MetaModelSnapshot model, AggregateRequest request);
+    QueryResult query(Scope scope, Schema schema, Query query);
+    AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 }
 
 public interface AutomationPort {
