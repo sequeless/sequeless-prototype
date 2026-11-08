@@ -11,15 +11,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntModel;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.meta.automation.Automation;
 import org.sequeless.spi.meta.automation.AutomationSource;
 import org.sequeless.spi.meta.behaviour.Behaviour;
@@ -48,8 +45,9 @@ import org.sequeless.spi.ontology.Severity;
  * the three read ports, one per half of an activation ({@link SchemaSource}, {@link
  * BehaviourSource} and {@link AutomationSource}), and {@link OntologyAdministration}. Two static
  * factories mirror the two ways an adapter can be pointed at an ontology: {@link
- * #fromDocument(OntologyDocument, ReasonerSetting)} for an in-memory document (tests, the contract
- * testkit), {@link #fromSource(String, String, ReasonerSetting)} for a configured {@code
+ * #fromDocument(OntologyDocument, ReasonerSetting, java.util.function.Supplier)} for an in-memory
+ * document (tests, the contract testkit), {@link #fromSource(String, String, ReasonerSetting,
+ * java.util.function.Supplier)} for a configured {@code
  * classpath:}/{@code file:} location (the running application, via {@code
  * JenaOntologyAutoConfiguration} in a later task).
  *
@@ -129,8 +127,9 @@ import org.sequeless.spi.ontology.Severity;
  *
  * <h2>Merging the sources of an {@link OntologyReport}</h2>
  *
- * <p>{@link #buildStateFrom(OntModel)} is where this class earns its keep: it merges {@link
- * ConsistencyChecker}'s reasoner-level {@link OntologyReport}, an unresolved-{@code owl:imports}
+ * <p>{@link #buildStateFrom(OntModel, java.util.function.Supplier)} is where this class earns its
+ * keep: it merges {@link ConsistencyChecker}'s reasoner-level {@link OntologyReport}, an
+ * unresolved-{@code owl:imports}
  * check ({@link ImportResolver} only ever registers its own bundled {@code sq-meta.ttl} by IRI —
  * verified empirically that {@code GraphRepository.createGraphDocumentRepositoryMem()} silently
  * auto-vivifies an *empty* graph for any other import instead of throwing, so this adapter must
@@ -138,10 +137,10 @@ import org.sequeless.spi.ontology.Severity;
  * rather than by catching an exception that never comes), {@link SqVocabulary}'s reserved-term
  * rejection, {@link SnapshotMapper}'s own mapping issues — {@code WARNING} for a degraded-but-usable
  * mapping, {@code ERROR} for a malformed {@code sq:derivedBy} rule — and {@link
- * #unknownPluginIssues(List, Map)}'s {@code ServiceLoader}-backed check that every {@code sq:Plugin}
- * rule's {@code sq:pluginName} actually resolves to a registered {@link
- * org.sequeless.spi.derivation.DerivationPlugin}, into the single {@link OntologyReport} that ends
- * up inside the {@link PortState} this port serves.
+ * #unknownPluginIssues(List, Map, java.util.function.Supplier)}'s check, against the plugin names the
+ * host supplies, that every {@code sq:Plugin} rule's {@code sq:pluginName} actually resolves to a
+ * registered {@code DerivationPlugin}, into the single {@link OntologyReport} that ends up inside the
+ * {@link PortState} this port serves.
  */
 public final class JenaOntologyPort implements SchemaSource, BehaviourSource, AutomationSource, OntologyAdministration {
 
@@ -160,6 +159,11 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
     private final ReasonerSetting reasoner;
     private final Optional<OntologyDocumentStore> documentStore;
     /**
+     * The host's view of the registered {@code DerivationPlugin} names. Called once per build, so a
+     * plug-in registered after construction is seen by the next build.
+     */
+    private final Supplier<Set<String>> registeredPluginNames;
+    /**
      * The version of the state currently adopted, used as the counter when there is no store. Only
      * {@link #adopt} advances it, and only after a build has been checked, so a failed reload or
      * import takes no number.
@@ -172,10 +176,13 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
             Supplier<InputStream> sourceLoader,
             ReasonerSetting reasoner,
             Optional<OntologyDocumentStore> documentStore,
-            OntologyVersion initialVersion) {
+            OntologyVersion initialVersion,
+            Supplier<Set<String>> registeredPluginNames) {
+        Objects.requireNonNull(registeredPluginNames, "registeredPluginNames must not be null");
         this.sourceLoader = sourceLoader;
         this.reasoner = reasoner;
         this.documentStore = documentStore;
+        this.registeredPluginNames = registeredPluginNames;
         this.versions = new AtomicInteger(initialVersion.value());
         this.current = buildState(sourceLoader).stamp(initialVersion);
     }
@@ -183,14 +190,19 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
     /**
      * @param document the ontology to load; must not be {@code null}
      * @param reasoner which reasoning level to build the model under; must not be {@code null}
+     * @param registeredPluginNames the names of the {@code DerivationPlugin}s the host has
+     *     registered, read on every build; must not be {@code null}
      * @return a new port whose current state reflects {@code document}, built eagerly but never
      *     thrown for even a badly broken {@code document} — see this class's F20 note
-     * @throws NullPointerException if either argument is {@code null}
+     * @throws NullPointerException if any argument is {@code null}
      */
-    public static JenaOntologyPort fromDocument(OntologyDocument document, ReasonerSetting reasoner) {
+    public static JenaOntologyPort fromDocument(
+            OntologyDocument document, ReasonerSetting reasoner, Supplier<Set<String>> registeredPluginNames) {
         Objects.requireNonNull(document, "document must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
-        return new JenaOntologyPort(streamOf(document), reasoner, Optional.empty(), FIRST_VERSION);
+        Objects.requireNonNull(registeredPluginNames, "registeredPluginNames must not be null");
+        return new JenaOntologyPort(
+                streamOf(document), reasoner, Optional.empty(), FIRST_VERSION, registeredPluginNames);
     }
 
     /**
@@ -199,18 +211,29 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
      * @param location the {@code classpath:}/{@code file:} location to load from; must not be
      *     {@code null}
      * @param reasoner which reasoning level to build the model under; must not be {@code null}
+     * @param registeredPluginNames the names of the {@code DerivationPlugin}s the host has
+     *     registered, read on every build; must not be {@code null}
      * @return a new port whose current state reflects the ontology at {@code location}
      * @throws NullPointerException if any argument is {@code null}
      * @throws IllegalArgumentException if {@code location} cannot be resolved to a readable
      *     resource — a misconfigured {@code sequeless.ontology.source} is a startup-time
      *     configuration error, deliberately not deferred the way an inconsistent ontology is
      */
-    public static JenaOntologyPort fromSource(String propertyName, String location, ReasonerSetting reasoner) {
+    public static JenaOntologyPort fromSource(
+            String propertyName,
+            String location,
+            ReasonerSetting reasoner,
+            Supplier<Set<String>> registeredPluginNames) {
         Objects.requireNonNull(propertyName, "propertyName must not be null");
         Objects.requireNonNull(location, "location must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
+        Objects.requireNonNull(registeredPluginNames, "registeredPluginNames must not be null");
         return new JenaOntologyPort(
-                () -> OntologySource.open(propertyName, location), reasoner, Optional.empty(), FIRST_VERSION);
+                () -> OntologySource.open(propertyName, location),
+                reasoner,
+                Optional.empty(),
+                FIRST_VERSION,
+                registeredPluginNames);
     }
 
     /**
@@ -224,6 +247,8 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
      *     has no active document yet for {@code scope.tenantId()}; may be {@code null} or blank only
      *     if {@code documents} already has an active document
      * @param reasoner which reasoning level to build the model under; must not be {@code null}
+     * @param registeredPluginNames the names of the {@code DerivationPlugin}s the host has
+     *     registered, read on every build; must not be {@code null}
      * @return a new port backed by {@code documents}: {@link #reload} and {@link #importDocument}
      *     read and write through it from now on, using whatever {@code Scope} each call is made with
      * @throws IllegalStateException if {@code documents} has no active document for {@code
@@ -236,10 +261,12 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
             Scope scope,
             String sourcePropertyName,
             String source,
-            ReasonerSetting reasoner) {
+            ReasonerSetting reasoner,
+            Supplier<Set<String>> registeredPluginNames) {
         Objects.requireNonNull(documents, "documents must not be null");
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
+        Objects.requireNonNull(registeredPluginNames, "registeredPluginNames must not be null");
 
         Optional<StoredOntologyDocument> active = documents.active(scope);
         StoredOntologyDocument stored;
@@ -258,13 +285,17 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
                 throw new UncheckedIOException("Failed to read the ontology source to seed the store", e);
             }
             OntologyDocument initial = new OntologyDocument(turtle, OntologyFormat.TURTLE);
-            JenaOntologyPort probe = fromDocument(initial, reasoner);
+            JenaOntologyPort probe = fromDocument(initial, reasoner, registeredPluginNames);
             requireConsistent(probe.current); // throws OntologyException; never activates a broken seed
             stored = documents.activate(scope, initial);
         }
 
         return new JenaOntologyPort(
-                streamOf(stored.document()), reasoner, Optional.of(documents), new OntologyVersion(stored.version()));
+                streamOf(stored.document()),
+                reasoner,
+                Optional.of(documents),
+                new OntologyVersion(stored.version()),
+                registeredPluginNames);
     }
 
     /**
@@ -411,7 +442,7 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
                 return failureState("Failed to parse the ontology: " + describe(parseFailure));
             }
             try {
-                return buildStateFrom(model);
+                return buildStateFrom(model, registeredPluginNames);
             } catch (RuntimeException mappingFailure) {
                 return failureState("Failed to process the ontology: " + describe(mappingFailure));
             }
@@ -424,7 +455,7 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
      * Merges every source of truth about {@code model} into one {@link OntologyReport} and maps the
      * three halves. See this class's javadoc for what is merged and why.
      */
-    private static Built buildStateFrom(OntModel model) {
+    private static Built buildStateFrom(OntModel model, Supplier<Set<String>> registeredPluginNames) {
         List<OntologyIssue> issues = new ArrayList<>();
         boolean consistent = true;
 
@@ -456,7 +487,8 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
         issues.addAll(mapping.issues());
         consistent &= mapping.issues().stream().noneMatch(issue -> issue.severity() == Severity.ERROR);
 
-        List<OntologyIssue> pluginIssues = unknownPluginIssues(mapping.types(), mapping.derivations());
+        List<OntologyIssue> pluginIssues =
+                unknownPluginIssues(mapping.types(), mapping.derivations(), registeredPluginNames);
         issues.addAll(pluginIssues);
         consistent &= pluginIssues.isEmpty();
 
@@ -481,15 +513,15 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
     }
 
     /**
-     * Checks every {@code sq:Plugin}-derived property in {@code types} against the {@link
-     * DerivationPlugin} implementations actually registered on the classpath via {@link
-     * ServiceLoader}, so that a typo'd or never-implemented {@code sq:pluginName} is an {@code
-     * ERROR} {@link OntologyIssue} at activation — not a lookup failure the first time someone reads
-     * an object of that type. Resolved fresh on every call rather than cached on this instance:
-     * caching would make a plug-in registered after this port's construction (e.g. a newly deployed
-     * adapter jar) invisible to a later {@link #reload(Scope)}, which would be a surprising and
-     * hard-to-diagnose staleness bug for the sake of an optimisation this method (one {@code
-     * ServiceLoader.load} plus a walk of an already-in-memory type list) does not need.
+     * Checks every {@code sq:Plugin}-derived property in {@code types} against the {@code
+     * DerivationPlugin} names the host supplies through {@code registeredPluginNames}, so that a
+     * typo'd or never-implemented {@code sq:pluginName} is an {@code ERROR} {@link OntologyIssue} at
+     * activation — not a lookup failure the first time someone reads an object of that type. Resolved
+     * fresh on every call rather than cached on this instance: caching would make a plug-in registered
+     * after this port's construction (e.g. a newly deployed adapter jar) invisible to a later {@link
+     * #reload(Scope)}, which would be a surprising and hard-to-diagnose staleness bug for the sake of
+     * an optimisation this method (one {@code get()} on the supplier plus a walk of an
+     * already-in-memory type list) does not need.
      *
      * <p>Deduplicated by property IRI: a derived property inherited by {@code N} subtypes appears in
      * {@code N} types' {@link TypeDefinition#properties()} lists, but is one rule and must be one
@@ -497,13 +529,14 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
      *
      * @param types every type of the ontology, in the order its issues are reported
      * @param derivations the derivation rules, keyed by the IRI of the property each derives
+     * @param registeredPluginNames the host's view of the registered plugin names; {@code get()} is
+     *     called once per build
      */
     private static List<OntologyIssue> unknownPluginIssues(
-            List<TypeDefinition> types, Map<String, DerivationRule> derivations) {
-        Set<String> registeredPluginNames = ServiceLoader.load(DerivationPlugin.class).stream()
-                .map(ServiceLoader.Provider::get)
-                .map(DerivationPlugin::name)
-                .collect(Collectors.toSet());
+            List<TypeDefinition> types,
+            Map<String, DerivationRule> derivations,
+            Supplier<Set<String>> registeredPluginNames) {
+        Set<String> pluginNames = registeredPluginNames.get();
 
         Map<String, String> pluginRulesByPropertyIri = new LinkedHashMap<>();
         for (TypeDefinition type : types) {
@@ -519,7 +552,7 @@ public final class JenaOntologyPort implements SchemaSource, BehaviourSource, Au
         for (Map.Entry<String, String> entry : pluginRulesByPropertyIri.entrySet()) {
             String propertyIri = entry.getKey();
             String pluginName = entry.getValue();
-            if (!registeredPluginNames.contains(pluginName)) {
+            if (!pluginNames.contains(pluginName)) {
                 issues.add(new OntologyIssue(
                         Severity.ERROR,
                         Optional.of(propertyIri),

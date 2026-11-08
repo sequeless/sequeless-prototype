@@ -1,8 +1,12 @@
 package org.sequeless.adapter.ontology.jena;
 
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.ontology.OntologyAdministration;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,17 +60,36 @@ public class JenaOntologyAutoConfiguration {
     @Bean
     public JenaOntologyPort ontologyPort(
             JenaOntologyProperties properties, ObjectProvider<ObjectStorePort> objectStoreProvider) {
+        JenaOntologySettings settings = properties.settings();
         ObjectStorePort store = objectStoreProvider.getIfAvailable();
         if (store == null) {
             return JenaOntologyPort.fromSource(
-                    "sequeless.ontology.source", properties.getSource(), properties.getReasoner());
+                    "sequeless.ontology.source",
+                    settings.source(),
+                    settings.reasoner(),
+                    JenaOntologyAutoConfiguration::registeredDerivationPlugins);
         }
         Scope scope = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
         return JenaOntologyPort.fromStore(
                 store.ontologyDocuments(),
                 scope,
                 "sequeless.ontology.source",
-                properties.getSource(),
-                properties.getReasoner());
+                settings.source(),
+                settings.reasoner(),
+                JenaOntologyAutoConfiguration::registeredDerivationPlugins);
+    }
+
+    /**
+     * Names every {@link DerivationPlugin} registered on the classpath through {@link ServiceLoader}.
+     * The port calls this on every build, not once at bean creation, so a plug-in deployed after
+     * startup is seen by the next reload.
+     *
+     * @return the {@link DerivationPlugin#name()} of each registered plug-in; a fresh set on each call
+     */
+    public static Set<String> registeredDerivationPlugins() {
+        return ServiceLoader.load(DerivationPlugin.class).stream()
+                .map(ServiceLoader.Provider::get)
+                .map(DerivationPlugin::name)
+                .collect(Collectors.toSet());
     }
 }

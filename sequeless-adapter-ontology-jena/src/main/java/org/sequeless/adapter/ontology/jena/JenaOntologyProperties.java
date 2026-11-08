@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * JenaOntologyAutoConfiguration}'s {@code @ConditionalOnProperty}, not by this class itself), which
  * reasoning level to build the model under ({@link #getReasoner()}), and where the ontology document
  * lives ({@link #getSource()}, passed straight through to {@link
- * JenaOntologyPort#fromSource(String, String, ReasonerSetting)}).
+ * JenaOntologyPort#fromSource(String, String, ReasonerSetting, java.util.function.Supplier)}).
  *
  * <h2>Why {@link ReasonerSetting#OWL} is the default</h2>
  *
@@ -42,7 +42,8 @@ public class JenaOntologyProperties {
 
     /**
      * The {@code classpath:} or {@code file:} location of the ontology document to load, passed
-     * straight through to {@link JenaOntologyPort#fromSource(String, String, ReasonerSetting)}.
+     * straight through to {@link JenaOntologyPort#fromSource(String, String, ReasonerSetting,
+     * java.util.function.Supplier)}.
      */
     private String source;
 
@@ -87,5 +88,16 @@ public class JenaOntologyProperties {
      */
     public void setSource(String source) {
         this.source = source;
+    }
+
+    /**
+     * The reasoner and source this binding holds, as a plain {@link JenaOntologySettings} value. Named
+     * without a {@code get}/{@code is} prefix on purpose, so Spring's binder does not treat it as a
+     * property.
+     *
+     * @return a new settings record holding the current {@link #getReasoner()} and {@link #getSource()}
+     */
+    public JenaOntologySettings settings() {
+        return new JenaOntologySettings(reasoner, source);
     }
 }
