@@ -1,8 +1,8 @@
 package org.sequeless.spi.query;
 
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.Schema;
 
 /**
  * The outbound port that runs filtered, sorted, paged, faceted, and free-text queries over stored
@@ -43,12 +43,12 @@ import org.sequeless.spi.meta.MetaModelSnapshot;
  *       adding a matching {@link Criterion} for that property) does not zero out the counts of
  *       that facet's sibling buckets — only the counts of other facets are narrowed by the
  *       selection.
- *   <li><b>{@link #ensureIndexes} is idempotent.</b> It is safe to call repeatedly with an
- *       equivalent {@link MetaModelSnapshot} — it will be called on every ontology activation in a
- *       later phase task, not just once — and a conforming implementation must not fail, error, or
- *       accumulate duplicate index structures on a repeat call.
- *   <li><b>{@link #ensureIndexes} is a no-op signal for a snapshot with no indexing needs.</b> A
- *       {@link MetaModelSnapshot} whose types declare no {@code sq:indexed} and no {@code
+ *   <li><b>{@link #ensureIndexes} is idempotent.</b> The host calls it after every ontology
+ *       activation (import, reload and startup), so it is called repeatedly with equivalent {@link
+ *       Schema}s. A conforming implementation must not fail, error, or accumulate duplicate index
+ *       structures on a repeat call.
+ *   <li><b>{@link #ensureIndexes} is a no-op signal for a schema with no indexing needs.</b> A
+ *       {@link Schema} whose types declare no {@code sq:indexed} and no {@code
  *       sq:searchable} properties must not cause {@link #ensureIndexes} to fail; it simply has
  *       nothing to prepare.
  *   <li><b>{@link #aggregate} is scoped and filtered exactly like {@link #query}.</b> It is scoped
@@ -80,28 +80,29 @@ public interface QueryPort {
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the type system {@code query} is interpreted against; must not be {@code
+     * @param schema the type system {@code query} is interpreted against; must not be {@code
      *     null}
      * @param query the filter, sort, paging, and facet request to run; must not be {@code null}
      * @return a non-null result containing the matching page of objects, the total match count,
      *     and the computed facet buckets
      * @throws NullPointerException if any argument is {@code null}
      */
-    QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query);
+    QueryResult query(Scope scope, Schema schema, Query query);
 
     /**
      * Prepares whatever index structures this implementation needs in order to answer {@link
-     * #query} efficiently for the types described in {@code snapshot} — for example, one index per
+     * #query} efficiently for the types described in {@code schema} — for example, one index per
      * {@code sq:indexed} property and a full-text index over every {@code sq:searchable} property.
-     * See the interface-level javadoc for the full contract this method must satisfy, including
-     * idempotence and its no-op behaviour for a snapshot with no indexing needs.
+     * The host calls this after every ontology activation. See the interface-level javadoc for the
+     * full contract this method must satisfy, including idempotence and its no-op behaviour for a
+     * schema with no indexing needs.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the type system to prepare indexes for; must not be {@code null}
+     * @param schema the type system to prepare indexes for; must not be {@code null}
      * @throws NullPointerException if either argument is {@code null}
      */
-    void ensureIndexes(Scope scope, MetaModelSnapshot snapshot);
+    void ensureIndexes(Scope scope, Schema schema);
 
     /**
      * Computes a single {@link AggregateFunction} over the source objects of {@code
@@ -122,7 +123,7 @@ public interface QueryPort {
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the type system {@code request} is interpreted against; must not be {@code
+     * @param schema the type system {@code request} is interpreted against; must not be {@code
      *     null}
      * @param request the source types, relationship, targets, function, optional aggregated
      *     property, and filter criteria to compute; must not be {@code null}
@@ -130,5 +131,5 @@ public interface QueryPort {
      *     contract above
      * @throws NullPointerException if any argument is {@code null}
      */
-    AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request);
+    AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 }

@@ -28,7 +28,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class JenaOntologyProperties {
 
     /**
-     * Which {@code OntologyPort} adapter to activate; must equal {@code "jena"} for {@link
+     * Which {@code OntologyAdministration} adapter to activate; must equal {@code "jena"} for {@link
      * JenaOntologyAutoConfiguration} to wire this adapter's bean in at all. Read only by that
      * auto-configuration's {@code @ConditionalOnProperty}, never by this class.
      */
@@ -47,14 +47,14 @@ public class JenaOntologyProperties {
     private String source;
 
     /**
-     * @return which {@code OntologyPort} adapter to activate
+     * @return which {@code OntologyAdministration} adapter to activate
      */
     public String getAdapter() {
         return adapter;
     }
 
     /**
-     * @param adapter which {@code OntologyPort} adapter to activate
+     * @param adapter which {@code OntologyAdministration} adapter to activate
      */
     public void setAdapter(String adapter) {
         this.adapter = adapter;

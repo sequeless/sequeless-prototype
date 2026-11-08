@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
@@ -26,22 +26,22 @@ import org.sequeless.testkit.Fixtures;
 
 /**
  * Plain unit tests for {@link ShaclDataGraphBuilder}: no Spring, no {@code ValidationPort} —
- * exercises the RDF shape of the graph it builds directly, against a real {@link MetaModelSnapshot}
- * built from the reference-domain ontology (needed for a real {@code superTypes()} chain and real
- * {@code AttributeDefinition} datatypes).
+ * exercises the RDF shape of the graph it builds directly, against a real {@link Schema} built from
+ * the reference-domain ontology (needed for a real {@code superTypes()} chain and real {@code
+ * AttributeDefinition} datatypes).
  */
 class ShaclDataGraphBuilderTest {
 
-    private static final MetaModelSnapshot SNAPSHOT = JenaOntologyPort.fromDocument(
+    private static final Schema SCHEMA = JenaOntologyPort.fromDocument(
                     Fixtures.referenceOntology(), ReasonerSetting.OWL)
-            .snapshot(Fixtures.defaultScope());
+            .schema(TenantId.DEFAULT);
 
     @Test
     void referenceValueProducesResourceObjectNotLiteral() {
         ObjectId personId = ObjectId.random();
         BusinessObject task = task(Map.of(new PropertyRef(Fixtures.ASSIGNED_TO_IRI), Value.ref(personId)));
 
-        Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
+        Graph graph = ShaclDataGraphBuilder.build(SCHEMA, task);
 
         Node subject = NodeFactory.createURI("urn:uuid:" + task.id().value());
         Node predicate = NodeFactory.createURI(Fixtures.ASSIGNED_TO_IRI);
@@ -58,7 +58,7 @@ class ShaclDataGraphBuilderTest {
     void rdfTypeTriplesIncludeFullTransitiveSupertypeClosure() {
         BusinessObject task = task(Map.of());
 
-        Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
+        Graph graph = ShaclDataGraphBuilder.build(SCHEMA, task);
 
         Node subject = NodeFactory.createURI("urn:uuid:" + task.id().value());
         List<Node> types = graph.find(subject, RDF.type.asNode(), Node.ANY)
@@ -75,7 +75,7 @@ class ShaclDataGraphBuilderTest {
         BigDecimal exact = new BigDecimal("40.50");
         BusinessObject task = task(Map.of(new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(exact)));
 
-        Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
+        Graph graph = ShaclDataGraphBuilder.build(SCHEMA, task);
         Model model = ModelFactory.createModelForGraph(graph);
 
         Node subject = NodeFactory.createURI("urn:uuid:" + task.id().value());
@@ -93,7 +93,7 @@ class ShaclDataGraphBuilderTest {
         BusinessObject task = task(Map.of(
                 new PropertyRef(Fixtures.STATUS_IRI), Value.list(List.of(Value.text("OPEN"), Value.text("URGENT")))));
 
-        Graph graph = ShaclDataGraphBuilder.build(SNAPSHOT, task);
+        Graph graph = ShaclDataGraphBuilder.build(SCHEMA, task);
 
         Node subject = NodeFactory.createURI("urn:uuid:" + task.id().value());
         Node predicate = NodeFactory.createURI(Fixtures.STATUS_IRI);

@@ -15,8 +15,10 @@
  * org.sequeless.spi.SpiVersion}, {@link org.sequeless.spi.AdapterDescriptor}, and {@link
  * org.sequeless.spi.AdapterDescriptorProvider} support runtime adapter discovery and
  * compatibility checking. Per-port contracts (the first being authorization) live in subpackages
- * such as {@link org.sequeless.spi.authz}, {@link org.sequeless.spi.meta}, {@link
- * org.sequeless.spi.object}, {@link org.sequeless.spi.ontology}, {@link org.sequeless.spi.query},
+ * such as {@link org.sequeless.spi.authz}, the three halves of the ontology in {@link
+ * org.sequeless.spi.meta.schema}, {@link org.sequeless.spi.meta.behaviour} and {@link
+ * org.sequeless.spi.meta.automation}, {@link org.sequeless.spi.object}, {@link
+ * org.sequeless.spi.ontology}, {@link org.sequeless.spi.query},
  * {@link org.sequeless.spi.validation}, {@link org.sequeless.spi.derivation} — the {@code
  * sq:Plugin} vocabulary for derived properties computed by named, {@code ServiceLoader}-discovered
  * code rather than declaratively — and {@code org.sequeless.expression.api} — the {@code

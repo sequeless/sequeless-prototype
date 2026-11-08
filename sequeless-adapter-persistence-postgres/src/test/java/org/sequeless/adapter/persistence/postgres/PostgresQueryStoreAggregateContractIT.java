@@ -24,7 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * <p>Follows {@link PostgresQueryStoreContractIT}'s exact pattern: one shared container, migrated
  * once in {@link #migrate()}, with {@code sq_object}/{@code sq_ontology_document}/{@code sq_outbox}
  * truncated after every test. {@link #freshEnvironment()} also calls {@code
- * ensureIndexes(Fixtures.defaultScope(), QueryFixtures.snapshot())} before returning, mirroring
+ * ensureIndexes(Fixtures.defaultScope(), QueryFixtures.schema())} before returning, mirroring
  * the order every real caller uses (ontology activation always runs {@code ensureIndexes} before
  * any query), even though {@link PostgresQueryStore#aggregate} does not itself depend on the index
  * or searchable-property registries the way free-text {@code query} does.
@@ -57,7 +57,7 @@ class PostgresQueryStoreAggregateContractIT extends AggregateContract {
         JdbcClient jdbcClient = JdbcClient.create(dataSource);
         PostgresObjectStore store = new PostgresObjectStore(jdbcClient, transactionManager);
         PostgresQueryStore queryPort = new PostgresQueryStore(jdbcClient, transactionManager);
-        queryPort.ensureIndexes(Fixtures.defaultScope(), QueryFixtures.snapshot());
+        queryPort.ensureIndexes(Fixtures.defaultScope(), QueryFixtures.schema());
         return new Environment(store, queryPort);
     }
 }

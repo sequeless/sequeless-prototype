@@ -22,8 +22,10 @@ import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.schema.SchemaSource;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +39,13 @@ import org.springframework.context.annotation.Lazy;
  * <p>{@code proxyBeanMethods = false} is safe here: {@link #whoAmI(AuthorizationPort)} never calls
  * another {@code @Bean} method on {@code this}, so there is nothing for CGLIB inter-bean-call
  * interception to preserve, and skipping it avoids generating a proxy subclass for no benefit.
+ *
+ * <p>The ontology adapter is one bean that implements the three read ports and the admin port. The
+ * use cases take the read ports they need. The admin port is wrapped in {@link
+ * IndexPreparingOntologyAdministration} before it reaches {@link #metaModelService} and {@link
+ * #ontologyAdministration}, so import and reload prepare query indexes. The wrapper is not a bean
+ * of its own, because a second {@code OntologyAdministration} bean would break {@link
+ * org.sequeless.app.port.PortRegistry}'s one-bean check.
  */
 @Configuration(proxyBeanMethods = false)
 public class CoreConfiguration {
@@ -75,34 +84,43 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link MetaModelService} use case around whichever {@link OntologyPort} and {@link
-     * AuthorizationPort} adapters are configured.
+     * Builds the {@link MetaModelService} use case around the schema and behaviour read ports, the
+     * ontology admin port (wrapped in {@link IndexPreparingOntologyAdministration}, so {@code
+     * reload} prepares indexes) and the {@link AuthorizationPort} adapter that are configured.
      *
-     * <p><b>Both parameters are {@code @Lazy} for exactly the reason spelled out on {@link
-     * #whoAmI(AuthorizationPort)} above, and neither may be "simplified" away.</b> {@code
-     * PortRegistry} now validates two port slots — {@code sequeless.authz.adapter} and {@code
-     * sequeless.ontology.adapter} — but it still does so in {@code afterSingletonsInstantiated()},
-     * the second singleton pass. An eager parameter here would force Spring to resolve that port
-     * during {@code preInstantiateSingletons()}, the first pass, where an unset or misconfigured
-     * {@code sequeless.ontology.adapter} means zero {@link OntologyPort} beans exist and Spring's
-     * own generic {@code UnsatisfiedDependencyException} would fire before {@code PortRegistry}
-     * ever ran. The whole point of {@code PortRegistry} is that a misconfigured adapter produces a
-     * message naming the property and listing the adapters actually available; binding eagerly here
-     * would throw that away for the ontology slot exactly as it would for the authz slot.
+     * <p><b>Every parameter is {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code
+     * PortRegistry} validates the {@code sequeless.ontology.adapter} slot in {@code
+     * afterSingletonsInstantiated()}, the second singleton pass. An eager parameter here would force
+     * Spring to resolve the ontology adapter during {@code preInstantiateSingletons()}, the first
+     * pass, where an unset or misconfigured {@code sequeless.ontology.adapter} means zero ontology
+     * beans exist and Spring's own generic {@code UnsatisfiedDependencyException} would fire before
+     * {@code PortRegistry} ever ran.
      *
-     * <p>Note that {@code @Lazy} also means nothing dereferences the {@link OntologyPort} during
-     * startup on its own. Since an inconsistent ontology must fail startup rather than surface on a
-     * first request, {@link OntologyStartupValidator} exists to force that first call at a point in
-     * the lifecycle where it is safe — see its javadoc.
+     * <p>Nothing dereferences these ports during startup on its own, so an inconsistent ontology
+     * would not fail startup from here. {@link OntologyStartupValidator} exists to force that first
+     * read at a point in the lifecycle where it is safe — see its javadoc.
      *
-     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param schemaSource the lazily-resolved schema read port
+     * @param behaviourSource the lazily-resolved behaviour read port
+     * @param ontologyAdministration the lazily-resolved ontology admin port, the same bean the read
+     *     ports come from
+     * @param queryPort the lazily-resolved query port, whose indexes {@code reload} prepares
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @return a {@link DefaultMetaModelService} consulting both ports on every call
+     * @return a {@link DefaultMetaModelService} consulting the ports on every call
      */
     @Bean
     public MetaModelService metaModelService(
-            @Lazy OntologyPort ontologyPort, @Lazy AuthorizationPort authorizationPort) {
-        return new DefaultMetaModelService(ontologyPort, authorizationPort);
+            @Lazy SchemaSource schemaSource,
+            @Lazy BehaviourSource behaviourSource,
+            @Lazy org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            @Lazy QueryPort queryPort,
+            @Lazy AuthorizationPort authorizationPort) {
+        return new DefaultMetaModelService(
+                schemaSource,
+                behaviourSource,
+                new IndexPreparingOntologyAdministration(ontologyAdministration, schemaSource, queryPort),
+                authorizationPort);
     }
 
     /**
@@ -129,38 +147,39 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link BusinessObjectService} use case around whichever {@link OntologyPort},
-     * {@link ObjectStorePort}, {@link ValidationPort}, {@link AuthorizationPort}, and {@link
+     * Builds the {@link BusinessObjectService} use case around whichever schema and behaviour read
+     * ports, {@link ObjectStorePort}, {@link ValidationPort}, {@link AuthorizationPort}, and {@link
      * QueryPort} adapters are configured.
      *
-     * <p><b>All five port-typed parameters are {@code @Lazy} for exactly the reason spelled out on
-     * {@link #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code
-     * PortRegistry} now validates five port slots, including {@code sequeless.persistence.adapter},
-     * {@code sequeless.validation.adapter}, and {@code sequeless.query.adapter}, but it still does
-     * so in {@code afterSingletonsInstantiated()}, the second singleton pass. An eager parameter
-     * here would force Spring to resolve that port during {@code preInstantiateSingletons()}, the
-     * first pass, before {@code PortRegistry} ever ran.
+     * <p><b>All port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code
+     * PortRegistry} validates its port slots in {@code afterSingletonsInstantiated()}, the second
+     * singleton pass. An eager parameter here would force Spring to resolve a port during {@code
+     * preInstantiateSingletons()}, the first pass, before {@code PortRegistry} ever ran.
      *
-     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param schemaSource the lazily-resolved schema read port
+     * @param behaviourSource the lazily-resolved behaviour read port
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
      * @param queryPort the lazily-resolved query port adapter
      * @param derivationPlanner the {@link DerivationPlanner} bean built above, shared with {@link
      *     #derivationRecomputer}
-     * @return a {@link DefaultBusinessObjectService} consulting all five ports on every call, with
+     * @return a {@link DefaultBusinessObjectService} consulting all of its ports on every call, with
      *     its clock drawn from {@link Clock#systemUTC()}
      */
     @Bean
     public BusinessObjectService businessObjectService(
-            @Lazy OntologyPort ontologyPort,
+            @Lazy SchemaSource schemaSource,
+            @Lazy BehaviourSource behaviourSource,
             @Lazy ObjectStorePort objectStorePort,
             @Lazy ValidationPort validationPort,
             @Lazy AuthorizationPort authorizationPort,
             @Lazy QueryPort queryPort,
             DerivationPlanner derivationPlanner) {
         return new DefaultBusinessObjectService(
-                ontologyPort,
+                schemaSource,
+                behaviourSource,
                 objectStorePort,
                 validationPort,
                 authorizationPort,
@@ -170,21 +189,30 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link OntologyAdministration} use case around whichever {@link OntologyPort},
-     * {@link AuthorizationPort}, and {@link QueryPort} adapters are configured.
+     * Builds the {@link OntologyAdministration} use case around the ontology admin port (wrapped in
+     * {@link IndexPreparingOntologyAdministration}, so {@code importTurtle} prepares indexes) and the
+     * {@link AuthorizationPort} adapter that are configured.
      *
-     * <p>All three parameters are {@code @Lazy} for the same reason as {@link #metaModelService}.
+     * <p>All parameters are {@code @Lazy} for the same reason as {@link #metaModelService}.
      *
-     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param ontologyAdministration the lazily-resolved ontology admin port
+     * @param schemaSource the lazily-resolved schema read port, used to read the imported Schema
+     *     when indexes are prepared
+     * @param queryPort the lazily-resolved query port, whose indexes are prepared after a successful
+     *     import
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @param queryPort the lazily-resolved query port adapter, primed with fresh indexes by {@link
-     *     DefaultOntologyAdministration#importTurtle} after a successful import
-     * @return a {@link DefaultOntologyAdministration} consulting all three ports on every call
+     * @return a {@link DefaultOntologyAdministration} consulting {@code authorizationPort} on every
+     *     call
      */
     @Bean
     public OntologyAdministration ontologyAdministration(
-            @Lazy OntologyPort ontologyPort, @Lazy AuthorizationPort authorizationPort, @Lazy QueryPort queryPort) {
-        return new DefaultOntologyAdministration(ontologyPort, authorizationPort, queryPort);
+            @Lazy org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            @Lazy SchemaSource schemaSource,
+            @Lazy QueryPort queryPort,
+            @Lazy AuthorizationPort authorizationPort) {
+        return new DefaultOntologyAdministration(
+                new IndexPreparingOntologyAdministration(ontologyAdministration, schemaSource, queryPort),
+                authorizationPort);
     }
 
     /**
@@ -218,30 +246,40 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link TransitionService} use case around whichever {@link OntologyPort}, {@link
-     * ObjectStorePort}, {@link AuthorizationPort}, and {@link ExpressionPort} adapters are
-     * configured.
+     * Builds the {@link TransitionService} use case around whichever schema, behaviour and
+     * automation read ports, {@link ObjectStorePort}, {@link AuthorizationPort}, and {@link
+     * ExpressionPort} adapters are configured.
      *
-     * <p>All four port-typed parameters are {@code @Lazy} for exactly the reason spelled out on
-     * {@link #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.
+     * <p>All port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.
      *
      * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
      * javadoc for why {@link Clock#systemUTC()} is called inline here too.
      *
-     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param schemaSource the lazily-resolved schema read port
+     * @param behaviourSource the lazily-resolved behaviour read port
+     * @param automationSource the lazily-resolved automation read port
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
      * @param expressionPort the lazily-resolved expression port adapter
-     * @return a {@link DefaultTransitionService} consulting all four ports on every call
+     * @return a {@link DefaultTransitionService} consulting all of its ports on every call
      */
     @Bean
     public TransitionService transitionService(
-            @Lazy OntologyPort ontologyPort,
+            @Lazy SchemaSource schemaSource,
+            @Lazy BehaviourSource behaviourSource,
+            @Lazy AutomationSource automationSource,
             @Lazy ObjectStorePort objectStorePort,
             @Lazy AuthorizationPort authorizationPort,
             @Lazy ExpressionPort expressionPort) {
         return new DefaultTransitionService(
-                ontologyPort, objectStorePort, authorizationPort, expressionPort, Clock.systemUTC());
+                schemaSource,
+                behaviourSource,
+                automationSource,
+                objectStorePort,
+                authorizationPort,
+                expressionPort,
+                Clock.systemUTC());
     }
 
     /**
@@ -259,21 +297,23 @@ public class CoreConfiguration {
      * actual state move, including guard evaluation and the commit, is {@link
      * TransitionService#fireAutomated}'s job, not this class's.
      *
-     * <p>Both port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * <p>The port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
      * #whoAmI(AuthorizationPort)} above.
      *
-     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param schemaSource the lazily-resolved schema read port
+     * @param behaviourSource the lazily-resolved behaviour read port
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param transitionService the {@link TransitionService} bean built above
-     * @return a {@link DefaultTriggerEvaluator} consulting both ports and {@code transitionService}
+     * @return a {@link DefaultTriggerEvaluator} consulting its ports and {@code transitionService}
      *     on every call
      */
     @Bean
     public TriggerEvaluator triggerEvaluator(
-            @Lazy OntologyPort ontologyPort,
+            @Lazy SchemaSource schemaSource,
+            @Lazy BehaviourSource behaviourSource,
             @Lazy ObjectStorePort objectStorePort,
             TransitionService transitionService) {
-        return new DefaultTriggerEvaluator(ontologyPort, objectStorePort, transitionService);
+        return new DefaultTriggerEvaluator(schemaSource, behaviourSource, objectStorePort, transitionService);
     }
 
     /**
@@ -290,7 +330,7 @@ public class CoreConfiguration {
      * sq:Rollup} rules through the exact same code path {@link #businessObjectService}'s read/browse
      * path already uses.
      *
-     * <p>Both port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * <p>The port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
      * #whoAmI(AuthorizationPort)} above. {@code maxAttempts}/{@code baseDelay} are ordinary {@code
      * @Value}-annotated bean-method parameters, not port slots, so they need no such treatment; the
      * defaults (8 attempts, a 20ms jittered base delay) match this phase's design document.
@@ -298,7 +338,8 @@ public class CoreConfiguration {
      * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
      * javadoc for why {@link Clock#systemUTC()} is called inline here too.
      *
-     * @param ontologyPort the lazily-resolved ontology port adapter
+     * @param schemaSource the lazily-resolved schema read port
+     * @param behaviourSource the lazily-resolved behaviour read port
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param derivationPlanner the {@link DerivationPlanner} bean built above
      * @param maxAttempts the maximum number of commit attempts per recompute before a stale-version
@@ -314,18 +355,20 @@ public class CoreConfiguration {
      *     true for a real {@code SpringApplication} run, but not guaranteed for every {@code
      *     ApplicationContextRunner}-based test, which does not always go through that bootstrap
      *     path. Parsing the raw string here has no such dependency.
-     * @return a {@link DefaultDerivationRecomputer} consulting both ports and {@code
+     * @return a {@link DefaultDerivationRecomputer} consulting its ports and {@code
      *     derivationPlanner} on every call
      */
     @Bean
     public DerivationRecomputer derivationRecomputer(
-            @Lazy OntologyPort ontologyPort,
+            @Lazy SchemaSource schemaSource,
+            @Lazy BehaviourSource behaviourSource,
             @Lazy ObjectStorePort objectStorePort,
             DerivationPlanner derivationPlanner,
             @Value("${sequeless.automation.recompute.retry.max-attempts:8}") int maxAttempts,
             @Value("${sequeless.automation.recompute.retry.base-delay:PT0.02S}") String baseDelayText) {
         return new DefaultDerivationRecomputer(
-                ontologyPort,
+                schemaSource,
+                behaviourSource,
                 objectStorePort,
                 derivationPlanner,
                 maxAttempts,

@@ -179,7 +179,7 @@ class PortRegistryContextRunnerTest {
 
         @Bean
         ValidationPort validationPort() {
-            return (scope, snapshot, object) -> List.of();
+            return (scope, schema, object) -> List.of();
         }
     }
 

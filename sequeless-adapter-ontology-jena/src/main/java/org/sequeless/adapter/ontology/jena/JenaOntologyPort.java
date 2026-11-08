@@ -13,29 +13,40 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntModel;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.derivation.DerivationPlugin;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.automation.Automation;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.PluginRule;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.ontology.ImportMode;
 import org.sequeless.spi.ontology.ImportReport;
+import org.sequeless.spi.ontology.OntologyAdministration;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.ontology.OntologyFormat;
 import org.sequeless.spi.ontology.OntologyIssue;
-import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.spi.ontology.Severity;
 
 /**
- * The default {@link OntologyPort} adapter, backed by Apache Jena's {@code ontapi}. Two static
+ * The default adapter for the ontology ports, backed by Apache Jena's {@code ontapi}. It implements
+ * the three read ports, one per half of an activation ({@link SchemaSource}, {@link
+ * BehaviourSource} and {@link AutomationSource}), and {@link OntologyAdministration}. Two static
  * factories mirror the two ways an adapter can be pointed at an ontology: {@link
  * #fromDocument(OntologyDocument, ReasonerSetting)} for an in-memory document (tests, the contract
  * testkit), {@link #fromSource(String, String, ReasonerSetting)} for a configured {@code
@@ -47,9 +58,9 @@ import org.sequeless.spi.ontology.Severity;
  * <p>Every method that can change what this port serves — the constructor, {@link
  * #reload(Scope)}, {@link #importDocument(Scope, OntologyDocument, ImportMode)} — funnels through
  * {@link #buildState(Supplier)}, which does the entire parse → resolve-imports → consistency-check
- * → map-to-snapshot pipeline against a *new*, private {@link PortState} value, touching nothing
- * this port has previously published. Only once that fresh state exists in hand does the caller
- * decide what to do with it:
+ * → map pipeline against a *new*, private {@link Built} value, touching nothing this port has
+ * previously published. Only once that fresh build exists in hand does the caller decide what to
+ * do with it:
  *
  * <ul>
  *   <li>The constructor always adopts it, consistent or not — see the {@code fromDocument} F20
@@ -61,26 +72,33 @@ import org.sequeless.spi.ontology.Severity;
  * </ul>
  *
  * <p>This is why {@link #current} is a single {@code volatile} field holding one {@link PortState}
- * record — never two separate fields for "the model" and "the snapshot". If those lived in
- * separate fields, a thread calling {@link #snapshot(Scope)} or {@link #export(Scope,
- * OntologyFormat)} could observe one field already swapped to the new build and the other still
- * holding the old one — a torn pair that belongs to neither the old ontology nor the new one. A
- * single reference swap on a {@code volatile} field is atomic with respect to every other thread by
- * the Java Memory Model, so any reader always sees either entirely-old or entirely-new state, never
- * a mixture, and never needs a lock to read it.
+ * record — never separate fields for "the schema" and "the behaviour". If those lived in separate
+ * fields, a thread reading one half could observe one field already swapped to the new build and
+ * the other still holding the old one — a torn pair that belongs to neither the old ontology nor
+ * the new one. A single reference swap on a {@code volatile} field is atomic with respect to every
+ * other thread by the Java Memory Model, so any reader always sees either entirely-old or
+ * entirely-new state, never a mixture, and never needs a lock to read it.
+ *
+ * <h2>Versions</h2>
+ *
+ * <p>Each build is stamped with an {@link OntologyVersion} only when it is adopted, so all three
+ * halves of an activation carry the same version. With a {@link #documentStore} the version is the
+ * stored one: the version {@link OntologyDocumentStore#activate} returns on import, or {@code
+ * active(scope).version()} at startup and on reload. Without a store, a counter starts at 1 and is
+ * incremented by each successful reload or import. A failed reload or import takes no version.
  *
  * <h2>{@code fromDocument} never throws for a bad document (F20)</h2>
  *
- * <p>The constructor calls {@link #buildState(Supplier)} and unconditionally assigns the result to
- * {@link #current}, even when the freshly built ontology is inconsistent or could not even be
- * parsed. Every judgement about whether the loaded ontology is *usable* — thrown as {@link
- * OntologyException} — is deferred to {@link #snapshot(Scope)}, {@link #export(Scope,
- * OntologyFormat)}, {@link #reload(Scope)} and {@link #importDocument(Scope, OntologyDocument,
- * ImportMode)}, exactly as {@link OntologyPort}'s own javadoc requires. This is not merely a style
- * choice: {@code OntologyContract}'s {@code inconsistentOntologyMakesSnapshotThrow} test calls
- * {@code portFor(inconsistentDocument)} completely unguarded and only wraps the subsequent {@code
- * snapshot()} call in an assertion — a constructor that throws for a bad document would already
- * fail that test before the assertion is even reached.
+ * <p>The constructor calls {@link #buildState(Supplier)} and unconditionally adopts the result,
+ * even when the freshly built ontology is inconsistent or could not even be parsed. Every judgement
+ * about whether the loaded ontology is *usable* — thrown as {@link OntologyException} — is deferred
+ * to the read ports, {@link #export(Scope, OntologyFormat)}, {@link #reload(Scope)} and {@link
+ * #importDocument(Scope, OntologyDocument, ImportMode)}, exactly as {@link
+ * OntologyAdministration}'s own javadoc requires. This is not merely a style choice: {@code
+ * OntologyContract}'s {@code inconsistentOntologyMakesSchemaThrow} test (and its Behaviour and
+ * Automation siblings) calls {@code portFor(inconsistentDocument)} completely unguarded and only
+ * wraps the subsequent read in an assertion — a constructor that throws for a bad document would
+ * already fail that test before the assertion is even reached.
  *
  * <h2>What "fresh" means for {@link #reload(Scope)}</h2>
  *
@@ -91,14 +109,23 @@ import org.sequeless.spi.ontology.Severity;
  * #current}, never {@link #sourceLoader}: importing a document is a live, in-memory override, not a
  * change to this adapter's configured backing source, so a subsequent {@link #reload(Scope)}
  * deliberately reverts to whatever the original source currently contains. Nothing in {@code
- * OntologyPort}'s contract or {@code OntologyContract} exercises this interaction, but it is worth
- * a future test knowing about explicitly rather than discovering by surprise.
+ * OntologyAdministration}'s contract or {@code OntologyContract} exercises this interaction, but it
+ * is worth a future test knowing about explicitly rather than discovering by surprise.
  *
  * <p>With a {@link #documentStore} — the {@link #fromStore} construction path — {@link
  * #reload(Scope)} instead re-reads whatever document is currently active in the store for the
  * given {@code scope}, which may differ from both {@link #sourceLoader} and this port's own
  * in-memory copy if something changed the store out-of-band (another instance's {@link
  * #importDocument}, or a direct write to the store).
+ *
+ * <h2>Concurrency</h2>
+ *
+ * <p>{@link #reload(Scope)} and {@link #importDocument(Scope, OntologyDocument, ImportMode)} are
+ * {@code synchronized}. Each one activates a store version (when there is a store) and swaps {@link
+ * #current} in one step, so two concurrent activations cannot leave the store and the in-memory
+ * state in different orders, and the counter cannot hand a lower version to a later swap. Reads do
+ * not take the lock. Do not call {@code reload} or {@code importDocument} inside an outer
+ * transaction: the store's activation lock would outlive this monitor and the two could deadlock.
  *
  * <h2>Merging the sources of an {@link OntologyReport}</h2>
  *
@@ -111,34 +138,46 @@ import org.sequeless.spi.ontology.Severity;
  * rather than by catching an exception that never comes), {@link SqVocabulary}'s reserved-term
  * rejection, {@link SnapshotMapper}'s own mapping issues — {@code WARNING} for a degraded-but-usable
  * mapping, {@code ERROR} for a malformed {@code sq:derivedBy} rule — and {@link
- * #unknownPluginIssues(List)}'s {@code ServiceLoader}-backed check that every {@code sq:Plugin}
+ * #unknownPluginIssues(List, Map)}'s {@code ServiceLoader}-backed check that every {@code sq:Plugin}
  * rule's {@code sq:pluginName} actually resolves to a registered {@link
  * org.sequeless.spi.derivation.DerivationPlugin}, into the single {@link OntologyReport} that ends
- * up inside the {@link MetaModelSnapshot} this port returns.
+ * up inside the {@link PortState} this port serves.
  */
-public final class JenaOntologyPort implements OntologyPort {
+public final class JenaOntologyPort implements SchemaSource, BehaviourSource, AutomationSource, OntologyAdministration {
 
     /**
      * Used only when the ontology could not be built or mapped at all (a parse failure, or an
-     * exception from {@link MetaModelSnapshot}'s own construction, e.g. a short-name collision) —
-     * {@link MetaModelSnapshot#ontologyIri()} must not be blank, and in these failure cases there is
-     * no real ontology IRI to report.
+     * exception from the schema's own construction, e.g. a short-name collision) — {@link
+     * Schema#ontologyIri()} must not be blank, and in these failure cases there is no real ontology
+     * IRI to report.
      */
     private static final String UNBUILDABLE_ONTOLOGY_IRI = "urn:sequeless:jena-adapter:unbuildable-ontology";
+
+    /** The version of the first activation, and the value the counter starts from. */
+    private static final OntologyVersion FIRST_VERSION = new OntologyVersion(1);
 
     private final Supplier<InputStream> sourceLoader;
     private final ReasonerSetting reasoner;
     private final Optional<OntologyDocumentStore> documentStore;
+    /**
+     * The version of the state currently adopted, used as the counter when there is no store. Only
+     * {@link #adopt} advances it, and only after a build has been checked, so a failed reload or
+     * import takes no number.
+     */
+    private final AtomicInteger versions;
+
     private volatile PortState current;
 
     private JenaOntologyPort(
             Supplier<InputStream> sourceLoader,
             ReasonerSetting reasoner,
-            Optional<OntologyDocumentStore> documentStore) {
+            Optional<OntologyDocumentStore> documentStore,
+            OntologyVersion initialVersion) {
         this.sourceLoader = sourceLoader;
         this.reasoner = reasoner;
         this.documentStore = documentStore;
-        this.current = buildState(sourceLoader);
+        this.versions = new AtomicInteger(initialVersion.value());
+        this.current = buildState(sourceLoader).stamp(initialVersion);
     }
 
     /**
@@ -151,8 +190,7 @@ public final class JenaOntologyPort implements OntologyPort {
     public static JenaOntologyPort fromDocument(OntologyDocument document, ReasonerSetting reasoner) {
         Objects.requireNonNull(document, "document must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
-        byte[] content = document.content().getBytes(StandardCharsets.UTF_8);
-        return new JenaOntologyPort(() -> new ByteArrayInputStream(content), reasoner, Optional.empty());
+        return new JenaOntologyPort(streamOf(document), reasoner, Optional.empty(), FIRST_VERSION);
     }
 
     /**
@@ -171,7 +209,8 @@ public final class JenaOntologyPort implements OntologyPort {
         Objects.requireNonNull(propertyName, "propertyName must not be null");
         Objects.requireNonNull(location, "location must not be null");
         Objects.requireNonNull(reasoner, "reasoner must not be null");
-        return new JenaOntologyPort(() -> OntologySource.open(propertyName, location), reasoner, Optional.empty());
+        return new JenaOntologyPort(
+                () -> OntologySource.open(propertyName, location), reasoner, Optional.empty(), FIRST_VERSION);
     }
 
     /**
@@ -203,9 +242,9 @@ public final class JenaOntologyPort implements OntologyPort {
         Objects.requireNonNull(reasoner, "reasoner must not be null");
 
         Optional<StoredOntologyDocument> active = documents.active(scope);
-        OntologyDocument initial;
+        StoredOntologyDocument stored;
         if (active.isPresent()) {
-            initial = active.get().document();
+            stored = active.get();
         } else {
             if (source == null || source.isBlank()) {
                 throw new IllegalStateException("No ontology document stored for tenant '"
@@ -218,37 +257,68 @@ public final class JenaOntologyPort implements OntologyPort {
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to read the ontology source to seed the store", e);
             }
-            initial = new OntologyDocument(turtle, OntologyFormat.TURTLE);
+            OntologyDocument initial = new OntologyDocument(turtle, OntologyFormat.TURTLE);
             JenaOntologyPort probe = fromDocument(initial, reasoner);
             requireConsistent(probe.current); // throws OntologyException; never activates a broken seed
-            documents.activate(scope, initial);
+            stored = documents.activate(scope, initial);
         }
 
-        byte[] content = initial.content().getBytes(StandardCharsets.UTF_8);
-        return new JenaOntologyPort(() -> new ByteArrayInputStream(content), reasoner, Optional.of(documents));
+        return new JenaOntologyPort(
+                streamOf(stored.document()), reasoner, Optional.of(documents), new OntologyVersion(stored.version()));
+    }
+
+    /**
+     * @param tenant the tenant whose active ontology is read; must not be {@code null}
+     * @return the Schema of the active version
+     * @throws NullPointerException if {@code tenant} is {@code null}
+     * @throws OntologyException if the active ontology is inconsistent
+     */
+    @Override
+    public Schema schema(TenantId tenant) {
+        Objects.requireNonNull(tenant, "tenant must not be null");
+        return requireConsistent(current).schema();
+    }
+
+    /**
+     * @param tenant the tenant whose active ontology is read; must not be {@code null}
+     * @return the Behaviour of the active version
+     * @throws NullPointerException if {@code tenant} is {@code null}
+     * @throws OntologyException if the active ontology is inconsistent
+     */
+    @Override
+    public Behaviour behaviour(TenantId tenant) {
+        Objects.requireNonNull(tenant, "tenant must not be null");
+        return requireConsistent(current).behaviour();
+    }
+
+    /**
+     * @param tenant the tenant whose active ontology is read; must not be {@code null}
+     * @return the Automation of the active version
+     * @throws NullPointerException if {@code tenant} is {@code null}
+     * @throws OntologyException if the active ontology is inconsistent
+     */
+    @Override
+    public Automation automation(TenantId tenant) {
+        Objects.requireNonNull(tenant, "tenant must not be null");
+        return requireConsistent(current).automation();
     }
 
     @Override
-    public MetaModelSnapshot snapshot(Scope scope) {
+    public synchronized OntologyReport reload(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
-        return requireConsistent(current).snapshot();
+        if (documentStore.isPresent()) {
+            StoredOntologyDocument active = activeDocument(documentStore.get(), scope);
+            return adopt(buildState(streamOf(active.document())), () -> new OntologyVersion(active.version()))
+                    .report();
+        }
+        return adopt(buildState(sourceLoader), () -> new OntologyVersion(versions.incrementAndGet()))
+                .report();
     }
 
-    @Override
-    public MetaModelSnapshot reload(Scope scope) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Supplier<InputStream> loader = documentStore
-                .<Supplier<InputStream>>map(store -> () -> activeDocumentStream(store, scope))
-                .orElse(sourceLoader);
-        return swapOnSuccess(buildState(loader)).snapshot();
-    }
-
-    private static InputStream activeDocumentStream(OntologyDocumentStore store, Scope scope) {
-        StoredOntologyDocument active = store.active(scope)
+    private static StoredOntologyDocument activeDocument(OntologyDocumentStore store, Scope scope) {
+        return store.active(scope)
                 .orElseThrow(() -> new IllegalStateException("No active ontology document stored for tenant '"
                         + scope.tenantId().value() + "'"));
-        byte[] bytes = active.document().content().getBytes(StandardCharsets.UTF_8);
-        return new ByteArrayInputStream(bytes);
     }
 
     @Override
@@ -259,7 +329,7 @@ public final class JenaOntologyPort implements OntologyPort {
     }
 
     @Override
-    public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
+    public synchronized ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(document, "document must not be null");
         Objects.requireNonNull(mode, "mode must not be null");
@@ -268,13 +338,20 @@ public final class JenaOntologyPort implements OntologyPort {
             throw new IllegalArgumentException("Unsupported ImportMode: " + mode);
         }
 
-        byte[] content = document.content().getBytes(StandardCharsets.UTF_8);
-        PortState fresh = buildState(() -> new ByteArrayInputStream(content));
-        requireConsistent(fresh);
-        documentStore.ifPresent(store -> store.activate(scope, document));
-        current = fresh;
-        return new ImportReport(
-                true, fresh.snapshot().report(), fresh.snapshot().types().size());
+        PortState adopted = adopt(buildState(streamOf(document)), () -> versionOfImport(scope, document));
+        return new ImportReport(true, adopted.report(), adopted.schema().types().size());
+    }
+
+    /**
+     * The version an imported document takes. With a store, the store assigns it, and {@link #adopt}
+     * calls this only after the document is known to be consistent, so a rejected document is never
+     * activated in the store.
+     */
+    private OntologyVersion versionOfImport(Scope scope, OntologyDocument document) {
+        return documentStore
+                .map(store ->
+                        new OntologyVersion(store.activate(scope, document).version()))
+                .orElseGet(() -> new OntologyVersion(versions.incrementAndGet()));
     }
 
     /**
@@ -287,34 +364,44 @@ public final class JenaOntologyPort implements OntologyPort {
     }
 
     /**
-     * Adopts {@code fresh} as {@link #current} only if it is consistent, per the class-level "build
-     * fresh, validate, swap only on success" discipline; otherwise throws without touching {@link
-     * #current}, so a subsequent {@link #snapshot(Scope)} still serves whatever was there before.
+     * Checks {@code fresh} for consistency, takes the version from {@code version} (which is only
+     * called once the check has passed), and makes the result {@link #current}. If the build is
+     * inconsistent it throws without touching {@link #current}, so a subsequent read still serves
+     * whatever was there before.
      */
-    private PortState swapOnSuccess(PortState fresh) {
-        requireConsistent(fresh);
-        current = fresh;
-        return fresh;
+    private PortState adopt(Built fresh, Supplier<OntologyVersion> version) {
+        checkConsistent(fresh.report());
+        PortState adopted = fresh.stamp(version.get());
+        current = adopted;
+        return adopted;
     }
 
     private static PortState requireConsistent(PortState state) {
-        OntologyReport report = state.snapshot().report();
+        checkConsistent(state.report());
+        return state;
+    }
+
+    private static void checkConsistent(OntologyReport report) {
         if (!report.consistent()) {
             throw new OntologyException(report);
         }
-        return state;
+    }
+
+    private static Supplier<InputStream> streamOf(OntologyDocument document) {
+        byte[] content = document.content().getBytes(StandardCharsets.UTF_8);
+        return () -> new ByteArrayInputStream(content);
     }
 
     /**
      * Runs the full build pipeline against a freshly opened stream from {@code loader}, never
      * throwing a raw Jena exception: a Turtle parse failure or any exception raised while merging
-     * the report and mapping the snapshot is caught and turned into a {@link PortState} carrying an
+     * the report and mapping the ontology is caught and turned into a {@link Built} carrying an
      * inconsistent {@link OntologyReport} with a single {@code ERROR} issue describing what went
      * wrong, rather than propagating past this adapter's boundary. Resolving {@code loader} itself
      * (e.g. {@link OntologySource#open}) is deliberately outside this try/catch — see {@link
      * #fromSource}'s javadoc on why a bad source location fails fast instead.
      */
-    private PortState buildState(Supplier<InputStream> loader) {
+    private Built buildState(Supplier<InputStream> loader) {
         InputStream in = loader.get();
         try (in) {
             OntModel model;
@@ -334,10 +421,10 @@ public final class JenaOntologyPort implements OntologyPort {
     }
 
     /**
-     * Merges every source of truth about {@code model} into one {@link OntologyReport} and builds
-     * the {@link MetaModelSnapshot} around it. See this class's javadoc for what is merged and why.
+     * Merges every source of truth about {@code model} into one {@link OntologyReport} and maps the
+     * three halves. See this class's javadoc for what is merged and why.
      */
-    private PortState buildStateFrom(OntModel model) {
+    private static Built buildStateFrom(OntModel model) {
         List<OntologyIssue> issues = new ArrayList<>();
         boolean consistent = true;
 
@@ -369,7 +456,7 @@ public final class JenaOntologyPort implements OntologyPort {
         issues.addAll(mapping.issues());
         consistent &= mapping.issues().stream().noneMatch(issue -> issue.severity() == Severity.ERROR);
 
-        List<OntologyIssue> pluginIssues = unknownPluginIssues(mapping.types());
+        List<OntologyIssue> pluginIssues = unknownPluginIssues(mapping.types(), mapping.derivations());
         issues.addAll(pluginIssues);
         consistent &= pluginIssues.isEmpty();
 
@@ -380,32 +467,39 @@ public final class JenaOntologyPort implements OntologyPort {
             ontologyIri = UNBUILDABLE_ONTOLOGY_IRI;
         }
 
-        MetaModelSnapshot snapshot = new MetaModelSnapshot(
+        // Schema rejects two types with the same short name. Building it here, under a provisional
+        // version, keeps that clash inside buildState's failure boundary. stamp() rebuilds it with
+        // the version the build is adopted under.
+        Schema schema = new Schema(
+                FIRST_VERSION,
                 ontologyIri,
                 Optional.ofNullable(model.getID().getVersionIRI()),
                 model.getNsPrefixMap(),
-                mapping.types(),
-                mergedReport);
+                mapping.types());
 
-        return new PortState(model, snapshot);
+        return new Built(model, mergedReport, schema, mapping);
     }
 
     /**
      * Checks every {@code sq:Plugin}-derived property in {@code types} against the {@link
      * DerivationPlugin} implementations actually registered on the classpath via {@link
      * ServiceLoader}, so that a typo'd or never-implemented {@code sq:pluginName} is an {@code
-     * ERROR} {@link OntologyIssue} at snapshot activation — not a lookup failure the first time
-     * someone reads an object of that type. Resolved fresh on every call rather than cached on this
-     * instance: caching would make a plug-in registered after this port's construction (e.g. a
-     * newly deployed adapter jar) invisible to a later {@link #reload(Scope)}, which would be a
-     * surprising and hard-to-diagnose staleness bug for the sake of an optimisation this method
-     * (one {@code ServiceLoader.load} plus a walk of an already-in-memory type list) does not need.
+     * ERROR} {@link OntologyIssue} at activation — not a lookup failure the first time someone reads
+     * an object of that type. Resolved fresh on every call rather than cached on this instance:
+     * caching would make a plug-in registered after this port's construction (e.g. a newly deployed
+     * adapter jar) invisible to a later {@link #reload(Scope)}, which would be a surprising and
+     * hard-to-diagnose staleness bug for the sake of an optimisation this method (one {@code
+     * ServiceLoader.load} plus a walk of an already-in-memory type list) does not need.
      *
      * <p>Deduplicated by property IRI: a derived property inherited by {@code N} subtypes appears in
      * {@code N} types' {@link TypeDefinition#properties()} lists, but is one rule and must be one
      * issue, not {@code N}.
+     *
+     * @param types every type of the ontology, in the order its issues are reported
+     * @param derivations the derivation rules, keyed by the IRI of the property each derives
      */
-    private static List<OntologyIssue> unknownPluginIssues(List<TypeDefinition> types) {
+    private static List<OntologyIssue> unknownPluginIssues(
+            List<TypeDefinition> types, Map<String, DerivationRule> derivations) {
         Set<String> registeredPluginNames = ServiceLoader.load(DerivationPlugin.class).stream()
                 .map(ServiceLoader.Provider::get)
                 .map(DerivationPlugin::name)
@@ -414,7 +508,7 @@ public final class JenaOntologyPort implements OntologyPort {
         Map<String, String> pluginRulesByPropertyIri = new LinkedHashMap<>();
         for (TypeDefinition type : types) {
             for (PropertyDefinition property : type.properties()) {
-                property.derivation()
+                Optional.ofNullable(derivations.get(property.iri()))
                         .filter(PluginRule.class::isInstance)
                         .map(PluginRule.class::cast)
                         .ifPresent(rule -> pluginRulesByPropertyIri.putIfAbsent(property.iri(), rule.pluginName()));
@@ -435,12 +529,12 @@ public final class JenaOntologyPort implements OntologyPort {
         return issues;
     }
 
-    private static PortState failureState(String message) {
+    private static Built failureState(String message) {
         OntologyReport report =
                 new OntologyReport(false, List.of(new OntologyIssue(Severity.ERROR, Optional.empty(), message)));
-        MetaModelSnapshot snapshot =
-                new MetaModelSnapshot(UNBUILDABLE_ONTOLOGY_IRI, Optional.empty(), Map.of(), List.of(), report);
-        return new PortState(null, snapshot);
+        Schema schema = new Schema(FIRST_VERSION, UNBUILDABLE_ONTOLOGY_IRI, Optional.empty(), Map.of(), List.of());
+        MappingResult empty = new MappingResult(List.of(), Map.of(), Map.of(), Map.of(), List.of());
+        return new Built(null, report, schema, empty);
     }
 
     private static String describe(RuntimeException e) {
@@ -449,11 +543,35 @@ public final class JenaOntologyPort implements OntologyPort {
     }
 
     /**
-     * The atomically-swapped unit of state this port serves: the built {@link OntModel} (needed by
-     * {@link #export(Scope, OntologyFormat)}; {@code null} only in a {@link #failureState} where
-     * building failed entirely, which is always paired with an inconsistent {@link #snapshot}, so
-     * {@link #requireConsistent} throws before anything dereferences a null model) and the {@link
-     * MetaModelSnapshot} — including its merged {@link OntologyReport} — built from it.
+     * One build of the ontology, before it is stamped with the version it is adopted under. {@code
+     * schema} carries a provisional version (see {@link #buildStateFrom}); {@link #stamp} replaces
+     * it.
+     *
+     * @param model the built model, needed by {@link #export(Scope, OntologyFormat)}; {@code null}
+     *     only in a {@link #failureState} where building failed entirely, which is always paired
+     *     with an inconsistent report, so {@link #requireConsistent} throws before anything
+     *     dereferences a null model
+     * @param report the merged report of this build
+     * @param schema the Schema half, under a provisional version
+     * @param mapping the Behaviour and Automation halves' content, and the types' derivations
      */
-    private record PortState(OntModel model, MetaModelSnapshot snapshot) {}
+    private record Built(OntModel model, OntologyReport report, Schema schema, MappingResult mapping) {
+
+        PortState stamp(OntologyVersion version) {
+            return new PortState(
+                    model,
+                    report,
+                    new Schema(version, schema.ontologyIri(), schema.versionIri(), schema.prefixes(), schema.types()),
+                    new Behaviour(version, mapping.stateMachines(), mapping.derivations()),
+                    new Automation(version, mapping.transitionActions()));
+        }
+    }
+
+    /**
+     * The atomically-swapped unit of state this port serves: the built {@link OntModel} (needed by
+     * {@link #export(Scope, OntologyFormat)}), the merged {@link OntologyReport}, and the three
+     * halves, all stamped with one {@link OntologyVersion}.
+     */
+    private record PortState(
+            OntModel model, OntologyReport report, Schema schema, Behaviour behaviour, Automation automation) {}
 }

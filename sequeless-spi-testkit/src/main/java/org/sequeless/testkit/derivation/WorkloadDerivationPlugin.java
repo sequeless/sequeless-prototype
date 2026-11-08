@@ -9,7 +9,7 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.derivation.DerivationContext;
 import org.sequeless.spi.derivation.DerivationPlugin;
-import org.sequeless.spi.meta.AggregateFunction;
+import org.sequeless.spi.meta.schema.AggregateFunction;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
@@ -31,7 +31,7 @@ import org.sequeless.testkit.Fixtures;
  * gives a declarative {@code sq:Rollup} for free. A plug-in that instead queried once per object,
  * or pulled an unbounded working set into memory to compute its own aggregate, would defeat the
  * entire point of computing derived properties through {@link DerivationContext#queryPort()}
- * rather than {@link DerivationContext#snapshot()} plus ad hoc storage access.
+ * rather than {@link DerivationContext#schema()} plus ad hoc storage access.
  *
  * <p>A no-arg constructor is required: {@code ServiceLoader} instantiates providers reflectively.
  */
@@ -56,7 +56,7 @@ public final class WorkloadDerivationPlugin implements DerivationPlugin {
                 AggregateFunction.SUM,
                 Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
                 List.of());
-        AggregateResult result = context.queryPort().aggregate(context.scope(), context.snapshot(), request);
+        AggregateResult result = context.queryPort().aggregate(context.scope(), context.schema(), request);
         return result.values();
     }
 }

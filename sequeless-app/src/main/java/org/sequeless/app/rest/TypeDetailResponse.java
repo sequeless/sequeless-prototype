@@ -7,7 +7,7 @@ import java.util.List;
  * JSON response body for {@code GET /types/{name}}: a type's identity, supertypes, display hints,
  * and its full, already-ordered property list.
  *
- * <p>{@code properties} arrives from {@code org.sequeless.spi.meta.TypeDefinition#properties()}
+ * <p>{@code properties} arrives from {@code org.sequeless.spi.meta.schema.TypeDefinition#properties()}
  * already sorted by {@code (order, iri)} — {@link TypeResponseMapper} must not re-sort it, or the
  * carefully-established display order (inherited properties included) would be lost.
  *

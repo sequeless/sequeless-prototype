@@ -15,10 +15,9 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * where the inconsistency would only surface on the first {@code GET /types} request.
  *
  * <p>{@link org.sequeless.app.config.OntologyStartupValidator} is what makes this observable at
- * all: {@code CoreConfiguration#metaModelService} injects {@code OntologyPort} lazily (see its own
- * javadoc), so without that validator nothing would call {@code OntologyPort#snapshot} until a real
- * request arrived. See its javadoc for why an {@code ApplicationRunner} is the right place for that
- * first eager call.
+ * all: {@code CoreConfiguration#metaModelService} injects its ports lazily (see its own javadoc), so
+ * without that validator nothing would call {@code SchemaSource#schema} until a real request arrived.
+ * See its javadoc for why an {@code ApplicationRunner} is the right place for that first eager read.
  *
  * <p>Follows {@link PortBindingStartupFailureTest}'s pattern exactly, for the same reasons that
  * class's javadoc documents in detail:

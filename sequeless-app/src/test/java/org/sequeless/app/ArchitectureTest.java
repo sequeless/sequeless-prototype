@@ -1,6 +1,10 @@
 package org.sequeless.app;
 
+import static com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn;
+import static com.tngtech.archunit.core.domain.JavaCall.Predicates.target;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
+import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.name;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
@@ -13,6 +17,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.sequeless.spi.query.QueryPort;
 
 /**
  * Encodes the Maven module boundary rules from {@code docs/architecture/01-overview.md} as
@@ -36,6 +41,14 @@ class ArchitectureTest {
     private static final String ADAPTER_PACKAGE = "org.sequeless.adapter..";
     private static final String KERNEL_PACKAGE = "org.sequeless.kernel..";
     private static final String EXPRESSION_PACKAGE = "org.sequeless.expression..";
+    private static final String SCHEMA_PACKAGE = "..spi.meta.schema..";
+    private static final String BEHAVIOUR_PACKAGE = "..spi.meta.behaviour..";
+    private static final String AUTOMATION_PACKAGE = "..spi.meta.automation..";
+    private static final String QUERY_PACKAGE = "org.sequeless.spi.query..";
+    private static final String ONTOLOGY_PACKAGE = "org.sequeless.spi.ontology..";
+    private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
+    private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
+    private static final String ENSURE_INDEXES = "ensureIndexes";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -184,12 +197,79 @@ class ArchitectureTest {
             .resideInAPackage("org.apache.jena..")
             .because("org.apache.jena is sequeless-adapter-ontology-jena's own implementation library, "
                     + "not part of the framework-agnostic hexagon. The meta-model the core consumes "
-                    + "is deliberately a set of plain SPI records reached through OntologyPort, so "
+                    + "is deliberately a set of plain SPI records reached through the SPI read ports, so "
                     + "that replacing Jena with another RDF toolkit, or with a static test double, "
                     + "stays an adapter-level decision. This is stated separately from the broader "
                     + "coreDoesNotDependOnAdapterSpecificLibraries rule above because it also "
                     + "covers sequeless-spi, where a leaked Jena type would be worse still: it "
                     + "would force every adapter of every port to drag Jena onto its classpath.");
+
+    @ArchTest
+    static final ArchRule schemaDependsOnlyOnJdkKernelAndItself = classes()
+            .that()
+            .resideInAPackage(SCHEMA_PACKAGE)
+            .should()
+            .onlyDependOnClassesThat(
+                    resideInAnyPackage("java..", SCHEMA_PACKAGE, KERNEL_PACKAGE).or(PRIMITIVE_OR_ARRAY))
+            .because("the Schema half is the base of the meta-model: it may depend on the JDK, the kernel "
+                    + "identity and value types, and its own package, and nothing else, so that the "
+                    + "Behaviour and Automation halves can depend on it without a cycle.");
+
+    @ArchTest
+    static final ArchRule behaviourDependsOnlyOnSchema = classes()
+            .that()
+            .resideInAPackage(BEHAVIOUR_PACKAGE)
+            .should()
+            .onlyDependOnClassesThat(
+                    resideInAnyPackage("java..", BEHAVIOUR_PACKAGE, SCHEMA_PACKAGE, KERNEL_PACKAGE, QUERY_PACKAGE)
+                            .or(PRIMITIVE_OR_ARRAY))
+            .because("the Behaviour half may depend on the Schema half, the kernel and org.sequeless.spi.query, "
+                    + "and on nothing else. The query dependency is RollupRule's Criterion, which stays in "
+                    + "spi.query until spec 14 replaces it (spec 10, section 11, question 1). Any other "
+                    + "dependency would couple state machines and derivations to the adapters or ports that "
+                    + "the Behaviour half is meant to describe, not to host.");
+
+    @ArchTest
+    static final ArchRule automationDependsOnlyOnBehaviourAndSchema = classes()
+            .that()
+            .resideInAPackage(AUTOMATION_PACKAGE)
+            .should()
+            .onlyDependOnClassesThat(
+                    resideInAnyPackage("java..", AUTOMATION_PACKAGE, BEHAVIOUR_PACKAGE, SCHEMA_PACKAGE, KERNEL_PACKAGE)
+                            .or(PRIMITIVE_OR_ARRAY))
+            .because("the Automation half holds the transition actions and may depend on the Behaviour and "
+                    + "Schema halves and the kernel, and on nothing else. A dependency on a port or an adapter "
+                    + "would make the action list depend on how it is executed, which spec 15 must not inherit.");
+
+    @ArchTest
+    static final ArchRule querySeesOnlySchema = noClasses()
+            .that()
+            .resideInAPackage(QUERY_PACKAGE)
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(BEHAVIOUR_PACKAGE, AUTOMATION_PACKAGE, ONTOLOGY_PACKAGE)
+            .because("the query port runs against one Schema and nothing else: it must not see the Behaviour or "
+                    + "Automation halves, or the ontology administration port that activates them (#13 "
+                    + "decision 3). The Schema is the only part of the type system a query needs.");
+
+    /**
+     * Index preparation is a host concern (#24): the host calls {@code QueryPort#ensureIndexes} after every
+     * ontology activation, through {@code org.sequeless.app.config}. Use cases and adapters never call it,
+     * so no caller can prepare indexes for a Schema that is not the active one.
+     */
+    @ArchTest
+    static final ArchRule onlyHostPreparesIndexes = noClasses()
+            .that()
+            .resideOutsideOfPackages(HOST_CONFIG_PACKAGE, TESTKIT_QUERY_PACKAGE)
+            .should()
+            .callMethodWhere(target(name(ENSURE_INDEXES)).and(target(declaredIn(assignableTo(QueryPort.class)))))
+            .because("index preparation after an ontology activation is a host responsibility (#24). Only the "
+                    + "host's configuration package may call QueryPort#ensureIndexes in production code, so that "
+                    + "the use cases never see QueryPort for that purpose and the host can swap it to the "
+                    + "prepare(tenant, version) call of spec 13 in one place. The call is matched on its owner "
+                    + "type, so a call through a concrete store such as PostgresQueryStore is caught too. The "
+                    + "testkit's query contract kit (org.sequeless.testkit.query) is excluded: it exercises the "
+                    + "port's own contract, including the null-argument clause, and is not a production caller.");
 
     /**
      * Proves this suite is analyzing real classes from every module rather than passing

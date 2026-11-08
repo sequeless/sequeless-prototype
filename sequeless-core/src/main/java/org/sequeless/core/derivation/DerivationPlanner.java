@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.sequeless.core.validation.TypeHierarchy;
 import org.sequeless.kernel.identity.Scope;
@@ -13,12 +14,13 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.derivation.DerivationContext;
 import org.sequeless.spi.derivation.DerivationPlugin;
-import org.sequeless.spi.meta.DerivationRule;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.PluginRule;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.query.AggregateRequest;
@@ -63,8 +65,10 @@ public final class DerivationPlanner {
     /**
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the type system to resolve each object's own type and every rule against;
-     *     must not be {@code null}
+     * @param schema the type system to resolve each object's own type against; must not be {@code
+     *     null}
+     * @param behaviour the derivation rules every derived property is looked up in; must not be
+     *     {@code null}
      * @param requestType the type the caller originally requested; unused beyond documenting
      *     intent, since a mixed-subtype page resolves each object's own type instead; must not be
      *     {@code null}
@@ -75,9 +79,10 @@ public final class DerivationPlanner {
      * @throws NullPointerException if any argument is {@code null}
      */
     public List<BusinessObject> apply(
-            Scope scope, MetaModelSnapshot snapshot, TypeDefinition requestType, List<BusinessObject> objects) {
+            Scope scope, Schema schema, Behaviour behaviour, TypeDefinition requestType, List<BusinessObject> objects) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
+        Objects.requireNonNull(behaviour, "behaviour must not be null");
         Objects.requireNonNull(requestType, "requestType must not be null");
         Objects.requireNonNull(objects, "objects must not be null");
 
@@ -87,7 +92,7 @@ public final class DerivationPlanner {
 
         Map<ObjectId, TypeDefinition> typeByObjectId = new LinkedHashMap<>();
         for (BusinessObject object : objects) {
-            typeByObjectId.put(object.id(), resolveType(snapshot, object));
+            typeByObjectId.put(object.id(), resolveType(schema, object));
         }
 
         Map<DerivationRule, List<PropertyDefinition>> propertiesByRule = new LinkedHashMap<>();
@@ -95,10 +100,11 @@ public final class DerivationPlanner {
         for (BusinessObject object : objects) {
             TypeDefinition type = typeByObjectId.get(object.id());
             for (PropertyDefinition property : type.properties()) {
-                if (property.derivation().isEmpty()) {
+                Optional<DerivationRule> derivation = behaviour.derivation(property.iri());
+                if (derivation.isEmpty()) {
                     continue;
                 }
-                DerivationRule rule = property.derivation().get();
+                DerivationRule rule = derivation.get();
                 List<PropertyDefinition> properties =
                         propertiesByRule.computeIfAbsent(rule, unused -> new ArrayList<>());
                 if (!properties.contains(property)) {
@@ -116,7 +122,7 @@ public final class DerivationPlanner {
             List<PropertyDefinition> properties = entry.getValue();
             Set<ObjectId> targetIds = targetIdsByRule.get(rule);
 
-            Map<ObjectId, Value> values = computeRule(scope, snapshot, rule, targetIds, objects);
+            Map<ObjectId, Value> values = computeRule(scope, schema, rule, targetIds, objects);
 
             for (PropertyDefinition property : properties) {
                 computedByPropertyIri.put(property.iri(), values);
@@ -125,7 +131,7 @@ public final class DerivationPlanner {
 
         List<BusinessObject> result = new ArrayList<>(objects.size());
         for (BusinessObject object : objects) {
-            result.add(merge(object, typeByObjectId.get(object.id()), computedByPropertyIri));
+            result.add(merge(object, typeByObjectId.get(object.id()), behaviour, computedByPropertyIri));
         }
         return result;
     }
@@ -140,7 +146,7 @@ public final class DerivationPlanner {
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the type system {@code rule} and {@code targetIds} are resolved against; must
+     * @param schema the type system {@code rule} and {@code targetIds} are resolved against; must
      *     not be {@code null}
      * @param rule the rule to compute; must not be {@code null}
      * @param targetIds the ids to compute {@code rule}'s value for; must not be {@code null}
@@ -152,43 +158,34 @@ public final class DerivationPlanner {
      * @throws NullPointerException if any argument is {@code null}
      */
     public Map<ObjectId, Value> computeRule(
-            Scope scope,
-            MetaModelSnapshot snapshot,
-            DerivationRule rule,
-            Set<ObjectId> targetIds,
-            List<BusinessObject> objects) {
+            Scope scope, Schema schema, DerivationRule rule, Set<ObjectId> targetIds, List<BusinessObject> objects) {
         return switch (rule) {
-            case RollupRule rollup -> resolveRollup(scope, snapshot, rollup, targetIds);
-            case PluginRule pluginRule -> resolvePlugin(scope, snapshot, pluginRule, targetIds, objects);
+            case RollupRule rollup -> resolveRollup(scope, schema, rollup, targetIds);
+            case PluginRule pluginRule -> resolvePlugin(scope, schema, pluginRule, targetIds, objects);
         };
     }
 
-    private static TypeDefinition resolveType(MetaModelSnapshot snapshot, BusinessObject object) {
-        return snapshot.type(object.type().iri())
+    private static TypeDefinition resolveType(Schema schema, BusinessObject object) {
+        return schema.type(object.type().iri())
                 .orElseThrow(() -> new IllegalStateException("Object " + object.id() + " has unknown type "
                         + object.type().iri()));
     }
 
-    private Map<ObjectId, Value> resolveRollup(
-            Scope scope, MetaModelSnapshot snapshot, RollupRule rollup, Set<ObjectId> targetIds) {
-        Set<String> sourceTypes = TypeHierarchy.concreteTypeAndSubtypes(snapshot, rollup.sourceTypeIri());
+    private Map<ObjectId, Value> resolveRollup(Scope scope, Schema schema, RollupRule rollup, Set<ObjectId> targetIds) {
+        Set<String> sourceTypes = TypeHierarchy.concreteTypeAndSubtypes(schema, rollup.sourceTypeIri());
         AggregateRequest request = new AggregateRequest(
                 sourceTypes, rollup.viaIri(), targetIds, rollup.function(), rollup.ofPropertyIri(), rollup.criteria());
-        AggregateResult result = queryPort.aggregate(scope, snapshot, request);
+        AggregateResult result = queryPort.aggregate(scope, schema, request);
         return result.values();
     }
 
     private Map<ObjectId, Value> resolvePlugin(
-            Scope scope,
-            MetaModelSnapshot snapshot,
-            PluginRule pluginRule,
-            Set<ObjectId> targetIds,
-            List<BusinessObject> objects) {
+            Scope scope, Schema schema, PluginRule pluginRule, Set<ObjectId> targetIds, List<BusinessObject> objects) {
         DerivationPlugin plugin = pluginRegistry.get(pluginRule.pluginName());
         List<BusinessObject> targetObjects = objects.stream()
                 .filter(object -> targetIds.contains(object.id()))
                 .toList();
-        DerivationContext context = new DerivationContext(scope, snapshot, queryPort);
+        DerivationContext context = new DerivationContext(scope, schema, queryPort);
         return plugin.derive(context, targetObjects);
     }
 
@@ -199,10 +196,13 @@ public final class DerivationPlanner {
      * computedByPropertyIri} produced for that object, if any.
      */
     private static BusinessObject merge(
-            BusinessObject object, TypeDefinition type, Map<String, Map<ObjectId, Value>> computedByPropertyIri) {
+            BusinessObject object,
+            TypeDefinition type,
+            Behaviour behaviour,
+            Map<String, Map<ObjectId, Value>> computedByPropertyIri) {
         Map<PropertyRef, Value> properties = new LinkedHashMap<>(object.properties());
         for (PropertyDefinition property : type.properties()) {
-            if (property.derivation().isEmpty()) {
+            if (behaviour.derivation(property.iri()).isEmpty()) {
                 continue;
             }
             PropertyRef ref = new PropertyRef(property.iri());

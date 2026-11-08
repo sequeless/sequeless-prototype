@@ -29,13 +29,13 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
@@ -76,13 +76,13 @@ public final class PostgresQueryStore implements QueryPort {
     }
 
     @Override
-    public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+    public QueryResult query(Scope scope, Schema schema, Query query) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(query, "query must not be null");
 
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> propertyIndex = indexProperties(snapshot, query.types());
+        Map<String, PropertyDefinition> propertyIndex = indexProperties(schema, query.types());
 
         WhereClause mainWhere = buildWhere(
                 tenantId,
@@ -120,7 +120,7 @@ public final class PostgresQueryStore implements QueryPort {
 
         Map<String, List<FacetBucket>> facets = new LinkedHashMap<>();
         for (String facetProperty : query.facetProperties()) {
-            facets.put(facetProperty, computeFacet(tenantId, query, facetProperty, propertyIndex, snapshot));
+            facets.put(facetProperty, computeFacet(tenantId, query, facetProperty, propertyIndex, schema));
         }
 
         return new QueryResult(items, total, facets);
@@ -132,7 +132,7 @@ public final class PostgresQueryStore implements QueryPort {
      * property in {@code sq_searchable_property}, backfilling {@code search_vector} for the
      * tenant's existing rows when a new searchable property is registered. Idempotent: a property
      * already present in either registry table is left untouched, so calling this repeatedly for
-     * the same {@link MetaModelSnapshot} is cheap.
+     * the same {@link Schema} is cheap.
      *
      * <p>Runs inside {@link #transactionTemplate} so a concurrent {@code ensureIndexes} call for
      * the same tenant cannot interleave a registry insert with another's backfill, matching
@@ -140,11 +140,11 @@ public final class PostgresQueryStore implements QueryPort {
      * pattern for multi-statement atomicity.
      */
     @Override
-    public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+    public void ensureIndexes(Scope scope, Schema schema) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> allProperties = indexAllProperties(snapshot);
+        Map<String, PropertyDefinition> allProperties = indexAllProperties(schema);
 
         transactionTemplate.executeWithoutResult(status -> {
             boolean backfillNeeded = false;
@@ -166,15 +166,15 @@ public final class PostgresQueryStore implements QueryPort {
      * Computes {@code request.function()} in one {@code GROUP BY} query over {@code sq_object},
      * reusing {@link #castExpression} and {@link #criterionSql} exactly as {@link #query}'s {@link
      * #buildWhere} does. See {@link QueryPort#aggregate}'s javadoc for the full density contract:
-     * {@link org.sequeless.spi.meta.AggregateFunction#COUNT} is zero-filled for every requested
+     * {@link AggregateFunction#COUNT} is zero-filled for every requested
      * target id, while {@code SUM}/{@code MIN}/{@code MAX}/{@code AVG} simply omit a target with no
      * matching source rows (a {@code GROUP BY} naturally emits no row for an empty group, so no
      * special-casing is needed for those).
      */
     @Override
-    public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+    public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(request, "request must not be null");
 
         if (request.targetIds().isEmpty()) {
@@ -182,7 +182,7 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> propertyIndex = indexProperties(snapshot, request.sourceTypes());
+        Map<String, PropertyDefinition> propertyIndex = indexProperties(schema, request.sourceTypes());
 
         Optional<AttributeDefinition> ofProperty =
                 request.ofPropertyIri().map(iri -> (AttributeDefinition) propertyIndex.get(iri));
@@ -278,9 +278,9 @@ public final class PostgresQueryStore implements QueryPort {
         };
     }
 
-    private static Map<String, PropertyDefinition> indexAllProperties(MetaModelSnapshot snapshot) {
+    private static Map<String, PropertyDefinition> indexAllProperties(Schema schema) {
         Map<String, PropertyDefinition> result = new LinkedHashMap<>();
-        for (TypeDefinition type : snapshot.types()) {
+        for (TypeDefinition type : schema.types()) {
             type.properties().forEach(p -> result.putIfAbsent(p.iri(), p));
         }
         return result;
@@ -378,10 +378,10 @@ public final class PostgresQueryStore implements QueryPort {
 
     // -- Property resolution -----------------------------------------------------------------
 
-    private static Map<String, PropertyDefinition> indexProperties(MetaModelSnapshot snapshot, Set<String> typeIris) {
+    private static Map<String, PropertyDefinition> indexProperties(Schema schema, Set<String> typeIris) {
         Map<String, PropertyDefinition> result = new LinkedHashMap<>();
         for (String typeIri : typeIris) {
-            snapshot.type(typeIri).ifPresent(type -> type.properties().forEach(p -> result.putIfAbsent(p.iri(), p)));
+            schema.type(typeIri).ifPresent(type -> type.properties().forEach(p -> result.putIfAbsent(p.iri(), p)));
         }
         return result;
     }
@@ -604,10 +604,10 @@ public final class PostgresQueryStore implements QueryPort {
             Query query,
             String facetProperty,
             Map<String, PropertyDefinition> propertyIndex,
-            MetaModelSnapshot snapshot) {
+            Schema schema) {
         PropertyDefinition property = propertyIndex.get(facetProperty);
         return property instanceof RelationshipDefinition rel
-                ? computeReferenceFacet(tenantId, query, facetProperty, rel, snapshot, propertyIndex)
+                ? computeReferenceFacet(tenantId, query, facetProperty, rel, schema, propertyIndex)
                 : computeScalarFacet(tenantId, query, facetProperty, (AttributeDefinition) property, propertyIndex);
     }
 
@@ -652,7 +652,7 @@ public final class PostgresQueryStore implements QueryPort {
             Query query,
             String facetProperty,
             RelationshipDefinition rel,
-            MetaModelSnapshot snapshot,
+            Schema schema,
             Map<String, PropertyDefinition> propertyIndex) {
         WhereClause excluding = buildWhere(
                 tenantId,
@@ -664,7 +664,7 @@ public final class PostgresQueryStore implements QueryPort {
                 "o.",
                 propertyIndex);
 
-        Optional<AttributeDefinition> labelProperty = displayLabelProperty(snapshot, rel.targetTypeIri());
+        Optional<AttributeDefinition> labelProperty = displayLabelProperty(schema, rel.targetTypeIri());
         String valueExpr = labelProperty.isPresent()
                 ? "target.props -> :labelProp ->> '"
                         + tagFor(labelProperty.get().datatype()) + "'"
@@ -691,9 +691,8 @@ public final class PostgresQueryStore implements QueryPort {
                 .list();
     }
 
-    private static Optional<AttributeDefinition> displayLabelProperty(
-            MetaModelSnapshot snapshot, String targetTypeIri) {
-        return snapshot.type(targetTypeIri)
+    private static Optional<AttributeDefinition> displayLabelProperty(Schema schema, String targetTypeIri) {
+        return schema.type(targetTypeIri)
                 .flatMap(type -> type.properties().stream()
                         .filter(PropertyDefinition::displayLabel)
                         .filter(AttributeDefinition.class::isInstance)

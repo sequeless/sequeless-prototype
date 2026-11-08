@@ -1,8 +1,8 @@
 package org.sequeless.core.api;
 
 /**
- * Thrown by {@link MetaModelService#describeType(org.sequeless.kernel.identity.Scope, String)} when no type
- * in the current snapshot matches the requested short name or IRI.
+ * Thrown by {@link MetaModelService#describeType(org.sequeless.kernel.identity.Scope, String)} when
+ * no type in the current schema matches the requested short name or IRI.
  *
  * <p>This sits beside {@link MetaModelService} in the {@code api} package — mirroring {@link
  * WhoAmIResult} sitting beside {@link WhoAmI} — rather than at the {@code org.sequeless.core} root

@@ -31,7 +31,7 @@ public interface TriggerEvaluator {
      * by {@code changeEvent}'s {@code objectId} having just been created, updated, or deleted.
      * Candidates are resolved two ways: the changed object itself, if its own type declares an
      * {@code OnChange} transition departing its current state; and, for every {@code OnChange}
-     * transition in the snapshot whose {@code sq:watch} names a property declared on the changed
+     * transition in the Behaviour whose {@code sq:watch} names a property declared on the changed
      * object's type, every id that property currently holds on the changed object — exactly how
      * closing the last {@code ex:Task} on a {@code ex:Project} resolves that {@code ex:Project} as
      * a candidate via {@code ex:belongsToProject}. A soft-deleted object is still readable for this

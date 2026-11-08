@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.List;
-import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
 
 /**
  * JSON rendering of a type's {@code sq:StateMachine} ({@link StateMachineDefinition}), nested in

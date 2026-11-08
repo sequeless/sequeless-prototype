@@ -5,7 +5,7 @@
 #
 # Deliberately inconsistent fixture: ex:Cyborg is asserted a subclass of two classes that are
 # themselves asserted disjoint, and ex:c1 is asserted an instance of ex:Cyborg. A reasoner-backed
-# OntologyPort must throw OntologyException with an OntologyReport naming ex:Cyborg for this
+# ontology port must throw OntologyException with an OntologyReport naming ex:Cyborg for this
 # document. No owl:imports here — consistency checking needs no sq: terms.
 #
 

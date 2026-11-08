@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.sequeless.core.api.TypeDescription;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.DateTimeValue;
 import org.sequeless.kernel.values.DateValue;
@@ -14,32 +15,32 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.DerivationRule;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TriggerSpec;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
+import org.sequeless.spi.meta.behaviour.PluginRule;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TimerTrigger;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.TriggerKind;
+import org.sequeless.spi.meta.behaviour.TriggerSpec;
+import org.sequeless.spi.meta.behaviour.UserActionTrigger;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Operator;
 
 /**
- * Maps sequeless-core's {@code org.sequeless.spi.meta} types onto their {@link TypesController}
- * wire representations. Factored out of {@link TypesController} itself, mirroring {@link
- * WhoAmIResponse#from(org.sequeless.core.api.WhoAmIResult)}, because both {@link
- * TypeSummaryResponse} and {@link TypeDetailResponse} need the same superTypes-to-short-names
- * rendering.
+ * Maps the {@code org.sequeless.spi.meta} schema and behaviour types, and core's {@link
+ * TypeDescription}, onto their {@link TypesController} wire representations. Factored out of {@link
+ * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.core.api.WhoAmIResult)},
+ * because both {@link TypeSummaryResponse} and {@link TypeDetailResponse} need the same
+ * superTypes-to-short-names rendering.
  *
  * <p>Package-private: nothing outside {@code org.sequeless.app.rest} has a reason to map these
  * types directly.
@@ -69,28 +70,29 @@ final class TypeResponseMapper {
     private TypeResponseMapper() {}
 
     /**
-     * @param snapshot the snapshot to render; must not be {@code null}
-     * @return one {@link TypeSummaryResponse} per {@link MetaModelSnapshot#types()}, in the same
-     *     order, with {@code superTypes} resolved to short names via a {@code Map<iri, name>}
-     *     built once for this call
+     * @param schema the schema to render; must not be {@code null}
+     * @return one {@link TypeSummaryResponse} per {@link Schema#types()}, in the same order, with
+     *     {@code superTypes} resolved to short names via a {@code Map<iri, name>} built once for
+     *     this call
      */
-    static List<TypeSummaryResponse> toSummaries(MetaModelSnapshot snapshot) {
-        Map<String, String> namesByIri = namesByIri(snapshot);
-        return snapshot.types().stream()
-                .map(type -> toSummary(type, namesByIri))
-                .toList();
+    static List<TypeSummaryResponse> toSummaries(Schema schema) {
+        Map<String, String> namesByIri = namesByIri(schema);
+        return schema.types().stream().map(type -> toSummary(type, namesByIri)).toList();
     }
 
     /**
-     * @param type the resolved, authorized type to render; must not be {@code null}
-     * @return the {@link TypeDetailResponse} rendering of {@code type}, with {@code properties}
-     *     left in the order {@link TypeDefinition#properties()} already provides
+     * @param description the resolved, authorized type with its state machine and derivations; must
+     *     not be {@code null}
+     * @return the {@link TypeDetailResponse} rendering of {@code description}, with {@code
+     *     properties} left in the order {@link TypeDefinition#properties()} already provides
      */
-    static TypeDetailResponse toDetail(TypeDefinition type) {
+    static TypeDetailResponse toDetail(TypeDescription description) {
+        TypeDefinition type = description.type();
         List<String> superTypeNames =
                 type.superTypes().stream().map(TypeResponseMapper::shortName).toList();
-        List<PropertyResponse> properties =
-                type.properties().stream().map(TypeResponseMapper::toProperty).toList();
+        List<PropertyResponse> properties = type.properties().stream()
+                .map(property -> toProperty(property, description.derivations()))
+                .toList();
         return new TypeDetailResponse(
                 type.iri(),
                 shortName(type.iri()),
@@ -100,7 +102,8 @@ final class TypeResponseMapper {
                 type.displayHints().group().orElse(null),
                 type.displayHints().hidden(),
                 properties,
-                type.stateMachine()
+                description
+                        .stateMachine()
                         .map(TypeResponseMapper::toStateMachineResponse)
                         .orElse(null));
     }
@@ -198,9 +201,9 @@ final class TypeResponseMapper {
                 type.iri(), namesByIri.get(type.iri()), type.label(), type.isAbstract(), superTypeNames);
     }
 
-    private static Map<String, String> namesByIri(MetaModelSnapshot snapshot) {
-        List<TypeDefinition> types = snapshot.types();
-        List<String> names = snapshot.names();
+    private static Map<String, String> namesByIri(Schema schema) {
+        List<TypeDefinition> types = schema.types();
+        List<String> names = schema.names();
         Map<String, String> namesByIri = new HashMap<>();
         for (int i = 0; i < types.size(); i++) {
             namesByIri.put(types.get(i).iri(), names.get(i));
@@ -213,8 +216,12 @@ final class TypeResponseMapper {
      * exhaustive over the sealed {@link PropertyDefinition} hierarchy with no {@code default}
      * branch, so a third permitted implementation arriving later would fail this compilation unit
      * rather than silently falling through unmapped.
+     *
+     * @param property the property to render; must not be {@code null}
+     * @param derivations the derivation of each derived property of the type, keyed by property
+     *     IRI; a property with no entry has no {@code derivation} in its response
      */
-    private static PropertyResponse toProperty(PropertyDefinition property) {
+    private static PropertyResponse toProperty(PropertyDefinition property, Map<String, DerivationRule> derivations) {
         return switch (property) {
             case AttributeDefinition attribute ->
                 new AttributePropertyResponse(
@@ -234,10 +241,7 @@ final class TypeResponseMapper {
                                 ? attribute.cardinality().max().getAsInt()
                                 : null,
                         attribute.datatype().name(),
-                        attribute
-                                .derivation()
-                                .map(TypeResponseMapper::toDerivationResponse)
-                                .orElse(null));
+                        derivationOf(attribute.iri(), derivations));
             case RelationshipDefinition relationship ->
                 new RelationshipPropertyResponse(
                         "relationship",
@@ -258,17 +262,25 @@ final class TypeResponseMapper {
                         relationship.targetTypeIri(),
                         relationship.inverseIri().orElse(null),
                         relationship.transitive(),
-                        relationship
-                                .derivation()
-                                .map(TypeResponseMapper::toDerivationResponse)
-                                .orElse(null));
+                        derivationOf(relationship.iri(), derivations));
         };
+    }
+
+    /**
+     * @param propertyIri the IRI of the property being rendered
+     * @param derivations the derivation of each derived property of the type, keyed by property IRI
+     * @return the {@link DerivationResponse} of {@code propertyIri}, or {@code null} if the property
+     *     is not derived
+     */
+    private static DerivationResponse derivationOf(String propertyIri, Map<String, DerivationRule> derivations) {
+        DerivationRule rule = derivations.get(propertyIri);
+        return rule == null ? null : toDerivationResponse(rule);
     }
 
     /**
      * Maps one {@link DerivationRule} onto its {@link DerivationResponse}, an exhaustive {@code
      * switch} over the sealed {@link DerivationRule} hierarchy with no {@code default} branch,
-     * mirroring {@link #toProperty(PropertyDefinition)}'s own exhaustive switch.
+     * mirroring {@link #toProperty(PropertyDefinition, Map)}'s own exhaustive switch.
      */
     private static DerivationResponse toDerivationResponse(DerivationRule rule) {
         return switch (rule) {
@@ -328,13 +340,12 @@ final class TypeResponseMapper {
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule (local name after an IRI's last
-     * {@code #}, or after its last {@code /} if there is no {@code #}) rather than calling back
-     * into a snapshot, because {@link #toDetail(TypeDefinition)} renders a single, already
-     * resolved {@link TypeDefinition} — fetching a whole snapshot just to look up one supertype's
-     * short name would mean an extra, redundantly-authorized {@code OntologyPort} round trip for
-     * no benefit: the rule is a pure function of the IRI string, not of what else happens to be in
-     * the snapshot.
+     * Duplicates {@code Schema}'s own short-name rule (local name after an IRI's last {@code #}, or
+     * after its last {@code /} if there is no {@code #}) rather than calling back into a schema,
+     * because {@link #toDetail(TypeDescription)} renders a single, already resolved {@link
+     * TypeDefinition} — reading a whole schema just to look up one supertype's short name would
+     * mean an extra read for no benefit: the rule is a pure function of the IRI string, not of what
+     * else happens to be in the schema.
      *
      * @param iri the IRI to derive a short name from; must not be {@code null}
      * @return the local name after the IRI's last {@code #}, or after its last {@code /} if there

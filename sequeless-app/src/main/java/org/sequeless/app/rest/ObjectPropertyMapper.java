@@ -11,8 +11,8 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 
@@ -78,7 +78,7 @@ final class ObjectPropertyMapper {
      * Maps one {@link Value} onto its plain, JSON-serializable wire representation. The {@code
      * switch} is exhaustive over the sealed {@link Value} hierarchy with no {@code default}
      * branch, mirroring {@link TypeResponseMapper#toProperty}'s rationale for {@link
-     * org.sequeless.spi.meta.PropertyDefinition}.
+     * org.sequeless.spi.meta.schema.PropertyDefinition}.
      */
     private static Object toWireValue(Value value) {
         return switch (value) {
@@ -95,9 +95,9 @@ final class ObjectPropertyMapper {
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * Duplicates {@code Schema}'s own short-name rule, for the same reason {@link
      * TypeResponseMapper#shortName} does: this maps a single, already-resolved IRI, not a whole
-     * snapshot.
+     * schema.
      *
      * @param iri the IRI to derive a short name from; must not be {@code null}
      * @return the local name after the IRI's last {@code #}, or after its last {@code /} if there

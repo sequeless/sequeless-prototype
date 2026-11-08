@@ -6,8 +6,8 @@ import java.util.stream.Collectors;
 
 /**
  * The outcome of validating an ontology document: whether it is consistent, and the issues found
- * along the way. This is what {@link org.sequeless.spi.ontology.OntologyPort#snapshot} and {@code
- * reload} attach to {@link OntologyException} when an ontology is inconsistent, and it is also the
+ * along the way. This is what the read ports and {@link OntologyAdministration#reload} attach to
+ * {@link OntologyException} when an ontology is inconsistent, and it is also the
  * shape an HTTP 422 body renders directly via {@link #describe()} — which is why an inconsistent
  * report without a single {@link Severity#ERROR} issue is rejected at construction: it would reach
  * a caller as "this is broken" with no explanation of why.

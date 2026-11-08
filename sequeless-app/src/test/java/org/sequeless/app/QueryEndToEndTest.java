@@ -5,7 +5,6 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,15 +40,10 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * from Spring's test-context cache; see {@code ObjectsEndToEndTest}'s javadoc for the full
  * explanation.
  *
- * <p><b>The {@code ensureIndexes} gap:</b> the app loads its ontology at startup from {@code
- * sequeless.ontology.source} (a classpath resource), which never goes through {@code
- * DefaultOntologyAdministration#importTurtle} and so never calls {@code
- * QueryPort#ensureIndexes} on its own. Without that having run at least once, {@code
- * sq_searchable_property} is empty and the {@code search_vector} trigger writes empty tsvectors,
- * so free-text search would find nothing even though data exists. {@link #triggerEnsureIndexes()}
- * forces this by exporting the currently-active ontology and immediately re-importing the same
- * content — {@code ensureIndexes} is documented idempotent, so doing this once per test is cheap
- * and safe.
+ * <p>The search and facet assertions depend on query indexes already being prepared. This class
+ * does not prepare them itself: {@code OntologyStartupValidator} prepares them for the ontology
+ * loaded from {@code sequeless.ontology.source} before the first request, so these tests prove that
+ * startup call end to end.
  *
  * <p>Every test builds its own fixture data and asserts on deltas or id-membership, never bare/
  * exact totals — this module's tests all share one Postgres container/tenant across the whole
@@ -70,35 +64,6 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         restTestClient = RestTestClient.bindToServer()
                 .baseUrl("http://localhost:" + port)
                 .build();
-        triggerEnsureIndexes();
-    }
-
-    /**
-     * Forces {@code QueryPort#ensureIndexes} to run by exporting the currently-active ontology
-     * and re-importing that exact same content. See this class's javadoc for why this is
-     * necessary before any browse/search/facet assertion.
-     */
-    private void triggerEnsureIndexes() {
-        byte[] exported = restTestClient
-                .get()
-                .uri("/api/ontology")
-                .exchange()
-                .expectStatus()
-                .isOk()
-                .expectBody()
-                .returnResult()
-                .getResponseBody();
-        assertThat(exported).isNotNull();
-        String turtle = new String(exported, StandardCharsets.UTF_8);
-
-        restTestClient
-                .post()
-                .uri("/api/ontology")
-                .contentType(MediaType.valueOf("text/turtle"))
-                .body(turtle)
-                .exchange()
-                .expectStatus()
-                .isOk();
     }
 
     // --- fixture helpers -------------------------------------------------------------------

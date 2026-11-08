@@ -16,7 +16,7 @@ import java.util.UUID;
  * {@link #KIND_ACTION_REQUEST} for a fired state-machine transition and the actions it dispatches,
  * or {@link #KIND_TIMER_SCHEDULED}, {@link #KIND_TIMER_CANCELLED}, or {@link
  * #KIND_SIGNAL_RECEIVED} for the automation events introduced alongside {@link
- * org.sequeless.spi.meta.TriggerSpec} — though the type itself does not restrict {@code kind} to
+ * org.sequeless.spi.meta.behaviour.TriggerSpec} — though the type itself does not restrict {@code kind} to
  * those values — a future kind can reuse this record without a new one being minted.
  *
  * <p>{@code payload} must be JSON-compatible end to end: every value, at any depth, is a {@code
@@ -65,8 +65,8 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     public static final String KIND_ACTION_REQUEST = "ActionRequest";
 
     /**
-     * The event kind recorded when a transition whose {@link org.sequeless.spi.meta.TriggerSpec}
-     * is a {@link org.sequeless.spi.meta.TimerTrigger} is entered — that is, when the object
+     * The event kind recorded when a transition whose {@link org.sequeless.spi.meta.behaviour.TriggerSpec}
+     * is a {@link org.sequeless.spi.meta.behaviour.TimerTrigger} is entered — that is, when the object
      * transitions into that timer transition's {@code fromStateIri} — exactly as entering {@code
      * ex:OnHold} schedules the {@code expireHold} timer. Payload carries {@code objectId}, {@code
      * tenantId}, {@code principalId}, {@code typeIri}, {@code state}, {@code transitionName},
@@ -91,7 +91,7 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
      * The event kind recorded when a client calls {@code POST
      * /objects/{type}/{id}/signals/{name}}, for an automation adapter to dispatch to whichever
      * transition on the object's current state has a matching {@link
-     * org.sequeless.spi.meta.ExternalSignalTrigger#signalName()} — exactly as a {@code "reopen"}
+     * org.sequeless.spi.meta.behaviour.ExternalSignalTrigger#signalName()} — exactly as a {@code "reopen"}
      * signal revives a {@code ex:Closed} {@code ex:Project}. Payload carries {@code objectId},
      * {@code tenantId}, {@code principalId}, and {@code signalName}; the request body is recorded
      * for audit but is not bound into the guard's {@code ExpressionContext} this phase.

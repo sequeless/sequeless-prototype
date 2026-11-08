@@ -9,7 +9,7 @@ import java.util.List;
  * type in the ontology in one response.
  *
  * <p>{@code superTypes} render as short names rather than full IRIs — resolved through the
- * {@code Map<iri, name>} {@link TypeResponseMapper} builds once per snapshot — because a short name
+ * {@code Map<iri, name>} {@link TypeResponseMapper} builds once per schema — because a short name
  * is far friendlier for a client piping this through {@code jq} than a raw IRI would be.
  *
  * <p>The record component is named {@code isAbstract} rather than {@code abstract} because {@code
