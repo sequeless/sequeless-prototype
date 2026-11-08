@@ -56,8 +56,8 @@ how the backend accepts either an omitted field or an explicit `null` for "use `
 `@JsonTypeInfo`/`@Schema(oneOf=…)`, so springdoc emits a flattened schema and a generator would
 produce a type that defeats the discriminated union this frontend actually needs; and the
 `filter[x][y]` family (see below) is inexpressible in OpenAPI at all
-(`docs/architecture/query-port.md:341-347`), so a generator could never cover the query layer
-regardless. (Pending write-up as DR-20 in `docs/architecture/02-decision-records.md`.)
+(`docs/architecture/query-port.md:341-348`), so a generator could never cover the query layer
+regardless. (Recorded as DR-20 in `docs/architecture/02-decision-records.md`.)
 
 ### Error mapper — `errors/api-error.ts`
 

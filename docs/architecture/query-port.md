@@ -46,12 +46,12 @@ public record QueryResult(List<BusinessObject> items, long total, Map<String, Li
 public record FacetBucket(String value, long count) {}
 
 public interface QueryPort {
-    QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query);
-    void ensureIndexes(Scope scope, MetaModelSnapshot snapshot);
+    QueryResult query(Scope scope, Schema schema, Query query);
+    void ensureIndexes(Scope scope, Schema schema);
 }
 ```
 
-`Criterion` deliberately reuses `org.sequeless.spi.object.Value` — the same sealed value type
+`Criterion` deliberately reuses `org.sequeless.kernel.values.Value` — the same sealed value type
 `BusinessObject` properties already use (`TextValue`, `IntegerValue`, `DecimalValue`, `BoolValue`,
 `DateValue`, `DateTimeValue`, `ReferenceValue`, `ListValue`, built via `Value.text(...)`,
 `Value.integer(...)`, ... `Value.list(...)`) — rather than inventing a parallel query-value type.
@@ -73,7 +73,7 @@ meaningful for" only informationally; operator/datatype coherence is enforced by
 `Query.types()` is a **resolved, concrete-only** set of type IRIs, not a single type reference and
 not something the port resolves itself. When a request names an abstract type (`WorkItem` in the
 reference domain), core expands it to its concrete subtypes (`Task`, `Project`) using the
-`MetaModelSnapshot`'s type hierarchy *before* constructing the `Query` — the port never sees an
+`Schema`'s type hierarchy *before* constructing the `Query` — the port never sees an
 abstract type IRI and never does hierarchy reasoning. `QueryPort`'s interface-level javadoc is
 explicit that `types()` is a union: a matching object's type is any one of the listed IRIs, not
 every one at once — the same union semantics `ObjectStorePort#browse`'s `Set<TypeRef>` parameter
@@ -157,7 +157,7 @@ every other REST-facing shape (object properties, filter/sort/facet request para
 short names as its wire convention, so `FacetResponseMapper.toShortNameKeyed` re-keys the map for
 consistency at the REST boundary before it ever reaches the client. The mapper resolves each facet
 IRI against the *browsed type's own* `properties()` list, falling back to the IRI's own local name
-(the same rule `MetaModelSnapshot` uses for short names generally) when a facet property isn't found
+(the same rule `Schema` uses for short names generally) when a facet property isn't found
 there — because `DefaultBusinessObjectService.browse` validates facet/filter/sort properties against
 a wider set than `requestType.properties()` (every property attributed to the resolved type *or any
 of its transitive subtypes*, via `TypeHierarchy.typeAndSubtypes`), so a facet declared only on a
@@ -230,8 +230,8 @@ interacts with `QueryPort`'s own default-order contract.
 
 ## `ensureIndexes` and the index registry
 
-`ensureIndexes(scope, snapshot)` does two things, both idempotent, both driven by hint flags already
-on the `MetaModelSnapshot`'s properties:
+`ensureIndexes(scope, schema)` does two things, both idempotent, both driven by hint flags already
+on the `Schema`'s properties:
 
 - For every property with `sq:indexed=true` not already present in `sq_index_registry`
   `(tenant_id, property_iri, index_name, created_at)` (PK `(tenant_id, property_iri)`): runs
@@ -247,26 +247,26 @@ on the `MetaModelSnapshot`'s properties:
   existing row of the tenant (a statement kept textually in sync with the trigger's own logic — see
   the comment on `PostgresQueryStore.backfillSearchVector`).
 
-Both loops skip already-registered properties, so a repeat call with an unchanged snapshot is a
-no-op beyond the registry lookups, and a snapshot with no `sq:indexed`/`sq:searchable` properties at
+Both loops skip already-registered properties, so a repeat call with an unchanged `Schema` is a
+no-op beyond the registry lookups, and a `Schema` with no `sq:indexed`/`sq:searchable` properties at
 all does nothing.
 
-`ensureIndexes` is called from `DefaultOntologyAdministration.importTurtle`, right after a
-successful `OntologyPort.importDocument` call, using the freshly-reloaded snapshot
-(`ontologyPort.snapshot(scope)`). `importDocument`'s own contract is to either return an accepted
-`ImportReport` or throw, so reaching the `ensureIndexes` call always means the import succeeded.
+`ensureIndexes` is called from two places in `sequeless-app` (#24):
 
-**Operational note — a real gap, not covered by this phase.** The ontology loaded at application
-startup via the `sequeless.ontology.source` classpath/file source does **not** go through
-`DefaultOntologyAdministration.importTurtle`, and therefore never triggers `ensureIndexes` on its
-own. Only an explicit `POST /api/ontology` import does. An operator who only ever boots the application
-with a static ontology and never calls the import endpoint will find text search and
-indexed-property filtering silently underperforming (sequential scan instead of an expression index)
-or, for text search, returning nothing at all — `search_vector` is never populated for rows inserted
-before any property was registered searchable, and the column simply stays `NULL`/empty. This is not
-addressed anywhere in Phase 3's scope; it is worth flagging for a future phase or a deployment
-runbook (e.g. an explicit "prime indexes on startup" hook, or having the startup ontology loader call
-`ensureIndexes` too).
+- `IndexPreparingOntologyAdministration`, right after a successful `importDocument` or `reload` call
+  on the admin port (`POST /api/ontology`, `POST /api/types/reload`), using the `Schema` the delegate
+  has just activated (`schemaSource.schema(scope.tenantId())`). `importDocument`'s contract is to
+  either return an accepted `ImportReport` or throw, so reaching the `ensureIndexes` call always
+  means the import succeeded.
+- `OntologyStartupValidator`, once at startup, for the ontology the application booted with (the
+  stored active document, or the one seeded from `sequeless.ontology.source`). It reads
+  `schemaSource.schema(TenantId.DEFAULT)` and passes that `Schema` to `ensureIndexes`. An application
+  that never calls the import or reload endpoint therefore still gets its expression indexes and
+  searchable-property registry. `QueryEndToEndTest`'s search and facet assertions depend on this call.
+
+**Operational note.** Phase 3 shipped without the startup call and recorded the missing index
+preparation as an open gap. Spec 10 closed it. Startup prepares `TenantId.DEFAULT` only, which is the
+only tenant the REST controllers use today.
 
 ## Default ordering
 
@@ -296,7 +296,7 @@ becomes a bottleneck. Nothing about `QueryPort`'s shape is Postgres-specific, so
 implementation could sit behind the exact same interface without `sequeless-core` — or any use case
 calling `BusinessObjectService.browse` — ever knowing the difference:
 
-- **`query(scope, snapshot, query)`**: translate `query.criteria()` into a `bool` query's `filter`
+- **`query(scope, schema, query)`**: translate `query.criteria()` into a `bool` query's `filter`
   clauses — `EQ`/`IN` as `term`/`terms`, `LT`/`LTE`/`GT`/`GTE` as `range`, `CONTAINS`/`STARTS_WITH`
   as `wildcard`/`match_phrase_prefix`, `IS_NULL`/`NOT_NULL` as `must_not exists`/`exists`. Translate
   `query.text()` into a `match` query over a tenant- and type-scoped set of the type's
@@ -310,8 +310,8 @@ calling `BusinessObjectService.browse` — ever knowing the difference:
   for at query time the way a self-join can in Postgres — the practical answer is to denormalize the
   target's display-label value onto the referencing document at index time (updated whenever the
   target's label-bearing property changes), rather than resolving it per-query.
-- **`ensureIndexes(scope, snapshot)`**: rather than one Postgres expression index per `sq:indexed`
-  property, create or update an OpenSearch index template/mapping keyed off the snapshot's types and
+- **`ensureIndexes(scope, schema)`**: rather than one Postgres expression index per `sq:indexed`
+  property, create or update an OpenSearch index template/mapping keyed off the Schema's types and
   properties — mapping each `sq:indexed` property to an appropriately-typed, indexed field (`keyword`
   for exact-match/facet-friendly strings, `date`, numeric types, etc.), and concatenating every
   `sq:searchable` property into a `text` field analyzed for full-text search (OpenSearch's analogue
@@ -335,9 +335,9 @@ shape was designed to satisfy, not just an aspiration.
   property resolution explicitly rejects a multi-valued property used in a filter/sort/facet
   position. This may be revisited in a later phase (e.g. `CONTAINS`-style "any element matches"
   semantics over an array-valued extraction).
-- **The `ensureIndexes`-on-startup gap** described above: a statically-loaded startup ontology never
-  primes indexes or the searchable-property registry on its own; only an explicit `POST /api/ontology`
-  import does.
+- **Startup index preparation covers the default tenant only.** `OntologyStartupValidator` calls
+  `ensureIndexes` for `TenantId.DEFAULT` alone (see "`ensureIndexes` and the index registry" above).
+  Every REST controller uses that tenant today, so this matters only once a second tenant exists.
 - **OpenAPI schema quality for the bracket-map filter parameter is inherently degraded.** The
   `filter[<property>][<op>]=<value>` parameters are bound as a single raw `MultiValueMap<String,
   String>` (`allParams` in `ObjectsController#browse`), which the OpenAPI generator can only render

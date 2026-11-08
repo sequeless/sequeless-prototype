@@ -97,7 +97,7 @@
       </dependency>
 
       <!--
-        Jena 6 for the default OntologyPort adapter. jena-ontapi transitively brings jena-arq,
+        Jena 6 for the default OntologyAdministration adapter. jena-ontapi transitively brings jena-arq,
         jena-core and jena-base; it does NOT bring Jackson (Jena 6 uses gson and titanium-json-ld),
         so nothing here contends with the Spring Boot BOM. The one genuine clash is
         org.slf4j:jcl-over-slf4j, which ships the same org.apache.commons.logging classes as Boot's
