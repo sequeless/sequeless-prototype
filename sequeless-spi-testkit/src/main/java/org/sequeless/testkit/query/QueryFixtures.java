@@ -4,25 +4,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.sequeless.kernel.values.TextValue;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.testkit.Fixtures;
 
 /**
- * A hand-built {@link MetaModelSnapshot} mirroring {@code reference.ttl} exactly — the same
- * {@code Deliverable}/{@code WorkItem}/{@code Task}/{@code Project}/{@code Person} hierarchy
- * {@link Fixtures} already declares IRI constants for — constructed directly from SPI records
- * rather than parsed from Turtle, since this testkit is deliberately Jena-free.
+ * A hand-built {@link Schema} mirroring {@code reference.ttl} exactly — the same {@code
+ * Deliverable}/{@code WorkItem}/{@code Task}/{@code Project}/{@code Person} hierarchy {@link
+ * Fixtures} already declares IRI constants for — constructed directly from SPI records rather than
+ * parsed from Turtle, since this testkit is deliberately Jena-free.
  *
  * <p>{@link TypeDefinition#properties()} on each concrete type includes not only that type's own
  * properties but every property it inherits, exactly as a real {@code SnapshotMapper} would
@@ -40,6 +41,9 @@ import org.sequeless.testkit.Fixtures;
  * what lets {@code ValueCoercer} store it as a bare tagged value rather than a JSON list — the
  * shape {@code totalEstimatedHours}'s rollup sums.
  *
+ * <p>The two {@code sq:Rollup} derivations are not part of the Schema: they are held by the
+ * Behaviour half, which {@link #behaviour()} builds.
+ *
  * <p>Every property and type here uses {@link DisplayHints#none()} — query logic never reads
  * display hints, so building meaningful ones would only be noise.
  */
@@ -48,18 +52,37 @@ public final class QueryFixtures {
     private QueryFixtures() {}
 
     /**
-     * @return a fresh {@link MetaModelSnapshot} mirroring {@code reference.ttl}, post-T1 (a
-     *     searchable {@code WorkItem.description}, and {@code sq:displayLabel} on {@code
+     * The Schema of the reference ontology, as a fixture.
+     *
+     * @return a fresh {@link Schema} at {@link OntologyVersion} 1 mirroring {@code reference.ttl},
+     *     post-T1 (a searchable {@code WorkItem.description}, and {@code sq:displayLabel} on {@code
      *     Deliverable.title} and {@code Person.name})
      */
-    public static MetaModelSnapshot snapshot() {
+    public static Schema schema() {
         List<TypeDefinition> types = List.of(deliverable(), workItem(), task(), project(), person());
-        return new MetaModelSnapshot(
+        return new Schema(
+                new OntologyVersion(1),
                 Fixtures.REFERENCE_ONTOLOGY_IRI,
                 Optional.empty(),
                 Map.of("ex", Fixtures.REFERENCE_ONTOLOGY_IRI + "#", "sq", "https://sequeless.dev/ns/meta#"),
-                types,
-                new OntologyReport(true, List.of()));
+                types);
+    }
+
+    /**
+     * The Behaviour of the reference ontology, as a fixture, for use with {@link #schema()}.
+     *
+     * @return a fresh {@link Behaviour} at {@link OntologyVersion} 1 for {@link #schema()}: no state
+     *     machine, and the two {@code sq:Rollup} derivations of {@code ex:Project}, keyed by the IRI
+     *     of the property each one derives ({@code ex:openTaskCount} and {@code
+     *     ex:totalEstimatedHours})
+     */
+    public static Behaviour behaviour() {
+        return new Behaviour(
+                new OntologyVersion(1),
+                Map.of(),
+                Map.of(
+                        Fixtures.OPEN_TASK_COUNT_IRI, openTaskCountRule(),
+                        Fixtures.TOTAL_ESTIMATED_HOURS_IRI, totalEstimatedHoursRule()));
     }
 
     /** {@code ex:Deliverable} — abstract, no supertypes, declares {@code title} and {@code createdAt}. */
@@ -70,8 +93,7 @@ public final class QueryFixtures {
                 List.of(),
                 List.of(titleOptional(), createdAt()),
                 DisplayHints.none(),
-                true,
-                Optional.empty());
+                true);
     }
 
     /**
@@ -86,8 +108,7 @@ public final class QueryFixtures {
                 List.of(Fixtures.DELIVERABLE_IRI),
                 List.of(titleOptional(), createdAt(), status(), description()),
                 DisplayHints.none(),
-                true,
-                Optional.empty());
+                true);
     }
 
     /**
@@ -112,16 +133,15 @@ public final class QueryFixtures {
                         estimatedHours(),
                         dueDate()),
                 DisplayHints.none(),
-                false,
-                Optional.empty());
+                false);
     }
 
     /**
      * {@code ex:Project} — concrete, subclass of {@link #workItem()} (and transitively {@link
      * #deliverable()}); properties list is every inherited property plus Project's own {@code
      * hasTask, openTaskCount, totalEstimatedHours}, seven in total. The latter two are {@code
-     * sq:Rollup}-derived (T5) and {@code readOnly}, matching the exact {@link RollupRule} shape
-     * {@code SnapshotMapper} produces from {@code reference.ttl}.
+     * readOnly}, and their {@code sq:Rollup} rules are held by {@link #behaviour()}, matching the
+     * exact {@link RollupRule} shape {@code SnapshotMapper} produces from {@code reference.ttl}.
      */
     public static TypeDefinition project() {
         return new TypeDefinition(
@@ -137,20 +157,13 @@ public final class QueryFixtures {
                         openTaskCount(),
                         totalEstimatedHours()),
                 DisplayHints.none(),
-                false,
-                Optional.empty());
+                false);
     }
 
     /** {@code ex:Person} — concrete, standalone, declares {@code name} (required) and {@code email}. */
     public static TypeDefinition person() {
         return new TypeDefinition(
-                Fixtures.PERSON_IRI,
-                "Person",
-                List.of(),
-                List.of(name(), email()),
-                DisplayHints.none(),
-                false,
-                Optional.empty());
+                Fixtures.PERSON_IRI, "Person", List.of(), List.of(name(), email()), DisplayHints.none(), false);
     }
 
     // -- Attribute definitions -------------------------------------------------------------
@@ -237,14 +250,11 @@ public final class QueryFixtures {
     }
 
     /**
-     * {@code ex:openTaskCount} — {@code sq:Rollup}-derived: {@code count} of {@link
-     * Fixtures#TASK_IRI} via {@link Fixtures#BELONGS_TO_PROJECT_IRI}, filtered to {@code status !=
-     * "done"}. Matches the exact {@link RollupRule} {@code SnapshotMapper} produces from {@code
-     * reference.ttl}'s {@code ex:openTaskCount} declaration, including the typed {@link TextValue}
-     * criterion value.
+     * {@code ex:openTaskCount} — {@code xsd:integer}, {@code readOnly}. Its {@code sq:Rollup} rule is
+     * held by {@link #behaviour()}, not by this attribute.
      */
     private static AttributeDefinition openTaskCount() {
-        return new AttributeDefinition(
+        return attribute(
                 Fixtures.OPEN_TASK_COUNT_IRI,
                 "Open Tasks",
                 Cardinality.atMost(1),
@@ -253,26 +263,15 @@ public final class QueryFixtures {
                 false,
                 true,
                 false,
-                DisplayHints.none(),
-                Optional.of(new RollupRule(
-                        Fixtures.TASK_IRI,
-                        Fixtures.BELONGS_TO_PROJECT_IRI,
-                        AggregateFunction.COUNT,
-                        Optional.empty(),
-                        List.of(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
-                        false)),
                 Datatype.INTEGER);
     }
 
     /**
-     * {@code ex:totalEstimatedHours} — {@code sq:Rollup}-derived: {@code sum} of {@link
-     * Fixtures#ESTIMATED_HOURS_IRI} over {@link Fixtures#TASK_IRI} via {@link
-     * Fixtures#BELONGS_TO_PROJECT_IRI}, no filter. Matches the exact {@link RollupRule} {@code
-     * SnapshotMapper} produces from {@code reference.ttl}'s {@code ex:totalEstimatedHours}
-     * declaration.
+     * {@code ex:totalEstimatedHours} — {@code xsd:decimal}, {@code readOnly}. Its {@code sq:Rollup}
+     * rule is held by {@link #behaviour()}, not by this attribute.
      */
     private static AttributeDefinition totalEstimatedHours() {
-        return new AttributeDefinition(
+        return attribute(
                 Fixtures.TOTAL_ESTIMATED_HOURS_IRI,
                 "Total Estimated Hours",
                 Cardinality.atMost(1),
@@ -281,14 +280,6 @@ public final class QueryFixtures {
                 false,
                 true,
                 false,
-                DisplayHints.none(),
-                Optional.of(new RollupRule(
-                        Fixtures.TASK_IRI,
-                        Fixtures.BELONGS_TO_PROJECT_IRI,
-                        AggregateFunction.SUM,
-                        Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
-                        List.of(),
-                        false)),
                 Datatype.DECIMAL);
     }
 
@@ -343,8 +334,41 @@ public final class QueryFixtures {
                 readOnly,
                 displayLabel,
                 DisplayHints.none(),
-                Optional.empty(),
                 datatype);
+    }
+
+    // -- Derivation rules (held by behaviour()) -----------------------------------------------
+
+    /**
+     * {@code ex:openTaskCount}'s rule: {@code count} of {@link Fixtures#TASK_IRI} via {@link
+     * Fixtures#BELONGS_TO_PROJECT_IRI}, filtered to {@code status != "done"}. Matches the exact
+     * {@link RollupRule} {@code SnapshotMapper} produces from {@code reference.ttl}'s {@code
+     * ex:openTaskCount} declaration, including the typed {@link TextValue} criterion value.
+     */
+    private static RollupRule openTaskCountRule() {
+        return new RollupRule(
+                Fixtures.TASK_IRI,
+                Fixtures.BELONGS_TO_PROJECT_IRI,
+                AggregateFunction.COUNT,
+                Optional.empty(),
+                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+                false);
+    }
+
+    /**
+     * {@code ex:totalEstimatedHours}'s rule: {@code sum} of {@link Fixtures#ESTIMATED_HOURS_IRI}
+     * over {@link Fixtures#TASK_IRI} via {@link Fixtures#BELONGS_TO_PROJECT_IRI}, no filter. Matches
+     * the exact {@link RollupRule} {@code SnapshotMapper} produces from {@code reference.ttl}'s
+     * {@code ex:totalEstimatedHours} declaration.
+     */
+    private static RollupRule totalEstimatedHoursRule() {
+        return new RollupRule(
+                Fixtures.TASK_IRI,
+                Fixtures.BELONGS_TO_PROJECT_IRI,
+                AggregateFunction.SUM,
+                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                List.of(),
+                false);
     }
 
     // -- Relationship definitions ------------------------------------------------------------
@@ -416,7 +440,6 @@ public final class QueryFixtures {
                 readOnly,
                 displayLabel,
                 DisplayHints.none(),
-                Optional.empty(),
                 targetTypeIri,
                 inverseIri,
                 transitive);

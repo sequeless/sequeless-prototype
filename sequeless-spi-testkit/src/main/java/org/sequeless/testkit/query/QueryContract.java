@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.schema.Schema;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -56,11 +56,11 @@ import org.sequeless.testkit.Fixtures;
  *
  * <p>Unlike {@link org.sequeless.testkit.object.ObjectStoreContract}, this contract is not
  * ontology-agnostic: exercising real filters, sorts, and facets needs a real {@link
- * MetaModelSnapshot} built from real properties, so every test here seeds {@link
+ * Schema} built from real properties, so every test here seeds {@link
  * org.sequeless.spi.object.BusinessObject}s of the reference-domain {@code Task}, {@code
  * Project}, and {@code Person} types — via {@link Environment#store()}'s {@link
  * ObjectStorePort#commit} — and queries them through {@link Environment#queryPort()} against
- * {@link QueryFixtures#snapshot()}, a hand-built {@link MetaModelSnapshot} mirroring {@code
+ * {@link QueryFixtures#schema()}, a hand-built {@link Schema} mirroring {@code
  * reference.ttl}.
  *
  * <p><b>What this contract deliberately does not check.</b> No assertion here depends on a
@@ -91,7 +91,7 @@ public abstract class QueryContract {
      * underlying storage — a conforming {@link QueryPort} implementation only makes sense against
      * objects committed through a particular store, exactly as {@link
      * org.sequeless.testkit.validation.ValidationContract.Fixture} pairs a {@link
-     * org.sequeless.spi.validation.ValidationPort} with the {@link MetaModelSnapshot} it
+     * org.sequeless.spi.validation.ValidationPort} with the {@link Schema} it
      * validates against.
      *
      * @param store the store to seed fixture data into via {@link ObjectStorePort#commit}; must
@@ -120,21 +120,21 @@ public abstract class QueryContract {
     void queryRejectsNullArguments() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
-        MetaModelSnapshot snapshot = QueryFixtures.snapshot();
+        Schema schema = QueryFixtures.schema();
         Query query = queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(0, 20));
 
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(null, snapshot, query));
+        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(null, schema, query));
         assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(scope, null, query));
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(scope, snapshot, null));
+        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(scope, schema, null));
     }
 
     @Test
     void ensureIndexesRejectsNullArguments() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
-        MetaModelSnapshot snapshot = QueryFixtures.snapshot();
+        Schema schema = QueryFixtures.schema();
 
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().ensureIndexes(null, snapshot));
+        assertThatNullPointerException().isThrownBy(() -> env.queryPort().ensureIndexes(null, schema));
         assertThatNullPointerException().isThrownBy(() -> env.queryPort().ensureIndexes(scope, null));
     }
 
@@ -154,7 +154,7 @@ public abstract class QueryContract {
                 List.of(new Criterion(Fixtures.STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))),
                 new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(open1, open2);
         assertThat(result.total()).isEqualTo(2);
@@ -178,7 +178,7 @@ public abstract class QueryContract {
                 List.of(new Criterion(Fixtures.ASSIGNED_TO_IRI, Operator.EQ, Optional.of(Value.ref(alice)))),
                 new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(taskForAlice);
         assertThat(result.total()).isEqualTo(1);
@@ -206,7 +206,7 @@ public abstract class QueryContract {
                                 Optional.of(Value.date(LocalDate.of(2026, 2, 28))))),
                 new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(inWindow);
         assertThat(result.total()).isEqualTo(1);
@@ -224,14 +224,14 @@ public abstract class QueryContract {
         ObjectId high = seedTask(
                 env, scope, base.plusSeconds(2), "High priority", "OPEN", 9, LocalDate.of(2026, 2, 3), null, null);
 
-        MetaModelSnapshot snapshot = QueryFixtures.snapshot();
+        Schema schema = QueryFixtures.schema();
 
         Query ascending = queryOf(
                 Set.of(Fixtures.TASK_IRI),
                 List.of(),
                 List.of(new Sort(Fixtures.PRIORITY_IRI, Direction.ASC)),
                 new Page(0, 20));
-        QueryResult ascResult = env.queryPort().query(scope, snapshot, ascending);
+        QueryResult ascResult = env.queryPort().query(scope, schema, ascending);
         assertThat(ascResult.items()).extracting(BusinessObject::id).containsExactly(low, mid, high);
 
         Query descending = queryOf(
@@ -239,7 +239,7 @@ public abstract class QueryContract {
                 List.of(),
                 List.of(new Sort(Fixtures.PRIORITY_IRI, Direction.DESC)),
                 new Page(0, 20));
-        QueryResult descResult = env.queryPort().query(scope, snapshot, descending);
+        QueryResult descResult = env.queryPort().query(scope, schema, descending);
         assertThat(descResult.items()).extracting(BusinessObject::id).containsExactly(high, mid, low);
     }
 
@@ -270,7 +270,7 @@ public abstract class QueryContract {
                 List.of(Fixtures.STATUS_IRI),
                 false);
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(openLow);
         assertThat(result.total()).isEqualTo(1);
@@ -295,7 +295,7 @@ public abstract class QueryContract {
         Query query = queryOf(
                 Set.of(Fixtures.TASK_IRI), List.of(), List.of(), new Page(0, 20), List.of(Fixtures.ASSIGNED_TO_IRI));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         List<FacetBucket> assignedToBuckets = result.facets().get(Fixtures.ASSIGNED_TO_IRI);
         assertThat(assignedToBuckets)
@@ -356,7 +356,7 @@ public abstract class QueryContract {
                 List.of(),
                 false);
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).isNotEmpty();
         assertThat(result.items().get(0).id()).isEqualTo(bestMatch);
@@ -373,7 +373,7 @@ public abstract class QueryContract {
 
         Query query = queryOf(Set.of(Fixtures.TASK_IRI, Fixtures.PROJECT_IRI), List.of(), new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(task, project);
         assertThat(result.items())
@@ -394,27 +394,27 @@ public abstract class QueryContract {
                 seedTask(env, scope, base.plusSeconds(3), "Task 4", "OPEN", 4, LocalDate.of(2026, 2, 4), null, null),
                 seedTask(env, scope, base.plusSeconds(4), "Task 5", "OPEN", 5, LocalDate.of(2026, 2, 5), null, null));
 
-        MetaModelSnapshot snapshot = QueryFixtures.snapshot();
+        Schema schema = QueryFixtures.schema();
 
         // No explicit sort: relies on QueryPort's documented default order, ascending
         // (createdAt, id), so page contents are deterministic.
         QueryResult page0 =
-                env.queryPort().query(scope, snapshot, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(0, 2)));
+                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(0, 2)));
         assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
         assertThat(page0.total()).isEqualTo(5);
 
         QueryResult page1 =
-                env.queryPort().query(scope, snapshot, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(1, 2)));
+                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(1, 2)));
         assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(2, 4));
         assertThat(page1.total()).isEqualTo(5);
 
         QueryResult page2 =
-                env.queryPort().query(scope, snapshot, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(2, 2)));
+                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(2, 2)));
         assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
         assertThat(page2.total()).isEqualTo(5);
 
         QueryResult overrun =
-                env.queryPort().query(scope, snapshot, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(5, 2)));
+                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(5, 2)));
         assertThat(overrun.items()).isEmpty();
         assertThat(overrun.total()).isEqualTo(5);
     }
@@ -431,7 +431,7 @@ public abstract class QueryContract {
         Query query = new Query(
                 Set.of(Fixtures.TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false);
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.snapshot(), query);
+        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).doesNotContain(id);
     }
