@@ -4,7 +4,7 @@ import java.util.Objects;
 
 /**
  * Thrown by {@link TransitionService#signal} when {@code signalName} does not match any {@link
- * org.sequeless.spi.meta.ExternalSignalTrigger#signalName()} declared by any transition anywhere
+ * org.sequeless.spi.meta.behaviour.ExternalSignalTrigger#signalName()} declared by any transition anywhere
  * on the resolved type's state machine — checked type-wide, not scoped to the object's current
  * state, exactly as {@code plan.md} §6 describes the REST endpoint's {@code 400}: "a signal name
  * no transition on that type declares".

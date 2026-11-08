@@ -9,7 +9,6 @@ import org.sequeless.spi.ontology.ImportReport;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyException;
 import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
 
 /**
  * Administrative export/import of the ontology as a whole, distinct from the read-only, per-type
@@ -25,8 +24,8 @@ public interface OntologyAdministration {
      * Serialises the ontology currently loaded for {@code scope} as Turtle.
      *
      * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING} before
-     * delegating to {@link OntologyPort#export(Scope, OntologyFormat)} with {@link
-     * OntologyFormat#TURTLE}.
+     * delegating to {@link org.sequeless.spi.ontology.OntologyAdministration#export(Scope,
+     * OntologyFormat)} with {@link OntologyFormat#TURTLE}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
@@ -43,10 +42,9 @@ public interface OntologyAdministration {
      *
      * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING}, wraps
      * {@code content} in an {@link OntologyDocument} tagged {@link OntologyFormat#TURTLE}, and
-     * delegates to {@link OntologyPort#importDocument(Scope, OntologyDocument, ImportMode)} with
-     * {@link ImportMode#REPLACE}. On a successful import, also prepares whatever index structures
-     * the configured {@link org.sequeless.spi.query.QueryPort} needs for the resulting type system
-     * ({@link org.sequeless.spi.query.QueryPort#ensureIndexes}), using the freshly-loaded snapshot.
+     * delegates to {@link org.sequeless.spi.ontology.OntologyAdministration#importDocument(Scope,
+     * OntologyDocument, ImportMode)} with {@link ImportMode#REPLACE}. Preparing indexes for the
+     * resulting type system is the host's job, not this use case's.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}

@@ -12,10 +12,9 @@ import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.Transition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 
@@ -27,8 +26,8 @@ import org.sequeless.spi.object.PropertyRef;
  * whether a requested transition may fire) and a later REST read path ({@code GET
  * .../transitions}) compute transition availability, so the two never drift apart.
  *
- * <p>An object of a type with no {@link TypeDefinition#stateMachine()}, or one whose {@link
- * BusinessObject#state()} is absent, simply has no available transitions — {@link
+ * <p>An object of a type with no state machine in {@link Behaviour#stateMachine(String)}, or one
+ * whose {@link BusinessObject#state()} is absent, simply has no available transitions — {@link
  * #availableTransitions} returns an empty list rather than throwing, since "no state machine in
  * scope" is not an error condition.
  */
@@ -48,7 +47,7 @@ public final class StateMachineInterpreter {
     /**
      * @param scope the tenant and principal a guard is evaluated on behalf of; must not be {@code
      *     null}
-     * @param snapshot the meta-model snapshot {@code object}'s type is resolved against; must not
+     * @param behaviour the behaviour whose state machine for {@code object}'s type is used; must not
      *     be {@code null}
      * @param object the object whose available transitions are computed; must not be {@code null}
      * @return every transition departing from {@code object}'s current state, each with its
@@ -59,19 +58,17 @@ public final class StateMachineInterpreter {
      *     not "just unavailable", so it is allowed to propagate rather than being swallowed into an
      *     unavailable result
      */
-    public List<TransitionAvailability> availableTransitions(
-            Scope scope, MetaModelSnapshot snapshot, BusinessObject object) {
+    public List<TransitionAvailability> availableTransitions(Scope scope, Behaviour behaviour, BusinessObject object) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(behaviour, "behaviour must not be null");
         Objects.requireNonNull(object, "object must not be null");
 
-        Optional<TypeDefinition> type = snapshot.type(object.type().iri());
-        if (type.isEmpty()
-                || type.get().stateMachine().isEmpty()
-                || object.state().isEmpty()) {
+        Optional<StateMachineDefinition> machineForType =
+                behaviour.stateMachine(object.type().iri());
+        if (machineForType.isEmpty() || object.state().isEmpty()) {
             return List.of();
         }
-        StateMachineDefinition machine = type.get().stateMachine().get();
+        StateMachineDefinition machine = machineForType.get();
         String currentState = object.state().get();
 
         List<TransitionAvailability> result = new ArrayList<>();

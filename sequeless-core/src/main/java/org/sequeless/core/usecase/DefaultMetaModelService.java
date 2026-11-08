@@ -1,16 +1,26 @@
 package org.sequeless.core.usecase;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.MetaModelService;
+import org.sequeless.core.api.TypeDescription;
 import org.sequeless.core.api.TypeNotFoundException;
+import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Reference implementation of {@link MetaModelService}.
@@ -20,54 +30,87 @@ import org.sequeless.spi.ontology.OntologyPort;
  * short-circuited. Every method calls the port exactly once and translates a denial into an
  * {@link AuthorizationException} carrying the port's own decision.
  *
- * <p>{@link #describeType(Scope, String)} resolves {@code nameOrIri} against the {@link
- * OntologyPort#snapshot(Scope) current snapshot} <em>before</em> authorizing, because
- * authorization is performed against the resolved canonical type IRI, which is only known once
- * resolution has succeeded. Resolution tries {@link MetaModelSnapshot#typeByName(String)} first,
- * falling back to {@link MetaModelSnapshot#type(String)}; short names never contain {@code #} or
- * {@code /}, so there is no collision risk between the two lookups.
+ * <p>{@link #describeType(Scope, String)} resolves {@code nameOrIri} against the current schema
+ * <em>before</em> authorizing, because authorization is performed against the resolved canonical
+ * type IRI, which is only known once resolution has succeeded. Resolution tries {@link
+ * Schema#typeByName(String)} first, falling back to {@link Schema#type(String)}; short names never
+ * contain {@code #} or {@code /}, so there is no collision risk between the two lookups.
  */
 public final class DefaultMetaModelService implements MetaModelService {
 
-    private final OntologyPort ontologyPort;
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
+    private final org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration;
     private final AuthorizationPort authorizationPort;
 
     /**
-     * @param ontologyPort the port consulted for the type system itself; must not be {@code null}
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
+     * @param ontologyAdministration the port {@link #reload} goes through; must not be {@code null}
      * @param authorizationPort the port every call consults; must not be {@code null}
-     * @throws NullPointerException if either argument is {@code null}
+     * @throws NullPointerException if any argument is {@code null}
      */
-    public DefaultMetaModelService(OntologyPort ontologyPort, AuthorizationPort authorizationPort) {
-        this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
+    public DefaultMetaModelService(
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
+            org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            AuthorizationPort authorizationPort) {
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
+        this.ontologyAdministration =
+                Objects.requireNonNull(ontologyAdministration, "ontologyAdministration must not be null");
         this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
     }
 
     @Override
-    public MetaModelSnapshot snapshot(Scope scope) {
+    public Schema schema(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
         authorize(scope, Operation.BROWSE, AuthorizationPort.EVERYTHING);
-        return ontologyPort.snapshot(scope);
+        return schemaSource.schema(scope.tenantId());
     }
 
     @Override
-    public TypeDefinition describeType(Scope scope, String nameOrIri) {
+    public Behaviour behaviour(Scope scope) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        authorize(scope, Operation.BROWSE, AuthorizationPort.EVERYTHING);
+        return behaviourSource.behaviour(scope.tenantId());
+    }
+
+    @Override
+    public TypeDescription describeType(Scope scope, String nameOrIri) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(nameOrIri, "nameOrIri must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition type = snapshot.typeByName(nameOrIri)
-                .or(() -> snapshot.type(nameOrIri))
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        TypeDefinition type = schema.typeByName(nameOrIri)
+                .or(() -> schema.type(nameOrIri))
                 .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
 
         authorize(scope, Operation.READ, type.iri());
-        return type;
+
+        Behaviour behaviour = halves.behaviour();
+        return new TypeDescription(type, behaviour.stateMachine(type.iri()), derivedProperties(type, behaviour));
     }
 
     @Override
-    public MetaModelSnapshot reload(Scope scope) {
+    public OntologyReport reload(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
         authorize(scope, Operation.ADMIN, AuthorizationPort.EVERYTHING);
-        return ontologyPort.reload(scope);
+        return ontologyAdministration.reload(scope);
+    }
+
+    /**
+     * The derivation of each derived property of {@code type}, inherited ones included, in the order
+     * of {@link TypeDefinition#properties()}.
+     */
+    private static Map<String, DerivationRule> derivedProperties(TypeDefinition type, Behaviour behaviour) {
+        Map<String, DerivationRule> derivations = new LinkedHashMap<>();
+        for (PropertyDefinition property : type.properties()) {
+            Optional<DerivationRule> derivation = behaviour.derivation(property.iri());
+            derivation.ifPresent(rule -> derivations.put(property.iri(), rule));
+        }
+        return derivations;
     }
 
     private void authorize(Scope scope, Operation operation, String resource) {

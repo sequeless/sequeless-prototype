@@ -22,6 +22,7 @@ import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.derivation.DerivationPlanner;
 import org.sequeless.core.derivation.DerivationPluginRegistry;
+import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.CoercionResult;
 import org.sequeless.core.validation.StructuralValidator;
@@ -35,11 +36,15 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -52,7 +57,6 @@ import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyPort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.Operator;
@@ -66,8 +70,7 @@ import org.sequeless.spi.validation.Violation;
 /**
  * Reference implementation of {@link BusinessObjectService}.
  *
- * <p>Every method resolves {@code type} against the current {@link
- * OntologyPort#snapshot(Scope) snapshot} first — the same order {@link
+ * <p>Every method resolves {@code type} against the current schema first — the same order {@link
  * DefaultMetaModelService#describeType} uses — because authorization happens against the resolved
  * canonical type IRI, which is only known once resolution succeeds. Consulting the injected {@link
  * AuthorizationPort} is never optional, never cached, and never short-circuited.
@@ -81,7 +84,7 @@ import org.sequeless.spi.validation.Violation;
  * reference-target checking — rather than a hand-rolled equality check.
  *
  * <p>{@code state} on a freshly {@link #add added} object is {@link Optional#of} the resolved
- * type's {@link org.sequeless.spi.meta.StateMachineDefinition#initialState()} IRI when the
+ * type's {@link org.sequeless.spi.meta.behaviour.StateMachineDefinition#initialState()} IRI when the
  * resolved type has a state machine, or {@link Optional#empty()} otherwise; {@link #edit} never
  * changes an existing object's {@code state} itself — moving an object through its state machine
  * after creation is {@link org.sequeless.core.usecase.DefaultTransitionService}'s job, not this
@@ -91,7 +94,8 @@ import org.sequeless.spi.validation.Violation;
  */
 public final class DefaultBusinessObjectService implements BusinessObjectService {
 
-    private final OntologyPort ontologyPort;
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
     private final ObjectStorePort objectStorePort;
     private final ValidationPort validationPort;
     private final AuthorizationPort authorizationPort;
@@ -100,27 +104,33 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     private final DerivationPlanner derivationPlanner;
 
     /**
-     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * Builds the service with a {@link DerivationPlanner} over {@code queryPort} and the service
+     * loader's {@link DerivationPluginRegistry}.
+     *
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
      * @param objectStorePort the port every read and write ultimately goes through; must not be
      *     {@code null}
      * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
      *     must not be {@code null}
      * @param authorizationPort the port every call consults; must not be {@code null}
      * @param queryPort the port {@link #browse} delegates to once its {@link BrowseQuery} resolves
-     *     cleanly against the current snapshot; must not be {@code null}
+     *     cleanly against the current schema; must not be {@code null}
      * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
      *     {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultBusinessObjectService(
-            OntologyPort ontologyPort,
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
             ObjectStorePort objectStorePort,
             ValidationPort validationPort,
             AuthorizationPort authorizationPort,
             QueryPort queryPort,
             Clock clock) {
         this(
-                ontologyPort,
+                schemaSource,
+                behaviourSource,
                 objectStorePort,
                 validationPort,
                 authorizationPort,
@@ -130,15 +140,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     /**
-     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
      * @param objectStorePort the port every read and write ultimately goes through; must not be
      *     {@code null}
      * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
      *     must not be {@code null}
      * @param authorizationPort the port every call consults; must not be {@code null}
      * @param queryPort the port {@link #browse} delegates to once its {@link BrowseQuery} resolves
-     *     cleanly against the current snapshot, and {@code derivationPlanner} uses to compute
-     *     rollups; must not be {@code null}
+     *     cleanly against the current schema, and {@code derivationPlanner} uses to compute rollups;
+     *     must not be {@code null}
      * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
      *     {@code null}
      * @param derivationPlanner computes every derived property on the object(s) {@link #read} and
@@ -146,14 +157,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultBusinessObjectService(
-            OntologyPort ontologyPort,
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
             ObjectStorePort objectStorePort,
             ValidationPort validationPort,
             AuthorizationPort authorizationPort,
             QueryPort queryPort,
             Clock clock,
             DerivationPlanner derivationPlanner) {
-        this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
         this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.validationPort = Objects.requireNonNull(validationPort, "validationPort must not be null");
         this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
@@ -168,27 +181,29 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(query, "query must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.BROWSE, resolved.iri());
 
-        Map<String, PropertyDefinition> propertyIndex = propertyIndex(snapshot, resolved.iri());
+        Map<String, PropertyDefinition> propertyIndex = propertyIndex(schema, resolved.iri());
         List<Violation> violations = new ArrayList<>();
-        List<Criterion> criteria = buildCriteria(query.filters(), propertyIndex, violations);
-        List<Sort> sorts = buildSorts(query.sorts(), propertyIndex, violations);
-        List<String> facetIris = buildFacets(query.facets(), propertyIndex, violations);
+        List<Criterion> criteria = buildCriteria(query.filters(), behaviour, propertyIndex, violations);
+        List<Sort> sorts = buildSorts(query.sorts(), behaviour, propertyIndex, violations);
+        List<String> facetIris = buildFacets(query.facets(), behaviour, propertyIndex, violations);
         if (!violations.isEmpty()) {
             throw new InvalidQueryException(violations);
         }
 
-        Set<String> concreteTypes = TypeHierarchy.concreteTypeAndSubtypes(snapshot, resolved.iri());
+        Set<String> concreteTypes = TypeHierarchy.concreteTypeAndSubtypes(schema, resolved.iri());
         if (concreteTypes.isEmpty()) {
             return new QueryResult(List.of(), 0, Map.of());
         }
 
         Query spiQuery = new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
-        QueryResult result = queryPort.query(scope, snapshot, spiQuery);
-        List<BusinessObject> derived = derivationPlanner.apply(scope, snapshot, resolved, result.items());
+        QueryResult result = queryPort.query(scope, schema, spiQuery);
+        List<BusinessObject> derived = derivationPlanner.apply(scope, schema, behaviour, resolved, result.items());
         return new QueryResult(derived, result.total(), result.facets());
     }
 
@@ -198,14 +213,15 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.READ, resolved.iri());
 
         BusinessObject found = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(snapshot, found, resolved, id);
+        requireMatchingType(schema, found, resolved, id);
         return derivationPlanner
-                .apply(scope, snapshot, resolved, List.of(found))
+                .apply(scope, schema, halves.behaviour(), resolved, List.of(found))
                 .get(0);
     }
 
@@ -215,13 +231,15 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(properties, "properties must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.ADD, resolved.iri());
 
-        Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, properties);
+        Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, behaviour, properties);
         List<Violation> structural =
-                StructuralValidator.validateForCreate(scope, snapshot, resolved, coerced, objectStorePort);
+                StructuralValidator.validateForCreate(scope, schema, behaviour, resolved, coerced, objectStorePort);
         if (!structural.isEmpty()) {
             throw new ValidationException(ValidationException.Source.STRUCTURAL, structural);
         }
@@ -229,7 +247,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Instant now = now();
         String by = scope.principal().id();
         Optional<String> initialState =
-                resolved.stateMachine().map(m -> m.initialState().iri());
+                behaviour.stateMachine(resolved.iri()).map(m -> m.initialState().iri());
         BusinessObject candidate = new BusinessObject(
                 ObjectId.random(),
                 new TypeRef(resolved.iri()),
@@ -240,7 +258,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
                 new Audit(now, by, now, by),
                 false);
 
-        List<Violation> shaclViolations = validationPort.validate(scope, snapshot, candidate);
+        List<Violation> shaclViolations = validationPort.validate(scope, schema, candidate);
         if (!shaclViolations.isEmpty()) {
             throw new ValidationException(ValidationException.Source.SHACL, shaclViolations);
         }
@@ -264,16 +282,18 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(properties, "properties must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.EDIT, resolved.iri());
 
         BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(snapshot, existing, resolved, id);
+        requireMatchingType(schema, existing, resolved, id);
 
-        Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, properties);
+        Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, behaviour, properties);
         List<Violation> structural =
-                StructuralValidator.validateForUpdate(scope, snapshot, resolved, coerced, objectStorePort);
+                StructuralValidator.validateForUpdate(scope, schema, behaviour, resolved, coerced, objectStorePort);
         if (!structural.isEmpty()) {
             throw new ValidationException(ValidationException.Source.STRUCTURAL, structural);
         }
@@ -284,7 +304,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         BusinessObject candidate = new BusinessObject(
                 id, existing.type(), existing.tenant(), expectedVersion + 1, existing.state(), coerced, audit, false);
 
-        List<Violation> shaclViolations = validationPort.validate(scope, snapshot, candidate);
+        List<Violation> shaclViolations = validationPort.validate(scope, schema, candidate);
         if (!shaclViolations.isEmpty()) {
             throw new ValidationException(ValidationException.Source.SHACL, shaclViolations);
         }
@@ -308,12 +328,12 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(expectedVersion, "expectedVersion must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        Schema schema = schemaSource.schema(scope.tenantId());
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.DELETE, resolved.iri());
 
         BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(snapshot, existing, resolved, id);
+        requireMatchingType(schema, existing, resolved, id);
 
         long versionToDelete = expectedVersion.orElse(existing.version());
         Instant now = now();
@@ -328,9 +348,9 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         objectStorePort.commit(scope, changeSet);
     }
 
-    private TypeDefinition resolveType(MetaModelSnapshot snapshot, String nameOrIri) {
-        return snapshot.typeByName(nameOrIri)
-                .or(() -> snapshot.type(nameOrIri))
+    private TypeDefinition resolveType(Schema schema, String nameOrIri) {
+        return schema.typeByName(nameOrIri)
+                .or(() -> schema.type(nameOrIri))
                 .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
     }
 
@@ -341,10 +361,10 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * TypeHierarchy#concreteTypeAndSubtypes}, since a filter/sort/facet property declared only on a
      * concrete subtype must still resolve when browsing its abstract supertype.
      */
-    private Map<String, PropertyDefinition> propertyIndex(MetaModelSnapshot snapshot, String typeIri) {
+    private Map<String, PropertyDefinition> propertyIndex(Schema schema, String typeIri) {
         Map<String, PropertyDefinition> index = new HashMap<>();
-        for (TypeRef typeRef : TypeHierarchy.typeAndSubtypes(snapshot, typeIri)) {
-            TypeDefinition type = snapshot.type(typeRef.iri()).orElseThrow();
+        for (TypeRef typeRef : TypeHierarchy.typeAndSubtypes(schema, typeIri)) {
+            TypeDefinition type = schema.type(typeRef.iri()).orElseThrow();
             for (PropertyDefinition property : type.properties()) {
                 index.put(property.iri(), property);
                 index.put(shortName(property.iri()), property);
@@ -363,7 +383,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * single {@link BrowseQuery} can report every violation it contains at once.
      */
     private PropertyDefinition resolveQueryableProperty(
-            String nameOrIri, Map<String, PropertyDefinition> index, List<Violation> violations, String kind) {
+            String nameOrIri,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations,
+            String kind) {
         PropertyDefinition property = index.get(nameOrIri);
         if (property == null) {
             violations.add(new Violation(nameOrIri, "Unknown property '" + nameOrIri + "'"));
@@ -375,7 +399,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
                     "Property '" + shortName(property.iri()) + "' is multi-valued and cannot be used in a " + kind));
             return null;
         }
-        if (property.derivation().isPresent() && !property.derivation().get().materialised()) {
+        Optional<DerivationRule> derivation = behaviour.derivation(property.iri());
+        if (derivation.isPresent() && !derivation.get().materialised()) {
             violations.add(new Violation(
                     property.iri(),
                     "Property '" + shortName(property.iri()) + "' is a derived property that is not materialised "
@@ -391,10 +416,14 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private List<Criterion> buildCriteria(
-            List<BrowseQuery.Filter> filters, Map<String, PropertyDefinition> index, List<Violation> violations) {
+            List<BrowseQuery.Filter> filters,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations) {
         List<Criterion> criteria = new ArrayList<>();
         for (BrowseQuery.Filter filter : filters) {
-            PropertyDefinition property = resolveQueryableProperty(filter.property(), index, violations, "filter");
+            PropertyDefinition property =
+                    resolveQueryableProperty(filter.property(), behaviour, index, violations, "filter");
             if (property == null) {
                 continue;
             }
@@ -498,10 +527,14 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private List<Sort> buildSorts(
-            List<BrowseQuery.SortKey> sortKeys, Map<String, PropertyDefinition> index, List<Violation> violations) {
+            List<BrowseQuery.SortKey> sortKeys,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations) {
         List<Sort> sorts = new ArrayList<>();
         for (BrowseQuery.SortKey sortKey : sortKeys) {
-            PropertyDefinition property = resolveQueryableProperty(sortKey.property(), index, violations, "sort");
+            PropertyDefinition property =
+                    resolveQueryableProperty(sortKey.property(), behaviour, index, violations, "sort");
             if (property == null) {
                 continue;
             }
@@ -517,10 +550,13 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     private List<String> buildFacets(
-            List<String> facets, Map<String, PropertyDefinition> index, List<Violation> violations) {
+            List<String> facets,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations) {
         List<String> facetIris = new ArrayList<>();
         for (String nameOrIri : facets) {
-            PropertyDefinition property = resolveQueryableProperty(nameOrIri, index, violations, "facet");
+            PropertyDefinition property = resolveQueryableProperty(nameOrIri, behaviour, index, violations, "facet");
             if (property == null) {
                 continue;
             }
@@ -588,15 +624,15 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         return slash >= 0 ? iri.substring(slash + 1) : iri;
     }
 
-    private void requireMatchingType(
-            MetaModelSnapshot snapshot, BusinessObject object, TypeDefinition resolved, ObjectId id) {
-        if (!TypeHierarchy.isSubtypeOf(snapshot, object.type().iri(), resolved.iri())) {
+    private void requireMatchingType(Schema schema, BusinessObject object, TypeDefinition resolved, ObjectId id) {
+        if (!TypeHierarchy.isSubtypeOf(schema, object.type().iri(), resolved.iri())) {
             throw new ObjectNotFoundException(id);
         }
     }
 
-    private Map<PropertyRef, Value> coerceOrThrow(TypeDefinition type, Map<String, Object> rawProperties) {
-        CoercionResult coercion = ValueCoercer.coerce(type, rawProperties);
+    private Map<PropertyRef, Value> coerceOrThrow(
+            TypeDefinition type, Behaviour behaviour, Map<String, Object> rawProperties) {
+        CoercionResult coercion = ValueCoercer.coerce(type, behaviour, rawProperties);
         if (!coercion.isSuccess()) {
             throw new ValidationException(ValidationException.Source.STRUCTURAL, coercion.violations());
         }

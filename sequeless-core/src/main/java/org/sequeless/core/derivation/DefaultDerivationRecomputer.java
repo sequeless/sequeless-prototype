@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.TypeHierarchy;
 import org.sequeless.kernel.identity.Scope;
@@ -22,10 +23,14 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.automation.DerivationRecomputer;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.DerivationRule;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -34,7 +39,6 @@ import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyPort;
 
 /**
  * Reference implementation of {@link DerivationRecomputer}. See that interface's javadoc for the
@@ -51,7 +55,8 @@ import org.sequeless.spi.ontology.OntologyPort;
  */
 public final class DefaultDerivationRecomputer implements DerivationRecomputer {
 
-    private final OntologyPort ontologyPort;
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
     private final ObjectStorePort objectStorePort;
     private final DerivationPlanner derivationPlanner;
     private final int maxAttempts;
@@ -59,7 +64,8 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
     private final Clock clock;
 
     /**
-     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
      * @param objectStorePort the port every candidate/target read and every commit goes through;
      *     must not be {@code null}
      * @param derivationPlanner the planner whose {@link DerivationPlanner#computeRule} this class
@@ -75,13 +81,15 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      *     negative
      */
     public DefaultDerivationRecomputer(
-            OntologyPort ontologyPort,
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
             ObjectStorePort objectStorePort,
             DerivationPlanner derivationPlanner,
             int maxAttempts,
             Duration baseDelay,
             Clock clock) {
-        this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
         this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.derivationPlanner = Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
         if (maxAttempts < 1) {
@@ -105,8 +113,10 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
         ObjectId changedId = ObjectId.parse((String) payload.get("objectId"));
         String changedTypeIri = (String) payload.get("typeIri");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        Optional<TypeDefinition> maybeChangedType = snapshot.type(changedTypeIri);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        Optional<TypeDefinition> maybeChangedType = schema.type(changedTypeIri);
         if (maybeChangedType.isEmpty()) {
             return;
         }
@@ -131,9 +141,10 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
         record TargetProperty(ObjectId targetId, String propertyIri) {}
         Map<TargetProperty, RollupRule> work = new LinkedHashMap<>();
 
-        for (TypeDefinition type : snapshot.types()) {
+        for (TypeDefinition type : schema.types()) {
             for (PropertyDefinition property : type.properties()) {
-                if (property.derivation().isEmpty()) {
+                Optional<DerivationRule> derivation = behaviour.derivation(property.iri());
+                if (derivation.isEmpty()) {
                     continue;
                 }
                 // A materialised PluginRule cannot occur here at all: the Jena mapper now rejects
@@ -141,10 +152,10 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
                 // PluginRule carries no sourceTypeIri/viaIri and so offers no generic way to
                 // discover which targets a changed object affects. The instanceof guard below is
                 // defensive - it should be unreachable - rather than the primary safeguard.
-                if (!(property.derivation().get() instanceof RollupRule rollup) || !rollup.materialised()) {
+                if (!(derivation.get() instanceof RollupRule rollup) || !rollup.materialised()) {
                     continue;
                 }
-                if (!TypeHierarchy.isSubtypeOf(snapshot, changedType.iri(), rollup.sourceTypeIri())) {
+                if (!TypeHierarchy.isSubtypeOf(schema, changedType.iri(), rollup.sourceTypeIri())) {
                     continue;
                 }
                 Value viaValue = changedProperties.get(new PropertyRef(rollup.viaIri()));
@@ -159,7 +170,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
 
         for (Map.Entry<TargetProperty, RollupRule> entry : work.entrySet()) {
             recomputeOne(
-                    scope, snapshot, entry.getKey().targetId(), entry.getKey().propertyIri(), entry.getValue());
+                    scope, schema, entry.getKey().targetId(), entry.getKey().propertyIri(), entry.getValue());
         }
     }
 
@@ -176,8 +187,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      * path is driven by independent async events, one changed object and its affected targets at a
      * time, so there is no page to batch across.
      */
-    private void recomputeOne(
-            Scope scope, MetaModelSnapshot snapshot, ObjectId targetId, String propertyIri, RollupRule rule) {
+    private void recomputeOne(Scope scope, Schema schema, ObjectId targetId, String propertyIri, RollupRule rule) {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             Optional<BusinessObject> found = objectStorePort.find(scope, targetId);
             if (found.isEmpty()) {
@@ -187,7 +197,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
             BusinessObject target = found.get();
 
             Map<ObjectId, Value> computed =
-                    derivationPlanner.computeRule(scope, snapshot, rule, Set.of(targetId), List.of(target));
+                    derivationPlanner.computeRule(scope, schema, rule, Set.of(targetId), List.of(target));
             Value newValue = computed.get(targetId);
             PropertyRef propertyRef = new PropertyRef(propertyIri);
             Value currentValue = target.properties().get(propertyRef);
