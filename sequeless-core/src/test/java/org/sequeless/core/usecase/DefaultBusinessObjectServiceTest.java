@@ -38,17 +38,21 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -65,12 +69,6 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
@@ -89,7 +87,7 @@ import org.sequeless.spi.validation.Violation;
  * unrelated {@code Person} and abstract {@code AbstractThing}), the same idiom {@code
  * TypeHierarchyTest} and {@code DefaultMetaModelServiceTest} use: every port double is either a
  * plain lambda ({@link AuthorizationPort}, {@link ValidationPort}) or a small hand-written fake
- * ({@link FakeOntologyPort}, {@link FakeObjectStorePort}, {@link FakeQueryPort}) rather than a
+ * ({@link FakeOntology}, {@link FakeObjectStorePort}, {@link FakeQueryPort}) rather than a
  * mocking framework. Core must not depend on the testkit module at all, so {@code
  * sequeless-spi-testkit}'s {@code InMemoryObjectStorePort} is deliberately not reused here.
  */
@@ -120,7 +118,6 @@ class DefaultBusinessObjectServiceTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             Datatype.STRING);
     private static final AttributeDefinition HOURS = new AttributeDefinition(
             HOURS_IRI,
@@ -132,7 +129,6 @@ class DefaultBusinessObjectServiceTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             Datatype.DECIMAL);
     private static final RelationshipDefinition ASSIGNED_TO = new RelationshipDefinition(
             ASSIGNED_TO_IRI,
@@ -144,7 +140,6 @@ class DefaultBusinessObjectServiceTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             PERSON_IRI,
             Optional.empty(),
             false);
@@ -159,7 +154,6 @@ class DefaultBusinessObjectServiceTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             Datatype.STRING);
     /** Genuinely multi-valued property — must be rejected by filter/sort/facet resolution. */
     private static final AttributeDefinition TAGS = new AttributeDefinition(
@@ -172,12 +166,12 @@ class DefaultBusinessObjectServiceTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             Datatype.STRING);
     /**
      * {@code sq:Rollup}-derived: {@code count} of {@code Task} via {@code belongsToProject},
-     * filtered to {@code status != "open"} — mirrors {@code QueryFixtures.openTaskCount()}'s exact
-     * {@link RollupRule} shape.
+     * filtered to {@code status != "open"}. The rule lives in {@link #BEHAVIOUR}, not on the
+     * attribute. It has the shape of the rule in {@code QueryFixtures.behaviour()} (different filter
+     * value; materialised).
      */
     private static final AttributeDefinition OPEN_TASK_COUNT = new AttributeDefinition(
             OPEN_TASK_COUNT_IRI,
@@ -189,18 +183,12 @@ class DefaultBusinessObjectServiceTest {
             true,
             false,
             DisplayHints.none(),
-            Optional.of(new RollupRule(
-                    TASK_IRI,
-                    BELONGS_TO_PROJECT_IRI,
-                    AggregateFunction.COUNT,
-                    Optional.empty(),
-                    List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))),
-                    true)),
             Datatype.INTEGER);
     /**
      * {@code sq:Rollup}-derived: {@code sum} of {@code estimatedHours} over {@code Task} via
-     * {@code belongsToProject}, no filter — mirrors {@code
-     * QueryFixtures.totalEstimatedHours()}'s exact {@link RollupRule} shape.
+     * {@code belongsToProject}, no filter. The rule lives in {@link #BEHAVIOUR}, not on the
+     * attribute; it mirrors the rule {@code QueryFixtures.behaviour()} carries for {@code
+     * totalEstimatedHours}.
      */
     private static final AttributeDefinition TOTAL_ESTIMATED_HOURS = new AttributeDefinition(
             TOTAL_ESTIMATED_HOURS_IRI,
@@ -212,39 +200,51 @@ class DefaultBusinessObjectServiceTest {
             true,
             false,
             DisplayHints.none(),
-            Optional.of(new RollupRule(
-                    TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM, Optional.of(HOURS_IRI), List.of(), false)),
             Datatype.DECIMAL);
 
-    private static final TypeDefinition WORK_ITEM = new TypeDefinition(
-            WORK_ITEM_IRI, "WorkItem", List.of(), List.of(), DisplayHints.none(), true, Optional.empty());
+    private static final RollupRule OPEN_TASK_COUNT_RULE = new RollupRule(
+            TASK_IRI,
+            BELONGS_TO_PROJECT_IRI,
+            AggregateFunction.COUNT,
+            Optional.empty(),
+            List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))),
+            true);
+    private static final RollupRule TOTAL_ESTIMATED_HOURS_RULE = new RollupRule(
+            TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM, Optional.of(HOURS_IRI), List.of(), false);
+
+    /** The behaviour: the two rollups, keyed by the IRI of the property each derives. */
+    private static final Behaviour BEHAVIOUR = new Behaviour(
+            new OntologyVersion(1),
+            Map.of(),
+            Map.of(OPEN_TASK_COUNT_IRI, OPEN_TASK_COUNT_RULE, TOTAL_ESTIMATED_HOURS_IRI, TOTAL_ESTIMATED_HOURS_RULE));
+
+    private static final TypeDefinition WORK_ITEM =
+            new TypeDefinition(WORK_ITEM_IRI, "WorkItem", List.of(), List.of(), DisplayHints.none(), true);
     private static final TypeDefinition TASK = new TypeDefinition(
             TASK_IRI,
             "Task",
             List.of(WORK_ITEM_IRI),
             List.of(TITLE, HOURS, ASSIGNED_TO, STATUS, TAGS),
             DisplayHints.none(),
-            false,
-            Optional.empty());
+            false);
     private static final TypeDefinition PROJECT = new TypeDefinition(
             PROJECT_IRI,
             "Project",
             List.of(WORK_ITEM_IRI),
             List.of(OPEN_TASK_COUNT, TOTAL_ESTIMATED_HOURS),
             DisplayHints.none(),
-            false,
-            Optional.empty());
-    private static final TypeDefinition PERSON = new TypeDefinition(
-            PERSON_IRI, "Person", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
-    private static final TypeDefinition ABSTRACT_THING = new TypeDefinition(
-            ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true, Optional.empty());
+            false);
+    private static final TypeDefinition PERSON =
+            new TypeDefinition(PERSON_IRI, "Person", List.of(), List.of(), DisplayHints.none(), false);
+    private static final TypeDefinition ABSTRACT_THING =
+            new TypeDefinition(ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true);
 
-    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+    private static final Schema SCHEMA = new Schema(
+            new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
-            List.of(WORK_ITEM, TASK, PROJECT, PERSON, ABSTRACT_THING),
-            new OntologyReport(true, List.of()));
+            List.of(WORK_ITEM, TASK, PROJECT, PERSON, ABSTRACT_THING));
 
     private static final Instant NOW = Instant.parse("2026-09-17T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -271,11 +271,11 @@ class DefaultBusinessObjectServiceTest {
             AuthorizationPort authorizationPort,
             FakeQueryPort queryPort) {
         return new DefaultBusinessObjectService(
-                new FakeOntologyPort(), store, validationPort, authorizationPort, queryPort, CLOCK);
+                new FakeOntology(), new FakeOntology(), store, validationPort, authorizationPort, queryPort, CLOCK);
     }
 
     private static ValidationPort noViolations() {
-        return (scope, snapshot, object) -> List.of();
+        return (scope, schema, object) -> List.of();
     }
 
     private static BrowseQuery browseQuery(Page page) {
@@ -744,9 +744,9 @@ class DefaultBusinessObjectServiceTest {
                 Map.of(),
                 new Audit(NOW, "alice", NOW, "alice"),
                 false);
-        RollupRule rule = (RollupRule) OPEN_TASK_COUNT.derivation().orElseThrow();
+        RollupRule rule = (RollupRule) BEHAVIOUR.derivation(OPEN_TASK_COUNT_IRI).orElseThrow();
 
-        Map<ObjectId, Value> values = planner.computeRule(ALICE, SNAPSHOT, rule, Set.of(projectId), List.of(project));
+        Map<ObjectId, Value> values = planner.computeRule(ALICE, SCHEMA, rule, Set.of(projectId), List.of(project));
 
         assertThat(queryPort.aggregateRequests).hasSize(1);
         AggregateRequest request = queryPort.aggregateRequests.get(0);
@@ -806,9 +806,9 @@ class DefaultBusinessObjectServiceTest {
 
     @Test
     void addWithStateMachineInitializesStateToInitialState() {
-        // Isolated snapshot (not the shared SNAPSHOT fixture) carrying a stateMachine() on its one
-        // type, so this test exercises add()'s new "initialize state" branch without perturbing
-        // any other test's shared type list.
+        // Isolated schema and behaviour (not the shared fixtures) whose behaviour carries the state
+        // machine for its one type, so this test exercises add()'s new "initialize state" branch
+        // without perturbing any other test's shared type list or state machines.
         String ticketIri = NS + "Ticket";
         String draftIri = NS + "Draft";
         String openIri = NS + "Open";
@@ -816,19 +816,22 @@ class DefaultBusinessObjectServiceTest {
         State open = new State(openIri, "Open", 1);
         StateMachineDefinition machine =
                 new StateMachineDefinition(NS + "TicketLifecycle", List.of(draft, open), draft, List.of());
-        TypeDefinition ticket = new TypeDefinition(
-                ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false, Optional.of(machine));
-        MetaModelSnapshot snapshot = new MetaModelSnapshot(
-                NS.substring(0, NS.length() - 1),
-                Optional.empty(),
-                Map.of(),
-                List.of(ticket),
-                new OntologyReport(true, List.of()));
+        TypeDefinition ticket =
+                new TypeDefinition(ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(1), NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(ticket));
+        Behaviour behaviour = new Behaviour(new OntologyVersion(1), Map.of(ticketIri, machine), Map.of());
 
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeValidationPort validationPort = new FakeValidationPort(List.of());
         DefaultBusinessObjectService service = new DefaultBusinessObjectService(
-                new FakeOntologyPort(snapshot), store, validationPort, permitAll(), new FakeQueryPort(), CLOCK);
+                new FakeOntology(schema, behaviour),
+                new FakeOntology(schema, behaviour),
+                store,
+                validationPort,
+                permitAll(),
+                new FakeQueryPort(),
+                CLOCK);
 
         BusinessObject result = service.add(ALICE, "Ticket", Map.of());
 
@@ -1138,23 +1141,26 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         assertThatNullPointerException()
-                .isThrownBy(() ->
-                        new DefaultBusinessObjectService(null, store, noViolations(), permitAll(), queryPort, CLOCK));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        null, new FakeOntology(), store, noViolations(), permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntologyPort(), null, noViolations(), permitAll(), queryPort, CLOCK));
+                        new FakeOntology(), null, store, noViolations(), permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntologyPort(), store, null, permitAll(), queryPort, CLOCK));
+                        new FakeOntology(), new FakeOntology(), null, noViolations(), permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntologyPort(), store, noViolations(), null, queryPort, CLOCK));
+                        new FakeOntology(), new FakeOntology(), store, null, permitAll(), queryPort, CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntologyPort(), store, noViolations(), permitAll(), null, CLOCK));
+                        new FakeOntology(), new FakeOntology(), store, noViolations(), null, queryPort, CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, null));
+                        new FakeOntology(), new FakeOntology(), store, noViolations(), permitAll(), null, CLOCK));
+        assertThatNullPointerException()
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(), new FakeOntology(), store, noViolations(), permitAll(), queryPort, null));
     }
 
     @Test
@@ -1163,7 +1169,14 @@ class DefaultBusinessObjectServiceTest {
         FakeQueryPort queryPort = new FakeQueryPort();
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, CLOCK, null));
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        queryPort,
+                        CLOCK,
+                        null));
     }
 
     // --- null arguments per method ---
@@ -1257,16 +1270,16 @@ class DefaultBusinessObjectServiceTest {
         private QueryResult response = new QueryResult(List.of(), 0, Map.of());
 
         @Override
-        public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+        public QueryResult query(Scope scope, Schema schema, Query query) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(query, "query must not be null");
             queries.add(query);
             return response;
         }
 
         @Override
-        public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+        public void ensureIndexes(Scope scope, Schema schema) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
@@ -1279,9 +1292,9 @@ class DefaultBusinessObjectServiceTest {
          * response that still respects the density contract.
          */
         @Override
-        public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(request, "request must not be null");
             aggregateRequests.add(request);
             if (request.function() == AggregateFunction.COUNT) {
@@ -1296,43 +1309,36 @@ class DefaultBusinessObjectServiceTest {
     }
 
     /**
-     * Hand-written {@link OntologyPort} double: only {@code snapshot} is exercised. Defaults to
-     * the shared {@link #SNAPSHOT} fixture (every pre-existing test uses the no-arg constructor
-     * and is unaffected by this overload), but a test that needs its own isolated {@link
-     * MetaModelSnapshot} — e.g. one carrying a {@code stateMachine()} — can supply one directly
-     * rather than growing the shared fixture's type list.
+     * Hand-written stand-in for the two read ports, serving one schema and one behaviour. Defaults
+     * to the shared {@link #SCHEMA} schema and {@link #BEHAVIOUR} (every pre-existing test uses
+     * the no-arg constructor), but a test that needs its own isolated schema and behaviour, e.g. a
+     * state machine on its own type, can supply both directly rather than growing the shared
+     * fixtures.
      */
-    private static final class FakeOntologyPort implements OntologyPort {
+    private static final class FakeOntology implements SchemaSource, BehaviourSource {
 
-        private final MetaModelSnapshot snapshot;
+        private final Schema schema;
+        private final Behaviour behaviour;
 
-        FakeOntologyPort() {
-            this(SNAPSHOT);
+        FakeOntology() {
+            this(SCHEMA, BEHAVIOUR);
         }
 
-        FakeOntologyPort(MetaModelSnapshot snapshot) {
-            this.snapshot = snapshot;
-        }
-
-        @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return snapshot;
+        FakeOntology(Schema schema, Behaviour behaviour) {
+            this.schema = schema;
+            this.behaviour = behaviour;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return schema;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviour;
         }
     }
 
@@ -1351,9 +1357,9 @@ class DefaultBusinessObjectServiceTest {
         }
 
         @Override
-        public List<Violation> validate(Scope scope, MetaModelSnapshot snapshot, BusinessObject object) {
+        public List<Violation> validate(Scope scope, Schema schema, BusinessObject object) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(object, "object must not be null");
             calls++;
             return violations;

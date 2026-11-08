@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.sequeless.core.api.TransitionService;
+import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ListValue;
@@ -14,18 +15,20 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.TriggerKind;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.ontology.OntologyPort;
 
 /**
  * Reference implementation of {@link TriggerEvaluator}, called back into by an automation adapter
@@ -41,12 +44,14 @@ import org.sequeless.spi.ontology.OntologyPort;
  */
 public final class DefaultTriggerEvaluator implements TriggerEvaluator {
 
-    private final OntologyPort ontologyPort;
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
     private final ObjectStorePort objectStorePort;
     private final TransitionService transitionService;
 
     /**
-     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
      * @param objectStorePort the port every candidate/target read goes through; must not be {@code
      *     null}
      * @param transitionService the port {@code fireAutomated} is called on; must not be {@code
@@ -54,8 +59,12 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultTriggerEvaluator(
-            OntologyPort ontologyPort, ObjectStorePort objectStorePort, TransitionService transitionService) {
-        this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
+            ObjectStorePort objectStorePort,
+            TransitionService transitionService) {
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
         this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.transitionService = Objects.requireNonNull(transitionService, "transitionService must not be null");
     }
@@ -69,8 +78,10 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
         ObjectId objectId = ObjectId.parse((String) payload.get("objectId"));
         String typeIri = (String) payload.get("typeIri");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        Optional<TypeDefinition> maybeChangedType = snapshot.type(typeIri);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        Optional<TypeDefinition> maybeChangedType = schema.type(typeIri);
         if (maybeChangedType.isEmpty()) {
             return;
         }
@@ -95,8 +106,8 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
             // object itself a candidate for its own OnChange transitions.
             candidates.add(objectId);
         }
-        for (TypeDefinition candidateType : snapshot.types()) {
-            Optional<StateMachineDefinition> maybeMachine = candidateType.stateMachine();
+        for (TypeDefinition candidateType : schema.types()) {
+            Optional<StateMachineDefinition> maybeMachine = behaviour.stateMachine(candidateType.iri());
             if (maybeMachine.isEmpty()) {
                 continue;
             }
@@ -114,7 +125,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
         }
 
         for (ObjectId candidateId : candidates) {
-            fireFirstAvailableOnChange(scope, snapshot, candidateId);
+            fireFirstAvailableOnChange(scope, behaviour, candidateId);
         }
     }
 
@@ -157,12 +168,13 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
         }
         BusinessObject object = found.get();
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        Optional<TypeDefinition> maybeType = snapshot.type(object.type().iri());
-        if (maybeType.isEmpty() || maybeType.get().stateMachine().isEmpty()) {
+        Behaviour behaviour = behaviourSource.behaviour(scope.tenantId());
+        Optional<StateMachineDefinition> maybeMachine =
+                behaviour.stateMachine(object.type().iri());
+        if (maybeMachine.isEmpty()) {
             return;
         }
-        StateMachineDefinition machine = maybeType.get().stateMachine().get();
+        StateMachineDefinition machine = maybeMachine.get();
         String currentState = object.state().get();
 
         for (Transition transition : machine.transitions()) {
@@ -184,17 +196,18 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
      * transition departing its current state is a silent no-op — exactly as stale a hint as any
      * other this class reacts to.
      */
-    private void fireFirstAvailableOnChange(Scope scope, MetaModelSnapshot snapshot, ObjectId candidateId) {
+    private void fireFirstAvailableOnChange(Scope scope, Behaviour behaviour, ObjectId candidateId) {
         Optional<BusinessObject> found = objectStorePort.find(scope, candidateId);
         if (found.isEmpty() || found.get().state().isEmpty()) {
             return;
         }
         BusinessObject candidate = found.get();
-        Optional<TypeDefinition> maybeType = snapshot.type(candidate.type().iri());
-        if (maybeType.isEmpty() || maybeType.get().stateMachine().isEmpty()) {
+        Optional<StateMachineDefinition> maybeMachine =
+                behaviour.stateMachine(candidate.type().iri());
+        if (maybeMachine.isEmpty()) {
             return;
         }
-        StateMachineDefinition machine = maybeType.get().stateMachine().get();
+        StateMachineDefinition machine = maybeMachine.get();
         String currentState = candidate.state().get();
 
         for (Transition transition : machine.transitions()) {

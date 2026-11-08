@@ -26,17 +26,23 @@ import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.automation.Automation;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TimerTrigger;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -53,12 +59,6 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Unit tests for {@link DefaultTriggerEvaluator}, built against a hand-written {@code Project}
@@ -96,7 +96,6 @@ class DefaultTriggerEvaluatorTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             PROJECT_IRI,
             Optional.empty(),
             false);
@@ -108,8 +107,7 @@ class DefaultTriggerEvaluatorTest {
             CLOSED_IRI,
             new OnChangeTrigger(List.of(BELONGS_TO_PROJECT_IRI)),
             Optional.empty(),
-            Optional.empty(),
-            List.of());
+            Optional.empty());
 
     private static final Transition EXPIRE_HOLD = new Transition(
             "expireHold",
@@ -117,16 +115,9 @@ class DefaultTriggerEvaluatorTest {
             CLOSED_IRI,
             new TimerTrigger(java.time.Duration.ofHours(72)),
             Optional.empty(),
-            Optional.empty(),
-            List.of());
+            Optional.empty());
     private static final Transition REOPEN = new Transition(
-            "reopen",
-            CLOSED_IRI,
-            ACTIVE_IRI,
-            new ExternalSignalTrigger("reopen"),
-            Optional.empty(),
-            Optional.empty(),
-            List.of());
+            "reopen", CLOSED_IRI, ACTIVE_IRI, new ExternalSignalTrigger("reopen"), Optional.empty(), Optional.empty());
     /** A second signal-triggered transition, so onSignal's name-matching is actually exercised. */
     private static final Transition ARCHIVE_SIGNAL = new Transition(
             "archiveSignal",
@@ -134,8 +125,7 @@ class DefaultTriggerEvaluatorTest {
             CLOSED_IRI,
             new ExternalSignalTrigger("archive"),
             Optional.empty(),
-            Optional.empty(),
-            List.of());
+            Optional.empty());
 
     private static final StateMachineDefinition PROJECT_LIFECYCLE = new StateMachineDefinition(
             NS + "ProjectLifecycle",
@@ -143,18 +133,25 @@ class DefaultTriggerEvaluatorTest {
             ACTIVE,
             List.of(AUTO_CLOSE, EXPIRE_HOLD, REOPEN, ARCHIVE_SIGNAL));
 
-    private static final TypeDefinition PROJECT = new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false, Optional.of(PROJECT_LIFECYCLE));
+    private static final TypeDefinition PROJECT =
+            new TypeDefinition(PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false);
 
-    private static final TypeDefinition TASK = new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false, Optional.empty());
+    private static final TypeDefinition TASK =
+            new TypeDefinition(TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false);
 
-    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+    private static final Schema SCHEMA = new Schema(
+            new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
-            List.of(PROJECT, TASK),
-            new OntologyReport(true, List.of()));
+            List.of(PROJECT, TASK));
+
+    /** The state machine governs {@code Project}; no other type has one. */
+    private static final Behaviour BEHAVIOUR =
+            new Behaviour(new OntologyVersion(1), Map.of(PROJECT_IRI, PROJECT_LIFECYCLE), Map.of());
+
+    /** No transition has actions, so the automation half is empty. */
+    private static final Automation AUTOMATION = new Automation(new OntologyVersion(1), Map.of());
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-01T00:00:00Z");
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
@@ -412,9 +409,10 @@ class DefaultTriggerEvaluatorTest {
     // --- wiring helper ---
 
     private static DefaultTriggerEvaluator evaluator(FakeObjectStorePort store) {
+        FakeOntology ontology = new FakeOntology();
         DefaultTransitionService transitionService = new DefaultTransitionService(
-                new FakeOntologyPort(), store, permitAll(), new FakeExpressionPort(), CLOCK);
-        return new DefaultTriggerEvaluator(new FakeOntologyPort(), store, transitionService);
+                ontology, ontology, ontology, store, permitAll(), new FakeExpressionPort(), CLOCK);
+        return new DefaultTriggerEvaluator(ontology, ontology, store, transitionService);
     }
 
     // --- fakes ---
@@ -432,27 +430,25 @@ class DefaultTriggerEvaluatorTest {
         }
     }
 
-    private static final class FakeOntologyPort implements OntologyPort {
+    /** Hand-written stand-in for the three read ports, each serving one fixed half. */
+    private static final class FakeOntology implements SchemaSource, BehaviourSource, AutomationSource {
 
         @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return SNAPSHOT;
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return SCHEMA;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return BEHAVIOUR;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Automation automation(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return AUTOMATION;
         }
     }
 

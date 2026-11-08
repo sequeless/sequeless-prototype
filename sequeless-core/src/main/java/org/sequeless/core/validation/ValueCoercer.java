@@ -12,11 +12,12 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.validation.Violation;
 
@@ -26,15 +27,15 @@ import org.sequeless.spi.validation.Violation;
  * keyed by {@link PropertyRef}, per a {@link TypeDefinition}'s declared properties.
  *
  * <p><b>Property keys are accepted as either the full IRI or the short (local) name.</b> {@link
- * org.sequeless.spi.meta.MetaModelSnapshot#typeByName(String)} already accepts both forms for
+ * org.sequeless.spi.meta.schema.Schema#typeByName(String)} already accepts both forms for
  * <em>type</em> resolution; nothing in the SPI does the equivalent for <em>properties</em>
  * attributed to a {@link TypeDefinition}. Since the REST layer (out of scope here) hands this class
  * an already-short-named JSON body while documenting that full IRIs are also accepted on input,
- * this class does that resolution itself, reusing the same local-name rule as {@code
- * MetaModelSnapshot} (the substring after the last {@code #}, else after the last {@code /}, else
+ * this class does that resolution itself, reusing the same local-name rule as {@code Schema} (the
+ * substring after the last {@code #}, else after the last {@code /}, else
  * the whole IRI). Two properties of the <em>same</em> type genuinely colliding down to the same
  * local name is treated as a pre-existing ontology-authoring bug outside this class's job to catch
- * — it is not guarded against here, the same way {@code MetaModelSnapshot} only guards against
+ * — it is not guarded against here, the same way {@code Schema} only guards against
  * short-name collisions at the type level.
  *
  * <p>Coercion is all-or-nothing: if any key produces a {@link Violation}, {@link
@@ -45,13 +46,14 @@ import org.sequeless.spi.validation.Violation;
  *
  * <p>A {@code readOnly} property supplied by the caller is always a violation, but the message
  * distinguishes two different reasons: a plain read-only property (e.g. {@code createdAt}) reports
- * "is read-only", while a property with a {@link PropertyDefinition#derivation()} present — one
+ * "is read-only", while a property with a {@link Behaviour#derivation(String)} present — one
  * whose value is computed, not stored, such as an {@code sq:Rollup} — reports "is a derived
  * property and cannot be set directly", since that is a more specific and more actionable message
- * for a caller who tried to PUT/POST one.
+ * for a caller who tried to PUT/POST one. Whether a property is derived is read from the {@link
+ * Behaviour#derivation(String)} of its IRI.
  *
  * <p>Stateless utility class: it has no dependencies to inject, so an instance would carry no
- * state, the same reason {@link org.sequeless.spi.meta.Datatype#fromXsd} and {@link Value}'s own
+ * state, the same reason {@link org.sequeless.spi.meta.schema.Datatype#fromXsd} and {@link Value}'s own
  * static factories are plain static methods rather than instantiated helpers.
  */
 public final class ValueCoercer {
@@ -61,15 +63,18 @@ public final class ValueCoercer {
     /**
      * @param type the resolved type the raw properties are coerced against; must not be {@code
      *     null}
+     * @param behaviour the behaviour whose derivation rules mark a property as derived; must not be
+     *     {@code null}
      * @param rawProperties JSON-like input: keys are property short names or full IRIs; values are
      *     {@code String}, {@code Number}, {@code Boolean}, {@code List<Object>}, or {@code null}
      *     ({@code null} means "absent"); must not be {@code null}
      * @return a {@link CoercionResult}: either every key coerced to a {@link PropertyRef}/{@link
      *     Value} pair, or every {@link Violation} found, never a mix
-     * @throws NullPointerException if either argument is {@code null}
+     * @throws NullPointerException if any argument is {@code null}
      */
-    public static CoercionResult coerce(TypeDefinition type, Map<String, Object> rawProperties) {
+    public static CoercionResult coerce(TypeDefinition type, Behaviour behaviour, Map<String, Object> rawProperties) {
         Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(behaviour, "behaviour must not be null");
         Objects.requireNonNull(rawProperties, "rawProperties must not be null");
 
         Map<String, PropertyDefinition> byNameOrIri = new HashMap<>();
@@ -94,7 +99,7 @@ public final class ValueCoercer {
                 continue;
             }
             if (property.readOnly()) {
-                String reason = property.derivation().isPresent()
+                String reason = behaviour.derivation(property.iri()).isPresent()
                         ? "is a derived property and cannot be set directly"
                         : "is read-only";
                 violations.add(new Violation(property.iri(), "Property '" + shortName(property.iri()) + "' " + reason));
@@ -172,7 +177,7 @@ public final class ValueCoercer {
      * Coerces a single raw scalar value against {@code property}'s datatype, independent of {@code
      * property}'s own declared cardinality.
      *
-     * <p>This exists because the public {@link #coerce(TypeDefinition, Map)} entry point branches
+     * <p>This exists because the public {@link #coerce(TypeDefinition, Behaviour, Map)} entry point branches
      * on the property's own cardinality and rejects a {@code List} input outright for a
      * scalar-cardinality property — but query filter coercion needs exactly that combination: an
      * {@code Operator#IN} filter must coerce N candidate values against a single-cardinality

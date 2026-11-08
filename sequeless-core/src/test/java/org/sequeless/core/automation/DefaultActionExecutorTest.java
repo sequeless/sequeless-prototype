@@ -37,21 +37,29 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.CreateObjectAction;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.LogAction;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyAssignment;
-import org.sequeless.spi.meta.SetPropertyAction;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
-import org.sequeless.spi.meta.WebhookAction;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.Automation;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.automation.CreateObjectAction;
+import org.sequeless.spi.meta.automation.LogAction;
+import org.sequeless.spi.meta.automation.PropertyAssignment;
+import org.sequeless.spi.meta.automation.SetPropertyAction;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.UserActionTrigger;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -67,18 +75,12 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Unit tests for {@link DefaultActionExecutor}, built with the same hand-written-fixture idiom as
  * {@code DefaultTransitionServiceTest}/{@code DefaultBusinessObjectServiceTest} — no Mockito, just
  * small lambdas ({@link AuthorizationPort}) and hand-rolled fakes ({@link FakeObjectStorePort},
- * {@link FakeExpressionPort}, {@link FakeOntologyPort}).
+ * {@link FakeExpressionPort}, {@link FakeOntology}).
  *
  * <p>{@link #applyingEveryActionKindProducedByARealFireCallAppliesThemCorrectly()} is the single
  * most important test here: rather than hand-building {@code ActionRequest} payloads and hoping
@@ -116,7 +118,6 @@ class DefaultActionExecutorTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             Datatype.STRING);
 
     private static final State DRAFT = new State(DRAFT_IRI, "Draft", 0);
@@ -166,30 +167,30 @@ class DefaultActionExecutorTest {
         LogAction logAction = new LogAction("Activated by ${self.owner}");
 
         Transition activate = new Transition(
-                "activate",
-                DRAFT_IRI,
-                ACTIVE_IRI,
-                new UserActionTrigger(),
-                Optional.of(OWNER_GUARD),
-                Optional.empty(),
-                List.of(
-                        setPropertyValue,
-                        setPropertyExpression,
-                        createObjectValue,
-                        createObjectExpression,
-                        webhookWithBody,
-                        webhookNoBody,
-                        logAction));
+                "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD), Optional.empty());
         StateMachineDefinition lifecycle =
                 new StateMachineDefinition(NS + "ProjectLifecycle", List.of(DRAFT, ACTIVE), DRAFT, List.of(activate));
-        TypeDefinition projectType = new TypeDefinition(
-                PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false, Optional.of(lifecycle));
-        MetaModelSnapshot snapshot = new MetaModelSnapshot(
+        TypeDefinition projectType =
+                new TypeDefinition(PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(1),
                 NS.substring(0, NS.length() - 1),
                 Optional.empty(),
                 Map.of(),
-                List.of(projectType),
-                new OntologyReport(true, List.of()));
+                List.of(projectType));
+        Behaviour behaviour = new Behaviour(new OntologyVersion(1), Map.of(PROJECT_IRI, lifecycle), Map.of());
+        Automation automation = new Automation(
+                new OntologyVersion(1),
+                Map.of(
+                        new TransitionRef(lifecycle.iri(), DRAFT_IRI, "activate"),
+                        List.<Action>of(
+                                setPropertyValue,
+                                setPropertyExpression,
+                                createObjectValue,
+                                createObjectExpression,
+                                webhookWithBody,
+                                webhookNoBody,
+                                logAction)));
 
         ObjectId projectId = ObjectId.random();
         Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
@@ -198,8 +199,9 @@ class DefaultActionExecutorTest {
         store.seed(existing);
         FakeExpressionPort expressionPort = new FakeExpressionPort();
 
+        FakeOntology ontology = new FakeOntology(schema, behaviour, automation);
         DefaultTransitionService transitionService =
-                new DefaultTransitionService(new FakeOntologyPort(snapshot), store, permitAll(), expressionPort, CLOCK);
+                new DefaultTransitionService(ontology, ontology, ontology, store, permitAll(), expressionPort, CLOCK);
         transitionService.fire(ALICE, "Project", projectId, "activate", 5);
 
         // The real payload DefaultTransitionService produced — not hand-built.
@@ -649,32 +651,34 @@ class DefaultActionExecutorTest {
         }
     }
 
-    private static final class FakeOntologyPort implements OntologyPort {
-        private final MetaModelSnapshot snapshot;
+    /** Hand-written stand-in for the three read ports, each serving one fixed half. */
+    private static final class FakeOntology implements SchemaSource, BehaviourSource, AutomationSource {
+        private final Schema schema;
+        private final Behaviour behaviour;
+        private final Automation automation;
 
-        FakeOntologyPort(MetaModelSnapshot snapshot) {
-            this.snapshot = snapshot;
+        FakeOntology(Schema schema, Behaviour behaviour, Automation automation) {
+            this.schema = schema;
+            this.behaviour = behaviour;
+            this.automation = automation;
         }
 
         @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return snapshot;
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return schema;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviour;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Automation automation(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return automation;
         }
     }
 

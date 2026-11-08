@@ -15,6 +15,7 @@ import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.api.UnknownSignalException;
+import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.statemachine.StateMachineInterpreter;
 import org.sequeless.core.statemachine.TransitionAvailability;
@@ -27,19 +28,25 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.Action;
-import org.sequeless.spi.meta.CreateObjectAction;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.LogAction;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyAssignment;
-import org.sequeless.spi.meta.SetPropertyAction;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.WebhookAction;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.Automation;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.automation.CreateObjectAction;
+import org.sequeless.spi.meta.automation.LogAction;
+import org.sequeless.spi.meta.automation.PropertyAssignment;
+import org.sequeless.spi.meta.automation.SetPropertyAction;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TimerTrigger;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.TriggerKind;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -49,19 +56,18 @@ import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyPort;
 
 /**
  * Reference implementation of {@link TransitionService}.
  *
  * <p>Mirrors {@link DefaultBusinessObjectService#edit}'s structure closely — resolve the type,
  * authorize, read the existing object, build a candidate, commit a {@link ChangeSet} — but never
- * touches {@code ValidationPort}, {@code QueryPort}, or {@code DerivationPlanner}: a transition
- * only ever moves {@code state} and never re-coerces or re-validates the object's properties, since
- * they are left completely unchanged by every transition this class fires. Guard evaluation and
- * "is this transition available from the current state" are delegated entirely to {@link
- * StateMachineInterpreter#availableTransitions}, never re-implemented here, so the write path and
- * a later REST read path can never disagree about which transitions are available.
+ * touches {@code ValidationPort}, {@code QueryPort}, or {@code DerivationPlanner}: a transition only
+ * ever moves {@code state} and never re-coerces or re-validates the object's properties, since they
+ * are left completely unchanged by every transition this class fires. Guard evaluation and "is this
+ * transition available from the current state" are delegated entirely to {@link
+ * StateMachineInterpreter#availableTransitions}, never re-implemented here, so the write path and a
+ * later REST read path can never disagree about which transitions are available.
  *
  * <p>All four {@link Action} kinds are dispatched uniformly as async {@code ActionRequest} outbox
  * rows — never applied inline to the object being transitioned, even a {@link SetPropertyAction}
@@ -70,14 +76,19 @@ import org.sequeless.spi.ontology.OntologyPort;
  */
 public final class DefaultTransitionService implements TransitionService {
 
-    private final OntologyPort ontologyPort;
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
+    private final AutomationSource automationSource;
     private final ObjectStorePort objectStorePort;
     private final AuthorizationPort authorizationPort;
     private final ExpressionPort expressionPort;
     private final Clock clock;
 
     /**
-     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
+     * @param automationSource the port the automation half, the transition actions, is read from;
+     *     must not be {@code null}
      * @param objectStorePort the port every read and write ultimately goes through; must not be
      *     {@code null}
      * @param authorizationPort the port every call consults; must not be {@code null}
@@ -88,12 +99,16 @@ public final class DefaultTransitionService implements TransitionService {
      * @throws NullPointerException if any argument is {@code null}
      */
     public DefaultTransitionService(
-            OntologyPort ontologyPort,
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
+            AutomationSource automationSource,
             ObjectStorePort objectStorePort,
             AuthorizationPort authorizationPort,
             ExpressionPort expressionPort,
             Clock clock) {
-        this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
+        this.automationSource = Objects.requireNonNull(automationSource, "automationSource must not be null");
         this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
         this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
@@ -107,19 +122,22 @@ public final class DefaultTransitionService implements TransitionService {
         Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(transitionName, "transitionName must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.TRANSITION, resolved.iri());
 
         BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(snapshot, existing, resolved, id);
+        requireMatchingType(schema, existing, resolved, id);
 
-        StateMachineDefinition machine = resolved.stateMachine()
+        StateMachineDefinition machine = behaviour
+                .stateMachine(resolved.iri())
                 .orElseThrow(() -> new TransitionNotAvailableException(
                         transitionName, "Type '" + resolved.iri() + "' has no state machine"));
 
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
-        List<TransitionAvailability> available = interpreter.availableTransitions(scope, snapshot, existing);
+        List<TransitionAvailability> available = interpreter.availableTransitions(scope, behaviour, existing);
         Optional<TransitionAvailability> match =
                 available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
         if (match.isEmpty()) {
@@ -145,7 +163,7 @@ public final class DefaultTransitionService implements TransitionService {
                             + transition.trigger().kind());
         }
 
-        return commitTransition(scope, resolved, existing, transition, expectedVersion, now());
+        return commitTransition(scope, halves, resolved, existing, transition, expectedVersion, now());
     }
 
     /**
@@ -162,9 +180,10 @@ public final class DefaultTransitionService implements TransitionService {
      * <p>Every check {@link #fire} performs via {@link TransitionNotAvailableException} is performed
      * here too, plus one more: {@code transition.trigger().kind()} must equal {@code expected},
      * checked via the {@link TriggerKind} discriminator rather than an {@code instanceof} match on
-     * {@link org.sequeless.spi.meta.TriggerSpec}, exactly so a caller with only a {@link TriggerKind}
-     * in hand (as every inbound automation port method has, from the outbox entry it is dispatching)
-     * never needs to reconstruct or guess at the full trigger payload just to compare kinds.
+     * {@link org.sequeless.spi.meta.behaviour.TriggerSpec}, exactly so a caller with only a {@link
+     * TriggerKind} in hand (as every inbound automation port method has, from the outbox entry it is
+     * dispatching) never needs to reconstruct or guess at the full trigger payload just to compare
+     * kinds.
      *
      * @param scope the tenant and principal context the commit is recorded under; must not be {@code
      *     null}. Automation never authorizes against {@link
@@ -179,6 +198,8 @@ public final class DefaultTransitionService implements TransitionService {
      *     departing the object's state, that transition's guard evaluates {@code false}, or its
      *     trigger kind does not equal {@code expected}
      * @throws NullPointerException if any argument is {@code null}
+     * @throws IllegalStateException if the automation half is at a different ontology version from
+     *     the schema and behaviour halves; nothing is committed
      */
     @Override
     public Optional<BusinessObject> fireAutomated(
@@ -194,19 +215,22 @@ public final class DefaultTransitionService implements TransitionService {
         }
         BusinessObject existing = maybeExisting.get();
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        Optional<TypeDefinition> maybeResolved = snapshot.type(existing.type().iri());
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        Optional<TypeDefinition> maybeResolved = schema.type(existing.type().iri());
         if (maybeResolved.isEmpty()) {
             return Optional.empty();
         }
         TypeDefinition resolved = maybeResolved.get();
-        if (resolved.stateMachine().isEmpty()) {
+        Optional<StateMachineDefinition> maybeMachine = behaviour.stateMachine(resolved.iri());
+        if (maybeMachine.isEmpty()) {
             return Optional.empty();
         }
-        StateMachineDefinition machine = resolved.stateMachine().get();
+        StateMachineDefinition machine = maybeMachine.get();
 
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
-        List<TransitionAvailability> available = interpreter.availableTransitions(scope, snapshot, existing);
+        List<TransitionAvailability> available = interpreter.availableTransitions(scope, behaviour, existing);
         Optional<TransitionAvailability> match =
                 available.stream().filter(a -> a.name().equals(transitionName)).findFirst();
         if (match.isEmpty() || !match.get().available()) {
@@ -226,16 +250,16 @@ public final class DefaultTransitionService implements TransitionService {
             return Optional.empty();
         }
 
-        return Optional.of(commitTransition(scope, resolved, existing, transition, existing.version(), now()));
+        return Optional.of(commitTransition(scope, halves, resolved, existing, transition, existing.version(), now()));
     }
 
     /**
-     * Records {@code signalName}'s arrival for {@code id} as a durable {@code SignalReceived}
-     * outbox entry, without firing any transition itself — routing that entry to {@code
+     * Records {@code signalName}'s arrival for {@code id} as a durable {@code SignalReceived} outbox
+     * entry, without firing any transition itself — routing that entry to {@code
      * DefaultTriggerEvaluator.onSignal} (which calls {@link #fireAutomated}) is the automation
-     * adapter's job. Committed via a {@link ChangeSet} with no mutations, only the one outbox
-     * entry — legal because {@link ChangeSet} only rejects a commit whose mutations <em>and</em>
-     * outbox are both empty.
+     * adapter's job. Committed via a {@link ChangeSet} with no mutations, only the one outbox entry —
+     * legal because {@link ChangeSet} only rejects a commit whose mutations <em>and</em> outbox are
+     * both empty.
      */
     @Override
     public void signal(Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
@@ -245,15 +269,18 @@ public final class DefaultTransitionService implements TransitionService {
         Objects.requireNonNull(signalName, "signalName must not be null");
         Objects.requireNonNull(body, "body must not be null");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        TypeDefinition resolved = resolveType(snapshot, type);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.TRANSITION, resolved.iri());
 
         BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(snapshot, existing, resolved, id);
+        requireMatchingType(schema, existing, resolved, id);
 
-        StateMachineDefinition machine =
-                resolved.stateMachine().orElseThrow(() -> new UnknownSignalException(resolved.iri(), signalName));
+        StateMachineDefinition machine = behaviour
+                .stateMachine(resolved.iri())
+                .orElseThrow(() -> new UnknownSignalException(resolved.iri(), signalName));
         boolean declared = machine.transitions().stream()
                 .anyMatch(t -> t.trigger() instanceof ExternalSignalTrigger signal
                         && signal.signalName().equals(signalName));
@@ -273,20 +300,37 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     /**
-     * The single commit path shared by {@link #fire} and {@link #fireAutomated}: builds the moved-
-     * state {@code candidate}, the {@code TransitionFired} entry, one {@code ActionRequest} entry
-     * per {@code sq:action}, the {@code TimerScheduled}/{@code TimerCancelled} entries for every
-     * timer transition entered or departed by this move (see {@link #addTimerOutboxEntries}), and
-     * commits all of it as one {@link ChangeSet} — so the two callers can never disagree about what
-     * a successful transition commits.
+     * The single commit path shared by {@link #fire} and {@link #fireAutomated}: builds the moved-state
+     * {@code candidate}, the {@code TransitionFired} entry, one {@code ActionRequest} entry per
+     * action the transition's {@link Automation} defines, the {@code TimerScheduled}/{@code
+     * TimerCancelled} entries for every timer transition entered or departed by this move (see {@link
+     * #addTimerOutboxEntries}), and commits all of it as one {@link ChangeSet} — so the two callers
+     * can never disagree about what a successful transition commits.
+     *
+     * <p>Reads {@link Automation} from its {@link AutomationSource} first. If its ontology version
+     * differs from the version of {@code halves}, this throws {@link IllegalStateException} before
+     * anything is committed.
+     *
+     * @throws IllegalStateException if the automation half is at a different ontology version from
+     *     {@code halves}
      */
     private BusinessObject commitTransition(
             Scope scope,
+            SchemaAndBehaviour halves,
             TypeDefinition resolved,
             BusinessObject existing,
             Transition transition,
             long expectedVersion,
             Instant now) {
+        Automation automation = automationSource.automation(scope.tenantId());
+        if (!automation.ontologyVersion().equals(halves.schema().ontologyVersion())) {
+            throw new IllegalStateException("Automation is at ontology version "
+                    + automation.ontologyVersion().value() + " but schema and behaviour are at "
+                    + halves.schema().ontologyVersion().value() + "; the ontology changed during the transition");
+        }
+        StateMachineDefinition machine =
+                halves.behaviour().stateMachine(resolved.iri()).orElseThrow();
+
         String by = scope.principal().id();
         Audit audit = new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
         BusinessObject candidate = new BusinessObject(
@@ -301,11 +345,12 @@ public final class DefaultTransitionService implements TransitionService {
 
         List<OutboxEntry> outbox = new ArrayList<>();
         outbox.add(transitionFiredEntry(scope, existing, transition, now));
-        List<Action> actions = transition.actions();
+        List<Action> actions =
+                automation.actions(new TransitionRef(machine.iri(), transition.fromStateIri(), transition.name()));
         for (int i = 0; i < actions.size(); i++) {
             outbox.add(actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), now));
         }
-        addTimerOutboxEntries(scope, resolved, existing, transition, now, outbox);
+        addTimerOutboxEntries(scope, resolved, machine, existing, transition, now, outbox);
 
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
         CommitResult result = objectStorePort.commit(scope, changeSet);
@@ -316,19 +361,19 @@ public final class DefaultTransitionService implements TransitionService {
      * Appends, to {@code outbox}, one {@code TimerCancelled} entry for every timer transition
      * departing the state {@code transition} is leaving ({@link Transition#fromStateIri()}) and one
      * {@code TimerScheduled} entry for every timer transition departing the state {@code transition}
-     * is entering ({@link Transition#toStateIri()}) — including {@code transition} itself, if its
-     * own trigger happens to be a timer. Iterates the whole {@link StateMachineDefinition} rather
-     * than a from/to-indexed lookup: state machines are small, and this keeps {@link Transition}'s
-     * own representation untouched.
+     * is entering ({@link Transition#toStateIri()}) — including {@code transition} itself, if its own
+     * trigger happens to be a timer. Iterates the whole {@link StateMachineDefinition} rather than a
+     * from/to-indexed lookup: state machines are small, and this keeps {@link Transition}'s own
+     * representation untouched.
      */
     private void addTimerOutboxEntries(
             Scope scope,
             TypeDefinition resolved,
+            StateMachineDefinition machine,
             BusinessObject existing,
             Transition transition,
             Instant now,
             List<OutboxEntry> outbox) {
-        StateMachineDefinition machine = resolved.stateMachine().orElseThrow();
         for (Transition candidate : machine.transitions()) {
             if (!(candidate.trigger() instanceof TimerTrigger timer)) {
                 continue;
@@ -347,8 +392,8 @@ public final class DefaultTransitionService implements TransitionService {
      * departing the state the object just entered. {@code state} and {@code timerKey} are both
      * anchored to {@code timerTransition.fromStateIri()} — the state the timer waits in — not to
      * {@code transition.toStateIri()} on the caller's stack, even though the two are always equal
-     * here, so this method's own contract is self-evident without relying on that equality holding
-     * at every call site.
+     * here, so this method's own contract is self-evident without relying on that equality holding at
+     * every call site.
      */
     private OutboxEntry timerScheduledEntry(
             Scope scope,
@@ -371,10 +416,10 @@ public final class DefaultTransitionService implements TransitionService {
 
     /**
      * Builds one {@code TimerCancelled} entry for {@code timerTransition}, a timer transition
-     * departing the state the object just left. {@code timerKey} is computed by the exact same
-     * {@link #timerKey} helper {@link #timerScheduledEntry} uses, keyed the same way (the timer
-     * transition's own {@code fromStateIri}), so a cancel entry always carries the identical key the
-     * matching schedule entry carried — the two can never drift apart.
+     * departing the state the object just left. {@code timerKey} is computed by the exact same {@link
+     * #timerKey} helper {@link #timerScheduledEntry} uses, keyed the same way (the timer transition's
+     * own {@code fromStateIri}), so a cancel entry always carries the identical key the matching
+     * schedule entry carried — the two can never drift apart.
      */
     private OutboxEntry timerCancelledEntry(
             Scope scope, BusinessObject existing, Transition timerTransition, Instant now) {
@@ -386,10 +431,10 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     /**
-     * The one place {@code objectId|stateIri|transitionName} is assembled, used identically by
-     * {@link #timerScheduledEntry} and {@link #timerCancelledEntry} so a scheduled timer and its
-     * later cancellation always carry the exact same key — this is also used directly as the
-     * Temporal workflow id and the in-process scheduler key by a later automation-adapter task.
+     * The one place {@code objectId|stateIri|transitionName} is assembled, used identically by {@link
+     * #timerScheduledEntry} and {@link #timerCancelledEntry} so a scheduled timer and its later
+     * cancellation always carry the exact same key — this is also used directly as the Temporal
+     * workflow id and the in-process scheduler key by a later automation-adapter task.
      */
     private static String timerKey(ObjectId objectId, String stateIri, String transitionName) {
         return objectId.value().toString() + "|" + stateIri + "|" + transitionName;
@@ -426,10 +471,10 @@ public final class DefaultTransitionService implements TransitionService {
      * Builds one {@code ActionRequest} payload: the fields common to every action kind (including
      * {@code self}, a short-name-keyed snapshot of {@code existing}'s properties — see {@code
      * ExpressionContext#selfProperties()} for why short names, not IRIs, are used there), plus the
-     * fields specific to {@code action}'s kind. Every optional field (a {@code SetProperty}'s
-     * {@code value} vs {@code expression}, a {@code Webhook}'s {@code body}) is included only when
-     * present — {@link OutboxEntry}'s constructor rejects a {@code null} anywhere in the payload,
-     * so "one of two mutually exclusive keys" is expressed by omission, never a null placeholder.
+     * fields specific to {@code action}'s kind. Every optional field (a {@code SetProperty}'s {@code
+     * value} vs {@code expression}, a {@code Webhook}'s {@code body}) is included only when present —
+     * {@link OutboxEntry}'s constructor rejects a {@code null} anywhere in the payload, so "one of two
+     * mutually exclusive keys" is expressed by omission, never a null placeholder.
      */
     private Map<String, Object> actionRequestPayload(
             Scope scope,
@@ -493,25 +538,24 @@ public final class DefaultTransitionService implements TransitionService {
         return self;
     }
 
-    private TypeDefinition resolveType(MetaModelSnapshot snapshot, String nameOrIri) {
-        return snapshot.typeByName(nameOrIri)
-                .or(() -> snapshot.type(nameOrIri))
+    private TypeDefinition resolveType(Schema schema, String nameOrIri) {
+        return schema.typeByName(nameOrIri)
+                .or(() -> schema.type(nameOrIri))
                 .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
     }
 
-    private void requireMatchingType(
-            MetaModelSnapshot snapshot, BusinessObject object, TypeDefinition resolved, ObjectId id) {
-        if (!TypeHierarchy.isSubtypeOf(snapshot, object.type().iri(), resolved.iri())) {
+    private void requireMatchingType(Schema schema, BusinessObject object, TypeDefinition resolved, ObjectId id) {
+        if (!TypeHierarchy.isSubtypeOf(schema, object.type().iri(), resolved.iri())) {
             throw new ObjectNotFoundException(id);
         }
     }
 
     /**
-     * Duplicated from {@code DefaultBusinessObjectService}'s identically-named private helper
-     * rather than shared: this codebase's established convention for this specific short pure
-     * function (the substring after an IRI's last {@code #}, else after its last {@code /}, else
-     * the whole IRI) is to duplicate it at each use site rather than introduce a shared dependency
-     * for one line of logic.
+     * Duplicated from {@code DefaultBusinessObjectService}'s identically-named private helper rather
+     * than shared: this codebase's established convention for this specific short pure function (the
+     * substring after an IRI's last {@code #}, else after its last {@code /}, else the whole IRI) is
+     * to duplicate it at each use site rather than introduce a shared dependency for one line of
+     * logic.
      */
     private static String shortName(String iri) {
         int hash = iri.lastIndexOf('#');
