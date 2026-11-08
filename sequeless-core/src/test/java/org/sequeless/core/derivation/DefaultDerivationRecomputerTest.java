@@ -24,15 +24,19 @@ import org.sequeless.kernel.values.IntegerValue;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.RollupRule;
+import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.RelationshipDefinition;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -49,12 +53,6 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Query;
@@ -95,7 +93,6 @@ class DefaultDerivationRecomputerTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             PROJECT_IRI,
             Optional.empty(),
             false);
@@ -105,7 +102,7 @@ class DefaultDerivationRecomputerTest {
                 TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(), materialised);
     }
 
-    private static AttributeDefinition openTaskCountAttribute(boolean materialised) {
+    private static AttributeDefinition openTaskCountAttribute() {
         return new AttributeDefinition(
                 OPEN_TASK_COUNT_IRI,
                 "openTaskCount",
@@ -116,31 +113,30 @@ class DefaultDerivationRecomputerTest {
                 true,
                 false,
                 DisplayHints.none(),
-                Optional.of(openTaskCountRule(materialised)),
                 Datatype.INTEGER);
     }
 
-    private static TypeDefinition projectType(boolean materialised) {
+    private static TypeDefinition projectType() {
         return new TypeDefinition(
-                PROJECT_IRI,
-                "Project",
-                List.of(),
-                List.of(openTaskCountAttribute(materialised)),
-                DisplayHints.none(),
-                false,
-                Optional.empty());
+                PROJECT_IRI, "Project", List.of(), List.of(openTaskCountAttribute()), DisplayHints.none(), false);
     }
 
-    private static final TypeDefinition TASK = new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false, Optional.empty());
+    private static final TypeDefinition TASK =
+            new TypeDefinition(TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false);
 
-    private static MetaModelSnapshot buildSnapshot(boolean materialised) {
-        return new MetaModelSnapshot(
+    private static Schema buildSchema() {
+        return new Schema(
+                new OntologyVersion(1),
                 NS.substring(0, NS.length() - 1),
                 Optional.empty(),
                 Map.of(),
-                List.of(projectType(materialised), TASK),
-                new OntologyReport(true, List.of()));
+                List.of(projectType(), TASK));
+    }
+
+    /** The behaviour: the one derivation rule on {@code openTaskCount}, materialised or not. */
+    private static Behaviour behaviourWith(boolean materialised) {
+        return new Behaviour(
+                new OntologyVersion(1), Map.of(), Map.of(OPEN_TASK_COUNT_IRI, openTaskCountRule(materialised)));
     }
 
     private static BusinessObject project(ObjectId id, long version, Integer openTaskCount) {
@@ -191,8 +187,9 @@ class DefaultDerivationRecomputerTest {
     private static DefaultDerivationRecomputer recomputer(
             FakeObjectStorePort store, FakeQueryPort queryPort, boolean materialised, int maxAttempts) {
         DerivationPlanner planner = new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
+        FakeOntology ontology = new FakeOntology(materialised);
         return new DefaultDerivationRecomputer(
-                new FakeOntologyPort(materialised), store, planner, maxAttempts, Duration.ofMillis(1), CLOCK);
+                ontology, ontology, store, planner, maxAttempts, Duration.ofMillis(1), CLOCK);
     }
 
     @Test
@@ -304,33 +301,24 @@ class DefaultDerivationRecomputerTest {
 
     // --- fakes ---
 
-    private static final class FakeOntologyPort implements OntologyPort {
+    private static final class FakeOntology implements SchemaSource, BehaviourSource {
 
         private final boolean materialised;
 
-        FakeOntologyPort(boolean materialised) {
+        FakeOntology(boolean materialised) {
             this.materialised = materialised;
         }
 
         @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return buildSnapshot(materialised);
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return buildSchema();
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviourWith(materialised);
         }
     }
 
@@ -350,17 +338,17 @@ class DefaultDerivationRecomputerTest {
         }
 
         @Override
-        public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+        public QueryResult query(Scope scope, Schema snapshot, Query query) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override
-        public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+        public void ensureIndexes(Scope scope, Schema snapshot) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override
-        public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+        public AggregateResult aggregate(Scope scope, Schema snapshot, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
             Objects.requireNonNull(snapshot, "snapshot must not be null");
             Objects.requireNonNull(request, "request must not be null");

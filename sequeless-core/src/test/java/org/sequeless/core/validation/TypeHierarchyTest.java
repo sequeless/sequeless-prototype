@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Unit tests for {@link TypeHierarchy}, built against a hand-written 3-level hierarchy ({@code
@@ -34,15 +34,15 @@ class TypeHierarchyTest {
     private static final TypeDefinition PROJECT = type(PROJECT_IRI, List.of(WORK_ITEM_IRI));
     private static final TypeDefinition PERSON = type(PERSON_IRI, List.of());
 
-    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+    private static final Schema SNAPSHOT = new Schema(
+            new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
-            List.of(DELIVERABLE, WORK_ITEM, TASK, PROJECT, PERSON),
-            new OntologyReport(true, List.of()));
+            List.of(DELIVERABLE, WORK_ITEM, TASK, PROJECT, PERSON));
 
     private static TypeDefinition type(String iri, List<String> superTypes) {
-        return new TypeDefinition(iri, iri, superTypes, List.of(), DisplayHints.none(), false, Optional.empty());
+        return new TypeDefinition(iri, iri, superTypes, List.of(), DisplayHints.none(), false);
     }
 
     @Test
@@ -106,7 +106,8 @@ class TypeHierarchyTest {
 
     @Test
     void concreteTypeAndSubtypesOfAbstractTypeExcludesAbstractAncestorsAndSelf() {
-        MetaModelSnapshot snapshotWithAbstractWorkItem = new MetaModelSnapshot(
+        Schema snapshotWithAbstractWorkItem = new Schema(
+                SNAPSHOT.ontologyVersion(),
                 SNAPSHOT.ontologyIri(),
                 SNAPSHOT.versionIri(),
                 SNAPSHOT.prefixes(),
@@ -118,12 +119,10 @@ class TypeHierarchyTest {
                                 List.of(DELIVERABLE_IRI),
                                 List.of(),
                                 DisplayHints.none(),
-                                true,
-                                Optional.empty()),
+                                true),
                         TASK,
                         PROJECT,
-                        PERSON),
-                SNAPSHOT.report());
+                        PERSON));
 
         assertThat(TypeHierarchy.concreteTypeAndSubtypes(snapshotWithAbstractWorkItem, WORK_ITEM_IRI))
                 .containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);

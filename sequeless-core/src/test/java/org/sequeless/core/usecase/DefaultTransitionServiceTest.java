@@ -31,25 +31,33 @@ import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.CreateObjectAction;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.LogAction;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.PropertyAssignment;
-import org.sequeless.spi.meta.SetPropertyAction;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
-import org.sequeless.spi.meta.WebhookAction;
+import org.sequeless.spi.meta.automation.Action;
+import org.sequeless.spi.meta.automation.Automation;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.automation.CreateObjectAction;
+import org.sequeless.spi.meta.automation.LogAction;
+import org.sequeless.spi.meta.automation.PropertyAssignment;
+import org.sequeless.spi.meta.automation.SetPropertyAction;
+import org.sequeless.spi.meta.automation.TransitionRef;
+import org.sequeless.spi.meta.automation.WebhookAction;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
+import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
+import org.sequeless.spi.meta.behaviour.State;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TimerTrigger;
+import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.spi.meta.behaviour.TriggerKind;
+import org.sequeless.spi.meta.behaviour.UserActionTrigger;
+import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Cardinality;
+import org.sequeless.spi.meta.schema.Datatype;
+import org.sequeless.spi.meta.schema.DisplayHints;
+import org.sequeless.spi.meta.schema.OntologyVersion;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -66,12 +74,6 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Unit tests for {@link DefaultTransitionService}, built against a hand-written {@code Project}
@@ -113,7 +115,6 @@ class DefaultTransitionServiceTest {
             false,
             false,
             DisplayHints.none(),
-            Optional.empty(),
             Datatype.STRING);
 
     private static final State DRAFT = new State(DRAFT_IRI, "Draft", 0);
@@ -142,29 +143,16 @@ class DefaultTransitionServiceTest {
             ACTIVE_IRI,
             new UserActionTrigger(),
             Optional.of(OWNER_GUARD),
-            Optional.of(ACTIVATE_GUARD_MESSAGE),
-            List.of(SET_PROPERTY_ACTION, CREATE_OBJECT_ACTION, WEBHOOK_ACTION, LOG_ACTION));
+            Optional.of(ACTIVATE_GUARD_MESSAGE));
     /** Guarded, but with no {@code guardMessage} — exercises the generic fallback text. */
     private static final Transition ARCHIVE = new Transition(
-            "archive",
-            DRAFT_IRI,
-            ARCHIVED_IRI,
-            new UserActionTrigger(),
-            Optional.of(OWNER_GUARD),
-            Optional.empty(),
-            List.of());
+            "archive", DRAFT_IRI, ARCHIVED_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD), Optional.empty());
     /** Unguarded — always available from {@code Active}. */
     private static final Transition CLOSE = new Transition(
-            "close", ACTIVE_IRI, CLOSED_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty(), List.of());
+            "close", ACTIVE_IRI, CLOSED_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty());
     /** Unguarded, exercises the "omitted, not null" payload shapes {@link #ACTIVATE} does not. */
     private static final Transition REOPEN = new Transition(
-            "reopen",
-            CLOSED_IRI,
-            DRAFT_IRI,
-            new UserActionTrigger(),
-            Optional.empty(),
-            Optional.empty(),
-            List.of(SET_PROPERTY_EXPRESSION_ACTION, WEBHOOK_NO_BODY_ACTION));
+            "reopen", CLOSED_IRI, DRAFT_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty());
 
     private static final StateMachineDefinition PROJECT_LIFECYCLE = new StateMachineDefinition(
             NS + "ProjectLifecycle",
@@ -172,17 +160,11 @@ class DefaultTransitionServiceTest {
             DRAFT,
             List.of(ACTIVATE, ARCHIVE, CLOSE, REOPEN));
 
-    private static final TypeDefinition PROJECT = new TypeDefinition(
-            PROJECT_IRI,
-            "Project",
-            List.of(),
-            List.of(OWNER),
-            DisplayHints.none(),
-            false,
-            Optional.of(PROJECT_LIFECYCLE));
+    private static final TypeDefinition PROJECT =
+            new TypeDefinition(PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false);
 
-    private static final TypeDefinition NO_MACHINE_TYPE = new TypeDefinition(
-            NS + "Widget", "Widget", List.of(), List.of(), DisplayHints.none(), false, Optional.empty());
+    private static final TypeDefinition NO_MACHINE_TYPE =
+            new TypeDefinition(NS + "Widget", "Widget", List.of(), List.of(), DisplayHints.none(), false);
 
     // --- a second, independent state machine dedicated to timer/fireAutomated tests, so its
     // fixtures never perturb the outbox sizes the Project-based tests above already assert on ---
@@ -201,37 +183,19 @@ class DefaultTransitionServiceTest {
 
     /** Enters {@code Waiting}, which {@link #EXPIRE} departs via a timer — schedules on entry. */
     private static final Transition ENTER_WAITING = new Transition(
-            "enter", START_IRI, WAITING_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty(), List.of());
+            "enter", START_IRI, WAITING_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty());
     /** The timer transition itself, departing {@code Waiting}. */
     private static final Transition EXPIRE = new Transition(
-            "expire",
-            WAITING_IRI,
-            DONE_IRI,
-            new TimerTrigger(EXPIRE_AFTER),
-            Optional.empty(),
-            Optional.empty(),
-            List.of());
+            "expire", WAITING_IRI, DONE_IRI, new TimerTrigger(EXPIRE_AFTER), Optional.empty(), Optional.empty());
     /** Leaves {@code Waiting} by a different transition than {@link #EXPIRE} — cancels on exit. */
     private static final Transition LEAVE_WAITING = new Transition(
-            "leave",
-            WAITING_IRI,
-            ELSEWHERE_IRI,
-            new UserActionTrigger(),
-            Optional.empty(),
-            Optional.empty(),
-            List.of());
+            "leave", WAITING_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty());
     /** Neither endpoint has a timer transition departing it — no timer entries expected. */
     private static final Transition NO_TIMER_TRANSITION = new Transition(
-            "noop", START_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty(), List.of());
+            "noop", START_IRI, ELSEWHERE_IRI, new UserActionTrigger(), Optional.empty(), Optional.empty());
     /** Unguarded {@code OnChange} transition, with one action, for {@code fireAutomated}'s happy path. */
     private static final Transition AUTO_ADVANCE = new Transition(
-            "autoAdvance",
-            START_IRI,
-            DONE_IRI,
-            new OnChangeTrigger(List.of()),
-            Optional.empty(),
-            Optional.empty(),
-            List.of(LOG_ACTION));
+            "autoAdvance", START_IRI, DONE_IRI, new OnChangeTrigger(List.of()), Optional.empty(), Optional.empty());
     /** Guarded {@code OnChange} transition; {@link #OWNER_GUARD} always fails on a TimerWidget. */
     private static final Transition GUARDED_ON_CHANGE = new Transition(
             "guardedAdvance",
@@ -239,8 +203,7 @@ class DefaultTransitionServiceTest {
             DONE_IRI,
             new OnChangeTrigger(List.of()),
             Optional.of(OWNER_GUARD),
-            Optional.empty(),
-            List.of());
+            Optional.empty());
     /**
      * Departs {@code Done}, not {@code Start} — used to prove {@code signal} validates a signal
      * name against the whole state machine, not just the object's current state.
@@ -248,13 +211,7 @@ class DefaultTransitionServiceTest {
     private static final String WAKE_SIGNAL = "wake";
 
     private static final Transition WAKE = new Transition(
-            "wake",
-            DONE_IRI,
-            START_IRI,
-            new ExternalSignalTrigger(WAKE_SIGNAL),
-            Optional.empty(),
-            Optional.empty(),
-            List.of());
+            "wake", DONE_IRI, START_IRI, new ExternalSignalTrigger(WAKE_SIGNAL), Optional.empty(), Optional.empty());
 
     private static final StateMachineDefinition TIMER_WIDGET_LIFECYCLE = new StateMachineDefinition(
             NS + "TimerWidgetLifecycle",
@@ -262,21 +219,32 @@ class DefaultTransitionServiceTest {
             TW_START,
             List.of(ENTER_WAITING, EXPIRE, LEAVE_WAITING, NO_TIMER_TRANSITION, AUTO_ADVANCE, GUARDED_ON_CHANGE, WAKE));
 
-    private static final TypeDefinition TIMER_WIDGET = new TypeDefinition(
-            TIMER_WIDGET_IRI,
-            "TimerWidget",
-            List.of(),
-            List.of(),
-            DisplayHints.none(),
-            false,
-            Optional.of(TIMER_WIDGET_LIFECYCLE));
+    private static final TypeDefinition TIMER_WIDGET =
+            new TypeDefinition(TIMER_WIDGET_IRI, "TimerWidget", List.of(), List.of(), DisplayHints.none(), false);
 
-    private static final MetaModelSnapshot SNAPSHOT = new MetaModelSnapshot(
+    private static final Schema SNAPSHOT = new Schema(
+            new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
-            List.of(PROJECT, NO_MACHINE_TYPE, TIMER_WIDGET),
-            new OntologyReport(true, List.of()));
+            List.of(PROJECT, NO_MACHINE_TYPE, TIMER_WIDGET));
+
+    /** The state machine on each type that has one, keyed by the type IRI it governs. */
+    private static final Behaviour BEHAVIOUR = new Behaviour(
+            new OntologyVersion(1),
+            Map.of(PROJECT_IRI, PROJECT_LIFECYCLE, TIMER_WIDGET_IRI, TIMER_WIDGET_LIFECYCLE),
+            Map.of());
+
+    /** The actions of each transition that has any, keyed by the transition's {@link TransitionRef}. */
+    private static final Automation AUTOMATION = new Automation(
+            new OntologyVersion(1),
+            Map.of(
+                    new TransitionRef(PROJECT_LIFECYCLE.iri(), DRAFT_IRI, "activate"),
+                    List.<Action>of(SET_PROPERTY_ACTION, CREATE_OBJECT_ACTION, WEBHOOK_ACTION, LOG_ACTION),
+                    new TransitionRef(PROJECT_LIFECYCLE.iri(), CLOSED_IRI, "reopen"),
+                    List.<Action>of(SET_PROPERTY_EXPRESSION_ACTION, WEBHOOK_NO_BODY_ACTION),
+                    new TransitionRef(TIMER_WIDGET_LIFECYCLE.iri(), START_IRI, "autoAdvance"),
+                    List.<Action>of(LOG_ACTION)));
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-01T00:00:00Z");
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
@@ -293,8 +261,13 @@ class DefaultTransitionServiceTest {
     }
 
     private static DefaultTransitionService service(FakeObjectStorePort store, AuthorizationPort authorizationPort) {
+        return service(store, authorizationPort, new FakeOntology(SNAPSHOT, BEHAVIOUR, AUTOMATION));
+    }
+
+    private static DefaultTransitionService service(
+            FakeObjectStorePort store, AuthorizationPort authorizationPort, FakeOntology ontology) {
         return new DefaultTransitionService(
-                new FakeOntologyPort(), store, authorizationPort, new FakeExpressionPort(), CLOCK);
+                ontology, ontology, ontology, store, authorizationPort, new FakeExpressionPort(), CLOCK);
     }
 
     private static BusinessObject project(ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
@@ -322,6 +295,21 @@ class DefaultTransitionServiceTest {
     }
 
     // --- happy path: guard passes, state moves, one TransitionFired + one ActionRequest per action ---
+
+    @Test
+    void fireThrowsIllegalStateWhenAutomationIsAtAnotherOntologyVersionAndCommitsNothing() {
+        ObjectId id = ObjectId.random();
+        Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(project(id, 5, DRAFT_IRI, properties));
+        Automation otherVersion = new Automation(new OntologyVersion(2), AUTOMATION.transitionActions());
+        DefaultTransitionService service =
+                service(store, permitAll(), new FakeOntology(SNAPSHOT, BEHAVIOUR, otherVersion));
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.fire(ALICE, "Project", id, "activate", 5));
+        assertThat(store.commits).isEmpty();
+    }
 
     @Test
     void fireCommitsUpdateMovingStateAndDispatchesTransitionFiredPlusOneActionRequestPerAction() {
@@ -885,27 +873,35 @@ class DefaultTransitionServiceTest {
         }
     }
 
-    private static final class FakeOntologyPort implements OntologyPort {
+    /** Hand-written stand-in for the three read ports, each serving one fixed half. */
+    private static final class FakeOntology implements SchemaSource, BehaviourSource, AutomationSource {
 
-        @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return SNAPSHOT;
+        private final Schema schema;
+        private final Behaviour behaviour;
+        private final Automation automation;
+
+        FakeOntology(Schema schema, Behaviour behaviour, Automation automation) {
+            this.schema = schema;
+            this.behaviour = behaviour;
+            this.automation = automation;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return schema;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviour;
         }
 
         @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Automation automation(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return automation;
         }
     }
 
