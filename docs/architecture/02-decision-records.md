@@ -16,8 +16,9 @@ only. Consequences: all storage, validation and API paths are generic. Reversibi
 
 ### DR-03 OWL ontology is the runtime meta-model, behind a port
 Context: user chose OWL as the core; hexagonal principle forbids Jena in the core. Decision: the OWL
-ontology plus `sq:` vocabulary is the source of truth; the core consumes a `MetaModelSnapshot`
-through `OntologyPort`; no Jena type crosses the SPI. Alternatives: internal model with OWL as an
+ontology plus `sq:` vocabulary is the source of truth; the core consumes the `Schema`, `Behaviour`
+and `Automation` records through the read ports `SchemaSource`, `BehaviourSource` and
+`AutomationSource`; no Jena type crosses the SPI. Alternatives: internal model with OWL as an
 export adapter; core using Jena directly. Consequences: a mapping layer and a custom vocabulary to
 maintain; open-world reasoning stays in the adapter; closed-world validation via SHACL and structural
 checks. Reversibility: moderate.
@@ -114,4 +115,4 @@ The shell adds automation to a route only when that route loads (`app.routes.ts`
 Decision: TypeScript wire models are hand-written, not OpenAPI-generated, for two reasons recorded in
 `docs/specs/phase-3-core-api.md` (Wire models, lines 54-60): `PropertyResponse` is a sealed interface with a
 plain `kind` discriminator that springdoc flattens, so a generator loses the discriminated union; and the
-`filter[x][y]` family is inexpressible in OpenAPI (`docs/architecture/query-port.md:341-347`). Reversibility: moderate.
+`filter[x][y]` family is inexpressible in OpenAPI (`docs/architecture/query-port.md:341-348`). Reversibility: moderate.

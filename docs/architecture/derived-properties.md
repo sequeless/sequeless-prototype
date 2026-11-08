@@ -28,7 +28,7 @@ reserved), filtering or sorting on derived values, state machines, events.
 
 ## SPI shapes
 
-`org.sequeless.spi.meta`:
+`org.sequeless.spi.meta.behaviour` (`AggregateFunction` is in `org.sequeless.spi.meta.schema`):
 
 ```java
 public sealed interface DerivationRule permits RollupRule, PluginRule {}
@@ -46,8 +46,8 @@ public record PluginRule(String pluginName) implements DerivationRule {}
 public enum AggregateFunction { COUNT, SUM, MIN, MAX, AVG }
 ```
 
-`PropertyDefinition.derivation()` is `Optional<DerivationRule>` — unchanged in shape from the
-placeholder that existed before this phase, now actually populated. A property carrying a
+`Behaviour.derivation(propertyIri)` returns `Optional<DerivationRule>`. Before spec 10 the same
+`Optional` was `PropertyDefinition.derivation()`, the placeholder this phase populated. A property carrying a
 derivation is forced `readOnly = true` by `SnapshotMapper` regardless of any `sq:readOnly`
 assertion, so `ValueCoercer`'s existing read-only rejection path covers writes (see "Write
 rejection" below for the more specific message a derived property gets).
@@ -66,7 +66,7 @@ public record AggregateRequest(
 public record AggregateResult(Map<ObjectId, Value> values) {}
 
 // QueryPort gains:
-AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request);
+AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 ```
 
 `AggregateRequest` carries `Set<String> sourceTypes` rather than a single `sourceType` — subtype
@@ -88,7 +88,7 @@ public interface DerivationPlugin {
     String name();
     Map<ObjectId, Value> derive(DerivationContext context, List<BusinessObject> objects);
 }
-public record DerivationContext(Scope scope, MetaModelSnapshot snapshot, QueryPort queryPort) {}
+public record DerivationContext(Scope scope, Schema schema, QueryPort queryPort) {}
 ```
 
 `DerivationPlugin` is the direct `ServiceLoader` service type — no wrapper interface. A plug-in is
@@ -169,7 +169,7 @@ form activates cleanly under the real reasoner configuration, not just under `re
 `org.sequeless.core.derivation.DerivationPlanner(QueryPort, DerivationPluginRegistry)`:
 
 ```java
-List<BusinessObject> apply(Scope, MetaModelSnapshot, TypeDefinition requestType, List<BusinessObject> objects)
+List<BusinessObject> apply(Scope, Schema, Behaviour, TypeDefinition requestType, List<BusinessObject> objects)
 ```
 
 `read` calls this with a singleton list, so it shares exactly the same code path and the same bound
@@ -211,7 +211,7 @@ self-bounds its own aggregate calls; nothing enforces this for a plug-in author.
 
 One `GROUP BY` per `AggregateRequest`, reusing `PostgresQueryStore`'s existing
 `castExpression(...)`/`criterionSql(...)` helpers (the same ones `query()` already uses to resolve
-property IRIs into JSONB extraction expressions) and its existing `indexProperties(snapshot,
+property IRIs into JSONB extraction expressions) and its existing `indexProperties(schema,
 sourceTypes)` helper to resolve `PropertyDefinition`s for `ofPropertyIri` and every criterion
 property — no new snapshot-walking method was needed:
 
@@ -292,7 +292,7 @@ Nothing is ever present in `props` for a derived property's IRI; browsing or rea
 ```
 
 This is a more specific message than a plain read-only property gets (`"...is read-only"`) —
-`ValueCoercer.coerce` checks `property.derivation().isPresent()` to choose between the two wordings.
+`ValueCoercer.coerce` checks `behaviour.derivation(property.iri()).isPresent()` to choose between the two wordings.
 `StructuralValidator` carries its own defensive canary (`assertNoDerivedPropertyPresent`) guarding
 against a derived IRI ever reaching the store even if `ValueCoercer` were bypassed some other way;
 it is confirmed dead code on every tested path today, since `ValueCoercer`'s all-or-nothing

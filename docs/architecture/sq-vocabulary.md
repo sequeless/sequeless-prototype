@@ -12,8 +12,10 @@ Namespace: `https://sequeless.dev/ns/meta#`. Document (ontology) IRI: `https://s
 consistency); `sq:` describes what the application needs to *display and enforce* that OWL has no
 term for — labels, ordering, grouping, facets, indexing hints, and two structural flags OWL itself
 cannot express (see "Two terms beyond OWL" below). Every `sq:` term maps to exactly one field on a
-`org.sequeless.spi.meta` snapshot record (T2); this document is the single source of truth for that
-mapping, and the Jena adapter's `SqVocabulary` (T7) is a direct transcription of it.
+record of the Schema, Behaviour or Automation half (packages `org.sequeless.spi.meta.schema`,
+`org.sequeless.spi.meta.behaviour` and `org.sequeless.spi.meta.automation`; T2); this document is the
+single source of truth for that mapping, and the Jena adapter's `SqVocabulary` (T7) is a direct
+transcription of it.
 
 ## Terms in use (phase 1)
 
@@ -55,7 +57,7 @@ rollup's `sq:filter` list.
 
 | IRI | RDF type | Domain | Range | Default | Snapshot field |
 |---|---|---|---|---|---|
-| `sq:derivedBy` | `owl:AnnotationProperty` | `rdf:Property` | — (conceptually `sq:Rollup` ∪ `sq:Plugin`; deliberately unasserted, see notes) | absent (`Optional.empty()`) | `PropertyDefinition.derivation()` |
+| `sq:derivedBy` | `owl:AnnotationProperty` | `rdf:Property` | — (conceptually `sq:Rollup` ∪ `sq:Plugin`; deliberately unasserted, see notes) | absent (`Optional.empty()`) | `Behaviour.derivation(propertyIri)` |
 | `sq:function` | `owl:AnnotationProperty` | `sq:Rollup` | — (enumeration; see notes) | none, required | `RollupRule.function()` |
 | `sq:over` | `owl:AnnotationProperty` | `sq:Rollup` | `owl:Class` | none, required | `RollupRule.sourceTypeIri()` |
 | `sq:via` | `owl:AnnotationProperty` | `sq:Rollup` | `rdf:Property` | none, required | `RollupRule.viaIri()` |
@@ -75,7 +77,7 @@ Notes:
   cannot express without `owl:oneOf`. The set is validated at snapshot activation instead.
 - The five function individuals — `sq:count`, `sq:sum`, `sq:min`, `sq:max`, `sq:avg` — are
   `owl:NamedIndividual`s with no snapshot field of their own: they are the *values* `sq:function`
-  takes, matched by IRI local name against `org.sequeless.spi.meta.AggregateFunction`'s enum
+  takes, matched by IRI local name against `org.sequeless.spi.meta.schema.AggregateFunction`'s enum
   constant names (T3's job).
 - The eleven operator individuals — `sq:eq`, `sq:ne`, `sq:in`, `sq:lt`, `sq:lte`, `sq:gt`,
   `sq:gte`, `sq:contains`, `sq:startsWith`, `sq:isNull`, `sq:notNull` — are likewise
@@ -105,7 +107,7 @@ built from `sq:PropertyAssignment` nodes where property values are being set.
 
 | IRI | RDF type | Domain | Range | Default | Snapshot field |
 |---|---|---|---|---|---|
-| `sq:appliesTo` | `owl:AnnotationProperty` | `sq:StateMachine` | `owl:Class` | none, required | attaches the definition to that type's `TypeDefinition.stateMachine()` |
+| `sq:appliesTo` | `owl:AnnotationProperty` | `sq:StateMachine` | `owl:Class` | none, required | attaches the definition to that type's `Behaviour.stateMachine(typeIri)` |
 | `sq:initialState` | `owl:AnnotationProperty` | `sq:StateMachine` | `sq:State` | none, required | `StateMachineDefinition.initialState()` |
 | `sq:state` | `owl:AnnotationProperty` | `sq:StateMachine` | `sq:State` | none, required (≥1) | `StateMachineDefinition.states()` |
 | `sq:transition` | `owl:AnnotationProperty` | `sq:StateMachine` | `sq:Transition` | absent (`[]`) | `StateMachineDefinition.transitions()` |
@@ -115,7 +117,7 @@ built from `sq:PropertyAssignment` nodes where property values are being set.
 | `sq:trigger` | `owl:AnnotationProperty` | `sq:Transition` | — (enumeration; see notes) | none, required | `Transition.trigger()` — see phase 6 below for the full four-value enumeration and its three added terms (`sq:watch`/`sq:after`/`sq:signalName`); phase 5 alone only ever exercised `sq:UserAction` |
 | `sq:guard` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | absent (always available) | `Transition.guard()` |
 | `sq:guardMessage` | `owl:AnnotationProperty` | `sq:Transition` | `xsd:string` | absent (generic fallback message) | `Transition.guardMessage()` |
-| `sq:action` | `owl:AnnotationProperty` | `sq:Transition` | `rdf:List` | absent (`[]`) | `Transition.actions()` |
+| `sq:action` | `owl:AnnotationProperty` | `sq:Transition` | `rdf:List` | absent (`[]`) | `Automation.actions(TransitionRef)` |
 | `sq:property` *(reused)* | `owl:AnnotationProperty` | `sq:Criterion` ∪ `sq:SetProperty` ∪ `sq:PropertyAssignment` | `rdf:Property` | none, required | `Criterion.property()` / `SetPropertyAction.propertyIri()` / `PropertyAssignment.propertyIri()` |
 | `sq:value` *(reused)* | `owl:AnnotationProperty` | `sq:Criterion` ∪ `sq:SetProperty` ∪ `sq:PropertyAssignment` | `rdfs:Literal` | absent | `Criterion.value()` / `SetPropertyAction.value()` / `PropertyAssignment.value()` |
 | `sq:expression` *(new)* | `owl:AnnotationProperty` | `sq:SetProperty` ∪ `sq:PropertyAssignment` | `xsd:string` | absent | `SetPropertyAction.expression()` / `PropertyAssignment.expression()` |
@@ -162,7 +164,7 @@ correct in `sq_object.props` from domain events instead of only ever being compu
 
 `sq:trigger`'s four legal values, each an `owl:NamedIndividual` with no snapshot field of its own —
 they are the values `sq:trigger` takes, matched by IRI local name against
-`org.sequeless.spi.meta.TriggerKind`'s enum constant names, exactly as the phase-4 function/operator
+`org.sequeless.spi.meta.behaviour.TriggerKind`'s enum constant names, exactly as the phase-4 function/operator
 individuals are matched against their own enums:
 
 | Individual | Paired `TriggerSpec` | Required companion terms |
@@ -250,25 +252,25 @@ construct on the left, the snapshot field it produces on the right.
 | `sq:displayOrder` / `sq:displayGroup` / `sq:hidden` | `DisplayHints` |
 | `sq:facet` / `sq:indexed` / `sq:searchable` / `sq:readOnly` / `sq:displayLabel` | matching `PropertyDefinition` boolean flags |
 | `sq:abstract` | `TypeDefinition.isAbstract()` |
-| Ontology IRI (`owl:Ontology` subject) | `MetaModelSnapshot.ontologyIri()` |
-| `owl:versionIRI` | `MetaModelSnapshot.versionIri()` |
-| Declared namespace prefixes | `MetaModelSnapshot.prefixes()` (export/display only — never used to derive a short name; see `MetaModelSnapshot`'s short-name rule) |
+| Ontology IRI (`owl:Ontology` subject) | `Schema.ontologyIri()` |
+| `owl:versionIRI` | `Schema.versionIri()` |
+| Declared namespace prefixes | `Schema.prefixes()` (export/display only — never used to derive a short name; see `Schema`'s short-name rule) |
 | Unmapped/unrecognised XSD datatype in `rdfs:range` | falls back to `Datatype.STRING`, plus a `WARNING` `OntologyIssue` naming the property and the unrecognised IRI |
-| `sq:derivedBy` pointing at a `sq:Rollup`-typed blank node | `PropertyDefinition.derivation()` as a `RollupRule` |
-| `sq:derivedBy` pointing at a `sq:Plugin`-typed blank node | `PropertyDefinition.derivation()` as a `PluginRule` |
+| `sq:derivedBy` pointing at a `sq:Rollup`-typed blank node | `Behaviour.derivation(propertyIri)` as a `RollupRule` |
+| `sq:derivedBy` pointing at a `sq:Plugin`-typed blank node | `Behaviour.derivation(propertyIri)` as a `PluginRule` |
 | `sq:function` / `sq:over` / `sq:via` / `sq:of` / `sq:filter` (on a `sq:Rollup` node) | the matching `RollupRule.function()` / `sourceTypeIri()` / `viaIri()` / `ofPropertyIri()` / `criteria()` |
 | `sq:pluginName` (on a `sq:Plugin` node) | `PluginRule.pluginName()` |
 | `sq:property` / `sq:operator` / `sq:value` (on a `sq:Criterion` node) | the matching `Criterion.property()` / `operator()` / `value()` |
 | Presence of `sq:derivedBy` on a property | forces `PropertyDefinition.readOnly()` to `true`, regardless of `sq:readOnly` |
-| `sq:appliesTo` (on a `sq:StateMachine` node) | attaches `StateMachineDefinition` to that type's `TypeDefinition.stateMachine()` |
+| `sq:appliesTo` (on a `sq:StateMachine` node) | attaches `StateMachineDefinition` to that type's `Behaviour.stateMachine(typeIri)` |
 | `sq:initialState` / `sq:state` / `sq:transition` (on a `sq:StateMachine` node) | the matching `StateMachineDefinition.initialState()` / `states()` / `transitions()` |
-| `sq:name` / `sq:from` / `sq:to` / `sq:guard` / `sq:guardMessage` / `sq:action` (on a `sq:Transition` node) | the matching `Transition.name()` / `fromStateIri()` / `toStateIri()` / `guard()` / `guardMessage()` / `actions()` |
+| `sq:name` / `sq:from` / `sq:to` / `sq:guard` / `sq:guardMessage` / `sq:action` (on a `sq:Transition` node) | the matching `Transition.name()` / `fromStateIri()` / `toStateIri()` / `guard()` / `guardMessage()` / `Automation.actions(TransitionRef)` |
 | `sq:trigger` (on a `sq:Transition` node) | `Transition.trigger()`, one of `UserActionTrigger`/`OnChangeTrigger`/`TimerTrigger`/`ExternalSignalTrigger` per which of `sq:UserAction`/`sq:OnChange`/`sq:Timer`/`sq:ExternalSignal` it names |
 | `sq:watch` (on a `sq:OnChange`-triggered `sq:Transition` node) | `OnChangeTrigger.watchIris()` |
 | `sq:after` (on a `sq:Timer`-triggered `sq:Transition` node) | `TimerTrigger.after()`, parsed as an ISO-8601 `java.time.Duration` |
 | `sq:signalName` (on a `sq:ExternalSignal`-triggered `sq:Transition` node) | `ExternalSignalTrigger.signalName()` |
 | `sq:materialised` (on a `sq:Rollup` or `sq:Plugin` node) | `DerivationRule.materialised()` |
-| Type of a `sq:action` list element (`sq:SetProperty` / `sq:CreateObject` / `sq:Webhook` / `sq:Log`) | selects the matching `Transition.actions()` entry type (`SetPropertyAction` / `CreateObjectAction` / `WebhookAction` / `LogAction`) |
+| Type of a `sq:action` list element (`sq:SetProperty` / `sq:CreateObject` / `sq:Webhook` / `sq:Log`) | selects the matching `Automation.actions(TransitionRef)` entry type (`SetPropertyAction` / `CreateObjectAction` / `WebhookAction` / `LogAction`) |
 | `sq:property` / `sq:value` / `sq:expression` (on a `sq:SetProperty` node) | the matching `SetPropertyAction.propertyIri()` / `value()` / `expression()` |
 | `sq:type` / `sq:properties` (on a `sq:CreateObject` node) | the matching `CreateObjectAction.typeIri()` / `properties()` |
 | `sq:property` / `sq:value` / `sq:expression` (on a `sq:PropertyAssignment` node) | the matching `PropertyAssignment.propertyIri()` / `value()` / `expression()` |
@@ -305,7 +307,8 @@ are in scope for phase 1:
    independent) from "type → superTypes" (delegated to Jena, reasoner-dependent).
 
 Consistency checking (`asInferenceModel().validate()`) is available under all three settings but is
-only meaningful for `owl`/`rdfs`; an inconsistent ontology causes `OntologyPort.snapshot()` and
-`reload()` to throw `OntologyException` carrying an `OntologyReport` that names the offending
-resource (for example `ex:Cyborg` in the `inconsistent.ttl` fixture), regardless of which reasoner
-setting is active.
+only meaningful for `owl`/`rdfs`; an inconsistent ontology causes `SchemaSource.schema()`,
+`BehaviourSource.behaviour()`, `AutomationSource.automation()` and `OntologyAdministration.reload()`
+to throw `OntologyException` carrying an `OntologyReport` that names the offending resource (for
+example `ex:Cyborg` in the `inconsistent.ttl` fixture), regardless of which reasoner setting is
+active.

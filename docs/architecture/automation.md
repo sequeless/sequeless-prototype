@@ -114,7 +114,7 @@ own `ValueJsonCodec` already uses for `sq_object.props`.
 principal — is baked into the payload the moment the transition commits. A Temporal activity retry
 (hours later, after a crash) or an in-process relay redispatch therefore never reads the object's
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
-`self` snapshot as of the moment the transition fired. This is what makes "no OntologyPort, no
+`self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
 re-read" a design property rather than an incidental optimization — `ActionExecutor`'s four
 methods need nothing beyond the frozen payload to do their job, confirmed by a test that feeds a
 real `DefaultTransitionService.fire(...)` call's genuine `OutboxEntry` list straight into
@@ -401,7 +401,7 @@ adapter-specific quirk.
 
 Through Phase 5, `sq:trigger` accepted exactly one legal value (`sq:UserAction`) and a transition
 could only ever fire from `POST /api/objects/{type}/{id}/transitions/{name}`. Phase 6 widens this to a
-sealed `TriggerSpec` hierarchy (`org.sequeless.spi.meta`) with a `TriggerKind kind()` discriminator
+sealed `TriggerSpec` hierarchy (`org.sequeless.spi.meta.behaviour`) with a `TriggerKind kind()` discriminator
 — `USER_ACTION`, `ON_CHANGE`, `TIMER`, `EXTERNAL_SIGNAL` — so a transition can also fire from a
 data change, a timer, or an external signal, without becoming reachable from the REST fire
 endpoint (which now rejects any transition whose `trigger().kind() != TriggerKind.USER_ACTION`
