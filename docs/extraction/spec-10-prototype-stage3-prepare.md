@@ -62,8 +62,8 @@ All moves are in-repo. Provenance:
 
 **Known limitations**
 
-- **Rename tracking.** `git log --follow` does not trace `SchemaTest` from `MetaModelSnapshotTest`, or `OntologyAdministrationTest` from `OntologyPortTest`. Each was rewritten by more than half, so git records a delete and an add. This is recorded here and in the PR body. The history was not rewritten.
-- **Bisecting.** Commit `2020711` (app), the first two spi commits (`d4e31d7`, `ed7a16f`) and the first two testkit commits (`44fe03c`, `aa27d4f`) do not compile their tests on their own. The branch compiles from the first buildable commit of each slice onward.
+- **Rename tracking.** `git log --follow` does not trace `SchemaTest` from `MetaModelSnapshotTest`, or `OntologyAdministrationTest` from `OntologyPortTest`. Each was rewritten by more than half, so git records a delete and an add. On `main`, `OntologyPort.java` → `OntologyAdministration.java` is only 48% similar, so `git log --follow` will not trace it there, although it does on this branch. This is recorded here and in the PR body. The history was not rewritten.
+- **Bisecting.** These commits do not compile their own tests: `d4e31d7`, `ed7a16f`, `44fe03c`, `aa27d4f`, `06c11ec`, `cc2fd50`, `f79371c`, `cd19772`, `9c34f6f`, `2020711`. The whole reactor first builds at `31c6856` (the S6 merge).
 
 ## 3. Prerequisite refactors
 
@@ -167,6 +167,7 @@ So spec 10 delivers the part of automation-contract that exists. Spec 15 adds th
 - `ShaclValidationAutoConfiguration.validationPort(OntologyAdministration)`. Its `instanceof JenaOntologyPort` check stays.
 - `JenaOntologyAdapterDescriptorProvider` names `OntologyAdministration.class`.
 - The javadoc in `SqVocabulary` (`sq:action`, `sq:appliesTo`, `sq:derivedBy`) points to the new homes.
+- `sq-meta.ttl`'s `rdfs:comment` for `sq:appliesTo` changed in both copies (testkit and Jena), so the vocabulary's data text changed, not only a code comment; REST does not show it because export writes the base model only.
 
 ### 3.6 Core (`sequeless-core`)
 
