@@ -22,7 +22,10 @@ import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.meta.automation.AutomationSource;
+import org.sequeless.spi.meta.behaviour.BehaviourSource;
+import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.spi.meta.schema.SchemaSource;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
@@ -35,9 +38,10 @@ import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.ontology.ImportMode;
 import org.sequeless.spi.ontology.ImportReport;
+import org.sequeless.spi.ontology.OntologyAdministration;
 import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.ontology.OntologyReport;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Query;
@@ -176,15 +180,31 @@ class CoreConfigurationContextRunnerTest {
     static class StubPortsConfiguration {
 
         @Bean
-        OntologyPort ontologyPort() {
-            return new OntologyPort() {
-                @Override
-                public MetaModelSnapshot snapshot(Scope scope) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
+        SchemaSource schemaSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
 
+        @Bean
+        BehaviourSource behaviourSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
+
+        @Bean
+        AutomationSource automationSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
+
+        @Bean
+        OntologyAdministration ontologyAdministrationPort() {
+            return new OntologyAdministration() {
                 @Override
-                public MetaModelSnapshot reload(Scope scope) {
+                public OntologyReport reload(Scope scope) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
@@ -239,17 +259,17 @@ class CoreConfigurationContextRunnerTest {
         QueryPort queryPort() {
             return new QueryPort() {
                 @Override
-                public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+                public QueryResult query(Scope scope, Schema schema, Query query) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
                 @Override
-                public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+                public void ensureIndexes(Scope scope, Schema schema) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
                 @Override
-                public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+                public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
             };
@@ -257,7 +277,7 @@ class CoreConfigurationContextRunnerTest {
 
         @Bean
         ValidationPort validationPort() {
-            return (scope, snapshot, object) -> List.of();
+            return (scope, schema, object) -> List.of();
         }
 
         @Bean
