@@ -12,10 +12,8 @@
   <artifactId>sequeless-adapter-ontology-jena</artifactId>
 
   <name>sequeless-adapter-ontology-jena</name>
-  <description>The default OntologyPort adapter: Jena 6 ontapi, the built-in OWL/RDFS reasoners selected by
-    sequeless.ontology.reasoner, owl:imports resolution against a bundled copy of the sq: vocabulary,
-    sq: annotation mapping into the SPI's MetaModelSnapshot records, a consistency check producing an
-    OntologyReport, and Turtle import/export. jena-shacl and ValidationPort arrive in Phase 2.</description>
+  <description>The default ontology adapter (SchemaSource, BehaviourSource, AutomationSource, OntologyAdministration),
+    compiling OWL and SHACL into the spi Schema, Behaviour and Automation records.</description>
 
   <dependencies>
     <dependency>

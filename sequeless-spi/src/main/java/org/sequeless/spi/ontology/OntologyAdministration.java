@@ -15,10 +15,11 @@ import org.sequeless.kernel.identity.Scope;
  * active, and the three halves of one activation share one version.
  *
  * <p>This javadoc is the full behavioural contract every implementation must satisfy. It is not
- * advisory: {@code sequeless-spi-testkit}'s {@code OntologyContract} (arriving in a later task)
- * asserts every clause of it mechanically against any port passed to it, and any adapter's own test
- * suite is expected to extend that contract. An implementation that violates a clause here is not a
- * valid adapter, regardless of what its own tests claim.
+ * advisory: {@code sequeless-spi-testkit}'s {@code OntologyContract} asserts each clause it can test
+ * mechanically against any port passed to it. A failed reload is tested by each adapter itself (see
+ * the testkit's {@code OntologyContract} javadoc), and any adapter's own test suite is expected to
+ * extend that contract. An implementation that violates a clause here is not a valid adapter,
+ * regardless of what its own tests claim.
  *
  * <ul>
  *   <li><b>Null handling.</b> Every argument to every method on this interface — {@code scope},
