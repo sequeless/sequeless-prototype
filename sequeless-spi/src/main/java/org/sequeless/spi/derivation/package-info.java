@@ -5,7 +5,7 @@
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside the
  * JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
  * org.sequeless.kernel.identity.Scope} from its parent package, {@link org.sequeless.spi.meta.schema.Schema}
- * from {@code org.sequeless.spi.meta}, {@link org.sequeless.spi.query.QueryPort} from {@code
+ * from {@code org.sequeless.spi.meta.schema}, {@link org.sequeless.spi.query.QueryPort} from {@code
  * org.sequeless.spi.query}, and {@link org.sequeless.spi.object.BusinessObject}, {@link
  * org.sequeless.kernel.values.ObjectId}, and {@link org.sequeless.kernel.values.Value} from {@code
  * org.sequeless.spi.object}. {@link org.sequeless.spi.derivation.DerivationPlugin} is the {@link

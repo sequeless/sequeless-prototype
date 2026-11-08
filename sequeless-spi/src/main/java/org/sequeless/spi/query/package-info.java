@@ -7,7 +7,7 @@
  * the JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
  * org.sequeless.kernel.identity.Scope} from its parent package, {@link
  * org.sequeless.spi.meta.schema.Schema} and {@link org.sequeless.spi.meta.schema.AggregateFunction}
- * from {@code org.sequeless.spi.meta}, and {@link org.sequeless.kernel.values.Value}, {@link
+ * from {@code org.sequeless.spi.meta.schema}, and {@link org.sequeless.kernel.values.Value}, {@link
  * org.sequeless.spi.object.BusinessObject}, {@link org.sequeless.kernel.values.ObjectId}, and {@link
  * org.sequeless.spi.object.Page} from {@code org.sequeless.spi.object}. {@link
  * org.sequeless.spi.query.QueryPort} is the port interface. {@link org.sequeless.spi.query.Query},

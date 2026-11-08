@@ -11,6 +11,10 @@ import org.sequeless.spi.meta.schema.OntologyVersion;
  * Only transitions that have actions have an entry. The triggers that make a transition fire stay
  * on the behaviour half.
  *
+ * <p>When two transitions of one state machine share a {@link TransitionRef}, the entry holds the
+ * actions of the first one in {@code org.sequeless.spi.meta.behaviour.StateMachineDefinition.transitions()}
+ * order. The second can never fire, so its actions are not kept.
+ *
  * @param ontologyVersion the version of the activation this half was read from; must not be
  *     {@code null}
  * @param transitionActions the actions of each transition, in order, keyed by {@link TransitionRef};

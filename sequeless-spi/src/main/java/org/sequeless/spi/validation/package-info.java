@@ -5,7 +5,7 @@
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
  * the JDK ({@code java.*}) except {@link org.sequeless.kernel.identity.Scope} from its parent package and
  * {@link org.sequeless.spi.meta.schema.Schema} and {@link org.sequeless.spi.object.BusinessObject}
- * from its sibling {@code org.sequeless.spi.meta} and {@code org.sequeless.spi.object} packages.
+ * from its sibling {@code org.sequeless.spi.meta.schema} and {@code org.sequeless.spi.object} packages.
  * {@link org.sequeless.spi.validation.ValidationPort} is the port interface; {@link
  * org.sequeless.spi.validation.Violation} is its result vocabulary — one instance per failed
  * constraint, carrying the property IRI it applies to (or {@code ""} for an object-level violation)
