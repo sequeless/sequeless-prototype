@@ -2,7 +2,7 @@
 
 Issue: [#39](https://github.com/sequeless/sequeless-prototype/issues/39). Map: [#11](https://github.com/sequeless/sequeless-prototype/issues/11). Plan: [#23](https://github.com/sequeless/sequeless-prototype/issues/23). Decisions: [#12](https://github.com/sequeless/sequeless-prototype/issues/12), [#13](https://github.com/sequeless/sequeless-prototype/issues/13), [#14](https://github.com/sequeless/sequeless-prototype/issues/14), [#16](https://github.com/sequeless/sequeless-prototype/issues/16), [#20](https://github.com/sequeless/sequeless-prototype/issues/20), [#23](https://github.com/sequeless/sequeless-prototype/issues/23), [#24](https://github.com/sequeless/sequeless-prototype/issues/24). Tracker: `docs/extraction/remaining-work.md`.
 
-Status: draft, rework 2 after review. Not reviewed by the owner. No PR. The open questions in section 11 are not decided here, and the slices they block say so. Moved-path facts are read at `a3a6911`. `origin/main` is `f32f3c2`, and PR #88 changes docs and the root POM only (verified). Remote facts are read on 2026-11-08.
+Status: draft, rework 3 after the second review. Not reviewed by the owner. No PR. The open questions in section 11 are not decided here, and the slices they block say so. Line numbers in this spec are verified at `a3a6911`, which is the baseline for line numbers only (section 2). `origin/main` is `f32f3c2`. PR #88 changes docs and the root POM only, and no moved path (verified). Remote facts are read on 2026-11-08.
 
 ## 0. Scope and decisions
 
@@ -11,7 +11,6 @@ Scope, from #39: migrate `sequeless-ontology` to release-please, and rename `ont
 Owner answers and applied decisions:
 
 - **O1. Option A** (#39 comment, 2026-11-08). `RollupRule.criteria` changes from `spi.query.Criterion` to filter-core's `FilterNode`, in the import. It departs from #23 comment 1, point 2. D16 records that.
-- **O2. Accepted defaults** for spec 10 section 11, questions 2 to 4. The orchestrator accepted these in spec 10. The owner has not reviewed them here. The core use case keeps the name `OntologyAdministration`. (tenant, Ontology version) keying lands in spec 15 as default methods. Automation is actions-only.
 - **O3.** Migrate to release-please first, rename `ontology-owl-adapter`, then one import commit. `facet-core` and `facet-core-testfixtures` are frozen and excluded from release and deploy. Every module first releases 0.1.0.
 - **O4.** Java packages change in the import PR, not in the migration PR (#39).
 
@@ -20,22 +19,23 @@ Decided before this spec:
 - **#13 resolution** (2026-10-14). Jena stays. `ontology-core` is thin: the `OntologyAdministration` api, the validation api and the `OntologyDocumentStore` spi. There are two read ports, `SchemaSource` and `BehaviourSource`, and one admin port, `OntologyAdministration`. #20 adds `AutomationSource` as a third read port. No Spring in this repo (decision 9). Contract kits in `ontology-testfixtures` (decision 10). Independent module versions (decision 12).
 - **#20 comment** (2026-10-18). `AutomationSource` lives in `automation-contract`.
 - **#23 comment 1.** Existing repos take moved code in one import commit with a provenance section, and never merge histories (point 3). Behaviour changes land in the prototype first (point 2). The migration adopts the sequeless-build parent and workflows (point 4). First versions are 0.1.0, and they release before the BOM re-release ("First versions" bullet).
+- **Spec 10 section 11, "Answers recorded"** (merged in PR #85, line 399). The orchestrator accepted the defaults for questions 2 to 4: the core use case keeps the name `OntologyAdministration`, (tenant, Ontology version) keying lands in spec 15 as default methods, and automation is actions-only. The owner has not reviewed these here.
 
-Decided here. D-numbers continue from spec 10's D14. "Open" marks a decision the owner must make. The body applies its default, and section 11 names the slices it blocks.
+Decided here. D-numbers continue from spec 10's D14. Each D-number is defined once, in this list. "Open" marks a decision the owner must make. The body applies its default, and section 11 names the slices it blocks.
 
 - **D15.** The import is a copy, not `git mv`. It is one commit in `sequeless-ontology`, with the provenance section in its body. No history is merged (#23 comment 1, point 3).
 - **D16.** Option A (O1) changes the type of `RollupRule.criteria` in the import, not in the prototype. This departs from #23 comment 1, point 2. The owner's answer on #39 is the source. The mapping is section 3.2.
 - **D17. Open (section 11, Q1).** SHACL stays in the prototype until spec 12. The body applies this default.
 - **D18.** The Spring glue, `JenaOntologyProperties`, the `AdapterDescriptorProvider` classes and their `META-INF` resources stay in the prototype (#13 decision 9).
 - **D19.** `OntologyDocumentStore` and `StoredOntologyDocument` move to `ontology-core`'s spi (#13 decision 7). The in-memory document store, and the two document-store clauses of `ObjectStoreContract`, are copied into `ontology-testfixtures`.
-- **D20.** `automation-contract` depends on `schema-contract`, `kernel-identity` and `kernel-values`. It does not depend on `behaviour-contract`, as the code has it. #20 says otherwise. Open (section 11, Q10): the owner confirms.
-- **D21.** The contract modules and `ontology-core` use ADR 0001's api, spi and internal split. The Jena adapter's layout is open (section 11, Q2).
+- **D20. Open (section 11, Q10).** `automation-contract` depends on `schema-contract`, `kernel-identity` and `kernel-values`, and not on `behaviour-contract`, as the code has it. #20 says otherwise. The owner confirms.
+- **D21. Open for the Jena layout (section 11, Q2).** The contract modules and `ontology-core` use ADR 0001's api, spi and internal split. The Jena adapter's layout is open.
 - **D22.** `ontology-core` drops `jackson-databind`, which no moved type uses (ADR 0001: each module redeclares only what it uses).
 - **D23. Open (section 11, Q3).** The shape of `criteria`: `Optional<FilterNode>`, or `FilterNode` with an empty `AndFilter`. The body applies `Optional`.
 - **D24.** Libraries pin released versions directly and never import the BOM (the BOM pom says so). The pins are `kernel-identity` 0.1.0, `kernel-values` 0.1.0, `filter-core` 0.1.3 and `jena-ontapi` 6.1.0. The ontology modules are at 0.1.0.
 - **D25.** The BOM lists six ontology artifacts at 0.1.0, including `ontology-testfixtures`. The expression precedent lists `expression-testkit` in the BOM (remote `main`, verified).
-- **D26.** `schema-contract` needs `kernel-identity` only. `behaviour-contract` needs `kernel-identity` and `filter-core`. Neither needs `kernel-values`. This deviates from #12's resolution, point 3, which says both depend on `kernel-values`. The code does not.
-- **D27.** The import commit title is `feat(ontology): import the ontology from sequeless-prototype@a3a6911`. Precedents: `feat(kernel): import identity and values from sequeless-prototype (#2)` and `feat(expression): import the expression port, JEXL adapter and contract (#36)`. The merge method is open (section 11, Q6).
+- **D26. Open (section 11, Q12).** Whether `schema-contract` and `behaviour-contract` depend on `kernel-values`. #12's resolution, point 3, says both do. The body applies the default, which is no dependency. At `a3a6911` both modules import only `kernel.identity` directly (verified).
+- **D27.** The import commit title is `feat(ontology): import the ontology from sequeless-prototype@<source SHA>`. The source SHA is the prototype's `main` commit after S0 merges, which is not `a3a6911` (section 2). The title is one Conventional Commit, which survives a squash. Both precedents were squashed: kernel PR #2 (head `5196677144`) and expression PR #2 (head `1c8fba18db`), each merged as a single-parent commit (`f036c1d814`, `017b292dd6`, verified). The merge method is open (section 11, Q6).
 - **D28.** The Jena adapter declares `filter-core` 0.1.3, `jackson-databind`, `kernel-values`, `jena-ontapi`, `ontology-core`, the three contracts and `kernel-identity` directly (ADR 0001). Section 5.3 gives the reasons.
 - **D29.** The plugin-name lookup enters the Jena port as a `Supplier<Set<String>>`, not a `Set`, because `unknownPluginIssues` resolves the names on every build (section 3.1).
 
@@ -50,23 +50,25 @@ Out of scope, and the spec that takes it:
 
 - Stage 3, import. Spec 11 of 19. Waits for spec 5 (#33, done), spec 8 (#36, done) and spec 10 (#38, merged as `e53c0f1`, PR #85). `remaining-work.md` lists all three as done.
 - Unblocks spec 12 (#40). Specs 14 and 15 also wait for this spec.
-- Branch `spec-11-sequeless-ontology`, rebased on `origin/main` `f32f3c2`. The source SHA stays `a3a6911` (section 2).
-- Repos touched: `sequeless-prototype` (S0 prerequisite, S6 docs), `sequeless-ontology` (S1, S1b, S2, S3, S4), and `sequeless-build` (S5a, S5b). `sequeless-filter` and `sequeless-kernel` are consumed and not changed.
+- Branch `spec-11-sequeless-ontology`, rebased on `origin/main` `f32f3c2`.
+- Repos touched: `sequeless-prototype` (S0 prerequisite, S6 docs), `sequeless-ontology` (S1, S1b, S2, S3, S4), and `sequeless-build` (S5a, S5b). `sequeless-filter` and `sequeless-kernel` are consumed and not changed, unless Q11 option (b) makes filter-core's release level a filter-repo change.
 
 ## 2. Moves
 
 Provenance:
 
 - **Source repo:** `sequeless/sequeless-prototype`.
-- **Source SHA:** `a3a6911e0797f962630e5577cb48514bc03afc0d`. Line numbers in this section are verified at this SHA. `origin/main` is now `f32f3c2`, and PR #88 changes no moved path (verified). The import takes the SHA that is current when S2 is cut, and that SHA goes into the commit body. The last commit that changes the moved paths is `e53c0f1` (2026-11-07).
+- **Baseline SHA:** `a3a6911e0797f962630e5577cb48514bc03afc0d`. Every line number in this spec is verified at this SHA. It is not the import SHA. S0 changes moved files (P1 and its call sites), and S2 depends on S0, so the import cannot come from `a3a6911`.
+- **Source SHA of the import:** the prototype's `main` commit after S0 merges. It goes into the import's title (D27) and body. Spec 12 names the import SHA, and this spec never names it.
+- **Last commit that changed the moved paths at the baseline:** `e53c0f1` (2026-11-07). S0 adds a later one.
 - **Source paths:** relative to the prototype root. Tables below.
-- **The move:** a copy, in one import commit. Its title and body are D27 and section 3.1. The prototype is unchanged by the import. Its copies are deleted in spec 12.
+- **The move:** a copy, in one import commit. The prototype is unchanged by the import. Its copies are deleted in spec 12.
 - **Date:** `<import date>`.
 
 Known limitations:
 
 - No `git mv` and no `git log --follow`. The import is cross-repo, and #23 forbids merged history. Spec 10's rename caveats carry over: `SchemaTest` (from `MetaModelSnapshotTest`), `OntologyAdministrationTest` (from `OntologyPortTest`), and `OntologyAdministration.java` (48% similar to `OntologyPort.java`). The target has no history for any of them.
-- 23 commits touch the Jena module path at `a3a6911`. None is carried over.
+- 23 commits touch the Jena module path at the baseline. None is carried over.
 
 Table 2.1, `sequeless-spi/src/main/java/org/sequeless/spi/`, 49 files:
 
@@ -83,7 +85,7 @@ Table 2.2, Jena main code, `sequeless-adapter-ontology-jena/src/main/java/org/se
 | Source | Target | Note |
 |---|---|---|
 | `JenaOntologyPort`, `SnapshotMapper`, `ConsistencyChecker`, `ImportResolver`, `OntModelBuilder`, `TurtleExporter`, `SqVocabulary`, `SqAnnotations`, `OntologySource`, `ReasonerSetting` | ontology-jena-adapter | 10 classes move, and `package-info` is rewritten. Packages in section 4 |
-| `src/main/resources/ontology/sq-meta.ttl` | ontology-jena-adapter, same path | Moves whole (section 11, Q9). Byte-identical to the testkit copy (verified) |
+| `src/main/resources/ontology/sq-meta.ttl` | ontology-jena-adapter, same path | Moves whole under the default. S2 is blocked on the split question (section 11, Q9). `ImportResolver.SQ_META_CLASSPATH_RESOURCE` (line 30) names this path. Byte-identical to the testkit copy (verified) |
 | `JenaOntologyAutoConfiguration`, `JenaOntologyProperties`, `ShaclValidationAutoConfiguration` | stays | Spring (D18; D17 for the SHACL class) |
 | `JenaOntologyAdapterDescriptorProvider`, `ShaclValidationAdapterDescriptorProvider`, `META-INF/services/…`, `META-INF/spring/…imports` | stays | D18, D17 |
 | `ShaclValidationPort`, `ShaclDataGraphBuilder` | stays | D17 (section 11, Q1). They import `spi.validation` and `spi.object.BusinessObject` |
@@ -100,38 +102,62 @@ Table 2.3, testkit and shared test helpers to `ontology-testfixtures` (`org.sequ
 
 | Source | Target | Note |
 |---|---|---|
-| `sequeless-spi-testkit/src/main/java/org/sequeless/testkit/ontology/`: `OntologyContract`, `OntologyPorts`, `package-info` | `src/main/java`, same names | `package-info` links are rewritten (section 2.1). The prototype copy stays until spec 12 |
+| `sequeless-spi-testkit/src/main/java/org/sequeless/testkit/ontology/`: `OntologyContract`, `OntologyPorts`, `package-info` | `src/main/java`, same names | `package-info` links are rewritten (section 2.1). The prototype copy stays until spec 12. `OntologyContract` uses `org.sequeless.testkit.Fixtures` in 28 places, so it takes the subset below |
 | `sequeless-spi-testkit/src/main/resources/ontology/`: `reference.ttl`, `inconsistent.ttl`, `inverse-transitive.ttl`, `reference-plugin.ttl` | `src/main/resources/ontology/` | 4 files: the ones the moved code loads, directly or through `Fixtures`. `unknown-plugin.ttl` stays in the testkit, since no moved code loads it |
 | `org.sequeless.testkit.Fixtures` (`sequeless-spi-testkit/src/main/java/org/sequeless/testkit/Fixtures.java`), ontology subset only | `org.sequeless.ontology.testfixtures.Fixtures` | The moved code uses four loaders (`referenceOntology`, `inconsistentOntology`, `inverseTransitiveOntology`, `referencePluginOntology`), `defaultScope()` (line 160), and 25 IRI constants. `Fixtures` imports only kernel-identity and `spi.ontology` (verified). The prototype keeps the full class |
 | `InMemoryOntologyPortContractTest.java`, `FakeOntologyPort` (from line 53 to the end of the 132-line file) | `InMemoryOntologyPort` in `src/main/java` | 80 lines extracted. The runner stays in `src/test`. The fake implements the four ports, so it moves with the contract |
-| `InMemoryObjectStorePort.java` (testkit test sources), `InMemoryOntologyDocumentStore` (lines 222 to 249) | `InMemoryOntologyDocumentStore` in `src/main/java` (D19) | 28 lines copied. The prototype keeps its private copy |
-| `ObjectStoreContract.java`: `ontologyDocumentsRejectsNullArguments` (line 184) and `ontologyDocumentActiveIsEmptyInitiallyThenTracksVersions` (line 403) | `OntologyDocumentStoreContract` in `src/main/java` (D19) | Copied, not moved. The prototype keeps both clauses until spec 12 |
+| `InMemoryObjectStorePort.java` (testkit test sources), `InMemoryOntologyDocumentStore` (lines 216 to 249, class javadoc included) | `InMemoryOntologyDocumentStore` in `src/main/java` (D19) | 34 lines copied. The prototype keeps its private copy |
+| `ObjectStoreContract.java`: `ontologyDocumentsRejectsNullArguments` (line 184) and `ontologyDocumentActiveIsEmptyInitiallyThenTracksVersions` (line 403) | `OntologyDocumentStoreContract` in `src/main/java` (D19) | **Adapted, not copied as is.** The clauses call `freshStore()`, so the copy takes a `freshDocuments()` factory and keeps the assertions. The prototype keeps both clauses until spec 12 |
 
-### 2.1 Javadoc rewrites (main code)
+### 2.1 Javadoc rewrites (main code, and the test javadoc that names prototype types)
 
-Every `{@link}` to a type that stays in the prototype becomes `{@code}`, and every `{@code}` that names a moved type's old package is rewritten. Checked on the moved main files at `a3a6911`. Test code is not built by javadoc.
+Checked on the moved main files at the baseline, by a sweep of every `{@link}`, `{@code org.sequeless…}` and `@throws` line, and every import of a type that stays in the prototype.
 
-| File (moved) | Lines | Reference | Action |
+Two kinds of reference exist, and they need different handling:
+
+- **Fully qualified references to types that move.** These are rewritten by the package rename (section 4). The rename rewrites them in `{@link}`, `{@code}` and `@throws`, not only in imports. Examples: `TurtleExporter.java` lines 22 and 37, `JenaOntologyPort.java` line 231 (`@throws`), and the four `spi` `package-info` files (behaviour, schema, automation, ontology).
+- **References to types that stay in the prototype.** These are changed by hand. An import is not enough. A `{@link}` to a type that stays becomes `{@code}` or plain text.
+
+Rows for the second kind, plus the handled items for the first kind:
+
+| File (moved unless noted) | Lines | Reference | Action |
 |---|---|---|---|
-| `spi/meta/behaviour/PluginRule.java` | 5, 7, 12 | `{@link …spi.derivation.DerivationPlugin}` | `{@code}` |
-| `spi/meta/behaviour/RollupRule.java` | 13, 21, 34, 35 | `{@link AggregateRequest}`, `{@link Criterion}` (twice), `{@link Query#criteria()}` | `{@code}`. The text now describes `FilterNode` |
-| `spi/meta/behaviour/StateMachineDefinition.java` | 11 | `{@link …spi.object.BusinessObject#state()}` | `{@code}` |
-| `spi/meta/behaviour/package-info.java` | 9, 21 | `{@link Criterion}`, `{@link DerivationPlugin}` | `{@code}`. Text rewritten for `FilterNode` |
-| `spi/meta/schema/AggregateFunction.java` | 6, 18, 25, 33, 40, 47 | `{@link AggregateRequest}`, `{@link AggregateResult}` | `{@code}` |
-| `spi/meta/schema/package-info.java` | 15 | `{@link AggregateRequest}` | `{@code}` |
-| `spi/meta/automation/Action.java` | 4, 7 | `{@link …behaviour.Transition}`, `{@link …behaviour.DerivationRule}` (D20: no behaviour dependency) | `{@code}` |
-| `spi/meta/automation/SetPropertyAction.java` | 14 | `{@link …behaviour.RollupRule}` | `{@code}` |
-| `spi/meta/automation/package-info.java` | 4–5, 20 | Text names "sibling types in `meta.behaviour`"; `{@link …behaviour.Transition}` | Text rewritten (automation imports only schema and kernel); `{@code}` |
-| `spi/meta/automation/Automation.java` | 15 | `{@code …behaviour.StateMachineDefinition.transitions()}` | Reworded to "the transition order of the state machine" |
+| `spi/meta/behaviour/PluginRule.java` | 5, 7, 12 | `{@link org.sequeless.spi.derivation.DerivationPlugin}` (stays) | `{@code}` |
+| `spi/meta/behaviour/RollupRule.java` | 13, 21, 34, 35 | `{@link …spi.query.AggregateRequest}`, `{@link Criterion}` (21, 34), `{@link …spi.query.Query#criteria()}` (stay) | `{@code}`. The text describes `FilterNode` (Option A) |
+| `spi/meta/behaviour/StateMachineDefinition.java` | 11 | `{@link org.sequeless.spi.object.BusinessObject#state()}` (stays) | `{@code}` |
+| `spi/meta/behaviour/package-info.java` | 9, 21 | `{@link …spi.query.Criterion}` (9), `{@link …spi.derivation.DerivationPlugin}` (21) | `{@code}`. Text rewritten for `FilterNode` |
+| `spi/meta/schema/AggregateFunction.java` | 6, 18, 25, 33, 40, 47 | `{@link …spi.query.AggregateRequest}`, `{@link …spi.query.AggregateResult}` (stay) | `{@code}` |
+| `spi/meta/schema/AggregateFunction.java` | 4, 7, 9, 11, 19, 24, 32, 39, 46 | `{@code org.sequeless.spi.meta.behaviour.RollupRule…}` (text; schema-contract does not depend on behaviour-contract) | Reworded to plain text |
+| `spi/meta/schema/package-info.java` | 15 | `{@link …spi.query.AggregateRequest}` (stays) | `{@code}`. Lines 19–20 name behaviour and automation as text, which is fine |
+| `spi/meta/automation/Action.java` | 4, 7 | `{@link …meta.behaviour.Transition}`, `{@link …meta.behaviour.DerivationRule}` (D20: no behaviour dependency) | `{@code}` |
+| `spi/meta/automation/SetPropertyAction.java` | 14 | `{@link …meta.behaviour.RollupRule}` | `{@code}` |
+| `spi/meta/automation/package-info.java` | 5–6 | Text: "sibling types in `meta.schema` and `meta.behaviour`" | Reworded: automation imports only schema and kernel |
+| `spi/meta/automation/package-info.java` | 20 | `{@code org.sequeless.spi.meta.behaviour.Transition}` (a `{@code}`, not a link) | Reworded to plain text. No build effect |
+| `spi/meta/automation/package-info.java` | 7–16 | Links to automation types | Rename only |
+| `spi/meta/automation/Automation.java` | 15 | `{@code …meta.behaviour.StateMachineDefinition.transitions()}` (text) | Reworded to "the transition order of the state machine" |
 | `SchemaSource.java`, `BehaviourSource.java`, `AutomationSource.java` | 14 | `{@code org.sequeless.spi.ontology.OntologyException}` | `{@code org.sequeless.ontology.api.OntologyException}` |
-| `spi/ontology/OntologyException.java` | 11 | `{@code org.sequeless.core.AuthorizationException}` | Text only: name the core exception without its package |
-| `spi/object/OntologyDocumentStore.java` | 8, 13 | `{@link ObjectStorePort#ontologyDocuments()}` (a link); `{@code …ObjectStoreContract}` | `{@code}` for the link; the contract is `OntologyDocumentStoreContract` |
-| Jena `JenaOntologyPort.java` | 143, 485 | `{@link …spi.derivation.DerivationPlugin}`, `{@link DerivationPlugin}` | `{@code}`. P1 removes the import |
-| Jena `JenaOntologyPort.java` | 358 | `{@link ShaclValidationPort}` | `{@code}`. SHACL stays |
-| Jena `SnapshotMapper.java` | 590, 914 | `{@code …spi.query.Operator}`, `{@code …core.validation.ValueCoercer}` | Text only: name the prototype's enum and coercer without packages |
-| testkit `ontology/package-info.java` | 2–5, 7, 9–10 | Links to `spi.ontology.*`, `spi.meta.*`, `testkit.ontology.*` | Targets follow the new packages (section 4) |
+| `spi/ontology/OntologyException.java` | 11 | `{@code org.sequeless.core.AuthorizationException}` (text) | Reworded to plain text |
+| `spi/ontology/OntologyException.java` | 19–20 | `{@link org.sequeless.spi.authz.AccessDecision}` (stays in the prototype; the link breaks) | `{@code}` |
+| `spi/ontology/package-info.java` | 6 | Text: "Like every package beneath `{@code org.sequeless.spi}`" | Reworded. Its FQ links to moved types are rename-only |
+| `spi/meta/schema/Datatype.java` | 10–11 | `{@link org.sequeless.spi.ontology.Severity#WARNING}` (`Severity` moves to ontology-core, and schema-contract does not depend on ontology-core, D26) | `{@code}` |
+| `spi/object/OntologyDocumentStore.java` | 8 | `{@link ObjectStorePort#ontologyDocuments()}` (stays) | `{@code}` |
+| `spi/object/OntologyDocumentStore.java` | 13 | `{@code sequeless-spi-testkit}`'s `{@code ObjectStoreContract}` | Names `OntologyDocumentStoreContract` in the new home |
+| Jena `JenaOntologyPort.java` | 143, 485 | `{@link …spi.derivation.DerivationPlugin}`, `{@link DerivationPlugin}`. The code has three uses, all removed by P1 | `{@code}` |
+| Jena `JenaOntologyPort.java` | 51, 52 | `{@link #fromDocument(OntologyDocument, ReasonerSetting)}`, `{@link #fromSource(String, String, ReasonerSetting)}`. Both signatures change in P1 | S0 updates the parameter lists to the P1 signatures |
+| Jena `JenaOntologyPort.java` | 358 | `{@link ShaclValidationPort}` (stays) | `{@code}` |
+| Jena `JenaOntologyPort.java` | 231 | `@throws org.sequeless.spi.ontology.OntologyException` (moves) | Rename only |
+| Jena `TurtleExporter.java` | 22, 37 | `{@link org.sequeless.spi.ontology.OntologyAdministration#importDocument}`, `{@link org.sequeless.spi.meta.schema.Schema}` (both move) | Rename only |
+| Jena `SnapshotMapper.java` | 590, 914 | `{@code org.sequeless.spi.query.Operator}`, `{@code org.sequeless.core.validation.ValueCoercer}` (text) | Reworded to plain text |
+| Jena `SnapshotMapper.java` | 742, 1578 and code | `{@link Criterion}` (javadoc). Code: `Operator` (14 uses) and `Criterion` (7 uses) | The Option A mapping (section 3.2) replaces both imports. The mapper imports no `spi.query` type |
+| Jena `JenaOntologyProperties.java` (stays) | 10–11, 45 | `{@link JenaOntologyPort#fromSource(String, String, ReasonerSetting)}`. The parameter list is stale after P1 | S0 updates the parameter list |
+| Jena `JenaOntologyAutoConfiguration.java` (stays) | 39 | `{@link JenaOntologyPort#fromStore}` (no parameter list) | Resolves after P1. No change |
+| Jena tests, `JenaOntologyPortAcceptanceTest.java` | 313–314 | `META-INF/services/org.sequeless.spi.derivation.DerivationPlugin}`, a services path that the target does not have | Reworded: "the testkit's services registration". Test javadoc, not built |
+| Jena tests, `UnknownPluginActivationTest.java` | 21–22 | `{@link org.sequeless.spi.derivation.DerivationPlugin}` (stays) | `{@code}`. Test javadoc, not built |
+| testkit `ontology/package-info.java` | 2–5, 7, 9–10 | Links to `spi.ontology.*`, `spi.meta.*` and `testkit.ontology.*` | Rename only. Targets follow the new packages (section 4) |
 
-Imports change with the package move, and javadoc `{@link}` resolves through imports. The rows above are the links that stop resolving. `ShaclValidationPort.java` (which stays) links to `JenaOntologyPort#currentModel` (section 3.3, section 11, Q1).
+The four `spi` `package-info` files named above are the behaviour, schema, automation and ontology ones. Their links to moved types are rename-only. The rows that change text are the ones listed.
+
+The test javadoc rows are not built by javadoc, but a reference to a missing type is still wrong, so they are listed. Build gate for the main code: section 9, S2.
 
 ## 3. Prerequisite refactors
 
@@ -144,19 +170,19 @@ Both changes are seams. They keep behaviour, so the import stays a move.
   - `static JenaOntologyPort fromSource(String propertyName, String location, ReasonerSetting reasoner, Supplier<Set<String>> registeredPluginNames)`
   - `static JenaOntologyPort fromStore(OntologyDocumentStore documents, Scope scope, String sourcePropertyName, String source, ReasonerSetting reasoner, Supplier<Set<String>> registeredPluginNames)`
 
-  The constructor takes the supplier too. No overloads are kept. The Spring glue passes `JenaOntologyAutoConfiguration.registeredDerivationPlugins()`, a new static method that holds the `ServiceLoader` call now at lines 62, 69 and 70.
+  The constructor takes the supplier too. No overloads are kept. The Spring glue passes `JenaOntologyAutoConfiguration.registeredDerivationPlugins()`, a new static method that holds the `ServiceLoader` call. The glue's factory calls are at lines 61 (`fromSource`) and 65 (`fromStore`). It reads `properties.getSource()` and `properties.getReasoner()` at lines 62, 69 and 70.
 
-  Call sites: 49 lines in 8 files (verified). These are 45 test call sites in the moved tests, and 4 in staying files (`JenaOntologyAutoConfiguration` 2, `ShaclDataGraphBuilderTest` 1, `ShaclValidationPortContractTest` 1). All 49 gain the argument. The test classpath registers exactly one plugin, `WorkloadDerivationPlugin`, whose name is `"workload"`. It is the only `DerivationPlugin` in `sequeless-spi-testkit` and in the Jena test tree (verified). So the tests pass `() -> Set.of("workload")`. `UnknownPluginActivationTest` and the reference-plugin test in `JenaOntologyPortAcceptanceTest` (near line 320) keep their assertions.
+  Call sites: 49 lines in 8 files (verified). These are 45 test call sites in the moved tests, and 4 in staying files (`JenaOntologyAutoConfiguration` 2, `ShaclDataGraphBuilderTest` 1, `ShaclValidationPortContractTest` 1). All 49 gain the argument. The test classpath registers exactly one plugin, `WorkloadDerivationPlugin`, whose name is `"workload"`. It is the only `DerivationPlugin` in `sequeless-spi-testkit` and in the Jena test tree (verified). So the tests pass `() -> Set.of("workload")`. The assertions do not change, including those in `UnknownPluginActivationTest` and the reference-plugin test in `JenaOntologyPortAcceptanceTest` (near line 320).
 
-- **P2. Plain settings.** `JenaOntologyAutoConfiguration` reads `properties.getReasoner()` and `properties.getSource()` (lines 62 to 70). Add a plain record, `JenaOntologySettings(ReasonerSetting reasoner, String source)`, in the Jena module, and map `JenaOntologyProperties` into it. No factory takes the record in spec 11. The glue unpacks it into the reasoner and source parameters that already exist. A settings-taking factory serves a non-Spring host, and none exists yet (ADR 0004: "plain constructors and a settings record").
+- **P2. Plain settings.** Add a plain record, `JenaOntologySettings(ReasonerSetting reasoner, String source)`, in the Jena module, and map `JenaOntologyProperties` into it. No factory takes the record in spec 11. The glue unpacks it into the reasoner and source parameters that already exist. A settings-taking factory serves a non-Spring host, and none exists yet (ADR 0004: "plain constructors and a settings record").
 
-S0 gate: `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. The 49 call sites are updated and no assertion changes. The prototype's CI stays green.
+S0 gate: `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. The 49 call sites are updated, the javadoc links in section 2.1 that name the changed signatures are updated, and no assertion changes. The prototype's CI stays green.
 
 ### 3.2 Option A: `RollupRule.criteria` (in the import, target only)
 
-**Shape (D23, open section 11 Q3).** The body applies `Optional<FilterNode> criteria`. Empty means no clause. One criterion becomes its `FieldFilter`. Two or more become an `AndFilter` in their order, which is the AND the prototype's javadoc describes. The alternative is `FilterNode criteria` with `AndFilter(List.of())` for none. That is one type, but every consumer must know that an empty AND matches everything, and how filter-sql translates it is **unverified**.
+**Shape (D23, open section 11, Q3).** The body applies `Optional<FilterNode> criteria`. Empty means no clause. One criterion becomes its `FieldFilter`. Two or more become an `AndFilter` in their order, which is the AND the prototype's javadoc describes. The alternative is `FilterNode criteria` with `AndFilter(List.of())` for none. That is one type, but every consumer must know that an empty AND matches everything, and how filter-sql translates it is **unverified**.
 
-**Operators.** The source is the top-level `org.sequeless.spi.query.Operator`, eleven constants, mapped from `sq:operator` local names in `SnapshotMapper` (lines 597 to 608). The canonical names come from filter-core's `BuiltinOperatorContributor` (remote `main`, lines 14 to 30). Value shapes come from `OperatorDefinition.getValueShape()`: unary gives NONE, list-valued gives LIST, and every other operator gives SCALAR.
+**Operators.** The source is the top-level `org.sequeless.spi.query.Operator`, eleven constants, mapped from `sq:operator` local names in `SnapshotMapper` (lines 597 to 608). The mapper stops importing that enum (section 2.1). Canonical names come from filter-core's `BuiltinOperatorContributor` (remote `main`, lines 14 to 30). Value shapes come from `OperatorDefinition.getValueShape()`: unary gives NONE, list-valued gives LIST, and every other operator gives SCALAR.
 
 | `Operator` (`sq:operator`) | `FieldFilter.op` | Value shape | Applicable JSON types (filter-core) |
 |---|---|---|---|
@@ -173,7 +199,7 @@ Rules, each checked against the code:
 
 - **Null is `NullNode.instance`, never Java `null`.** `FilterValidator.checkValueShape` (SCALAR) rejects a Java `null` with "requires a value". A `NullNode` passes.
 - **`is in` wraps the value.** `SnapshotMapper.criterionOf` reads one `sq:value` literal (`valueStmt.getString()`), so an `IN` criterion always carries one scalar. The mapper wraps it in a one-element array. `checkValueShape` (LIST) rejects a scalar with "expects a list value".
-- **Canonical names only.** Do not use the aliases `is null` or `is not null`. `is not null` is registered as an alias of `is` and renders `IS NULL` (spec 06 section 3.3; sequeless-filter #25, open).
+- **Canonical names only.** Do not use the aliases `is null` or `is not null`. `is not null` is registered as an alias of `is` and renders `IS NULL` (spec 06 section 3.3; sequeless-filter #25, an open issue).
 - **Comparisons and LIKE are type-restricted.** `FilterValidator.validateField` (lines 56 to 61) rejects an operator whose applicable types do not contain the field's JSON Schema type. Comparisons apply to number and integer only, and `contains` and `starts with` to string only. So a comparison on a date or date-time property fails validation unless the registry types the field as a number. The prototype accepts such a comparison today. Its `Operator` javadoc says the comparisons "typically apply to numeric, date, and date-time properties". Section 11, Q4, decides this.
 - **NULL and LIKE semantics** are filter-sql's (spec 06 section 3.3). `is not` includes NULL rows (`IS DISTINCT FROM`). The prototype's `PostgresQueryStore` already renders `NE` that way, and `CONTAINS` and `STARTS_WITH` with `ILIKE` (lines 457 to 495, verified). Whether its wildcard escaping matches filter's is **unverified**.
 
@@ -209,6 +235,8 @@ The mapper writes these rules, and the tests pin them. filter-core does not defi
 
 D21 and D22 cover the contract modules and `ontology-core`. The Jena layout is open (section 11, Q2).
 
+The rename rewrites every reference to a moved type. That means imports, `{@link}`, `{@code}` and `@throws`, fully qualified or not (section 2.1).
+
 | From | To | Note |
 |---|---|---|
 | `org.sequeless.spi.meta.schema` | `org.sequeless.ontology.schema.api`; `SchemaSource` in `org.sequeless.ontology.schema.spi` | ADR 0001 api/spi split. `SchemaSource` is a driven port |
@@ -235,9 +263,9 @@ Notes:
 |---|---|---|---|
 | (root) | `sequeless-ontology` | aggregator. Keeps the Spring ban and the Enforcer rules | none |
 | `ontology-core` | `ontology-core` | 0.1.0 | `kernel-identity` 0.1.0 |
-| `schema-contract` | `schema-contract` | 0.1.0 | `kernel-identity` 0.1.0 |
-| `behaviour-contract` | `behaviour-contract` | 0.1.0 | `schema-contract`, `kernel-identity`, `filter-core` 0.1.3 |
-| `automation-contract` | `automation-contract` | 0.1.0 | `schema-contract`, `kernel-identity`, `kernel-values` 0.1.0 |
+| `schema-contract` | `schema-contract` | 0.1.0 | `kernel-identity` 0.1.0 (kernel-values: Q12) |
+| `behaviour-contract` | `behaviour-contract` | 0.1.0 | `schema-contract`, `kernel-identity`, `filter-core` 0.1.3 (kernel-values: Q12) |
+| `automation-contract` | `automation-contract` | 0.1.0 | `schema-contract`, `kernel-identity`, `kernel-values` 0.1.0 (behaviour-contract: Q10) |
 | `ontology-jena-adapter` | `ontology-jena-adapter` | 0.1.0 | section 5.3 (D28) |
 | `ontology-testfixtures` | `ontology-testfixtures` | 0.1.0 | `ontology-core`, the three contracts, `kernel-identity`. JUnit and AssertJ at compile scope, as in ADR 0002's pattern |
 | `ontology-facet-core`, `ontology-facet-core-testfixtures` | frozen, not released | unchanged | nothing new |
@@ -249,7 +277,7 @@ The Jena module also has `ontology-testfixtures` at test scope, for `JenaOntolog
 The BOM (remote `main`, 0.1.2) lists `kernel-identity` 0.1.0, `kernel-values` 0.1.0, `filter-core` 0.1.3, `filter-sql-adapter` 0.1.4, the filter testkit and postgres adapter, and the four expression artifacts at 0.1.1. Its pom says libraries do not import it (D24).
 
 - **`kernel-identity`:** `ontology-core`, the three contracts, `ontology-jena-adapter`, and `ontology-testfixtures` (directly or through a contract). `facet-core` has none (verified).
-- **`kernel-values`:** `automation-contract` (`SetPropertyAction`, `PropertyAssignment`) and `ontology-jena-adapter`. The Jena adapter needs it whatever happens to D16. `SnapshotMapper` builds `Value` for criterion values (lines 812 to 929) and for `sq:SetProperty` through `resolveValueForProperty` (line 1537). Not `schema-contract`, and not `behaviour-contract` (D26).
+- **`kernel-values`:** `automation-contract` (`SetPropertyAction`, `PropertyAssignment`) and `ontology-jena-adapter`. The Jena adapter needs it whatever happens to D16. `SnapshotMapper` builds `Value` for criterion values (lines 812 to 929) and for `sq:SetProperty` through `resolveValueForProperty` (line 1537). Schema and behaviour: see Q12 (D26).
 - **`expression-api`:** none. No file under `spi/meta`, `spi/ontology` or the Jena module imports `org.sequeless.expression` (verified).
 - **`filter-core`:** `behaviour-contract` (`FilterNode`, `FieldFilter`, `AndFilter`), and `ontology-jena-adapter`, which builds these nodes directly (D28). Through `behaviour-contract`, also `ontology-testfixtures`. Not `schema-contract`, and not `ontology-core`.
 
@@ -257,17 +285,20 @@ The BOM (remote `main`, 0.1.2) lists `kernel-identity` 0.1.0, `kernel-values` 0.
 
 The Jena adapter declares in its own POM: `ontology-core`, `schema-contract`, `behaviour-contract`, `automation-contract`, `kernel-identity` 0.1.0, `kernel-values` 0.1.0, `filter-core` 0.1.3, `jackson-databind` (version from the root POM, 2.18.3, verified), and `jena-ontapi` 6.1.0. Its tests add `ontology-testfixtures` at test scope. `jena-shacl` is not a dependency, because SHACL stays (D17). ADR 0001 says each module redeclares what it uses.
 
-Weight: `filter-core` brings `jackson-databind` 2.18.3 (the root pins the same version, verified), `jackson-annotations` and `antlr4-runtime` 4.13.2 (filter-core's pom, verified). The root POM enables `dependencyConvergence` (verified). Whether Jena's transitive versions converge with these is **unverified**.
+Weight: `filter-core` brings `jackson-databind` 2.18.3 (the root pins the same version, verified), `jackson-annotations` and `antlr4-runtime` 4.13.2 (filter-core's pom, verified). The root POM enables `dependencyConvergence` (verified). Whether Jena's transitive versions converge with these is **unverified**. Java level: section 7 and Q11.
 
 ### 5.4 ArchUnit rules (ADR 0001 needs one `BoundaryRulesTest` per module)
 
 - `ontology-core`: drop `allowEmptyShould(true)` from `api_and_spi_types_are_public`. Its TODO says to do so once real types land, and this import is that point.
-- Owl rules. `owl_adapter_does_not_reach_ontology_core_internals` forbids `..spi..`, but the adapter must use `OntologyDocumentStore` from ontology-core's spi. Replace it with `ontology_jena_adapter_does_not_reach_ontology_core_internals`, whose allowed set is ontology-core's `api` and `spi` and the three contract packages. Rename `ontology_core_does_not_depend_on_owl_adapter` for the Jena package. This reverses ADR 0001's consequence that the adapter "never reaches" ontology-core's internal and spi packages. ADR 0004 covers the reversal: it puts the `OntologyDocumentStore` spi in ontology-core, and it makes the adapter an implementer of the contract ports.
+- The Jena module's owl rules, from the migration branch (`BoundaryRulesTest`, lines 20 to 52):
+  - `api_and_spi_types_are_public` (lines 20 to 32, with its `allowEmptyShould` and its TODO on `owl.api`/`owl.spi`). Under the Q2 default there is no api or spi package in the Jena module, so this rule is **dropped** for the Jena module. Under Q2 option (b), it is **rewritten** for `org.sequeless.ontology.jena.api`.
+  - `owl_adapter_does_not_reach_ontology_core_internals` (lines 34 to 41) forbids `..spi..`, but the adapter must use `OntologyDocumentStore` from ontology-core's spi. Replace it with `ontology_jena_adapter_does_not_reach_ontology_core_internals`, whose allowed set is ontology-core's `api` and `spi` and the three contract packages. This reverses ADR 0001's consequence that the adapter "never reaches" ontology-core's internal and spi packages. ADR 0004 covers the reversal: it puts the `OntologyDocumentStore` spi in ontology-core, and it makes the adapter an implementer of the contract ports.
+  - `ontology_core_does_not_depend_on_owl_adapter` (lines 43 to 52) is renamed for the Jena package.
 - `schema-contract` ports the prototype rule `schemaDependsOnlyOnJdkKernelAndItself` (`sequeless-app/src/test/java/org/sequeless/app/ArchitectureTest.java`, line 208).
 - `behaviour-contract` ports `behaviourDependsOnlyOnSchema` (line 219), with `org.sequeless.filter.api..` in place of `org.sequeless.spi.query..`.
 - `automation-contract` ports `automationDependsOnlyOnBehaviourAndSchema` (line 233), without the behaviour package (D20).
 - Each contract's api and spi types are public.
-- The root's `ban-spring`, `dependencyConvergence` and `requireJavaVersion [21,)` stay.
+- The root's `ban-spring`, `dependencyConvergence` and `requireJavaVersion [21,)` stay, unless Q11 option (a) raises the floor.
 
 ## 6. Release config (first version, tags, BOM change)
 
@@ -280,7 +311,7 @@ Weight: `filter-core` brings `jackson-databind` 2.18.3 (the root pins the same v
 
 ### 6.2 The migration branch (S1), as it stands
 
-The branch `chore/release-please-migration` in `sequeless-ontology` has three commits on top of `ace5313` (verified). It is not merged.
+The branch `chore/release-please-migration` in `sequeless-ontology` has three commits on top of `ace5313` (verified). It is open as PR sequeless-ontology#3 (verified), with head `chore/release-please-migration`, titled "chore: migrate release to release-please and rename ontology-jena-adapter". It is not merged.
 
 - `2d6250a` (migration). Deletes `.releaserc.json`. Adds `release-please-config.json` with `release-type: maven`, `include-component-in-tag`, `tag-separator: "-"`, `bootstrap-sha: ace5313` (so pre-migration `feat` commits open no 0.1.0 release), the `maven-workspace` plugin with `considerAllArtifacts: false`, and two `packages`, each with `initial-version: 0.1.0` and `skip-snapshot`. The manifest is `{}`. That is the kernel approach, not the filter approach. `release.yml` calls `sequeless-build`'s `maven-release.yml` at `workflows-v0.1.2` with `java-version` 21. The root POM gets a GitHub Packages `distributionManagement`. The facet POMs set `maven.deploy.skip`. The Makefile's release dry run is removed, and the semantic-release wording in README and CONTRIBUTING is updated.
 - `0e6d8ec` (rename). `ontology-owl-adapter` becomes `ontology-jena-adapter` in the directory, artifactId, name, reactor entry, release package, `sonar-project.properties` and README. Java packages are unchanged.
@@ -299,7 +330,7 @@ What S2 must add to S1's config and POMs:
 - The change (D25): the BOM lists six ontology artifacts at 0.1.0: `schema-contract`, `behaviour-contract`, `automation-contract`, `ontology-core`, `ontology-jena-adapter` and `ontology-testfixtures`.
 - Commit title: `fix(bom): list the ontology modules at 0.1.0`. Precedents: `fix(bom): list filter-sql-adapter 0.1.4, …` (`b4027f8`) and `fix(bom): list the expression modules at 0.1.1` (`1e5c73d`). The remote release config has `bump-minor-pre-major: true` (verified), so a `feat` would release 0.2.0. The change is therefore a `fix`, and the release is `sequeless-bom` 0.1.3.
 - Only released versions go in (`BomListsOnlyReleasesTest`).
-- Then `bom-contracts` gets the ontology contract: `OntologyBomContractTest extends OntologyContract`, with `JenaOntologyPort` as the port. It has the same shape as `ExpressionBomContractTest` (remote `main`, verified). Its import moves from 0.1.2 to 0.1.3 in the same PR, because `remaining-work.md` says the import is bumped on each BOM release. The BOM release comes first, since the import needs it.
+- Then `bom-contracts` gets the ontology contract: `OntologyBomContractTest extends OntologyContract`, with `JenaOntologyPort` as the port. It has the same shape as `ExpressionBomContractTest` (remote `main`, verified). Its import moves from 0.1.2 to 0.1.3 in the same PR, because `remaining-work.md` says the import is bumped on each BOM release. The BOM release comes first, since the import needs it. Its Java level is re-checked under Q11 (section 7).
 
 ### 6.4 Release steps that belong to spec 11
 
@@ -313,19 +344,30 @@ The DoD says "the release and the BOM re-release are done". In order:
 
 Not part of spec 11: the prototype's use of the new artifacts (spec 12).
 
-## 7. CI and workflows
+## 7. CI, workflows and Java level
 
-**Today (verified at `ace5313`, the head of `main`).** `ci.yml` runs `./mvnw -B verify` on JDK 21. Its job "Build (verify + gates)" succeeds. Its SonarCloud job fails, because `sonar.organization` is not set. `release.yml` runs the old semantic-release job, which fails. The migration branch replaces `release.yml` (section 6.2), not `ci.yml`.
+**Today (verified at `ace5313`, the head of `main`).** `ci.yml` runs `./mvnw -B verify` on JDK 21. Its job "Build (verify + gates)" succeeds. Its SonarCloud job fails, because `sonar.organization` is not set. `release.yml` runs the old semantic-release job, which fails. The migration branch replaces `release.yml` (section 6.2), not `ci.yml`. The branch's `ci.yml` pins Java `"21"` at lines 25 and 42.
+
+**Java level (open, Q11).** The ontology is built at release 21, and filter-core 0.1.3 is not. Evidence:
+
+- The filter-core tag `filter-core-v0.1.3` sets `maven.compiler.release` to 25 at pom line 22 (verified).
+- The local Maven copy of `filter-core-0.1.3.jar` contains `FilterNode.class` at class-file major version 69, which is Java 25. `kernel-values-0.1.0.jar` contains `IntegerValue.class` at major 65, which is Java 21 (verified).
+- A stub that imports `org.sequeless.filter.api.FilterNode`, compiled with `javac --release 21` (JDK 21.0.13) against that jar, fails with "class file has wrong version 69.0, should be 65.0". The stub was run in a scratch directory and deleted. A `--release 25` check cannot run on this JDK.
+- The ontology's level is 21 on the migration branch: root `maven.compiler.release` 21 (line 43), enforcer `requireJavaVersion [21,)` (lines 299 to 301), and `release.yml`'s `java-version` "21" (line 16). Its `ci.yml` pins 21 (lines 25 and 42).
+- `bom-contracts` compiles at 21 (`maven.compiler.release` 21, pom line 28, remote `main`). Its enforcer requires `[25,)`, so its tests run on JDK 25 (verified).
+- Spec 5 says libraries compile at release 21 (`spec-05-sequeless-kernel.md`, line 71, citing #17 section 1). The tracker records the Java 25 floor on `sequeless-filter` as consumer-facing, to be recorded in an ADR in that repo (`remaining-work.md`, line 83).
+
+So a consumer that compiles at 21 cannot read filter-core 0.1.3 at all. Every ontology module that imports `FilterNode` (behaviour-contract, and the Jena adapter, D28) inherits the problem. The fix is Q11 and is not chosen here.
 
 **S1b (CI and parent PR, `sequeless-ontology`).** Three items, all before S2, because S2 adds dependencies that GitHub Packages must resolve:
 
-1. Move `ci.yml` to `sequeless/sequeless-build/.github/workflows/maven-ci.yml` at the `workflows-v0.1.2` commit, as `sequeless-filter` does. Its `ci.yml` pins `maven-ci.yml` at `63bad368`, tagged `workflows-v0.1.2` (remote `main`, verified). Add `packages: read` for GitHub Packages resolution.
-2. Adopt the sequeless-build parent. #23 comment 1, point 4 decides this: "The migration adopts the sequeless-build parent and workflows". The ontology root POM has no `<parent>` and no `<repositories>` today (verified). So kernel, filter and expression resolution from GitHub Packages has no parent to inherit repository settings from. Whether anonymous read works for those packages is **unverified**. The parent version for ontology is **unverified**. Filter uses 0.1.3 (its `remaining-work.md` entry).
+1. Move `ci.yml` to `sequeless/sequeless-build/.github/workflows/maven-ci.yml` at the `workflows-v0.1.2` commit, as `sequeless-filter` does. Its `ci.yml` pins `maven-ci.yml` at `63bad368`, tagged `workflows-v0.1.2` (remote `main`, verified). Add `packages: read` for GitHub Packages resolution. The reusable workflow's `java-version` input defaults to `'25'` (verified at that SHA). S1b sets the input explicitly to the level Q11 chooses: 21 under option (b), 25 under option (a). Today the branch's `ci.yml` pins `"21"`.
+2. Adopt the sequeless-build parent. #23 comment 1, point 4 decides this: "The migration adopts the sequeless-build parent and workflows". Placement: **each module** takes the parent, and the root stays a parent-less aggregator. This follows `sequeless-filter` (`remaining-work.md`, line 45: "the root pom is a parent-less aggregator and each module takes `sequeless-build-parent` 0.1.3"). The ontology root carries the Spring ban and the Enforcer rules today (verified). How filter keeps its own enforcer rules is **unverified**, so S1b copies that wiring from filter and does not invent it. The ontology root POM has no `<repositories>` (verified). So kernel, filter and expression resolution from GitHub Packages has no inherited repository settings. Whether anonymous read works for those packages is **unverified**. The parent version for ontology is 0.1.3, which is filter's pin.
 3. The SonarCloud job: fix or drop. Section 11, Q8. Default: drop, as sequeless-filter did (`remaining-work.md`, the filter migration decisions).
 
 **Formatting.** The prototype's formatter comes from its parent. The parent at tag `sequeless-build-parent-v0.1.2` pins `palantir-java-format` 2.102.0 (verified). The ontology root pins 2.50.0 (verified at `ace5313`, line 43). Expect a formatting commit in S2. **Unverified:** how many moved files it changes.
 
-**JDK.** The prototype builds on 25 (`maven.compiler.release` 25, verified). The ontology builds on 21 (its CI, verified). The moved code must compile at `release 21`. **Unverified.** It is a gate in S2.
+**Javadoc.** The release workflow runs `-Prelease` (`maven-release.yml`, lines 59 and 66, at `workflows-v0.1.2`). The migration branch's root POM has no `<profile>` (verified), so `-Prelease` does nothing in the target. Spec 8's 0.1.0 deploy failed on a javadoc error (`remaining-work.md`, line 25). The S2 gate therefore runs javadoc explicitly (section 9). Whether S1b adds a `release` profile that binds javadoc is open with Q11's S1b work. The `javadoc:javadoc` goal is run without a plugin declaration, so its version comes from Maven's defaults, which is **unverified**.
 
 **Local gate for the target:** `./mvnw -B verify`. It runs the spotless check (bound to `verify`), the Enforcer rules, the ArchUnit tests, surefire and failsafe. JaCoCo's check is off by default (verified in the root POM).
 
@@ -333,7 +375,7 @@ Definition of done, quoted from #39, with this spec's reading:
 
 - "The new repo's CI is green." No new repo. Read as: `sequeless-ontology`'s CI on `main` is green after S1, S1b, S2, S3 and each release.
 - "The prototype's CI is green against *released* artifacts (never a SNAPSHOT on `main`)." Spec 11 changes no prototype dependency. The root POM keeps `sequeless-bom` 0.1.2 (line 64, verified). The S6 docs PR's CI is the proof.
-- "The BOM's CI, which runs every testkit contract, is green." Before S5b, `bom-contracts` runs `BomListsOnlyReleasesTest` and the expression contract (remote `main`, verified). S5b adds the ontology contract.
+- "The BOM's CI, which runs every testkit contract, is green." Before S5b, `bom-contracts` runs `BomListsOnlyReleasesTest` and the expression contract (remote `main`, verified). S5b adds the ontology contract, at the Java level Q11 sets.
 - "The release and the BOM re-release are done." Section 6.4.
 - "For cut-over specs: the prototype deleted the moved code in a commit that names the target repo and the import commit's SHA." Not applicable here. Spec 12 carries it, and its reverse pointer uses the import SHA.
 
@@ -354,40 +396,39 @@ Each ADR is committed to `docs/adr/` in `sequeless-ontology` as `NNNN-<slug>.md`
 
 | Slice | Repo, PR | Does | Depends on | Gate |
 |---|---|---|---|---|
-| **S0 prototype prerequisite** | `sequeless-prototype`, one PR | P1 and P2 (section 3.1). 49 call sites in 8 files | none. Can run alongside S1 | `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. No assertion changed |
-| **S1 release-please migration** | `sequeless-ontology`, PR from `chore/release-please-migration` (commits `2d6250a`, `0e6d8ec`, `6d36f67`), not yet merged | Section 6.2 | none | Build job green on the PR. Facet modules are not listed as packages. No Java package changed |
-| **S1b CI and parent** | `sequeless-ontology`, one PR after S1 | Section 7 items 1 to 3 | S1 merged. The Sonar item: section 11, Q8 | Build job green on the PR. GitHub Packages resolution of `kernel-identity` works from the target's CI. **Unverified** until this PR runs |
-| **S2 import** | `sequeless-ontology`, one PR. One import commit titled per D27, the provenance section in its body, plus any formatting commit | Sections 2 to 5 and 10.1. Copies only. The prototype is not touched | S0, S1, S1b. **Blocked on section 11, Q1 to Q6** | `./mvnw -B verify` green on JDK 21 (spotless, Enforcer, ArchUnit, moved tests, `OntologyContract` for the Jena port and the in-memory port, `OntologyDocumentStoreContract` for the in-memory store). The owl grep in section 10.3 is clean |
+| **S0 prototype prerequisite** | `sequeless-prototype`, one PR | P1 and P2 (section 3.1). 49 call sites in 8 files. The javadoc links that name changed signatures (section 2.1) | none. Can run alongside S1 | `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. No assertion changed |
+| **S1 release-please migration** | `sequeless-ontology`, PR sequeless-ontology#3 (branch `chore/release-please-migration`, commits `2d6250a`, `0e6d8ec`, `6d36f67`), open | Section 6.2 | none | Build job green on the PR. Facet modules are not listed as packages. No Java package changed |
+| **S1b CI, parent and Java level** | `sequeless-ontology`, one PR after S1 | Section 7 items 1 to 3, and the Java level from Q11 | S1 merged. Q8 for the Sonar item. **Blocked on Q11** | Build job green on the PR at the chosen Java level. GitHub Packages resolution of `kernel-identity` works from the target's CI. **Unverified** until this PR runs |
+| **S2 import** | `sequeless-ontology`, one PR. One import commit titled per D27, the provenance section in its body, plus any formatting commit | Sections 2 to 5 and 10.1. Copies only. The prototype is not touched | S0, S1, S1b. **Blocked on section 11, Q1 to Q6 and Q9 to Q12** | `./mvnw -B verify javadoc:javadoc` green at the Java level Q11 sets (spotless, Enforcer, ArchUnit, moved tests, `OntologyContract` for the Jena port and the in-memory port, `OntologyDocumentStoreContract` for the in-memory store). The owl grep in section 10.3 is clean |
 | **S3 ADRs** | `sequeless-ontology`, PR separate from S2 | Section 8. 0004 and 0005 as drafted plus `AutomationSource`. 0003 as drafted | S2. 0003 is also blocked on section 11, Q7 | CI green. Each file matches its source, except the stated `AutomationSource` edit in 0004 |
 | **S4 release 0.1.0** | `sequeless-ontology`, release-please release PR | Section 6.1: six modules at 0.1.0, tags, GitHub Packages | S2 and S3 on `main` | Each artifact resolves at 0.1.0 from GitHub Packages in a clean build. The release run is green. Must finish before S5a |
 | **S5a BOM** | `sequeless-build`, PR `fix(bom): list the ontology modules at 0.1.0`, then the 0.1.3 release | Section 6.3, first half | S4 | `BomListsOnlyReleasesTest` green. Six entries at 0.1.0. Release published |
-| **S5b bom-contracts** | `sequeless-build`, one PR | `OntologyBomContractTest`. The import moves to 0.1.3 | S5a | `bom-contracts` CI green, running the ontology contract |
-| **S6 prototype docs** | `sequeless-prototype`, docs only | This spec's status. The import SHA for spec 12. The `remaining-work.md` row. The root POM comment on line 100 (its tracker item) | S2 to S5b | Prototype CI green on the PR. Import SHA recorded for spec 12 |
+| **S5b bom-contracts** | `sequeless-build`, one PR | `OntologyBomContractTest`. The import moves to 0.1.3. Java level re-checked under Q11 | S5a. **Blocked on Q11** | `bom-contracts` CI green, running the ontology contract |
+| **S6 prototype docs** | `sequeless-prototype`, docs only | This spec's status. The import SHA for spec 12. The `remaining-work.md` line 102 tick (the root POM comment was already fixed by PR #88, so this slice does not edit the POM) | S2 to S5b | Prototype CI green on the PR. Import SHA recorded for spec 12 |
 
 What no slice does: delete a prototype file (spec 12), change a prototype dependency (spec 12), or touch `facet-core` or `facet-core-testfixtures`.
 
-Merge method for S2 (section 11, Q6): the default is a merge commit, not a squash, so the import commit keeps its own SHA on `main`. The two precedents, `f036c1d` and `017b292dd`, are squash merges, since their titles end in a PR number.
+Merge method for S2 (section 11, Q6): the default is a merge commit, not a squash, so the import commit keeps its own SHA on `main`. Both precedents were squashed (D27), which is why the title is one Conventional Commit.
 
 ## 10. Test plan
 
 ### 10.1 Target tests
 
-- Moved and passing without assertion changes: the tests in section 2 (18 spi tests, 11 Jena tests, and the contract runners).
+- Moved and passing: the tests in section 2 (18 spi tests, 11 Jena tests, and the contract runners). Four of the Jena tests change their assertions, because they check `criteria()`: `DerivationMappingTest` (lines 105, 131, 158, 570) and `JenaOntologyPortAcceptanceTest` (lines 256, 269). They check the same facts in the `FilterNode` form. Every other moved test keeps its assertions.
 - `OntologyContract` (ontology-testfixtures) passes for `JenaOntologyPort` (`JenaOntologyPortContractTest`) and for `InMemoryOntologyPort` (runner in `src/test`). This is the S2 contract gate.
-- `OntologyDocumentStoreContract` passes for `InMemoryOntologyDocumentStore` and for the Jena port's document store path.
+- `OntologyDocumentStoreContract` passes for `InMemoryOntologyDocumentStore`. The Jena port does not implement a document store, so the contract does not run against it. The Jena port's use of a store is covered by the moved `JenaOntologyPortStorePersistenceTest`.
 - The reference-domain parity assertions from spec 10 section 10.3 (`stateMachine`, `derivation` and `actions` equal the prototype's values at `aafb5a9`) move with `JenaOntologyPortAcceptanceTest`.
 - New `RollupRuleMappingTest` (Jena module). One case per `Operator` (section 3.2 table), including `NOT_NULL` as `is not` with `NullNode`, never the alias. `IN` wraps one scalar. Zero criteria give `Optional.empty()`, one gives a `FieldFilter`, and two give an `AndFilter` in order. Each result passes `FilterValidator` (section 3.2). A date comparison gets whatever section 11, Q4, decides.
-- Rewritten: the `criteria()` assertions in `DerivationMappingTest` (lines 105, 131, 158, 570) and `JenaOntologyPortAcceptanceTest` (lines 256, 269). They check the same facts in the `FilterNode` form.
 - New `BoundaryRulesTest` classes in `schema-contract`, `behaviour-contract` and `automation-contract` (section 5.4), and the rewritten rules in `ontology-core` and the Jena module.
 
 ### 10.2 Prototype tests
 
-None change in spec 11 beyond S0, which changes the Jena tests' factory calls (section 3.1). The prototype's `ArchitectureTest` keeps its 17 rules.
+S0 changes the Jena tests' factory calls (section 3.1), with no assertion change. The prototype's `ArchitectureTest` keeps its 17 rules.
 
 ### 10.3 Verification commands
 
 - Target, after S2: `git grep -nE 'org\.sequeless\.(spi|adapter|testkit)\.' -- '*.java'` returns nothing. The target never imports prototype packages.
-- Target, after S1 and S2: `git grep -nE 'ontology[.-]owl|owl-adapter|ontology\.owl\b'` returns only `docs/adr/0001-…` and `CHANGELOG.md`, which are history. On the migration branch before S2, it returns the owl Java packages and ADR 0001.
+- Target, after S1 and S2: `git grep -nE 'ontology[.-]owl|owl-adapter|ontology\.owl\b'` returns only history. On the migration branch before S2, the hits are the root and module POM references in the renamed module's packages, plus `CHANGELOG.md` and ADR 0001. After S3, ADR 0004 matches too: its draft (`af03f93`, line 11) names `ontology-owl-adapter`, and the committed ADR keeps that history sentence. The grep is expected to match history files only.
 - Prototype, S0 and S6: `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify`, in one shell command.
 
 ## 11. Open questions
@@ -395,14 +436,16 @@ None change in spec 11 beyond S0, which changes the Jena tests' factory calls (s
 Each question is undecided. The body applies the default, and that application is not a decision. Blocked slices are named.
 
 1. **D17. SHACL placement.** Options: (a) keep SHACL in the prototype until spec 12 (default). Spec 12 then needs `JenaOntologyPort.currentModel(Scope)` (package-private, line 361) reachable from the prototype. The choices are to make it public, which puts a Jena `OntModel` on the adapter's public surface, or to make a further change in sequeless-ontology with a release, which is the shape of #13 decision 6. (b) Move SHACL now. That needs `spi.validation` and `BusinessObject` in the target, which is the kernel-typed SHACL api of spec 12 pulled into this spec. Blocks S2 (file list).
-2. **Jena adapter layout (D21).** Options: (a) no api/spi split: `org.sequeless.ontology.jena` for public types and `.internal` for the compiler (default). This matches the expression precedent `org.sequeless.expression.jexl`, which the owner chose (`remaining-work.md`, spec 8). (b) `org.sequeless.ontology.jena.api` and `.internal`, as ADR 0001 literally says. Blocks S2 (packages).
+2. **Jena adapter layout (D21).** Options: (a) no api/spi split: `org.sequeless.ontology.jena` for public types and `.internal` for the compiler (default). This matches the expression precedent `org.sequeless.expression.jexl`, which the owner chose (`remaining-work.md`, spec 8). (b) `org.sequeless.ontology.jena.api` and `.internal`, as ADR 0001 literally says. Under (a) the owl `api_and_spi_types_are_public` rule is dropped (section 5.4); under (b) it is rewritten. Blocks S2 (packages).
 3. **D23. Shape of `criteria`.** Options: (a) `Optional<FilterNode>` (default). Empty means no clause, and no empty `AndFilter` is ever built. (b) `FilterNode` always, with `AndFilter(List.of())` for none. That is one type, but it depends on how filter-sql translates an empty AND, which is **unverified**. This becomes the published API of `behaviour-contract` 0.1.0, so the choice is hard to undo. Blocks S2 and S4.
 4. **Comparisons on date, date-time and non-text properties.** `FilterValidator` rejects `is less than` and the rest on date types, and `contains` and `starts with` on non-string types (section 3.2). The prototype accepts them. Options: (a) reject at load with an ERROR `OntologyIssue`, in the style of `SnapshotMapper`'s existing `sq:filter` errors (default). Under (a), an ontology with such a rule fails activation in spec 12, where it activates today. (b) Map it anyway and type the field as a number, which is wrong. (c) Ask filter-core for date comparison operators, which is a change and a release in `sequeless-filter`. Blocks S2 (mapper).
 5. **Path of `FieldFilter` for a property.** Options: (a) the property IRI, as an opaque key (default). It is lossless, so the spec 12 bridge is exact, and the query side's registry keys by IRI (spec 14 decides). It departs from the documented dotted form. The DSL grammar enforces that form on parsed input, not on AST nodes built in code. (b) The short name. That needs uniqueness across all properties, which is **unverified** (`typeByName` relies on uniqueness for types only), and the bridge then needs the Schema. Related: #14 and #16 decision 5. Blocks S2 (mapper) and the spec 12 bridge.
-6. **Merge method for S2.** Options: (a) a merge commit (default), so the import commit keeps its SHA on `main`, which spec 12 names. (b) A squash, which folds any formatting commit into the import and changes the SHA that spec 12 cites. The repo allows all three methods (verified), and the two precedents were squashed. Blocks the S2 merge.
+6. **Merge method for S2.** Options: (a) a merge commit (default), so the import commit keeps its SHA on `main`, which spec 12 names. (b) A squash, which folds any formatting commit into the import and changes the SHA that spec 12 cites. The repo allows all three methods (verified), and both precedents were squashed (D27). Blocks the S2 merge.
 7. **ADR 0003 home.** Options: (a) commit 0003 here as drafted, as #39 says, and record that spec 16 moves it with `facet-core` (default). (b) Do not commit 0003 here. Write it in `sequeless-query` with `facet-core`, as #13 decision 11 says. Blocks S3 for 0003 only.
 8. **Sonar job.** Options: (a) drop the SonarCloud job, as sequeless-filter did (default). (b) Fix it by setting `sonar.organization` and its credentials in the repo. Blocks the Sonar item of S1b.
-9. **`sq-meta.ttl` split (#13 decision 8, against #23 comment 1, point 2).** Options: (a) move the file whole (default), since #23 says an extraction is a move, and split it later. (b) Split it into `sq-schema.ttl` and `sq-behaviour.ttl` in this spec. That is a content change in the import. Blocks nothing, and the default is applied.
-10. **D20. Automation and behaviour.** #20's comment says `automation-contract` depends on `behaviour-contract`. The code does not need it. Default: no dependency, as drafted. The owner confirms. It blocks only the automation POM, and only if the owner reverses it before S2.
+9. **`sq-meta.ttl` split (#13 decision 8, against #23 comment 1, point 2).** #13's resolution, decision 8 (owner-posted, closed), says the `sq:` vocabulary splits into `sq-schema.ttl` and `sq-behaviour.ttl`. Options: (a) move `sq-meta.ttl` whole in the import and split it later (default), since #23 says an extraction is a move. (b) Split it in the import commit. That is a content change in the import. (c) Split it in S0, in the prototype, and then move both files. The split would change `ImportResolver.SQ_META_CLASSPATH_RESOURCE` (line 30, `ontology/sq-meta.ttl`) and the resource list in Table 2.2, and S0 would have to show that the loaded union is unchanged. Blocks S2 (its resource list and that constant).
+10. **D20. Automation and behaviour.** #20's comment says `automation-contract` depends on `behaviour-contract`. The code does not need it. Default: no dependency, as drafted. The owner confirms. Blocks the automation POM, which is part of S2.
+11. **Java level for the ontology and for filter-core (section 7).** The ontology builds at 21, and filter-core 0.1.3 is class-file major 69 (Java 25). A release-21 build cannot read it. Options: (a) the ontology moves to release 25: the root `maven.compiler.release`, the root `requireJavaVersion`, `release.yml`'s `java-version` and S1b's CI `java-version` move to 25. This departs from #17 section 1 (libraries compile at 21), and every ontology consumer then needs JDK 25. (b) `sequeless-filter` releases filter-core (and the filter-sql modules) built at release 21, and the ontology stays at 21 (default). This follows #17 section 1. Whether filter-core's source compiles at release 21 is **unverified**. It needs a filter-repo change, which is outside this spec. Under either option, `bom-contracts` is re-checked in S5b: it compiles at 21 and runs at 25 today. Blocks S1b, S2, S4 and S5b, and through them the rest of the slices.
+12. **D26. Kernel-values in the contract modules.** #12's resolution, point 3 (owner-posted, closed), says `schema-contract` depends on `kernel-values`, and `behaviour-contract` on `schema-contract` and `kernel-values`. At the baseline both modules import only `kernel.identity` directly (verified), and behaviour reaches kernel values only through `Criterion`, which Option A removes. Options: (a) no `kernel-values` in either module (default, as drafted). (b) Add `kernel-values` to both, as #12 says, with no code use. Blocks the schema-contract and behaviour-contract POMs, which are part of S2.
 
-Decided, and not open: O1 (Option A, the owner's answer on #39 on 2026-11-08). Its deviation from #23 is recorded as D16. The rename's placement is in S1 (`0e6d8ec`). D26 (no `kernel-values` in schema and behaviour) is a decision, not a question, because #12 point 3 is not an owner approval and the code is the evidence.
+Decided, and not open: O1 (Option A, the owner's answer on #39 on 2026-11-08), recorded as D16. The rename's placement is in S1 (`0e6d8ec`).
