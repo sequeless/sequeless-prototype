@@ -28,10 +28,10 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.behaviour.Behaviour;
+import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
+import org.sequeless.spi.meta.behaviour.TriggerKind;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.query.QueryResult;
@@ -178,7 +178,7 @@ public class ObjectsController {
                 new Page(page, effectiveSize),
                 facetNames);
         QueryResult result = businessObjectService.browse(scope, type, browseQuery);
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return QueryResultResponse.from(result, requestType, page, effectiveSize);
     }
 
@@ -265,7 +265,7 @@ public class ObjectsController {
     public ResponseEntity<BusinessObjectResponse> read(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
         BusinessObject found = businessObjectService.read(scope, type, new ObjectId(id));
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(found.version()))
                 .body(ObjectPropertyMapper.toResponse(found, requestType));
@@ -292,7 +292,7 @@ public class ObjectsController {
             @PathVariable("type") String type, @RequestBody CreateObjectRequest request) {
         Scope scope = currentScope();
         BusinessObject created = businessObjectService.add(scope, type, request.properties());
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         URI location = URI.create(ServletUriComponentsBuilder.fromCurrentRequestUri()
                 .path("/" + created.id().value())
                 .build()
@@ -341,7 +341,7 @@ public class ObjectsController {
         long expectedVersion = resolveExpectedVersion(request.version(), ifMatch);
         BusinessObject updated =
                 businessObjectService.edit(scope, type, new ObjectId(id), expectedVersion, request.properties());
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
                 .body(ObjectPropertyMapper.toResponse(updated, requestType));
@@ -399,32 +399,32 @@ public class ObjectsController {
     public List<TransitionResponse> transitions(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
         BusinessObject object = businessObjectService.read(scope, type, new ObjectId(id));
-        MetaModelSnapshot snapshot = metaModelService.snapshot(scope);
+        Behaviour behaviour = metaModelService.behaviour(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
-        Set<String> userActionTransitionNames = userActionTransitionNames(snapshot, object);
-        return interpreter.availableTransitions(scope, snapshot, object).stream()
+        Set<String> userActionTransitionNames = userActionTransitionNames(behaviour, object);
+        return interpreter.availableTransitions(scope, behaviour, object).stream()
                 .filter(availability -> userActionTransitionNames.contains(availability.name()))
                 .map(TransitionResponse::from)
                 .toList();
     }
 
     /**
-     * @param snapshot the snapshot {@code object}'s type is resolved against; must not be {@code
-     *     null}
+     * @param behaviour the behaviour {@code object}'s type's state machine is read from; must not be
+     *     {@code null}
      * @param object the object whose type's state machine is consulted; must not be {@code null}
      * @return the names of every transition on {@code object}'s type's state machine whose {@link
-     *     org.sequeless.spi.meta.Transition#trigger()} is {@link TriggerKind#USER_ACTION}; empty if
-     *     the type has no state machine
+     *     org.sequeless.spi.meta.behaviour.Transition#trigger()} is {@link TriggerKind#USER_ACTION};
+     *     empty if the type has no state machine
      */
-    private static Set<String> userActionTransitionNames(MetaModelSnapshot snapshot, BusinessObject object) {
+    private static Set<String> userActionTransitionNames(Behaviour behaviour, BusinessObject object) {
         Optional<StateMachineDefinition> machine =
-                snapshot.type(object.type().iri()).flatMap(TypeDefinition::stateMachine);
+                behaviour.stateMachine(object.type().iri());
         if (machine.isEmpty()) {
             return Set.of();
         }
         return machine.get().transitions().stream()
                 .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
-                .map(org.sequeless.spi.meta.Transition::name)
+                .map(org.sequeless.spi.meta.behaviour.Transition::name)
                 .collect(Collectors.toSet());
     }
 
@@ -468,7 +468,7 @@ public class ObjectsController {
         Long bodyVersion = request == null ? null : request.expectedVersion();
         long expectedVersion = resolveExpectedVersion(bodyVersion, ifMatch);
         BusinessObject updated = transitionService.fire(scope, type, new ObjectId(id), name, expectedVersion);
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
                 .body(ObjectPropertyMapper.toResponse(updated, requestType));
@@ -477,7 +477,7 @@ public class ObjectsController {
     /**
      * @param type the type's short name or full IRI
      * @param id the id of the object the signal targets
-     * @param name the signal name ({@link org.sequeless.spi.meta.ExternalSignalTrigger#signalName()})
+     * @param name the signal name ({@link org.sequeless.spi.meta.behaviour.ExternalSignalTrigger#signalName()})
      * @param body an arbitrary JSON object recorded alongside the signal for audit, or {@code null}
      *     if the request has no body at all — {@link TransitionService#signal} requires a non-null
      *     {@code Map}, so a missing body is treated as {@code Map.of()}

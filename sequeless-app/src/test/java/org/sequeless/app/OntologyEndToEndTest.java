@@ -34,8 +34,8 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  *
  * <p>The import-then-verify test appends a new class to the currently exported ontology rather than
  * asserting an exact type count, since {@code importOntologyOfAnInconsistentDocumentIs422} and any
- * other test in this class share one Spring context (and so one in-memory {@code OntologyPort}
- * state) across the whole class; a failed import never swaps that state (see {@code
+ * other test in this class share one Spring context (and so one in-memory ontology adapter state)
+ * across the whole class; a failed import never swaps that state (see {@code
  * JenaOntologyPort#importDocument}), so it cannot affect the type count, but test execution order is
  * otherwise not guaranteed, and this test must not assume it runs first.
  */

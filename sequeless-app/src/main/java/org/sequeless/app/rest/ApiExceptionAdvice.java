@@ -240,7 +240,7 @@ public class ApiExceptionAdvice {
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * Duplicates {@code Schema}'s own short-name rule, for the same reason {@link
      * TypeResponseMapper#shortName} and {@link ObjectPropertyMapper#shortName} do.
      */
     private static String shortName(String iri) {

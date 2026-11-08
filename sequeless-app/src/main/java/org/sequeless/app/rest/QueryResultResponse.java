@@ -2,7 +2,7 @@ package org.sequeless.app.rest;
 
 import java.util.List;
 import java.util.Map;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.query.QueryResult;
 
 /**
