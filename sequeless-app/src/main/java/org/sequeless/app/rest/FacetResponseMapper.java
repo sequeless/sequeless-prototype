@@ -3,8 +3,8 @@ package org.sequeless.app.rest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.spi.meta.schema.PropertyDefinition;
+import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.query.FacetBucket;
 
 /**
@@ -58,7 +58,7 @@ final class FacetResponseMapper {
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * Duplicates {@code Schema}'s own short-name rule, for the same reason {@link
      * TypeResponseMapper#shortName}, {@link ObjectPropertyMapper#shortName}, and {@link
      * ApiExceptionAdvice#shortName} do.
      *

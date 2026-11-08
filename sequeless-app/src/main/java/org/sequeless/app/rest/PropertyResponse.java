@@ -3,7 +3,7 @@ package org.sequeless.app.rest;
 /**
  * JSON response shape for a single property attributed to a type, rendered inside {@link
  * TypeDetailResponse#properties()}. Sealed to exactly {@link AttributePropertyResponse} and {@link
- * RelationshipPropertyResponse}, mirroring {@code org.sequeless.spi.meta.PropertyDefinition}'s own
+ * RelationshipPropertyResponse}, mirroring {@code org.sequeless.spi.meta.schema.PropertyDefinition}'s own
  * sealing: {@link TypeResponseMapper} maps a {@code PropertyDefinition} onto one of these two
  * records with an exhaustive {@code switch} and no {@code default} branch, so a third kind of
  * property arriving in the domain forces a compile error here rather than silently falling through

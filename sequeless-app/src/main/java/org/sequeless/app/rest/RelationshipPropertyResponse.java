@@ -2,7 +2,7 @@ package org.sequeless.app.rest;
 
 /**
  * JSON response shape for an object-valued property, mapped from {@code
- * org.sequeless.spi.meta.RelationshipDefinition} by {@link TypeResponseMapper}.
+ * org.sequeless.spi.meta.schema.RelationshipDefinition} by {@link TypeResponseMapper}.
  *
  * <p>{@code group}, {@code cardinalityMax}, and {@code inverseIri} are plain nullable fields
  * rather than {@code Optional} — a deliberate wire-vs-domain divergence, the same rationale {@link
