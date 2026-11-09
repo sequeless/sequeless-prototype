@@ -5,9 +5,10 @@
 @prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 #
-# Canonical Turtle declaration of the sq: vocabulary (see docs/architecture/sq-vocabulary.md, T1).
-# Any ontology document that uses sq: terms imports this document via
-# owl:imports <https://sequeless.dev/ns/meta>.
+# The schema half of the canonical Turtle declaration of the sq: vocabulary (see
+# docs/architecture/sq-vocabulary.md, T1). The behaviour half is sq-behaviour.ttl in this directory.
+# Any ontology document that uses sq: terms imports the union of both files via
+# owl:imports <https://sequeless.dev/ns/meta>; ImportResolver merges them under that IRI.
 #
 
 <https://sequeless.dev/ns/meta>
