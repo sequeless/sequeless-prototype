@@ -23,25 +23,31 @@ from its `Task`s, with nothing stored in `props`; a sample plug-in computes `Per
 writing a derived property is a 400 naming it; an unknown plug-in name fails at ontology activation,
 including application startup.
 
-Out of scope (unchanged from the plan): materialised derived values (`sq:materialised` stays
-reserved), filtering or sorting on derived values, state machines, events.
+Out of scope (unchanged from the plan): filtering or sorting on non-materialised derived values, state
+machines, events. Materialised derived values are shipped in phase 6 (DR-11) for `RollupRule` only
+(`sq:materialised true`); a `sq:Plugin` cannot be materialised. See "Known limitations" below and
+`automation.md` §11.
 
 ## SPI shapes
 
 `org.sequeless.spi.meta.behaviour` (`AggregateFunction` is in `org.sequeless.spi.meta.schema`):
 
 ```java
-public sealed interface DerivationRule permits RollupRule, PluginRule {}
+public sealed interface DerivationRule permits RollupRule, PluginRule {
+
+    boolean materialised();        // sq:materialised, implemented by each record below
+}
 
 public record RollupRule(
     String sourceTypeIri,          // sq:over
     String viaIri,                 // sq:via — relationship on the source pointing back
     AggregateFunction function,    // sq:function
     Optional<String> ofPropertyIri,// sq:of
-    List<Criterion> criteria)      // sq:filter, already resolved to SPI criteria
+    List<Criterion> criteria,      // sq:filter, already resolved to SPI criteria
+    boolean materialised)          // sq:materialised, declared last (phase 6)
     implements DerivationRule {}
 
-public record PluginRule(String pluginName) implements DerivationRule {}
+public record PluginRule(String pluginName, boolean materialised) implements DerivationRule {}
 
 public enum AggregateFunction { COUNT, SUM, MIN, MAX, AVG }
 ```
