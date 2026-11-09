@@ -1,6 +1,6 @@
 # Phase 7 — ontology feature: authoring UI
 
-**Status: not started.** Depends on `core-api` (done), `rdf` (Phase 4), and `ui-kit` (Phase 5,
+**Status: done.** Depends on `core-api` (done), `rdf` (Phase 4), and `ui-kit` (Phase 5,
 specifically the Turtle editor and problem banner).
 
 Note the name collision with the *backend's* Phase 7 (`docs/architecture/prompts/phase-7.md`,

@@ -1,6 +1,6 @@
 # Phase 6 — objects feature: generic BREAD
 
-**Status: not started.** Depends on `core-api` (done) and `ui-kit` (Phase 5). Does not depend on
+**Status: done.** Depends on `core-api` (done) and `ui-kit` (Phase 5). Does not depend on
 `rdf`. This is the first feature a user actually sees, since the shell redirects `/` here.
 
 ## Context
