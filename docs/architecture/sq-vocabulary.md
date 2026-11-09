@@ -4,8 +4,9 @@
 Namespace: `https://sequeless.dev/ns/meta#`. Document (ontology) IRI: `https://sequeless.dev/ns/meta`
 (no trailing `#` — the `#` is the fragment separator used by every term IRI). Conventional prefix:
 `sq:`. The canonical Turtle declaration of every term below lives in
-`sequeless-spi-testkit/src/main/resources/ontology/sq-meta.ttl` (T4); any ontology document that uses
-`sq:` terms imports this document via `owl:imports <https://sequeless.dev/ns/meta>`.
+`sequeless-spi-testkit/src/main/resources/ontology/sq-schema.ttl` and
+`sequeless-spi-testkit/src/main/resources/ontology/sq-behaviour.ttl` (T4); any ontology document that
+uses `sq:` terms imports this document via `owl:imports <https://sequeless.dev/ns/meta>`.
 
 `sq:` is a small annotation vocabulary layered on top of standard OWL. OWL describes what a type
 *is* (classes, subclass relationships, properties, domains, ranges, cardinality restrictions,
