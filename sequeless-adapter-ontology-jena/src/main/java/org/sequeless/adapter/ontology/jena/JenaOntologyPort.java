@@ -130,7 +130,8 @@ import org.sequeless.spi.ontology.Severity;
  * <p>{@link #buildStateFrom(OntModel, java.util.function.Supplier)} is where this class earns its
  * keep: it merges {@link ConsistencyChecker}'s reasoner-level {@link OntologyReport}, an
  * unresolved-{@code owl:imports}
- * check ({@link ImportResolver} only ever registers its own bundled {@code sq-meta.ttl} by IRI —
+ * check ({@link ImportResolver} only ever registers its own bundled {@code sq-schema.ttl} and
+ * {@code sq-behaviour.ttl} by IRI —
  * verified empirically that {@code GraphRepository.createGraphDocumentRepositoryMem()} silently
  * auto-vivifies an *empty* graph for any other import instead of throwing, so this adapter must
  * detect the gap itself by comparing {@code model.getID().imports()} against the one IRI it knows,

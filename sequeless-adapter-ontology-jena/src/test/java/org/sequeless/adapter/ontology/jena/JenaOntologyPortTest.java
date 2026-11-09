@@ -66,12 +66,13 @@ class JenaOntologyPortTest {
     @Test
     void fromSourceReloadsFromTheConfiguredClasspathLocation() {
         // fromSource(...) exercises the OntologySource-backed loader path, distinct from
-        // fromDocument(...)'s in-memory bytes; the adapter's own bundled sq-meta.ttl is a small but
-        // genuinely valid, consistent ontology, so it doubles as a convenient fixture here without
-        // needing a dedicated test-only resource.
+        // fromDocument(...)'s in-memory bytes; the adapter's own bundled sq-schema.ttl (the schema
+        // half of the sq: vocabulary, consistent on its own) is a small but genuinely valid,
+        // consistent ontology, so it doubles as a convenient fixture here without needing a
+        // dedicated test-only resource.
         JenaOntologyPort port = JenaOntologyPort.fromSource(
                 "test.ontology.source",
-                "classpath:ontology/sq-meta.ttl",
+                "classpath:ontology/sq-schema.ttl",
                 ReasonerSetting.OWL,
                 () -> Set.of("workload"));
 

@@ -43,7 +43,7 @@ import org.sequeless.spi.ontology.Severity;
  * <p><b>A known false positive is filtered out.</b> Verified empirically — and not something any
  * plan document anticipated — that the committed, otherwise-clean {@code reference.ttl} fixture
  * also comes back {@code isValid()==false} under the {@code owl} reasoner: every use of {@code
- * sq:label} (declared in {@code sq-meta.ttl} with {@code rdfs:range rdfs:Literal}) produces a
+ * sq:label} (declared in {@code sq-schema.ttl} with {@code rdfs:range rdfs:Literal}) produces a
  * {@code "dtRange"} report claiming the plain string value is "not compatible with" a range of
  * {@code rdfs:Literal}. This is a limitation in Jena's built-in rule reasoner, not a real
  * inconsistency: {@code rdfs:Literal} is the class of <em>every</em> RDF literal, so no literal
