@@ -2,7 +2,91 @@
 
 Roll-up of what is left in the CQRS extraction. **The GitHub issues are the source of truth** (map [#11](https://github.com/sequeless/sequeless-prototype/issues/11), plan [#23](https://github.com/sequeless/sequeless-prototype/issues/23), specs labelled `extraction-spec`); this file summarises them so an agent can see the whole route at a glance.
 
-Last updated: 2026-11-10 (spec 11 S1b merged as sequeless-ontology #7, 036c9e9; owner answers 13 to 15 recorded in spec 11 section 11; admin merges and the ruleset change recorded below). 2026-11-09 (spec 11 body follow-up annotated in PR #97; sq-schema.ttl header corrected in PR #96; materialised drift and phase 4 to 8 status in PR #95; admin merges of sequeless-ontology #5 and #6 recorded). 2026-11-09 (spec 11 S0b: sq-meta.ttl split into sq-schema.ttl and sq-behaviour.ttl, union unchanged). 2026-11-08 (sequeless-ontology #3 and #4 admin-merged as 1f94b5c and 827c472, so the ontology is on release-please and Java 25; the owner's Q11 answer (release 25) is recorded; S0 merged as PR #91 (1b1ad2e)). Before that, 2026-11-08 (PR #88 stale-docs cleanup merged as f32f3c2; spec 11 draft merged as 8c2afa2 via PR #89, with owner decisions Q1 to Q12 open on #39; sequeless-ontology PR #3 (release-please migration) open and blocked by its main ruleset; sequeless-kernel snapshot PR #10 merged as 905b5b8). Before that, 2026-11-08 (spec 10 merged as e53c0f1 via PR #85, #38 closed; sequeless-build #39 to #41 and sequeless-kernel #7 merged; #37 closed). Before that, 2026-11-05 (pre-factor plan superseded, no pre-factor PRs, spec 7 runs first; pointer comments on #41 and #42). Before that, 2026-11-04 (spec 5 done: `sequeless-kernel` 0.1.0 and `sequeless-bom` 0.1.0 released, issues #33 and #34 closed 2026-11-04; sequeless-filter PR #19 and release PR #18 merged, with admin merges at the owner's direction; `filter-core` and `filter-sql-adapter` 0.1.3 are in GitHub Packages under the sequeless-filter namespace; spec 4 is Done (PR #69 merged, issue #32 closed); `sequeless-kernel` does not exist yet; #62 closed; `workflows-v0.1.2` and `sequeless-build-parent` 0.1.3 released; the prototype stays on parent 0.1.2 because no Renovate PR is open to move it).
+Last updated: 2026-11-10 (handoff after S2: sequeless-ontology #9 merged as `76f5d43`, with the import `b2ff8a6`; the handoff is recorded in the "Start here" section, in the commits `docs(extraction): record the handoff state after S2, start here (#39)` and `docs(extraction): record the S2 outcomes and the S2b decision (#39)`). 2026-11-10 (spec 11 S1b merged as sequeless-ontology #7, 036c9e9; owner answers 13 to 15 recorded in spec 11 section 11; admin merges and the ruleset change recorded below). 2026-11-09 (spec 11 body follow-up annotated in PR #97; sq-schema.ttl header corrected in PR #96; materialised drift and phase 4 to 8 status in PR #95; admin merges of sequeless-ontology #5 and #6 recorded). 2026-11-09 (spec 11 S0b: sq-meta.ttl split into sq-schema.ttl and sq-behaviour.ttl, union unchanged). 2026-11-08 (sequeless-ontology #3 and #4 admin-merged as 1f94b5c and 827c472, so the ontology is on release-please and Java 25; the owner's Q11 answer (release 25) is recorded; S0 merged as PR #91 (1b1ad2e)). Before that, 2026-11-08 (PR #88 stale-docs cleanup merged as f32f3c2; spec 11 draft merged as 8c2afa2 via PR #89, with owner decisions Q1 to Q12 open on #39; sequeless-ontology PR #3 (release-please migration) open and blocked by its main ruleset; sequeless-kernel snapshot PR #10 merged as 905b5b8). Before that, 2026-11-08 (spec 10 merged as e53c0f1 via PR #85, #38 closed; sequeless-build #39 to #41 and sequeless-kernel #7 merged; #37 closed). Before that, 2026-11-05 (pre-factor plan superseded, no pre-factor PRs, spec 7 runs first; pointer comments on #41 and #42). Before that, 2026-11-04 (spec 5 done: `sequeless-kernel` 0.1.0 and `sequeless-bom` 0.1.0 released, issues #33 and #34 closed 2026-11-04; sequeless-filter PR #19 and release PR #18 merged, with admin merges at the owner's direction; `filter-core` and `filter-sql-adapter` 0.1.3 are in GitHub Packages under the sequeless-filter namespace; spec 4 is Done (PR #69 merged, issue #32 closed); `sequeless-kernel` does not exist yet; #62 closed; `workflows-v0.1.2` and `sequeless-build-parent` 0.1.3 released; the prototype stays on parent 0.1.2 because no Renovate PR is open to move it).
+
+## Start here (handoff, 2026-11-10)
+
+This section is the entry point for the next session. It records the state after the S2 import, the next actions in order, the owner decisions that block them, the hazards, and how to run the gates. Machine-local facts (paths, tokens, local checkouts, the auto-memory) are not recorded in this repo.
+
+### Current state
+
+- **sequeless-prototype**, `origin/main` `8ee2360`, the base of this handoff. Recent merges: [#94](https://github.com/sequeless/sequeless-prototype/pull/94) spec 11 S0b (`8c35bc2`); [#95](https://github.com/sequeless/sequeless-prototype/pull/95) materialised drift (`f1010c7`); [#96](https://github.com/sequeless/sequeless-prototype/pull/96) sq-schema.ttl header (`a37cbcd`); [#97](https://github.com/sequeless/sequeless-prototype/pull/97) spec 11 body follow-up (`4b2800a`); [#98](https://github.com/sequeless/sequeless-prototype/pull/98) records the admin merges (`405b26c`); [#99](https://github.com/sequeless/sequeless-prototype/pull/99) owner answers of 2026-11-10 (squash, `3404a9c`); [#100](https://github.com/sequeless/sequeless-prototype/pull/100) Q4, reject comparisons on non-numeric properties at load (squash, `8ee2360`).
+- **sequeless-ontology**, `origin/main` `76f5d43`. The S2 import commit is `b2ff8a6` (`feat(ontology): import the ontology from sequeless-prototype@8ee2360`). Its review fixes, `76f5d43`, are the head of `main`, merged as [sequeless-ontology #9](https://github.com/sequeless/sequeless-ontology/pull/9) (admin rebase at head `6b6286b`). Earlier merges: #3 (`1f94b5c`, S1, release-please), #4 (`827c472`, Java 25), #5 (`6fbffa3`) and #6 (`7b5b1ce`), both Renovate, #7 (`036c9e9`, S1b, parent and CI, admin rebase at head `76d81c8`), #8 (`d183bcd`, facet javadoc, admin rebase at head `af119ba`).
+  - Open: release PR [#10](https://github.com/sequeless/sequeless-ontology/pull/10) ("chore: release main", head `da1bc1b`, label `autorelease: pending`). It proposes 0.1.0 for six modules: automation-contract, behaviour-contract, ontology-core, ontology-jena-adapter, ontology-testfixtures and schema-contract. It is blocked; see Hazards. No release has been cut.
+  - Not done in spec 11: S2b (SHACL), S3 (ADRs), S4 (0.1.0 release), S5a and S5b (BOM), S6 (prototype docs). Spec 12 onward waits for them.
+- **sequeless-filter**, `origin/main` `63f14e5` (= #27, admin rebase at head `8c72e10`). Open and red: [#26](https://github.com/sequeless/sequeless-filter/pull/26); see the open items.
+- **sequeless-build**, `origin/main` `37268ca`. Open item: the `maven-codeql.yml` packages gap.
+- **sequeless-kernel**, `origin/main` `789116f`. Release PR [#12](https://github.com/sequeless/sequeless-kernel/pull/12) ("autorelease: snapshot", head `593000c`, 0 files) is open. It stays open; see Hazards.
+- **sequeless-template**, `origin/main` `7b294a2`. Renovate PRs [#7](https://github.com/sequeless/sequeless-template/pull/7) and [#8](https://github.com/sequeless/sequeless-template/pull/8) are open and red on commitlint `subject-case`.
+
+### Next actions, in order
+
+1. Run the `-Prelease` gate on `origin/main` in a fresh worktree, and record the result in the `-Prelease` open item. A failure gets its own fix PR before anything else.
+2. S3: ADRs 0004 and 0005 from prototype commit `af03f93` (`docs/drafts/`), plus the ADR 0001 supersession (N1). Also the S2 follow-ups from the sequeless-ontology #9 review: S3-a, S3-b, S3-c, and spec 11 section 5.3 (see the open items). ADR 0003 goes to sequeless-query (Q7), not here.
+3. S2b: the owner's answer to the S2b question below, then the SHACL slice. Under (c), S2b is dropped. Under (d), it merges only after #10 merges, or release-please folds it into 0.1.0.
+4. S4: the 0.1.0 release (#10), only after S2b (unless the owner answers (c) or (d) to (i)), S3, the `-Prelease` gate, CI green on #10's head (`build / maven`, `analyze / analyze (java-kotlin)` and `SonarCloud Code Analysis`), the unattributed-changes check on #10 (`require_extra_approval_for_unattributed_changes`, see Hazards), and the owner's explicit go-ahead on #39.
+5. S5a, then S5b: the sequeless-build BOM and `bom-contracts`.
+6. S6: prototype docs, recording `b2ff8a6`.
+7. Spec 12 onward.
+
+### Pending owner decisions
+
+Only the owner takes these. No agent acts on them.
+
+- (i) **The S2b route** for SHACL and 0.1.0: (a), (b), (c) or (d). See the S2b question below.
+- (ii) **The CI route for sequeless-ontology #10**: (1) approve the `action_required` runs, or (2) close and reopen #10, each on every new head; or (3) add `RELEASE_PLEASE_TOKEN` as the org secret that [#57](https://github.com/sequeless/sequeless-prototype/issues/57) chose, or as a sequeless-ontology repo secret. Route (3) affects only heads that release-please pushes after it, so `da1bc1b` still needs (1) or (2). See Hazards.
+- (iii) **Kernel skip-snapshot**: add `"skip-snapshot": true` per package to sequeless-kernel `release-please-config.json`, in a `chore:` or `build:` commit. Those types are non-releasable, so nothing bumps and no changelog entry is made.
+- (iv) **Template commitlint `subject-case`**: fix the template's commitlint config, or Renovate's commit message, for sequeless-template #7 and #8.
+- (v) **The sequeless-filter ruleset**: keep admin merges, or turn the rule off.
+- (vi) **The filter 0.1.2 republish**: whether filter 0.1.2 is republished (see the open item on Maven 0.1.2).
+- (vii) **The sequeless-filter #26 POM fix** (see the open item). The fix PR then merges by admin under (v).
+
+### The S2b question (owner)
+
+Context (spec 11, section 11): item 13 fixes the placement (validation api in `ontology-core` over kernel types, implementation in `ontology-jena-adapter`). Item 16, a driver decision, makes 0.1.0 wait for S2b. `ShaclValidationPort` and `ShaclDataGraphBuilder` take `BusinessObject`, which stays in the prototype (#16 decision 9), so S2b is new design, not a copy.
+
+Question: "Which route for SHACL and 0.1.0: (a), (b), (c) or (d)? Reply on #39 with the letter; for (b), include the signature."
+
+- (a) The driver proposes the signature in S2b, with evidence; the owner approves it before merge. 0.1.0 waits for S2b.
+- (b) The owner posts the signature on #39 before S2b starts. 0.1.0 waits for S2b (item 16 unchanged).
+- (c) SHACL stays in the prototype and spec 12 decides its home. S2b is dropped. 0.1.0 ships after S3 without a validation api. This reverses Q1, owner answer 13, #13 decision 6 and the api scope of ADR 0004.
+- (d) Keep S2b, but ship 0.1.0 after S3 without the validation api; S2b ships as 0.2.0. This changes item 16, and ADR 0004 must say the api comes in 0.2.0.
+
+Driver recommendation: (a). Reason: Q1 and owner answer 13 fix the placement, and the S2b row already says "Design reviewed before merge", so only the signature is open. Item 16 keeps 0.1.0 shipping the validation api that Q1 and the ADR 0004 draft promise. An owner sign-off keeps the one-way door of a published api visible. (d) is the fallback if the owner wants 0.1.0 sooner.
+
+### Hazards
+
+- **Holds.** Do not merge sequeless-ontology #10 or sequeless-kernel #12. #10 is held by item 16 and the hazards below. The owner's pre-approval covers snapshot merges, but keeping #12 open is a driver hold: each snapshot merge spawns another 0-file PR until skip-snapshot is decided (owner decision (iii)).
+- **#10 deploys on merge.** Merging sequeless-ontology #10 pushes to `main`. `release.yml` (`maven-release.yml` at `63bad368`) then tags and deploys 0.1.0 to GitHub Packages.
+- **#10 has no CI.** Its only check is SonarCloud (SUCCESS). CI run `42738252431` and CodeQL run `42738252445` on head `da1bc1b` are `action_required`, waiting for approval. The release PR was opened with `GITHUB_TOKEN`. sequeless-ontology has no repo secrets; its org secrets are `PACKAGES_READ_TOKEN` and `SONAR_TOKEN`. [#57](https://github.com/sequeless/sequeless-prototype/issues/57) chose an org secret `RELEASE_PLEASE_TOKEN`, and the Done list records #57 as done, but that token exists only as a sequeless-build repo secret. The three routes to a CI run are owner decision (ii): (1) approve the `action_required` runs, on every new head; (2) close and reopen #10, on every new head; (3) add `RELEASE_PLEASE_TOKEN` as the org secret or as a sequeless-ontology repo secret (`release.yml` passes `secrets: inherit`). Route (3) affects only heads pushed after it, so `da1bc1b` still needs (1) or (2).
+- **The unattributed-changes check, before S4.** The `main` ruleset of sequeless-ontology has `require_extra_approval_for_unattributed_changes` set to true, and no bypass actors. It passed for the Renovate PRs #5 and #6 (rule suites `5003582945` and `5003635314`). A PR authored by `github-actions` is untested, and `--admin` does not get past this rule. Run it before S4, read-only: `gh pr view 10 -R sequeless/sequeless-ontology --json mergeStateStatus,reviewDecision`. Never check it by a merge attempt, because a merge that passes deploys 0.1.0. Run it again on #10's current head once CI is green. The 2026-11-10 result cannot stand in for that run. That result was `mergeStateStatus` BLOCKED, with `reviewDecision` empty. Post both values with the go-ahead request on #39.
+- **Never treat BLOCKED as a reason for `--admin`.** Never use `--admin` to get past a missing or red required check either.
+
+### Gate commands
+
+`<JDK 25 home>` is a placeholder. The local JDK 25 path is machine-local and is not recorded here. The default `java` on the machine is 21, so set `JAVA_HOME` to a JDK 25 home for every gate. Run the sequeless-ontology gates in a fresh worktree at `origin/main`, never in a checkout on another branch.
+
+sequeless-ontology, in a fresh worktree at `origin/main`. The first command is the S2 gate. The second is the `-Prelease` gate, which `release.yml` runs:
+
+```bash
+source ~/.bashrc.ext && JAVA_HOME=<JDK 25 home> ./mvnw -B clean verify javadoc:javadoc
+source ~/.bashrc.ext && JAVA_HOME=<JDK 25 home> ./mvnw -B -Prelease verify
+```
+
+sequeless-prototype, on JDK 25:
+
+```bash
+source ~/.bashrc.ext && export JAVA_HOME=<JDK 25 home> && mvn spotless:apply && mvn -B -Prelease verify
+```
+
+The root POM of sequeless-prototype sets `maven.compiler.release` to 25. Its release profile comes from sequeless-build-parent 0.1.2, and the root has none of its own. Maven needs the GitHub Packages read token, so keep `source ~/.bashrc.ext` in the same command as every `mvn` run.
+
+### Merge rules
+
+- **sequeless-ontology: rebase only.** The PR rule of the `main` ruleset (id 25931295) allows rebase only.
+- **Required checks** on `main` (ruleset `main`, id 25931295), strict, so the head must be up to date with `main`: `build / maven`, `analyze / analyze (java-kotlin)` and `SonarCloud Code Analysis`.
+- **`--admin` only for the `update` rule of ruleset `main-restrict-updates` (id 25931311).** That rule blocks a normal merge even when every required check passes. Use `--admin` only when the required checks are green on a head that is up to date with `main`. Pin the merge with `--match-head-commit`, and record each use in the admin-merge list of this file (the owner's standing direction).
+- **Never use `--admin`** to get past a missing or red required check, the unattributed-changes rule, or a BLOCKED result. Ruleset changes and owner decisions (i) to (vii) belong to the owner.
 
 ## How to update this file
 - When a spec or task changes state, tick its box, update its status line and link the PR or comment. Do this in the same PR as the work, or in a small docs PR.
@@ -31,6 +115,7 @@ Last updated: 2026-11-10 (spec 11 S1b merged as sequeless-ontology #7, 036c9e9; 
 - [x] **sq-schema.ttl header (spec 11 S0b follow-up):** the header now says the file is the schema half, and that the import resolves to the union of sq-schema.ttl and sq-behaviour.ttl. Both module copies changed together. Comment only: the loaded union is unchanged.
 - [x] **Spec 11 body follow-up:** superseded defaults in sections 2, 3.3, 5 and the slice table are annotated against section 11, without rewriting default text ([#97](https://github.com/sequeless/sequeless-prototype/pull/97), `4b2800a`).
 - [x] **Spec 11 S1b: sequeless-ontology CI, parent and reusable CodeQL** (sequeless-ontology [#7](https://github.com/sequeless/sequeless-ontology/pull/7), merged as `036c9e9`, rebase, admin merge recorded). Adopts the sequeless-build parent in each module, calls the reusable Maven CI and CodeQL at `63bad368` (`workflows-v0.1.2`), drops the SonarCloud CI job (Q8). The two Actions required checks on sequeless-ontology `main` were renamed from `Build (verify + gates)` and `Analyze (java-kotlin)` to `build / maven` and `analyze / analyze (java-kotlin)` (owner approved 2026-11-09). `SonarCloud Code Analysis` stays required (Q8). Javadoc under `-Prelease` is still failing and blocks S4 (see Open items).
+- [x] **Spec 11 S2: the import** ([sequeless-ontology #9](https://github.com/sequeless/sequeless-ontology/pull/9), admin rebase at head `6b6286b`). The import commit is `b2ff8a6` (`feat(ontology): import the ontology from sequeless-prototype@8ee2360`). The review fixes are `76f5d43`, which is the head of `main`. The S2 gate, `./mvnw -B clean verify javadoc:javadoc` on JDK 25, ran with nine modules, 455 tests and 0 javadoc errors. It did not run `-Prelease`, so that gate is still open (see Open items). The outcomes OQ-1 to OQ-13 are in spec 11, section 11, item 17. Spec 11 is not done: S2b, S3, S4, S5a, S5b and S6 remain.
 
 ## In flight
 - None.
@@ -61,7 +146,7 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 | [x] | 8 sequeless-expression (repo released 0.1.1; BOM 0.1.2) | [#36](https://github.com/sequeless/sequeless-prototype/issues/36) | 2 | 5, 7 |
 | [x] | 9 prototype stage 2 cut-over (PR [#84](https://github.com/sequeless/sequeless-prototype/pull/84); BOM contract in sequeless-build [#43](https://github.com/sequeless/sequeless-build/pull/43)) | [#37](https://github.com/sequeless/sequeless-prototype/issues/37) | 2 | 8 |
 | [x] | 10 prototype stage 3 prepare (ontology and snapshot splits; merged via PR #85) | [#38](https://github.com/sequeless/sequeless-prototype/issues/38) | 3 | 9 |
-| [ ] | 11 sequeless-ontology gains the prototype's ontology (spec merged as PR [#89](https://github.com/sequeless/sequeless-prototype/pull/89); owner answers 13 to 15 recorded in the spec (section 11). S2 waits on the Q4 prototype PR and is otherwise unblocked; S4 waits on S2b (item 16)) | [#39](https://github.com/sequeless/sequeless-prototype/issues/39) | 3 | 5, 8, 10 |
+| [ ] | 11 sequeless-ontology gains the prototype's ontology (spec merged as PR [#89](https://github.com/sequeless/sequeless-prototype/pull/89); owner answers 13 to 15 recorded in the spec (section 11). S2 merged as [sequeless-ontology #9](https://github.com/sequeless/sequeless-ontology/pull/9) (import `b2ff8a6`, review fixes `76f5d43`), after Q4 merged as [prototype #100](https://github.com/sequeless/sequeless-prototype/pull/100). S4 waits on S3, S2b (item 16) and the `-Prelease` gate) | [#39](https://github.com/sequeless/sequeless-prototype/issues/39) | 3 | 5, 8, 10 |
 | [ ] | 12 prototype stage 3 cut-over | [#40](https://github.com/sequeless/sequeless-prototype/issues/40) | 3 | 11 |
 | [ ] | 13 prototype stage 4 prepare (outbox, automation ingress, Read port) | [#41](https://github.com/sequeless/sequeless-prototype/issues/41) | 4 | 12 |
 | [ ] | 14 sequeless-query | [#42](https://github.com/sequeless/sequeless-prototype/issues/42) | 4 | 5, 6, 11, 13 |
@@ -119,8 +204,20 @@ Stage numbers are from the plan. "Waits for" lists spec numbers.
 - [x] **Admin merges recorded (2026-11-09 and 2026-11-10):**
   - sequeless-filter [#27](https://github.com/sequeless/sequeless-filter/pull/27) as `63f14e5` (rebase, head `8c72e10`).
   - sequeless-ontology [#7](https://github.com/sequeless/sequeless-ontology/pull/7) as `036c9e9` (rebase, head `76d81c8`), and [#8](https://github.com/sequeless/sequeless-ontology/pull/8) as `d183bcd` (rebase, head `af119ba`, 2026-11-10).
-  - Reason, for all three: the `update` rule of ruleset `main-restrict-updates` (sequeless-ontology id 25931311; sequeless-filter id 23522900) reports "Cannot update this protected ref" for the normal merge. The PR rule passed. All required checks were green before each admin merge.
-- [ ] **sequeless-build `maven-codeql.yml` at `63bad368`** sets workflow permissions without `packages`, so its `GITHUB_TOKEN` fallback cannot read packages in CodeQL. The job works while `PACKAGES_READ_TOKEN` is set. Fix in sequeless-build (add `packages: read`) in a later PR.
-- [ ] **Javadoc under `-Prelease` blocks S4.** `ontology-core` has only package-info until S2. Facet javadoc was fixed by sequeless-ontology #8 (`d183bcd`, owner answer 15).
-- [ ] **Renovate PR sequeless-filter [#26](https://github.com/sequeless/sequeless-filter/pull/26) is red.** Its `jackson-annotations` 2.23.0 does not exist on Maven Central (404), so the build cannot resolve it. Open, not merged.
-- [ ] **sequeless-template Renovate PRs [#7](https://github.com/sequeless/sequeless-template/pull/7) and [#8](https://github.com/sequeless/sequeless-template/pull/8) are red on commitlint `subject-case`.** Renovate's default sentence-case subject ("Pin dependencies") fails. The fix is the template's commitlint config or Renovate's commit-message setting. Owner decision.
+  - sequeless-ontology [#9](https://github.com/sequeless/sequeless-ontology/pull/9) as `76f5d43` (rebase, head `6b6286b`), the S2 import.
+  - Reason, for all four: the `update` rule of ruleset `main-restrict-updates` (sequeless-ontology id 25931311; sequeless-filter id 23522900) reports "Cannot update this protected ref" for the normal merge. The PR rule passed. All required checks were green before each admin merge.
+- [ ] **sequeless-build `maven-codeql.yml` at `63bad368`** sets workflow permissions without `packages`, so its `GITHUB_TOKEN` fallback cannot read packages in CodeQL. The job works while `PACKAGES_READ_TOKEN` is set. Fix in sequeless-build (add `packages: read`) in a later PR. Still open on sequeless-build `origin/main` `37268ca`. No numbered owner decision covers it ((i) to (vii) in "Start here").
+- [ ] **Javadoc under `-Prelease` blocks S4.** `ontology-core` has only package-info until S2. Facet javadoc was fixed by sequeless-ontology #8 (`d183bcd`, owner answer 15). The S2 gate, `./mvnw -B clean verify javadoc:javadoc` on JDK 25 (nine modules, 455 tests, 0 javadoc errors), did NOT run `-Prelease`, so this gate is still open. `release.yml` runs `-Prelease`, so S4 needs it. Next action 1 in "Start here" runs it.
+- [ ] **Renovate PR sequeless-filter [#26](https://github.com/sequeless/sequeless-filter/pull/26) is red.** Cause: filter-core versions `jackson-annotations` with `${jackson-databind.version}`, and #26 moves that property to 2.23.0, which is not on Maven Central (404). `jackson-annotations` has had no patch digit since 2.20, and 2.23 exists on Central. The fix is a separate `jackson-annotations` version (2.23), or the `jackson-bom`, in a sequeless-filter PR. #26 also moves byte-buddy to 1.18.17-jdk5 (the Java 5 build); the fix pins 1.18.17. Open, not merged. Owner decision (vii) in "Start here"; the fix PR then merges by admin under (v).
+- [ ] **sequeless-template Renovate PRs [#7](https://github.com/sequeless/sequeless-template/pull/7) and [#8](https://github.com/sequeless/sequeless-template/pull/8) are red on commitlint `subject-case`.** Renovate's default sentence-case subject ("Pin dependencies") fails. The fix is the template's commitlint config or Renovate's commit-message setting. Both PRs are open and red as of 2026-11-10 (template `origin/main` `7b294a2`). Owner decision (iv) in "Start here".
+- [ ] **sequeless-ontology #10 holds (release PR, head `da1bc1b`).** Do not merge it until the owner's go-ahead, a CI route, and the other conditions in "Start here" are met.
+  - Deploy on merge: merging #10 pushes to `main`, then `release.yml` tags and deploys 0.1.0 to GitHub Packages.
+  - No CI on #10: its only check is SonarCloud (SUCCESS). CI run `42738252431` and CodeQL run `42738252445` on `da1bc1b` are `action_required`. The three routes, each an owner decision (ii): (1) approve the `action_required` runs, on every new head; (2) close and reopen #10, on every new head; (3) add `RELEASE_PLEASE_TOKEN` as the org secret that [#57](https://github.com/sequeless/sequeless-prototype/issues/57) chose, or as a sequeless-ontology repo secret. Route (3) affects only heads pushed after it, so `da1bc1b` still needs (1) or (2).
+  - Read-only check of 2026-11-10: `mergeStateStatus` BLOCKED, `reviewDecision` empty. Run the check again on the current head once CI is green. Never treat BLOCKED as a reason for `--admin`.
+- [ ] **Kernel snapshot loop: sequeless-kernel [#12](https://github.com/sequeless/sequeless-kernel/pull/12) (head `593000c`, 0 files) stays open.** Each snapshot merge spawns the next release PR, and sequeless-kernel #7 to #11 each had 0 files. The kernel release-please config has no `skip-snapshot`; filter and ontology set it per package. Adding it is owner decision (iii). Make the change in a `chore:` or `build:` commit, which is non-releasable, so nothing bumps and no changelog entry is made.
+- [ ] **S2 follow-ups from the sequeless-ontology #9 review** (for S3, see "Start here"):
+  - S3-a: the `ImportResolver` javadoc names the prototype copies.
+  - S3-b: the Jena `BoundaryRulesTest` allow-list includes test-only libraries.
+  - S3-c: spec 11 section 4 says `OntologySource` is public; it is package-private.
+  - Spec 11 section 5.3: `jena-core` and `jena-arq` are direct dependencies.
+- [ ] **Q4 follow-up:** for a property with two ranges, `sq:value` is still coerced with the first sorted range (`dataDatatypeOf`). This is pre-existing, also affects `sq:eq`, and needs its own change.
