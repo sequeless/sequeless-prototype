@@ -37,7 +37,7 @@ Decided here. D-numbers continue from spec 10's D14. Each D-number is defined on
 - **D25.** The BOM lists six ontology artifacts at 0.1.0, including `ontology-testfixtures`. The expression precedent lists `expression-testkit` in the BOM (remote `main`, verified).
 - **D26. Decided (section 11, Q12):** `schema-contract` and `behaviour-contract` depend on `kernel-values`, as #12 point 3 says. No code uses it yet. The body below states the superseded default (no dependency).
 - **D27.** The import commit title is `feat(ontology): import the ontology from sequeless-prototype@<source SHA>`. The source SHA is the prototype's `main` commit after S0 merges, not the baseline (section 2). A squash sets its title and body from the repository's squash settings, not from the PR's head commit. Kernel is set to `PR_TITLE` and `PR_BODY`; sequeless-ontology to `COMMIT_OR_PR_TITLE` and `COMMIT_MESSAGES` (verified with the API). A one-commit PR squashes to its own commit's title and body, and a multi-commit PR to the PR title plus the commit messages. Kernel PR #2's head commit was titled `feat(kernel): import identity and values from sequeless-prototype@3a070ad`. Its squashed commit `f036c1d814` landed as `feat(kernel): import identity and values from sequeless-prototype (#2)`, with the PR body underneath. So, under either setting, the PR title must equal the D27 title, and the PR body and the import commit body must carry the provenance section. Expression PR #2 (head `1c8fba18db`) was squashed the same way (`017b292dd6`, single parent). The merge method is open (section 11, Q6).
-- **D28.** The Jena adapter declares `filter-core` 0.1.3, `jackson-databind`, `kernel-values`, `jena-ontapi`, `ontology-core`, the three contracts and `kernel-identity` directly (ADR 0001). Section 5.3 gives the reasons.
+- **D28.** The Jena adapter declares `filter-core` 0.1.3, `jackson-databind`, `kernel-values`, `jena-ontapi`, `ontology-core`, the three contracts and `kernel-identity` directly (ADR 0001). Section 5.3 gives the reasons. Corrected in S3: the POM also declares `jena-core` and `jena-arq` directly, as section 5.3 now lists.
 - **D29.** The plugin-name lookup enters the Jena port as a `Supplier<Set<String>>`, not a `Set`, because the lookup runs on every build (section 3.1).
 
 Out of scope, and the spec that takes it:
@@ -256,10 +256,12 @@ The rename rewrites every reference to a moved type. That means imports, `{@link
 | `org.sequeless.spi.meta.automation` | `org.sequeless.ontology.automation.api`; `AutomationSource` in `.spi` | Same |
 | `org.sequeless.spi.ontology` | `org.sequeless.ontology.api` | #13 decision 3 puts `OntologyAdministration` in ontology-core's api |
 | `org.sequeless.spi.object` (two types) | `org.sequeless.ontology.spi` | D19 |
-| `org.sequeless.adapter.ontology.jena`, public types | `org.sequeless.ontology.jena` | `JenaOntologyPort`, `ReasonerSetting`, `JenaOntologySettings` (P2), and `OntologySource` (its only user is `JenaOntologyPort`, verified) |
+| `org.sequeless.adapter.ontology.jena`, public types | `org.sequeless.ontology.jena` | `JenaOntologyPort`, `ReasonerSetting`, `JenaOntologySettings` (P2). `OntologySource` is package-private, not public (its only user is `JenaOntologyPort`, verified) |
 | `org.sequeless.adapter.ontology.jena`, compiler | `org.sequeless.ontology.jena.internal` | `SnapshotMapper`, `SqVocabulary`, `SqAnnotations`, `ConsistencyChecker`, `ImportResolver`, `OntModelBuilder`, `TurtleExporter`. Classes that `JenaOntologyPort` calls become `public`, a visibility change only. The layout is section 11, Q2 |
 | `org.sequeless.testkit.ontology` and the ontology part of `org.sequeless.testkit.Fixtures` | `org.sequeless.ontology.testfixtures` | #13 decision 10 |
 | `org.sequeless.ontology.owl.{api,spi}` (`package-info` only) and the owl test package | `org.sequeless.ontology.jena` (and `.internal`) | O3. The module rename is in S1 (`0e6d8ec`). The Java packages change in S2 |
+
+> **Corrected in S3 (S3-c):** `OntologySource` is package-private (`final class` in the Jena adapter), not public. The public-types row of this table is corrected to match.
 
 Notes:
 
@@ -302,7 +304,9 @@ The BOM (remote `main`, 0.1.2) lists `kernel-identity` 0.1.0, `kernel-values` 0.
 
 ### 5.3 Direct dependencies of `ontology-jena-adapter` (D28)
 
-The Jena adapter declares in its own POM: `ontology-core`, `schema-contract`, `behaviour-contract`, `automation-contract`, `kernel-identity` 0.1.0, `kernel-values` 0.1.0, `filter-core` 0.1.3, `jackson-databind` 2.18.3 and `jena-ontapi` 6.1.0. The `jackson-databind` version is declared in the module POM under S1b, as `filter-core` does (its own `jackson-databind.version` property, `filter-core/pom.xml` line 26, verified). The parent 0.1.3 manages only ArchUnit (`dependencyManagement`, lines 67 to 89; the comment at line 64 says so), so the root's `jackson-databind.version` 2.18.3 (line 49 on the migration branch, line 37 at `ace5313`) stops applying under S1b. Its tests add `ontology-testfixtures` at test scope. `jena-shacl` is not a dependency, because SHACL stays (D17). ADR 0001 says each module redeclares what it uses. Under Q11 (b) the `filter-core` line changes to the version filter publishes at release 21.
+The Jena adapter declares in its own POM: `ontology-core`, `schema-contract`, `behaviour-contract`, `automation-contract`, `kernel-identity` 0.1.0, `kernel-values` 0.1.0, `filter-core` 0.1.3, `jackson-databind` 2.18.3, `jena-ontapi` 6.1.0, `jena-core` 6.1.0 and `jena-arq` 6.1.0. The `jackson-databind` version is declared in the module POM under S1b, as `filter-core` does (its own `jackson-databind.version` property, `filter-core/pom.xml` line 26, verified). The parent 0.1.3 manages only ArchUnit (`dependencyManagement`, lines 67 to 89; the comment at line 64 says so), so the root's `jackson-databind.version` 2.18.3 (line 49 on the migration branch, line 37 at `ace5313`) stops applying under S1b. Its tests add `ontology-testfixtures` at test scope. `jena-shacl` is not a dependency, because SHACL stays (D17). ADR 0001 says each module redeclares what it uses. Under Q11 (b) the `filter-core` line changes to the version filter publishes at release 21.
+
+> **Corrected in S3 (S3-c follow-up, section 5.3):** the POM also declares `jena-core` and `jena-arq` directly, so they are listed above.
 
 > **Superseded by section 11, Q1:** SHACL validation moves with the import. The validation api is in `ontology-core`, and its implementation is in `ontology-jena-adapter`, next to the loader.
 
