@@ -19,26 +19,30 @@ public enum Operator {
     IN,
 
     /**
-     * Strictly less than. Applies to numeric properties only (integer, long, decimal, double); the
-     * ontology rejects it on any other property.
+     * Strictly less than. In a query, applies to numeric, date and date-time properties. In an
+     * ontology sq:filter criterion, applies only to integer, long, decimal and double properties;
+     * any other property is an ERROR at activation.
      */
     LT,
 
     /**
-     * Less than or equal to. Applies to numeric properties only (integer, long, decimal, double);
-     * the ontology rejects it on any other property.
+     * Less than or equal to. In a query, applies to numeric, date and date-time properties. In an
+     * ontology sq:filter criterion, applies only to integer, long, decimal and double properties;
+     * any other property is an ERROR at activation.
      */
     LTE,
 
     /**
-     * Strictly greater than. Applies to numeric properties only (integer, long, decimal, double);
-     * the ontology rejects it on any other property.
+     * Strictly greater than. In a query, applies to numeric, date and date-time properties. In an
+     * ontology sq:filter criterion, applies only to integer, long, decimal and double properties;
+     * any other property is an ERROR at activation.
      */
     GT,
 
     /**
-     * Greater than or equal to. Applies to numeric properties only (integer, long, decimal,
-     * double); the ontology rejects it on any other property.
+     * Greater than or equal to. In a query, applies to numeric, date and date-time properties. In
+     * an ontology sq:filter criterion, applies only to integer, long, decimal and double
+     * properties; any other property is an ERROR at activation.
      */
     GTE,
 

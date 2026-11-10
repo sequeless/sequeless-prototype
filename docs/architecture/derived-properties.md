@@ -154,10 +154,10 @@ Rule-shape errors (unknown function, missing `sq:over`/`sq:via`, `sq:of` missing
 `sum`/`min`/`max`/`avg` or present for `count`, `sq:via` not a relationship on the source type, a
 malformed `sq:filter` criterion, a `sq:lt`, `sq:lte`, `sq:gt` or `sq:gte` criterion whose
 `sq:property` is not a number (integer, long, decimal, double) data property, an unresolvable
-`sq:pluginName`, or both `sq:Rollup` and `sq:Plugin` on the same node) are ERROR `OntologyIssue`s named on the derived property's own IRI,
-merged into `MappingResult.issues` (renamed from `warnings` in this phase, and now able to carry
-`ERROR` severity) exactly like every other activation error — unknown imports, reserved terms, and
-so on. An unresolved `sq:pluginName` fails with exactly:
+`sq:pluginName`, or both `sq:Rollup` and `sq:Plugin` on the same node) are ERROR `OntologyIssue`s
+named on the derived property's own IRI, merged into `MappingResult.issues` (renamed from `warnings`
+in this phase, and now able to carry `ERROR` severity) exactly like every other activation error —
+unknown imports, reserved terms, and so on. An unresolved `sq:pluginName` fails with exactly:
 
 ```
 sq:pluginName 'NAME' has no registered DerivationPlugin on the classpath.

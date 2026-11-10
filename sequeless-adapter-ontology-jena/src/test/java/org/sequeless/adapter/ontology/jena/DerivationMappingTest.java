@@ -22,6 +22,7 @@ import org.sequeless.spi.meta.behaviour.PluginRule;
 import org.sequeless.spi.meta.behaviour.RollupRule;
 import org.sequeless.spi.meta.schema.AggregateFunction;
 import org.sequeless.spi.meta.schema.AttributeDefinition;
+import org.sequeless.spi.meta.schema.Datatype;
 import org.sequeless.spi.meta.schema.PropertyDefinition;
 import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.ontology.OntologyIssue;
@@ -710,11 +711,63 @@ class DerivationMappingTest {
                                   sq:value "3" ] ) ] .
             """);
         assertThat(errors(result)).isEmpty();
+        assertThat(attribute(result, TASK_IRI, AMOUNT_IRI).datatype()).isEqualTo(Datatype.INTEGER);
 
         RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.criteria()).hasSize(1);
         assertThat(rule.criteria().get(0).property()).isEqualTo(AMOUNT_IRI);
         assertThat(rule.criteria().get(0).operator()).isEqualTo(Operator.GT);
+    }
+
+    @Test
+    void comparisonOnLongAndAnyUriRangePropertyStillLoadsWithNoError() {
+        // mostSpecificXsdIri prefers the integral range, so the snapshot types this property LONG.
+        MappingResult result = mapTurtle("""
+            ex:amount a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:long, xsd:anyURI .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:amount ;
+                                  sq:operator sq:gt ;
+                                  sq:value "3" ] ) ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+        assertThat(attribute(result, TASK_IRI, AMOUNT_IRI).datatype()).isEqualTo(Datatype.LONG);
+
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
+        assertThat(rule.criteria()).hasSize(1);
+        assertThat(rule.criteria().get(0).property()).isEqualTo(AMOUNT_IRI);
+        assertThat(rule.criteria().get(0).operator()).isEqualTo(Operator.GT);
+    }
+
+    @Test
+    void comparisonOnUndeclaredPropertyIsErrorAndRuleIsNotLoaded() {
+        // ex:amount is never declared, so it has no range. The comparison check does not flag it
+        // (it is not a known non-numeric property); the criterion value check reports it.
+        MappingResult result = mapTurtle("""
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:amount ;
+                                  sq:operator sq:gt ;
+                                  sq:value "3" ] ) ] .
+            """);
+        assertSingleError(result, OPEN_TASK_COUNT_IRI, "no resolvable datatype");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
     }
 
     @Test
@@ -833,6 +886,7 @@ class DerivationMappingTest {
                                   sq:value "3" ] ) ] .
             """, ReasonerSetting.OWL);
         assertThat(errors(result)).isEmpty();
+        assertThat(attribute(result, TASK_IRI, AMOUNT_IRI).datatype()).isEqualTo(Datatype.INTEGER);
 
         RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
         assertThat(rule.criteria()).hasSize(1);
