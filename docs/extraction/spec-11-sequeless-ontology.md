@@ -424,7 +424,7 @@ Each ADR is committed to `docs/adr/` in `sequeless-ontology` as `NNNN-<slug>.md`
 
 ## 9. Slice plan
 
-The decisions in section 11 (2026-11-09) change this table: S0b is added (Q9). SHACL moves in S2b, right after S2 (section 11, item 13). S3 no longer commits ADR 0003 (Q7) but commits the ADR 0001 supersession (N1). The S2 row is aligned with items 13 to 15. Other rows may still show superseded defaults; section 11 governs.
+The decisions in section 11 (2026-11-09 and 2026-11-10) change this table: S0b is added (Q9). SHACL moves in S2b, right after S2 (section 11, item 13). S3 no longer commits ADR 0003 (Q7) but commits the ADR 0001 supersession (N1). The S2 row is aligned with items 13 to 15. Other rows may still show superseded defaults; section 11 governs.
 
 | Slice | Repo, PR | Does | Depends on | Gate |
 |---|---|---|---|---|
