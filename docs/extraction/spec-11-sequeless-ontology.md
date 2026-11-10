@@ -424,26 +424,31 @@ Each ADR is committed to `docs/adr/` in `sequeless-ontology` as `NNNN-<slug>.md`
 
 ## 9. Slice plan
 
-The decisions in section 11 (2026-11-09) change this table: S0b is added (Q9). S2 now moves SHACL (Q1), and S3 no longer commits ADR 0003 (Q7) but commits the ADR 0001 supersession (N1). The rows below still show the superseded defaults until a follow-up edit lands before S2.
+The decisions in section 11 (2026-11-09 and 2026-11-10) change this table: S0b is added (Q9). SHACL moves in S2b, right after S2 (section 11, item 13). S3 no longer commits ADR 0003 (Q7) but commits the ADR 0001 supersession (N1). The S2 row is aligned with items 13 to 15. Other rows may still show superseded defaults; section 11 governs.
 
 | Slice | Repo, PR | Does | Depends on | Gate |
 |---|---|---|---|---|
 | **S0 prototype prerequisite** | `sequeless-prototype`, one PR | P1 and P2 (section 3.1). 49 call sites in 8 files. The javadoc links that name changed signatures (section 2.1) | none. Can run alongside S1 | `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. No assertion changed |
 | **S0b sq-meta.ttl split** | `sequeless-prototype`, one PR, before S2 (merged as PR #94, 8c35bc2) | Section 11, Q9 (decided: split in the prototype first). Split `sq-meta.ttl` into `sq-schema.ttl` and `sq-behaviour.ttl`, and show that the loaded union is unchanged | S0 merged | `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. The loaded union is unchanged |
 | **S1 release-please migration** | `sequeless-ontology`, PR sequeless-ontology#3 (branch `chore/release-please-migration`, commits `2d6250a`, `0e6d8ec`, `6d36f67`), open | Section 6.2 | none | Build job green on the PR. Facet modules are not listed as packages. No Java package changed |
-| **S1b CI, parent and Java level** | `sequeless-ontology`, one PR after S1. Q11 release level done in sequeless-ontology PR #4 (827c472). | Section 7 items 1 to 3, and the release level from Q11 | S1 merged. Q8 for the Sonar item. **Blocked on Q11** (the release level) | Build job green on the PR on JDK 25. GitHub Packages resolution of `kernel-identity` works from the target's CI |
-| **S2 import** | `sequeless-ontology`, one PR. One import commit titled per D27, the provenance section in its body, plus any formatting commit | Sections 2 to 5 and 10.1. Copies only. The prototype is not touched | S0, S1, S1b. **Blocked on section 11, Q1 to Q6 and Q9 to Q12** | `./mvnw -B verify javadoc:javadoc` green on JDK 25 (spotless, Enforcer, ArchUnit, moved tests, `OntologyContract` for the Jena port and the in-memory port, `OntologyDocumentStoreContract` for the in-memory store). The owl grep in section 10.3 matches history files only |
+| **S1b CI, parent and Java level** | `sequeless-ontology`, one PR after S1. Q11 release level done in sequeless-ontology PR #4 (827c472). | Section 7 items 1 to 3, and the release level from Q11 | S1 merged. Q8 for the Sonar item. Q11 is decided and done (release level 25, PR #4) | Build job green on the PR on JDK 25. GitHub Packages resolution of `kernel-identity` works from the target's CI |
+| **S2 import** | `sequeless-ontology`, one PR. One import commit titled per D27, the provenance section in its body, plus any formatting commit | Sections 2 to 5 and 10.1, without the SHACL files (section 11, item 13). Copies only. The prototype is not touched | S0, S1, S1b, the Q4 prototype PR (section 11, item 14), and the facet javadoc PR (item 15, merged as sequeless-ontology `d183bcd`). Section 11 Q1 to Q6 and Q9 to Q12 are decided | `./mvnw -B verify javadoc:javadoc` green on JDK 25 (spotless, Enforcer, ArchUnit, moved tests, `OntologyContract` for the Jena port and the in-memory port, `OntologyDocumentStoreContract` for the in-memory store). The owl grep in section 10.3 matches history files only |
+| **S2b SHACL** | `sequeless-ontology`, one PR after S2. Not a copy: a new kernel-typed validation api in `ontology-core`, with its implementation in `ontology-jena-adapter` (section 11, item 13) | Q1 destination. The Command side keeps `ValidationPort` and adapts it in spec 12 | S2 | Its own gate: `./mvnw -B verify javadoc:javadoc` green on JDK 25, plus the SHACL contract tests from the prototype moved as copies. Design reviewed before merge |
 | **S3 ADRs** | `sequeless-ontology`, PR separate from S2 | Section 8. 0004 and 0005 as drafted plus `AutomationSource`. 0003 as drafted | S2. 0003 is also blocked on section 11, Q7 | CI green. Each file matches its source, except the stated `AutomationSource` edit in 0004 |
-| **S4 release 0.1.0** | `sequeless-ontology`, release-please release PR | Section 6.1: six modules at 0.1.0, tags, GitHub Packages | S2 and S3 on `main` | Each artifact resolves at 0.1.0 from GitHub Packages in a clean build. The release run is green. Must finish before S5a |
+| **S4 release 0.1.0** | `sequeless-ontology`, release-please release PR | Section 6.1: six modules at 0.1.0, tags, GitHub Packages | S2, S2b and S3 on `main` (item 16) | Each artifact resolves at 0.1.0 from GitHub Packages in a clean build. The release run is green. Must finish before S5a |
 | **S5a BOM** | `sequeless-build`, PR `fix(bom): list the ontology modules at 0.1.0`, then the 0.1.3 release | Section 6.3, first half | S4 | `BomListsOnlyReleasesTest` green. Six entries at 0.1.0. Release published |
 | **S5b bom-contracts** | `sequeless-build`, one PR | `OntologyBomContractTest`. The import moves to 0.1.3. Release level re-checked under Q11 | S5a. **Blocked on Q11** | `bom-contracts` CI green, running the ontology contract |
 | **S6 prototype docs** | `sequeless-prototype`, docs only | This spec's status. The target's import-commit SHA for spec 12. The `remaining-work.md` line 102 tick (the root POM comment was already fixed by PR #88, so this slice does not edit the POM) | S2 to S5b | Prototype CI green on the PR. Import-commit SHA recorded for spec 12 |
 
 > **S1 row:** PR sequeless-ontology#3 merged as 1f94b5c.
 
+> **S1b row:** merged as sequeless-ontology #7 (`036c9e9`, rebase, admin merge recorded in sequeless-prototype #39).
+
 > **S2 row:** S0b is merged. The spec 11 docs follow-up that annotates superseded defaults, and the sq-schema.ttl header fix, must land before S2 starts.
 
-What no slice does: delete a prototype file (spec 12), change a prototype dependency (spec 12), or touch `facet-core` or `facet-core-testfixtures`.
+> **Section 11, item 13:** S2 is copy-only. The SHACL move is S2b.
+
+What no slice does: delete a prototype file (spec 12), change a prototype dependency (spec 12), or touch `facet-core` or `facet-core-testfixtures`. The facet javadoc PR of section 11, item 15 is not a slice. It is a comment-only change in frozen code, merged before S2.
 
 Merge method for S2 (section 11, Q6): the default is a merge commit, not a squash, so the import commit keeps its own SHA on `main`. A squash takes its title and body from the repository's squash settings (D27), so the PR title must equal the D27 title, and the PR body and the import commit body must carry the provenance section. Both precedents were squashed.
 
@@ -494,3 +499,10 @@ Items added after the spec's original list:
 - **N3. Frozen facet modules: accept the formatter reflow as formatting only.** palantir-java-format 2.102.0 reflows one switch expression in each of `FacetMerger.java` and `InMemoryFacetSource.java` (sequeless-ontology commit `0991d2a`). The tokens are unchanged. #23 defines "frozen" as excluded from release and deploy, not as byte-stable. Spotless is not excluded for these modules.
 
 Decided, and not open: O1 (Option A, the owner's answer on #39 on 2026-11-08), recorded as D16. The rename's placement is in S1 (`0e6d8ec`).
+
+**Owner answers, 2026-11-10** (asked through the driver after the S2 inventory found three conflicts; the navigator did not settle them):
+
+13. **S2 is copy-only, and SHACL moves in S2b.** Q1 stands: SHACL moves to `sequeless-ontology`, and its destination is unchanged: the validation api in `ontology-core`, the implementation in `ontology-jena-adapter`. The PR boundary changes. The S2 import is a pure copy. The SHACL move is a follow-up slice S2b, right after S2, with its own kernel-typed validation api. Reason: `ShaclValidationPort` and `ShaclDataGraphBuilder` depend on `BusinessObject`, which stays in the prototype (#16 decision 9), so a copy cannot compile.
+14. **Q4 lands in the prototype first.** The reject-at-load check is one behaviour PR in the prototype, before S2, so that the import copies code that already has the check (#23's prototype-first rule). Branch `feat/q4-reject-comparisons-at-load`. The PR number is recorded in `remaining-work.md` when it exists.
+15. **Facet javadoc: fix the three comments in place.** `FacetPathCodec.java:22` and `FacetSource.java:53` and `:127` are comment-only fixes in frozen `facet-core`, as a separate PR before S2 (branch `docs/facet-javadoc-errors` in sequeless-ontology). After it merges, the S2 gate `./mvnw -B verify javadoc:javadoc` covers the whole reactor.
+16. **S4 waits for S2b.** 0.1.0 ships the validation api in `ontology-core` (Q1 and ADR 0004), so S4 depends on S2b as well as S2 and S3. This is a driver decision of 2026-11-10 from the review of PR #99, not an owner answer. The owner may redirect it.
