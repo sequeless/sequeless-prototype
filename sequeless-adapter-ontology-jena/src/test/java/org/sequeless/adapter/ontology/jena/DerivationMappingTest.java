@@ -535,6 +535,31 @@ class DerivationMappingTest {
     }
 
     @Test
+    void lteOnDatePropertyIsErrorAndRuleIsNotLoaded() {
+        // As in ltOnDatePropertyIsErrorAndRuleIsNotLoaded: the value is deliberately not a valid
+        // date, so the only ERROR is the comparison one.
+        MappingResult result = mapTurtle("""
+            ex:dueDate a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:date .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:dueDate ;
+                                  sq:operator sq:lte ;
+                                  sq:value "not-a-date" ] ) ] .
+            """);
+        assertSingleError(
+                result, OPEN_TASK_COUNT_IRI, "compares " + DUE_DATE_IRI + " with LTE, which needs a numeric property");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
+    }
+
+    @Test
     void gteOnDateTimePropertyIsError() {
         MappingResult result = mapTurtle("""
             ex:createdAt a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:dateTime .
@@ -607,6 +632,35 @@ class DerivationMappingTest {
     }
 
     @Test
+    void gtOnStringTimeDurationOrAnyUriPropertyIsErrorAndRuleIsNotLoaded() {
+        // A rejected comparison stops before the value is coerced, so the value need not parse for
+        // the datatype: the only ERROR is the comparison one.
+        for (String range : List.of("xsd:string", "xsd:time", "xsd:duration", "xsd:anyURI")) {
+            MappingResult result = mapTurtle("""
+                ex:amount a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range %s .
+                ex:openTaskCount
+                    a owl:DatatypeProperty ;
+                    rdfs:domain ex:Project ;
+                    rdfs:range xsd:integer ;
+                    sq:derivedBy [
+                        a sq:Rollup ;
+                        sq:function sq:count ;
+                        sq:over ex:Task ;
+                        sq:via ex:belongsToProject ;
+                        sq:filter ( [ a sq:Criterion ;
+                                      sq:property ex:amount ;
+                                      sq:operator sq:gt ;
+                                      sq:value "3" ] ) ] .
+                """.formatted(range));
+            assertThat(errors(result)).as(range).hasSize(1);
+            assertThat(errors(result).get(0).message())
+                    .as(range)
+                    .contains("compares " + AMOUNT_IRI + " with GT, which needs a numeric property");
+            assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).as(range).isEmpty();
+        }
+    }
+
+    @Test
     void comparisonOnNumberPropertyStillLoadsWithNoError() {
         for (String range : List.of("xsd:integer", "xsd:long", "xsd:decimal", "xsd:double")) {
             MappingResult result = mapTurtle("""
@@ -633,6 +687,34 @@ class DerivationMappingTest {
             assertThat(rule.criteria().get(0).property()).as(range).isEqualTo(AMOUNT_IRI);
             assertThat(rule.criteria().get(0).operator()).as(range).isEqualTo(Operator.GT);
         }
+    }
+
+    @Test
+    void comparisonOnIntegerAndAnyUriRangePropertyStillLoadsWithNoError() {
+        // The snapshot types this property INTEGER (mostSpecificXsdIri prefers the integral range),
+        // even though xsd:anyURI sorts first. The comparison check must agree with the snapshot.
+        MappingResult result = mapTurtle("""
+            ex:amount a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:integer, xsd:anyURI .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:amount ;
+                                  sq:operator sq:gt ;
+                                  sq:value "3" ] ) ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
+        assertThat(rule.criteria()).hasSize(1);
+        assertThat(rule.criteria().get(0).property()).isEqualTo(AMOUNT_IRI);
+        assertThat(rule.criteria().get(0).operator()).isEqualTo(Operator.GT);
     }
 
     @Test
@@ -729,6 +811,57 @@ class DerivationMappingTest {
         assertThat(rule.function()).isEqualTo(AggregateFunction.COUNT);
         assertThat(rule.criteria())
                 .containsExactly(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done"))));
+    }
+
+    /** The integer-plus-anyURI regression, under the reasoner the running application uses. */
+    @Test
+    void comparisonOnIntegerAndAnyUriRangePropertyStillLoadsUnderTheOwlReasoner() {
+        MappingResult result = mapTurtleUnderReasoner("""
+            ex:amount a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:integer, xsd:anyURI .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:amount ;
+                                  sq:operator sq:gt ;
+                                  sq:value "3" ] ) ] .
+            """, ReasonerSetting.OWL);
+        assertThat(errors(result)).isEmpty();
+
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
+        assertThat(rule.criteria()).hasSize(1);
+        assertThat(rule.criteria().get(0).property()).isEqualTo(AMOUNT_IRI);
+        assertThat(rule.criteria().get(0).operator()).isEqualTo(Operator.GT);
+    }
+
+    /** The LTE-on-DATE rejection, under the reasoner the running application uses. */
+    @Test
+    void lteOnDatePropertyIsErrorUnderTheOwlReasoner() {
+        MappingResult result = mapTurtleUnderReasoner("""
+            ex:dueDate a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:date .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:dueDate ;
+                                  sq:operator sq:lte ;
+                                  sq:value "not-a-date" ] ) ] .
+            """, ReasonerSetting.OWL);
+        assertSingleError(
+                result, OPEN_TASK_COUNT_IRI, "compares " + DUE_DATE_IRI + " with LTE, which needs a numeric property");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
     }
 
     // -- Fixtures ---------------------------------------------------------------------------------

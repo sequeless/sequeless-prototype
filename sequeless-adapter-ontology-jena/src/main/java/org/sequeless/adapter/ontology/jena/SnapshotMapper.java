@@ -339,13 +339,7 @@ final class SnapshotMapper {
             return Optional.empty();
         }
 
-        List<String> candidateXsdIris = property.ranges()
-                .filter(Resource::isURIResource)
-                .map(Resource::getURI)
-                .distinct()
-                .sorted()
-                .toList();
-        Optional<String> xsdIri = mostSpecificXsdIri(candidateXsdIris);
+        Optional<String> xsdIri = dataPropertyXsdIri(property);
         Datatype datatype = xsdIri.flatMap(Datatype::fromXsd).orElse(null);
         if (datatype == null) {
             datatype = Datatype.STRING;
@@ -566,6 +560,22 @@ final class SnapshotMapper {
                 .findFirst()
                 .or(() -> recognised.keySet().stream().findFirst())
                 .or(() -> candidateXsdIris.stream().findFirst());
+    }
+
+    /**
+     * The {@code xsd:} range IRI the snapshot resolves {@code property}'s datatype from: its URI
+     * ranges, de-duplicated and IRI-sorted, narrowed by {@link #mostSpecificXsdIri}. {@link
+     * #dataPropertyMeta} and the comparison check in {@link #isNonNumericProperty} both call this,
+     * so they cannot disagree about a property with several ranges.
+     */
+    private static Optional<String> dataPropertyXsdIri(OntDataProperty property) {
+        List<String> candidateXsdIris = property.ranges()
+                .filter(Resource::isURIResource)
+                .map(Resource::getURI)
+                .distinct()
+                .sorted()
+                .toList();
+        return mostSpecificXsdIri(candidateXsdIris);
     }
 
     /**
@@ -924,14 +934,20 @@ final class SnapshotMapper {
     /**
      * {@code true} when {@code propertyIri} is known to be a property a comparison operator cannot
      * apply to: an object property, or a data property whose datatype is not in {@link
-     * #NUMERIC_DATATYPES}. A property with no resolvable datatype returns {@code false}, because
+     * #NUMERIC_DATATYPES}. The datatype is resolved exactly as the snapshot resolves it ({@link
+     * #dataPropertyXsdIri}). A property with no resolvable datatype returns {@code false}, because
      * {@link #criterionValue} already rejects it with its own {@code ERROR}.
      */
     private static boolean isNonNumericProperty(String propertyIri, OntModel model) {
         if (model.getObjectProperty(propertyIri) != null) {
             return true;
         }
-        return dataDatatypeOf(propertyIri, model)
+        OntDataProperty dataProperty = model.getDataProperty(propertyIri);
+        if (dataProperty == null) {
+            return false;
+        }
+        return dataPropertyXsdIri(dataProperty)
+                .flatMap(Datatype::fromXsd)
                 .map(datatype -> !NUMERIC_DATATYPES.contains(datatype))
                 .orElse(false);
     }
@@ -939,8 +955,9 @@ final class SnapshotMapper {
     /**
      * The {@link Datatype} {@code propertyIri} resolves to as a data property, or empty if it is not
      * a data property with a recognised XSD range. This is the lookup {@link
-     * #resolveValueForProperty} coerces against, factored out so the comparison check in {@link
-     * #criterionOf} asks the same question the same way.
+     * #resolveValueForProperty} coerces against. It takes the first sorted range IRI rather than
+     * {@link #dataPropertyXsdIri}'s most specific one, so for a property with several ranges it can
+     * differ from the snapshot's datatype; the comparison check does not use it.
      */
     private static Optional<Datatype> dataDatatypeOf(String propertyIri, OntModel model) {
         OntDataProperty dataProperty = model.getDataProperty(propertyIri);

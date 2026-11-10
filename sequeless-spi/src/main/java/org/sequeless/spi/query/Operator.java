@@ -18,17 +18,27 @@ public enum Operator {
     /** Membership in a set of candidate values. Applies to every datatype, including references. */
     IN,
 
-    /** Strictly less than. Typically applies to numeric, date, and date-time properties. */
+    /**
+     * Strictly less than. Applies to numeric properties only (integer, long, decimal, double); the
+     * ontology rejects it on any other property.
+     */
     LT,
 
-    /** Less than or equal to. Typically applies to numeric, date, and date-time properties. */
+    /**
+     * Less than or equal to. Applies to numeric properties only (integer, long, decimal, double);
+     * the ontology rejects it on any other property.
+     */
     LTE,
 
-    /** Strictly greater than. Typically applies to numeric, date, and date-time properties. */
+    /**
+     * Strictly greater than. Applies to numeric properties only (integer, long, decimal, double);
+     * the ontology rejects it on any other property.
+     */
     GT,
 
     /**
-     * Greater than or equal to. Typically applies to numeric, date, and date-time properties.
+     * Greater than or equal to. Applies to numeric properties only (integer, long, decimal,
+     * double); the ontology rejects it on any other property.
      */
     GTE,
 
