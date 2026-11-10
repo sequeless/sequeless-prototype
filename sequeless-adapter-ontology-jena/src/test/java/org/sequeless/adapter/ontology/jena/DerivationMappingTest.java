@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.apache.jena.ontapi.OntModelFactory;
@@ -15,6 +16,7 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.values.IntegerValue;
 import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.meta.behaviour.DerivationRule;
 import org.sequeless.spi.meta.behaviour.PluginRule;
 import org.sequeless.spi.meta.behaviour.RollupRule;
@@ -46,6 +48,10 @@ class DerivationMappingTest {
     private static final String PRIORITY_IRI = REF_NS + "priority";
     private static final String OPEN_TASK_COUNT_IRI = REF_NS + "openTaskCount";
     private static final String TOTAL_ESTIMATED_HOURS_IRI = REF_NS + "totalEstimatedHours";
+    private static final String DUE_DATE_IRI = REF_NS + "dueDate";
+    private static final String CREATED_AT_IRI = REF_NS + "createdAt";
+    private static final String ARCHIVED_IRI = REF_NS + "archived";
+    private static final String AMOUNT_IRI = REF_NS + "amount";
 
     /**
      * {@code ex:Project}/{@code ex:Task} plus the two ordinary (non-derived) properties every
@@ -499,6 +505,160 @@ class DerivationMappingTest {
             """);
         assertSingleError(
                 result, OPEN_TASK_COUNT_IRI, "is not an object property effectively declared on sq:over type");
+    }
+
+    // -- Comparisons on non-number properties (spec 11 section 11, Q4) ---------------------------
+
+    @Test
+    void ltOnDatePropertyIsErrorAndRuleIsNotLoaded() {
+        // The value is deliberately not a valid date: a rejected comparison must stop before the
+        // value is coerced, so the only ERROR is the comparison one.
+        MappingResult result = mapTurtle("""
+            ex:dueDate a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:date .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:dueDate ;
+                                  sq:operator sq:lt ;
+                                  sq:value "not-a-date" ] ) ] .
+            """);
+        assertSingleError(
+                result, OPEN_TASK_COUNT_IRI, "compares " + DUE_DATE_IRI + " with LT, which needs a numeric property");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
+    }
+
+    @Test
+    void gteOnDateTimePropertyIsError() {
+        MappingResult result = mapTurtle("""
+            ex:createdAt a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:dateTime .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:createdAt ;
+                                  sq:operator sq:gte ;
+                                  sq:value "2026-01-01T00:00:00Z" ] ) ] .
+            """);
+        assertSingleError(
+                result,
+                OPEN_TASK_COUNT_IRI,
+                "compares " + CREATED_AT_IRI + " with GTE, which needs a numeric property");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
+    }
+
+    @Test
+    void gtOnBooleanPropertyIsError() {
+        MappingResult result = mapTurtle("""
+            ex:archived a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:boolean .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:archived ;
+                                  sq:operator sq:gt ;
+                                  sq:value "true" ] ) ] .
+            """);
+        assertSingleError(
+                result, OPEN_TASK_COUNT_IRI, "compares " + ARCHIVED_IRI + " with GT, which needs a numeric property");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
+    }
+
+    @Test
+    void gtOnObjectPropertyIsError() {
+        MappingResult result = mapTurtle("""
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:belongsToProject ;
+                                  sq:operator sq:gt ;
+                                  sq:value "3f2c9a1e-0000-4000-8000-000000000001" ] ) ] .
+            """);
+        assertSingleError(
+                result,
+                OPEN_TASK_COUNT_IRI,
+                "compares " + BELONGS_TO_PROJECT_IRI + " with GT, which needs a numeric property");
+        assertThat(derivation(result, OPEN_TASK_COUNT_IRI)).isEmpty();
+    }
+
+    @Test
+    void comparisonOnNumberPropertyStillLoadsWithNoError() {
+        for (String range : List.of("xsd:integer", "xsd:long", "xsd:decimal", "xsd:double")) {
+            MappingResult result = mapTurtle("""
+                ex:amount a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range %s .
+                ex:openTaskCount
+                    a owl:DatatypeProperty ;
+                    rdfs:domain ex:Project ;
+                    rdfs:range xsd:integer ;
+                    sq:derivedBy [
+                        a sq:Rollup ;
+                        sq:function sq:count ;
+                        sq:over ex:Task ;
+                        sq:via ex:belongsToProject ;
+                        sq:filter ( [ a sq:Criterion ;
+                                      sq:property ex:amount ;
+                                      sq:operator sq:gt ;
+                                      sq:value "3" ] ) ] .
+                """.formatted(range));
+            assertThat(errors(result)).as(range).isEmpty();
+
+            RollupRule rule =
+                    (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
+            assertThat(rule.criteria()).as(range).hasSize(1);
+            assertThat(rule.criteria().get(0).property()).as(range).isEqualTo(AMOUNT_IRI);
+            assertThat(rule.criteria().get(0).operator()).as(range).isEqualTo(Operator.GT);
+        }
+    }
+
+    @Test
+    void eqOnDatePropertyStillLoadsWithNoError() {
+        MappingResult result = mapTurtle("""
+            ex:dueDate a owl:DatatypeProperty ; rdfs:domain ex:Task ; rdfs:range xsd:date .
+            ex:openTaskCount
+                a owl:DatatypeProperty ;
+                rdfs:domain ex:Project ;
+                rdfs:range xsd:integer ;
+                sq:derivedBy [
+                    a sq:Rollup ;
+                    sq:function sq:count ;
+                    sq:over ex:Task ;
+                    sq:via ex:belongsToProject ;
+                    sq:filter ( [ a sq:Criterion ;
+                                  sq:property ex:dueDate ;
+                                  sq:operator sq:eq ;
+                                  sq:value "2026-12-01" ] ) ] .
+            """);
+        assertThat(errors(result)).isEmpty();
+
+        RollupRule rule = (RollupRule) derivation(result, OPEN_TASK_COUNT_IRI).orElseThrow();
+        assertThat(rule.criteria())
+                .containsExactly(
+                        new Criterion(DUE_DATE_IRI, Operator.EQ, Optional.of(Value.date(LocalDate.of(2026, 12, 1)))));
     }
 
     // -- Reasoner interaction --------------------------------------------------------------------
