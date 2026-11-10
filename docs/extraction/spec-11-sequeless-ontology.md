@@ -432,7 +432,7 @@ The decisions in section 11 (2026-11-09 and 2026-11-10) change this table: S0b i
 | **S0b sq-meta.ttl split** | `sequeless-prototype`, one PR, before S2 (merged as PR #94, 8c35bc2) | Section 11, Q9 (decided: split in the prototype first). Split `sq-meta.ttl` into `sq-schema.ttl` and `sq-behaviour.ttl`, and show that the loaded union is unchanged | S0 merged | `source ~/.bashrc.ext && mvn spotless:apply && mvn -B -Prelease verify` green. The loaded union is unchanged |
 | **S1 release-please migration** | `sequeless-ontology`, PR sequeless-ontology#3 (branch `chore/release-please-migration`, commits `2d6250a`, `0e6d8ec`, `6d36f67`), open | Section 6.2 | none | Build job green on the PR. Facet modules are not listed as packages. No Java package changed |
 | **S1b CI, parent and Java level** | `sequeless-ontology`, one PR after S1. Q11 release level done in sequeless-ontology PR #4 (827c472). | Section 7 items 1 to 3, and the release level from Q11 | S1 merged. Q8 for the Sonar item. Q11 is decided and done (release level 25, PR #4) | Build job green on the PR on JDK 25. GitHub Packages resolution of `kernel-identity` works from the target's CI |
-| **S2 import** | `sequeless-ontology`, one PR. One import commit titled per D27, the provenance section in its body, plus any formatting commit | Sections 2 to 5 and 10.1, without the SHACL files (section 11, item 13). Copies only. The prototype is not touched | S0, S1, S1b, the Q4 prototype PR (section 11, item 14), and the facet javadoc PR (item 15, merged as sequeless-ontology `d183bcd`). Section 11 Q1 to Q6 and Q9 to Q12 are decided | `./mvnw -B verify javadoc:javadoc` green on JDK 25 (spotless, Enforcer, ArchUnit, moved tests, `OntologyContract` for the Jena port and the in-memory port, `OntologyDocumentStoreContract` for the in-memory store). The owl grep in section 10.3 matches history files only |
+| **S2 import** (merged as sequeless-ontology #9: import `b2ff8a6`, review fixes `76f5d43`) | `sequeless-ontology`, one PR. One import commit titled per D27, the provenance section in its body, plus any formatting commit | Sections 2 to 5 and 10.1, without the SHACL files (section 11, item 13). Copies only. The prototype is not touched | S0, S1, S1b, the Q4 prototype PR (section 11, item 14), and the facet javadoc PR (item 15, merged as sequeless-ontology `d183bcd`). Section 11 Q1 to Q6 and Q9 to Q12 are decided | `./mvnw -B verify javadoc:javadoc` green on JDK 25 (spotless, Enforcer, ArchUnit, moved tests, `OntologyContract` for the Jena port and the in-memory port, `OntologyDocumentStoreContract` for the in-memory store). The owl grep in section 10.3 matches history files only |
 | **S2b SHACL** | `sequeless-ontology`, one PR after S2. Not a copy: a new kernel-typed validation api in `ontology-core`, with its implementation in `ontology-jena-adapter` (section 11, item 13) | Q1 destination. The Command side keeps `ValidationPort` and adapts it in spec 12 | S2 | Its own gate: `./mvnw -B verify javadoc:javadoc` green on JDK 25, plus the SHACL contract tests from the prototype moved as copies. Design reviewed before merge |
 | **S3 ADRs** | `sequeless-ontology`, PR separate from S2 | Section 8. 0004 and 0005 as drafted plus `AutomationSource`. 0003 as drafted | S2. 0003 is also blocked on section 11, Q7 | CI green. Each file matches its source, except the stated `AutomationSource` edit in 0004 |
 | **S4 release 0.1.0** | `sequeless-ontology`, release-please release PR | Section 6.1: six modules at 0.1.0, tags, GitHub Packages | S2, S2b and S3 on `main` (item 16) | Each artifact resolves at 0.1.0 from GitHub Packages in a clean build. The release run is green. Must finish before S5a |
@@ -444,7 +444,7 @@ The decisions in section 11 (2026-11-09 and 2026-11-10) change this table: S0b i
 
 > **S1b row:** merged as sequeless-ontology #7 (`036c9e9`, rebase, admin merge recorded in sequeless-prototype #39).
 
-> **S2 row:** S0b is merged. The spec 11 docs follow-up that annotates superseded defaults, and the sq-schema.ttl header fix, must land before S2 starts.
+> **S2 row:** merged as sequeless-ontology #9 (admin rebase at head `6b6286b`): import `b2ff8a6`, review fixes `76f5d43`. The docs follow-ups that S2 waited for are merged: prototype #96 (sq-schema.ttl header, `a37cbcd`) and #97 (superseded defaults annotated, `4b2800a`).
 
 > **Section 11, item 13:** S2 is copy-only. The SHACL move is S2b.
 
@@ -506,3 +506,28 @@ Decided, and not open: O1 (Option A, the owner's answer on #39 on 2026-11-08), r
 14. **Q4 lands in the prototype first.** The reject-at-load check is one behaviour PR in the prototype, before S2, so that the import copies code that already has the check (#23's prototype-first rule). Branch `feat/q4-reject-comparisons-at-load`. The PR number is recorded in `remaining-work.md` when it exists.
 15. **Facet javadoc: fix the three comments in place.** `FacetPathCodec.java:22` and `FacetSource.java:53` and `:127` are comment-only fixes in frozen `facet-core`, as a separate PR before S2 (branch `docs/facet-javadoc-errors` in sequeless-ontology). After it merges, the S2 gate `./mvnw -B verify javadoc:javadoc` covers the whole reactor.
 16. **S4 waits for S2b.** 0.1.0 ships the validation api in `ontology-core` (Q1 and ADR 0004), so S4 depends on S2b as well as S2 and S3. This is a driver decision of 2026-11-10 from the review of PR #99, not an owner answer. The owner may redirect it.
+17. **S2 outcomes**
+    - OQ-1 and OQ-2: SHACL not in S2.
+    - OQ-3: ontology-core has no kernel-values dependency; it imports only kernel-identity.
+    - OQ-4: the Q4 check is included, from prototype #100.
+    - OQ-5: RollupRuleMappingTest was written at ontology-jena-adapter src/test/java/.../jena/internal/RollupRuleMappingTest.java, using the public FieldRegistry and FilterValidator API; the EQ cases were added in 76f5d43.
+    - OQ-6: moved tests follow their class's package.
+    - OQ-7: source SHA 8ee2360.
+    - OQ-8: sq-schema.ttl and sq-behaviour.ttl are in ontology-jena-adapter resources only.
+    - OQ-9: OntologyFixtureDriftTest stays in the prototype; it is not in the target.
+    - OQ-10: JenaOntologySettings is at org.sequeless.ontology.jena.
+    - OQ-11: package references rewritten, and the section 10.3 grep is empty; ImportResolver javadoc still describes the prototype copies (S3-a).
+    - OQ-12: automation javadoc copied as-is apart from the package renames.
+    - OQ-13: `protected abstract OntologyDocumentStore freshDocuments();`, at line 42 of ontology-testfixtures/src/main/java/org/sequeless/ontology/testfixtures/OntologyDocumentStoreContract.java, unchanged from b2ff8a6 to 76f5d43. It is abstract, not the Supplier the S2 plan assumed.
+18. **S2b decision pending**
+
+    Context: item 13 fixes the placement (validation api in `ontology-core` over kernel types, implementation in `ontology-jena-adapter`). Item 16, a driver decision, makes 0.1.0 wait for S2b. `ShaclValidationPort` and `ShaclDataGraphBuilder` take `BusinessObject`, which stays in the prototype (#16 decision 9), so S2b is new design, not a copy.
+
+    Question: "Which route for SHACL and 0.1.0: (a), (b), (c) or (d)? Reply on #39 with the letter; for (b), include the signature."
+
+    - (a) The driver proposes the signature in S2b, with evidence; the owner approves it before merge. 0.1.0 waits for S2b.
+    - (b) The owner posts the signature on #39 before S2b starts. 0.1.0 waits for S2b (item 16 unchanged).
+    - (c) SHACL stays in the prototype and spec 12 decides its home. S2b is dropped. 0.1.0 ships after S3 without a validation api. This reverses Q1, owner answer 13, #13 decision 6 and the api scope of ADR 0004.
+    - (d) Keep S2b, but ship 0.1.0 after S3 without the validation api; S2b ships as 0.2.0. This changes item 16, and ADR 0004 must say the api comes in 0.2.0.
+
+    Driver recommendation: (a). Reason: Q1 and owner answer 13 fix the placement, and the S2b row already says "Design reviewed before merge", so only the signature is open. Item 16 keeps 0.1.0 shipping the validation api that Q1 and the ADR 0004 draft promise. An owner sign-off keeps the one-way door of a published api visible. (d) is the fallback if the owner wants 0.1.0 sooner.
