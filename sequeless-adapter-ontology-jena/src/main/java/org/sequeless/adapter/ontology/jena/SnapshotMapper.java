@@ -72,7 +72,8 @@ import org.sequeless.spi.query.Operator;
  * issues (currently only the unmapped-datatype fallback) describe a degraded but still-usable
  * mapping; {@code ERROR} issues describe a malformed {@code sq:derivedBy} rule (a node typed as
  * both/neither {@code sq:Rollup}/{@code sq:Plugin}, an unknown {@code sq:function}/{@code
- * sq:operator}, a missing required term, or a {@code sq:via} that is not an object property of the
+ * sq:operator}, a missing required term, a {@code sq:lt}/{@code sq:lte}/{@code sq:gt}/{@code sq:gte}
+ * comparison on a non-number property, or a {@code sq:via} that is not an object property of the
  * {@code sq:over} type) — {@code JenaOntologyPort.buildStateFrom} folds these into the overall
  * consistency verdict exactly like every other activation-time source of truth, the same way it
  * already does for unresolved imports and reserved terms.
@@ -338,13 +339,7 @@ final class SnapshotMapper {
             return Optional.empty();
         }
 
-        List<String> candidateXsdIris = property.ranges()
-                .filter(Resource::isURIResource)
-                .map(Resource::getURI)
-                .distinct()
-                .sorted()
-                .toList();
-        Optional<String> xsdIri = mostSpecificXsdIri(candidateXsdIris);
+        Optional<String> xsdIri = dataPropertyXsdIri(property);
         Datatype datatype = xsdIri.flatMap(Datatype::fromXsd).orElse(null);
         if (datatype == null) {
             datatype = Datatype.STRING;
@@ -565,6 +560,22 @@ final class SnapshotMapper {
                 .findFirst()
                 .or(() -> recognised.keySet().stream().findFirst())
                 .or(() -> candidateXsdIris.stream().findFirst());
+    }
+
+    /**
+     * The {@code xsd:} range IRI the snapshot resolves {@code property}'s datatype from: its URI
+     * ranges, de-duplicated and IRI-sorted, narrowed by {@link #mostSpecificXsdIri}. {@link
+     * #dataPropertyMeta} and the comparison check in {@link #isNonNumericProperty} both call this,
+     * so they cannot disagree about a property with several ranges.
+     */
+    private static Optional<String> dataPropertyXsdIri(OntDataProperty property) {
+        List<String> candidateXsdIris = property.ranges()
+                .filter(Resource::isURIResource)
+                .map(Resource::getURI)
+                .distinct()
+                .sorted()
+                .toList();
+        return mostSpecificXsdIri(candidateXsdIris);
     }
 
     /**
@@ -794,6 +805,18 @@ final class SnapshotMapper {
             return Optional.empty();
         }
 
+        boolean comparison = operator == Operator.LT
+                || operator == Operator.LTE
+                || operator == Operator.GT
+                || operator == Operator.GTE;
+        if (comparison && isNonNumericProperty(criterionPropertyIri, model)) {
+            issues.add(error(
+                    propertyIri,
+                    "sq:filter criterion on " + propertyIri + " compares " + criterionPropertyIri + " with " + operator
+                            + ", which needs a numeric property"));
+            return Optional.empty();
+        }
+
         Statement valueStmt = criterionNode.getProperty(SqVocabulary.VALUE);
         boolean noValueOperator = operator == Operator.IS_NULL || operator == Operator.NOT_NULL;
         if (noValueOperator) {
@@ -882,16 +905,7 @@ final class SnapshotMapper {
             }
         }
 
-        OntDataProperty dataProperty = model.getDataProperty(targetPropertyIri);
-        Optional<Datatype> datatype = dataProperty == null
-                ? Optional.empty()
-                : dataProperty
-                        .ranges()
-                        .filter(Resource::isURIResource)
-                        .map(Resource::getURI)
-                        .sorted()
-                        .findFirst()
-                        .flatMap(Datatype::fromXsd);
+        Optional<Datatype> datatype = dataDatatypeOf(targetPropertyIri, model);
         if (datatype.isEmpty()) {
             issues.add(error(
                     errorSubjectIri,
@@ -907,6 +921,55 @@ final class SnapshotMapper {
                             + " for property " + targetPropertyIri));
         }
         return value;
+    }
+
+    /**
+     * The number properties a comparison operator ({@code sq:lt}, {@code sq:lte}, {@code sq:gt},
+     * {@code sq:gte}) may apply to. Every other datatype, and every object property, is rejected at
+     * load (spec 11 section 11, Q4).
+     */
+    private static final Set<Datatype> NUMERIC_DATATYPES =
+            Set.of(Datatype.INTEGER, Datatype.LONG, Datatype.DECIMAL, Datatype.DOUBLE);
+
+    /**
+     * {@code true} when {@code propertyIri} is known to be a property a comparison operator cannot
+     * apply to: an object property, or a data property whose datatype is not in {@link
+     * #NUMERIC_DATATYPES}. The datatype is resolved exactly as the snapshot resolves it ({@link
+     * #dataPropertyXsdIri}). A property with no resolvable datatype returns {@code false}, because
+     * {@link #criterionValue} already rejects it with its own {@code ERROR}.
+     */
+    private static boolean isNonNumericProperty(String propertyIri, OntModel model) {
+        if (model.getObjectProperty(propertyIri) != null) {
+            return true;
+        }
+        OntDataProperty dataProperty = model.getDataProperty(propertyIri);
+        if (dataProperty == null) {
+            return false;
+        }
+        return dataPropertyXsdIri(dataProperty)
+                .flatMap(Datatype::fromXsd)
+                .map(datatype -> !NUMERIC_DATATYPES.contains(datatype))
+                .orElse(false);
+    }
+
+    /**
+     * The {@link Datatype} {@code propertyIri} resolves to as a data property, or empty if it is not
+     * a data property with a recognised XSD range. This is the lookup {@link
+     * #resolveValueForProperty} coerces against. It takes the first sorted range IRI rather than
+     * {@link #dataPropertyXsdIri}'s most specific one, so for a property with several ranges it can
+     * differ from the snapshot's datatype; the comparison check does not use it.
+     */
+    private static Optional<Datatype> dataDatatypeOf(String propertyIri, OntModel model) {
+        OntDataProperty dataProperty = model.getDataProperty(propertyIri);
+        return dataProperty == null
+                ? Optional.empty()
+                : dataProperty
+                        .ranges()
+                        .filter(Resource::isURIResource)
+                        .map(Resource::getURI)
+                        .sorted()
+                        .findFirst()
+                        .flatMap(Datatype::fromXsd);
     }
 
     /**

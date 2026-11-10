@@ -84,7 +84,9 @@ Notes:
   `sq:gte`, `sq:contains`, `sq:startsWith`, `sq:isNull`, `sq:notNull` — are likewise
   `owl:NamedIndividual`s with no snapshot field of their own: they are the values `sq:operator`
   takes, matched by IRI local name against `org.sequeless.spi.query.Operator`'s enum constant
-  names (T3's job).
+  names (T3's job). The four comparison operators (`sq:lt`, `sq:lte`, `sq:gt`, `sq:gte`) apply
+  only to number properties, and a comparison on any other property is rejected at activation as
+  an ERROR.
 - Declaring `sq:derivedBy` on a property forces `PropertyDefinition.readOnly()` to `true`
   regardless of any `sq:readOnly` assertion — a derived value is never accepted on write.
 - `sq:derivedBy`'s range is conceptually the union `sq:Rollup` ∪ `sq:Plugin`, but no `rdfs:range` is
