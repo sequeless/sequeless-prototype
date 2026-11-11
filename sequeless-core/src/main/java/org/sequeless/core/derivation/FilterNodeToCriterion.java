@@ -48,17 +48,18 @@ import org.sequeless.spi.query.Operator;
  * <p>An {@link Operator#IN} criterion carries a {@link org.sequeless.kernel.values.ListValue} of the
  * element values, not a scalar. The cut-over PR must render it as a list.
  *
- * <p>Values convert by the property's {@link Datatype} as the {@link Schema} gives it. The Schema keeps
- * one datatype per attribute, the most specific range, while the released loader writes a value using
- * the first range IRI in sorted order. The two differ when a property has several ranges, declared or
- * entailed. Under the OWL reasoner (the prototype's default), an {@code xsd:integer} property also gets
- * the entailed range {@code xsd:decimal}, which sorts first, so the loader may write a {@code DecimalNode}
- * for it. The bridge then rejects any {@code DecimalNode} for INTEGER and LONG with an {@link
- * IllegalArgumentException}, including an integral one such as {@code 3.0}. The prototype's
- * {@code StateMachineMappingTest} and {@code mostSpecificXsdIri} comments say this was verified
- * empirically under OWL. It has NOT been reproduced in this bridge PR. The cut-over must verify it
- * before the bridge is wired into {@code DerivationPlanner.resolveRollup}. This javadoc makes no claim
- * that the bridge matches the loader.
+ * <p>Values convert by the property's {@link Datatype} as the {@link Schema} gives it, with one
+ * exception for the integer kinds. The Schema keeps one datatype per attribute, the most specific range,
+ * while the released loader writes a value using the first range IRI in sorted order. Under the OWL
+ * reasoner (the prototype's default), an {@code xsd:integer} property also gets the entailed range
+ * {@code xsd:decimal}, which sorts first, so the loader writes a {@code DecimalNode} for it. The bridge
+ * therefore converts a {@code DecimalNode} on an INTEGER or LONG property to {@code Value.decimal},
+ * matching the loader under OWL. An integral node that fits a long converts to {@code Value.integer},
+ * matching the loader under NONE. An integral node that does not fit a long is rejected. Every other
+ * kind uses the Schema datatype. This is the one place the bridge follows the loader's first sorted
+ * range. It was checked by a probe under OWL, a throwaway test: OWL gives {@code DecimalValue} and NONE
+ * gives {@code IntegerValue}, for the number 3 and for the literal "3". The cut-over must verify the
+ * behaviour end to end before the bridge is wired into {@code DerivationPlanner.resolveRollup}.
  */
 public final class FilterNodeToCriterion {
 
@@ -205,17 +206,14 @@ public final class FilterNodeToCriterion {
 
     /**
      * Mirrors the released loader's JSON form (its {@code jsonOf}) and the prototype's
-     * {@code coerceLiteral}: text for string-like datatypes and for dates (ISO-8601), an integral
-     * number for integer and long, a number for decimal and double, a boolean for boolean.
+     * {@code coerceLiteral}: text for string-like datatypes and for dates (ISO-8601), a number for
+     * decimal and double, a boolean for boolean. Integer and long take {@link #integerKind}.
      */
     private static Optional<Value> scalar(Datatype datatype, JsonNode node) {
         return switch (datatype) {
             case STRING, ANY_URI, TIME, DURATION ->
                 node.isTextual() ? Optional.of(Value.text(node.textValue())) : Optional.empty();
-            case INTEGER, LONG ->
-                node.isIntegralNumber() && node.canConvertToLong()
-                        ? Optional.of(Value.integer(node.longValue()))
-                        : Optional.empty();
+            case INTEGER, LONG -> integerKind(node);
             case DECIMAL, DOUBLE ->
                 node.isNumber() ? Optional.of(Value.decimal(node.decimalValue())) : Optional.empty();
             case BOOLEAN -> node.isBoolean() ? Optional.of(Value.bool(node.booleanValue())) : Optional.empty();
@@ -224,5 +222,17 @@ public final class FilterNodeToCriterion {
             case DATE_TIME ->
                 node.isTextual() ? Optional.of(Value.dateTime(Instant.parse(node.textValue()))) : Optional.empty();
         };
+    }
+
+    /**
+     * An integer-kind value. An integral node that fits a long is an integer, matching the released
+     * loader under NONE. Any other number is a decimal, matching the loader under OWL, which writes a
+     * DecimalNode for an xsd:integer property. An integral number that does not fit a long is rejected.
+     */
+    private static Optional<Value> integerKind(JsonNode node) {
+        if (node.isIntegralNumber()) {
+            return node.canConvertToLong() ? Optional.of(Value.integer(node.longValue())) : Optional.empty();
+        }
+        return node.isNumber() ? Optional.of(Value.decimal(node.decimalValue())) : Optional.empty();
     }
 }
