@@ -2,10 +2,10 @@ package org.sequeless.core.api;
 
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.spi.authz.AuthorizationPort;
 
 /**
  * Exposes the ontology's type system to the rest of the application: the current schema and

@@ -2,13 +2,13 @@ package org.sequeless.core.api;
 
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.ontology.api.ImportMode;
 import org.sequeless.ontology.api.ImportReport;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.authz.Operation;
 
 /**
  * Administrative export/import of the ontology as a whole, distinct from the read-only, per-type

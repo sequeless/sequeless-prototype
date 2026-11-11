@@ -4,13 +4,13 @@ import java.util.Objects;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.OntologyAdministration;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.ontology.api.ImportMode;
 import org.sequeless.ontology.api.ImportReport;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.authz.Operation;
 
 /**
  * Reference implementation of {@link OntologyAdministration}.

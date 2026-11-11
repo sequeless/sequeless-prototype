@@ -18,12 +18,14 @@ import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.authz.Operation;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.ontology.behaviour.api.Behaviour;
-import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.api.AggregateFunction;
 import org.sequeless.ontology.schema.api.AttributeDefinition;
 import org.sequeless.ontology.schema.api.Cardinality;
@@ -31,13 +33,11 @@ import org.sequeless.ontology.schema.api.Datatype;
 import org.sequeless.ontology.schema.api.DisplayHints;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.ontology.api.ImportMode;
-import org.sequeless.ontology.api.ImportReport;
-import org.sequeless.ontology.api.OntologyDocument;
-import org.sequeless.ontology.api.OntologyFormat;
-import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.authz.Operation;
 
 /**
  * Unit tests for {@link DefaultMetaModelService}. Neither the ports nor {@link AuthorizationPort} is

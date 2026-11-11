@@ -2,13 +2,13 @@ package org.sequeless.app.config;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.api.ImportMode;
 import org.sequeless.ontology.api.ImportReport;
 import org.sequeless.ontology.api.OntologyAdministration;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.QueryPort;
 
 /**

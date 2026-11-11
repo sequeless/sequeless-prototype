@@ -2,10 +2,10 @@ package org.sequeless.adapter.ontology.jena;
 
 import java.util.Set;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.ontology.jena.ReasonerSetting;
 import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.testkit.validation.ValidationContract;
 
 /**

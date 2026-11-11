@@ -2,6 +2,16 @@ package org.sequeless.testkit.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.sequeless.ontology.testfixtures.Fixtures.ASSIGNED_TO_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.BELONGS_TO_PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DESCRIPTION_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DUE_DATE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PERSON_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PRIORITY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.STATUS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -72,19 +82,19 @@ import org.sequeless.testkit.Fixtures;
  */
 public abstract class QueryContract {
 
-    private static final TypeRef TASK = new TypeRef(Fixtures.TASK_IRI);
-    private static final TypeRef PROJECT = new TypeRef(Fixtures.PROJECT_IRI);
-    private static final TypeRef PERSON = new TypeRef(Fixtures.PERSON_IRI);
+    private static final TypeRef TASK = new TypeRef(TASK_IRI);
+    private static final TypeRef PROJECT = new TypeRef(PROJECT_IRI);
+    private static final TypeRef PERSON = new TypeRef(PERSON_IRI);
 
-    private static final PropertyRef TITLE = new PropertyRef(Fixtures.TITLE_IRI);
-    private static final PropertyRef STATUS = new PropertyRef(Fixtures.STATUS_IRI);
-    private static final PropertyRef DESCRIPTION = new PropertyRef(Fixtures.DESCRIPTION_IRI);
-    private static final PropertyRef PRIORITY = new PropertyRef(Fixtures.PRIORITY_IRI);
-    private static final PropertyRef DUE_DATE = new PropertyRef(Fixtures.DUE_DATE_IRI);
-    private static final PropertyRef ASSIGNED_TO = new PropertyRef(Fixtures.ASSIGNED_TO_IRI);
-    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
-    private static final PropertyRef NAME = new PropertyRef(Fixtures.NAME_IRI);
-    private static final PropertyRef EMAIL = new PropertyRef(Fixtures.EMAIL_IRI);
+    private static final PropertyRef TITLE = new PropertyRef(TITLE_IRI);
+    private static final PropertyRef STATUS = new PropertyRef(STATUS_IRI);
+    private static final PropertyRef DESCRIPTION = new PropertyRef(DESCRIPTION_IRI);
+    private static final PropertyRef PRIORITY = new PropertyRef(PRIORITY_IRI);
+    private static final PropertyRef DUE_DATE = new PropertyRef(DUE_DATE_IRI);
+    private static final PropertyRef ASSIGNED_TO = new PropertyRef(ASSIGNED_TO_IRI);
+    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(BELONGS_TO_PROJECT_IRI);
+    private static final PropertyRef NAME = new PropertyRef(QueryFixtures.NAME_IRI);
+    private static final PropertyRef EMAIL = new PropertyRef(QueryFixtures.EMAIL_IRI);
 
     /**
      * An {@link ObjectStorePort} paired with the {@link QueryPort} that queries the same
@@ -121,7 +131,7 @@ public abstract class QueryContract {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
         Schema schema = QueryFixtures.schema();
-        Query query = queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(0, 20));
+        Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
 
         assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(null, schema, query));
         assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(scope, null, query));
@@ -150,8 +160,8 @@ public abstract class QueryContract {
         seedTask(env, scope, base.plusSeconds(2), "Closed task", "CLOSED", 3, LocalDate.of(2026, 2, 3), null, null);
 
         Query query = queryOf(
-                Set.of(Fixtures.TASK_IRI),
-                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))),
+                Set.of(TASK_IRI),
+                List.of(new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))),
                 new Page(0, 20));
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
@@ -174,8 +184,8 @@ public abstract class QueryContract {
         seedTask(env, scope, base.plusSeconds(3), "Bob's task", "OPEN", 2, LocalDate.of(2026, 2, 2), bob, null);
 
         Query query = queryOf(
-                Set.of(Fixtures.TASK_IRI),
-                List.of(new Criterion(Fixtures.ASSIGNED_TO_IRI, Operator.EQ, Optional.of(Value.ref(alice)))),
+                Set.of(TASK_IRI),
+                List.of(new Criterion(ASSIGNED_TO_IRI, Operator.EQ, Optional.of(Value.ref(alice)))),
                 new Page(0, 20));
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
@@ -196,14 +206,10 @@ public abstract class QueryContract {
         seedTask(env, scope, base.plusSeconds(2), "Too late", "OPEN", 3, LocalDate.of(2026, 3, 1), null, null);
 
         Query query = queryOf(
-                Set.of(Fixtures.TASK_IRI),
+                Set.of(TASK_IRI),
                 List.of(
-                        new Criterion(
-                                Fixtures.DUE_DATE_IRI, Operator.GTE, Optional.of(Value.date(LocalDate.of(2026, 2, 1)))),
-                        new Criterion(
-                                Fixtures.DUE_DATE_IRI,
-                                Operator.LTE,
-                                Optional.of(Value.date(LocalDate.of(2026, 2, 28))))),
+                        new Criterion(DUE_DATE_IRI, Operator.GTE, Optional.of(Value.date(LocalDate.of(2026, 2, 1)))),
+                        new Criterion(DUE_DATE_IRI, Operator.LTE, Optional.of(Value.date(LocalDate.of(2026, 2, 28))))),
                 new Page(0, 20));
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
@@ -226,19 +232,13 @@ public abstract class QueryContract {
 
         Schema schema = QueryFixtures.schema();
 
-        Query ascending = queryOf(
-                Set.of(Fixtures.TASK_IRI),
-                List.of(),
-                List.of(new Sort(Fixtures.PRIORITY_IRI, Direction.ASC)),
-                new Page(0, 20));
+        Query ascending =
+                queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.ASC)), new Page(0, 20));
         QueryResult ascResult = env.queryPort().query(scope, schema, ascending);
         assertThat(ascResult.items()).extracting(BusinessObject::id).containsExactly(low, mid, high);
 
-        Query descending = queryOf(
-                Set.of(Fixtures.TASK_IRI),
-                List.of(),
-                List.of(new Sort(Fixtures.PRIORITY_IRI, Direction.DESC)),
-                new Page(0, 20));
+        Query descending =
+                queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.DESC)), new Page(0, 20));
         QueryResult descResult = env.queryPort().query(scope, schema, descending);
         assertThat(descResult.items()).extracting(BusinessObject::id).containsExactly(high, mid, low);
     }
@@ -260,14 +260,14 @@ public abstract class QueryContract {
         // on status itself — so they should reflect both OPEN and CLOSED among the
         // priority-filtered subset, not just the single OPEN value the result set is narrowed to.
         Query query = new Query(
-                Set.of(Fixtures.TASK_IRI),
+                Set.of(TASK_IRI),
                 List.of(
-                        new Criterion(Fixtures.STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN"))),
-                        new Criterion(Fixtures.PRIORITY_IRI, Operator.EQ, Optional.of(Value.integer(1)))),
+                        new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN"))),
+                        new Criterion(PRIORITY_IRI, Operator.EQ, Optional.of(Value.integer(1)))),
                 Optional.empty(),
                 List.of(),
                 new Page(0, 20),
-                List.of(Fixtures.STATUS_IRI),
+                List.of(STATUS_IRI),
                 false);
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
@@ -275,7 +275,7 @@ public abstract class QueryContract {
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(openLow);
         assertThat(result.total()).isEqualTo(1);
 
-        List<FacetBucket> statusBuckets = result.facets().get(Fixtures.STATUS_IRI);
+        List<FacetBucket> statusBuckets = result.facets().get(STATUS_IRI);
         assertThat(statusBuckets).containsExactlyInAnyOrder(new FacetBucket("OPEN", 1), new FacetBucket("CLOSED", 1));
     }
 
@@ -292,12 +292,11 @@ public abstract class QueryContract {
         seedTask(env, scope, base.plusSeconds(3), "Alice task two", "OPEN", 2, LocalDate.of(2026, 2, 2), alice, null);
         seedTask(env, scope, base.plusSeconds(4), "Bob task", "OPEN", 3, LocalDate.of(2026, 2, 3), bob, null);
 
-        Query query = queryOf(
-                Set.of(Fixtures.TASK_IRI), List.of(), List.of(), new Page(0, 20), List.of(Fixtures.ASSIGNED_TO_IRI));
+        Query query = queryOf(Set.of(TASK_IRI), List.of(), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI));
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
-        List<FacetBucket> assignedToBuckets = result.facets().get(Fixtures.ASSIGNED_TO_IRI);
+        List<FacetBucket> assignedToBuckets = result.facets().get(ASSIGNED_TO_IRI);
         assertThat(assignedToBuckets)
                 .extracting(FacetBucket::value)
                 .containsExactlyInAnyOrder("Alice Smith", "Bob Jones");
@@ -348,7 +347,7 @@ public abstract class QueryContract {
                 null);
 
         Query query = new Query(
-                Set.of(Fixtures.TASK_IRI),
+                Set.of(TASK_IRI),
                 List.of(),
                 Optional.of("quarterly budget"),
                 List.of(),
@@ -371,14 +370,14 @@ public abstract class QueryContract {
         ObjectId task = seedTask(env, scope, base, "A task", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
         ObjectId project = seedProject(env, scope, base.plusSeconds(1), "A project", "ACTIVE");
 
-        Query query = queryOf(Set.of(Fixtures.TASK_IRI, Fixtures.PROJECT_IRI), List.of(), new Page(0, 20));
+        Query query = queryOf(Set.of(TASK_IRI, PROJECT_IRI), List.of(), new Page(0, 20));
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(task, project);
         assertThat(result.items())
                 .extracting(item -> item.type().iri())
-                .containsExactlyInAnyOrder(Fixtures.TASK_IRI, Fixtures.PROJECT_IRI);
+                .containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
     }
 
     @Test
@@ -398,23 +397,20 @@ public abstract class QueryContract {
 
         // No explicit sort: relies on QueryPort's documented default order, ascending
         // (createdAt, id), so page contents are deterministic.
-        QueryResult page0 =
-                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(0, 2)));
+        QueryResult page0 = env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 2)));
         assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
         assertThat(page0.total()).isEqualTo(5);
 
-        QueryResult page1 =
-                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(1, 2)));
+        QueryResult page1 = env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(1, 2)));
         assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(2, 4));
         assertThat(page1.total()).isEqualTo(5);
 
-        QueryResult page2 =
-                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(2, 2)));
+        QueryResult page2 = env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(2, 2)));
         assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
         assertThat(page2.total()).isEqualTo(5);
 
         QueryResult overrun =
-                env.queryPort().query(scope, schema, queryOf(Set.of(Fixtures.TASK_IRI), List.of(), new Page(5, 2)));
+                env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(5, 2)));
         assertThat(overrun.items()).isEmpty();
         assertThat(overrun.total()).isEqualTo(5);
     }
@@ -428,8 +424,8 @@ public abstract class QueryContract {
         ObjectId id = seedTask(env, scope, base, "Soon deleted", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
         env.store().commit(scope, new ChangeSet(List.of(new Delete(id, 1, base.plusSeconds(1), "tester")), List.of()));
 
-        Query query = new Query(
-                Set.of(Fixtures.TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false);
+        Query query =
+                new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false);
 
         QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
 

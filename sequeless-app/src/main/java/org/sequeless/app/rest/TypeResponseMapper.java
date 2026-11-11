@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.sequeless.core.api.TypeDescription;
+import org.sequeless.core.derivation.FilterNodeToCriterion;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.DateTimeValue;
 import org.sequeless.kernel.values.DateValue;
@@ -84,15 +85,17 @@ final class TypeResponseMapper {
     /**
      * @param description the resolved, authorized type with its state machine and derivations; must
      *     not be {@code null}
+     * @param schema the schema the rollup filters of {@code description} are resolved against; must
+     *     not be {@code null}
      * @return the {@link TypeDetailResponse} rendering of {@code description}, with {@code
      *     properties} left in the order {@link TypeDefinition#properties()} already provides
      */
-    static TypeDetailResponse toDetail(TypeDescription description) {
+    static TypeDetailResponse toDetail(TypeDescription description, Schema schema) {
         TypeDefinition type = description.type();
         List<String> superTypeNames =
                 type.superTypes().stream().map(TypeResponseMapper::shortName).toList();
         List<PropertyResponse> properties = type.properties().stream()
-                .map(property -> toProperty(property, description.derivations()))
+                .map(property -> toProperty(property, description.derivations(), schema))
                 .toList();
         return new TypeDetailResponse(
                 type.iri(),
@@ -158,7 +161,7 @@ final class TypeResponseMapper {
     /**
      * Renders {@link TransitionSummaryResponse#after()} from a transition's {@link TriggerSpec}, an
      * exhaustive {@code switch} over the sealed hierarchy with no {@code default} branch, mirroring
-     * {@link #toDerivationResponse(DerivationRule)}'s own exhaustive switch.
+     * {@link #toDerivationResponse(DerivationRule, Schema)}'s own exhaustive switch.
      */
     private static String triggerAfter(TriggerSpec trigger) {
         return switch (trigger) {
@@ -221,8 +224,10 @@ final class TypeResponseMapper {
      * @param property the property to render; must not be {@code null}
      * @param derivations the derivation of each derived property of the type, keyed by property
      *     IRI; a property with no entry has no {@code derivation} in its response
+     * @param schema the schema the rollup filters are resolved against
      */
-    private static PropertyResponse toProperty(PropertyDefinition property, Map<String, DerivationRule> derivations) {
+    private static PropertyResponse toProperty(
+            PropertyDefinition property, Map<String, DerivationRule> derivations, Schema schema) {
         return switch (property) {
             case AttributeDefinition attribute ->
                 new AttributePropertyResponse(
@@ -242,7 +247,7 @@ final class TypeResponseMapper {
                                 ? attribute.cardinality().max().getAsInt()
                                 : null,
                         attribute.datatype().name(),
-                        derivationOf(attribute.iri(), derivations));
+                        derivationOf(attribute.iri(), derivations, schema));
             case RelationshipDefinition relationship ->
                 new RelationshipPropertyResponse(
                         "relationship",
@@ -263,35 +268,43 @@ final class TypeResponseMapper {
                         relationship.targetTypeIri(),
                         relationship.inverseIri().orElse(null),
                         relationship.transitive(),
-                        derivationOf(relationship.iri(), derivations));
+                        derivationOf(relationship.iri(), derivations, schema));
         };
     }
 
     /**
      * @param propertyIri the IRI of the property being rendered
      * @param derivations the derivation of each derived property of the type, keyed by property IRI
+     * @param schema the schema the rollup filters are resolved against
      * @return the {@link DerivationResponse} of {@code propertyIri}, or {@code null} if the property
      *     is not derived
      */
-    private static DerivationResponse derivationOf(String propertyIri, Map<String, DerivationRule> derivations) {
+    private static DerivationResponse derivationOf(
+            String propertyIri, Map<String, DerivationRule> derivations, Schema schema) {
         DerivationRule rule = derivations.get(propertyIri);
-        return rule == null ? null : toDerivationResponse(rule);
+        return rule == null ? null : toDerivationResponse(rule, schema);
     }
 
     /**
      * Maps one {@link DerivationRule} onto its {@link DerivationResponse}, an exhaustive {@code
      * switch} over the sealed {@link DerivationRule} hierarchy with no {@code default} branch,
-     * mirroring {@link #toProperty(PropertyDefinition, Map)}'s own exhaustive switch.
+     * mirroring {@link #toProperty(PropertyDefinition, Map, Schema)}'s own exhaustive switch.
      */
-    private static DerivationResponse toDerivationResponse(DerivationRule rule) {
+    private static DerivationResponse toDerivationResponse(DerivationRule rule, Schema schema) {
         return switch (rule) {
-            case RollupRule rollup -> new DerivationResponse("rollup", rollupSummary(rollup), rollup.materialised());
+            case RollupRule rollup ->
+                new DerivationResponse("rollup", rollupSummary(rollup, schema), rollup.materialised());
             case PluginRule plugin ->
                 new DerivationResponse("plugin", "plugin(" + plugin.pluginName() + ")", plugin.materialised());
         };
     }
 
-    private static String rollupSummary(RollupRule rollup) {
+    /**
+     * Renders a rollup as {@code function(Source via Via of Of where criteria)}. The released filter
+     * tree is bridged to the flat criteria the query port runs, so the summary shows the same
+     * criteria the aggregate is computed with: an {@code IN} criterion renders its list value.
+     */
+    private static String rollupSummary(RollupRule rollup, Schema schema) {
         StringBuilder summary = new StringBuilder();
         summary.append(rollup.function().name().toLowerCase(Locale.ROOT))
                 .append('(')
@@ -301,9 +314,12 @@ final class TypeResponseMapper {
         if (rollup.ofPropertyIri().isPresent()) {
             summary.append(" of ").append(shortName(rollup.ofPropertyIri().get()));
         }
-        if (!rollup.criteria().isEmpty()) {
+        List<Criterion> criteria = rollup.criteria()
+                .map(node -> FilterNodeToCriterion.toCriteria(node, schema, rollup.sourceTypeIri()))
+                .orElse(List.of());
+        if (!criteria.isEmpty()) {
             summary.append(" where ")
-                    .append(rollup.criteria().stream()
+                    .append(criteria.stream()
                             .map(TypeResponseMapper::criterionSummary)
                             .collect(Collectors.joining(" and ")));
         }
@@ -343,7 +359,7 @@ final class TypeResponseMapper {
     /**
      * Duplicates {@code Schema}'s own short-name rule (local name after an IRI's last {@code #}, or
      * after its last {@code /} if there is no {@code #}) rather than calling back into a schema,
-     * because {@link #toDetail(TypeDescription)} renders a single, already resolved {@link
+     * because {@link #toDetail(TypeDescription, Schema)} renders a single, already resolved {@link
      * TypeDefinition} — reading a whole schema just to look up one supertype's short name would
      * mean an extra read for no benefit: the rule is a pure function of the IRI string, not of what
      * else happens to be in the schema.

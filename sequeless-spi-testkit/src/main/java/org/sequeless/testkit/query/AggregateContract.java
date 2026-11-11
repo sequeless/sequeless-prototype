@@ -2,6 +2,12 @@ package org.sequeless.testkit.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.sequeless.ontology.testfixtures.Fixtures.BELONGS_TO_PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.ESTIMATED_HOURS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.STATUS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -58,20 +64,20 @@ import org.sequeless.testkit.Fixtures;
  * }</pre>
  *
  * <p>Every test seeds real {@code Task} and {@code Project} objects (the reference-domain
- * hierarchy {@link Fixtures} declares IRI constants for) via {@link Environment#store()}'s {@link
+ * hierarchy {@link org.sequeless.ontology.testfixtures.Fixtures} declares IRI constants for) via {@link Environment#store()}'s {@link
  * ObjectStorePort#commit}, then calls {@link Environment#queryPort()}'s {@link
  * QueryPort#aggregate} against {@link QueryFixtures#schema()}, mirroring the exact rollup shapes
  * {@code ex:openTaskCount} and {@code ex:totalEstimatedHours} declare.
  */
 public abstract class AggregateContract {
 
-    private static final TypeRef TASK = new TypeRef(Fixtures.TASK_IRI);
-    private static final TypeRef PROJECT = new TypeRef(Fixtures.PROJECT_IRI);
+    private static final TypeRef TASK = new TypeRef(TASK_IRI);
+    private static final TypeRef PROJECT = new TypeRef(PROJECT_IRI);
 
-    private static final PropertyRef TITLE = new PropertyRef(Fixtures.TITLE_IRI);
-    private static final PropertyRef STATUS = new PropertyRef(Fixtures.STATUS_IRI);
-    private static final PropertyRef ESTIMATED_HOURS = new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI);
-    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
+    private static final PropertyRef TITLE = new PropertyRef(TITLE_IRI);
+    private static final PropertyRef STATUS = new PropertyRef(STATUS_IRI);
+    private static final PropertyRef ESTIMATED_HOURS = new PropertyRef(ESTIMATED_HOURS_IRI);
+    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(BELONGS_TO_PROJECT_IRI);
 
     /**
      * An {@link ObjectStorePort} paired with the {@link QueryPort} that aggregates over the same
@@ -115,12 +121,12 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(4), "done", null, projectA);
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA, projectB),
                 AggregateFunction.COUNT,
                 Optional.empty(),
-                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(Value.text("done")))));
+                List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(Value.text("done")))));
 
         AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
 
@@ -140,11 +146,11 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(3), "OPEN", new BigDecimal("4.5"), projectA);
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA, projectB),
                 AggregateFunction.SUM,
-                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
 
         AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
@@ -167,21 +173,21 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(3), "OPEN", new BigDecimal("1"), projectA);
 
         AggregateRequest minRequest = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.MIN,
-                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
         AggregateResult minResult = env.queryPort().aggregate(scope, QueryFixtures.schema(), minRequest);
         assertThat(decimalOf(minResult, projectA)).isEqualByComparingTo(new BigDecimal("1"));
 
         AggregateRequest maxRequest = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.MAX,
-                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
         AggregateResult maxResult = env.queryPort().aggregate(scope, QueryFixtures.schema(), maxRequest);
         assertThat(decimalOf(maxResult, projectA)).isEqualByComparingTo(new BigDecimal("4.5"));
@@ -199,11 +205,11 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(2), "OPEN", new BigDecimal("4"), projectA);
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.AVG,
-                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
 
         AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
@@ -227,12 +233,12 @@ public abstract class AggregateContract {
         seedTask(env, scope, base.plusSeconds(3), "CLOSED", null, projectA);
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.COUNT,
                 Optional.empty(),
-                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))));
+                List.of(new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))));
 
         AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
 
@@ -255,8 +261,8 @@ public abstract class AggregateContract {
         seedTask(env, otherTenantScope, base.plusSeconds(2), "OPEN", null, projectA);
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.COUNT,
                 Optional.empty(),
@@ -280,8 +286,8 @@ public abstract class AggregateContract {
                 .commit(scope, new ChangeSet(List.of(new Delete(task, 1, base.plusSeconds(2), "tester")), List.of()));
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(projectA),
                 AggregateFunction.COUNT,
                 Optional.empty(),
@@ -298,8 +304,8 @@ public abstract class AggregateContract {
         Scope scope = Fixtures.defaultScope();
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(),
                 AggregateFunction.COUNT,
                 Optional.empty(),
@@ -316,8 +322,8 @@ public abstract class AggregateContract {
         Scope scope = Fixtures.defaultScope();
         Schema schema = QueryFixtures.schema();
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.of(),
                 AggregateFunction.COUNT,
                 Optional.empty(),

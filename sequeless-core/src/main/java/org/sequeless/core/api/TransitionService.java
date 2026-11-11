@@ -6,10 +6,10 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
 import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.StaleObjectException;
 

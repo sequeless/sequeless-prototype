@@ -10,17 +10,17 @@ import org.sequeless.core.api.TypeDescription;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.ontology.behaviour.api.Behaviour;
-import org.sequeless.ontology.behaviour.spi.BehaviourSource;
-import org.sequeless.ontology.behaviour.api.DerivationRule;
-import org.sequeless.ontology.schema.api.PropertyDefinition;
-import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.ontology.api.OntologyReport;
 
 /**
  * Reference implementation of {@link MetaModelService}.
