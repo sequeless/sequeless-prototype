@@ -246,10 +246,12 @@ class DefaultMetaModelServiceTest {
             return AccessDecision.permit("ok");
         };
 
-        service(new FakeOntology(SCHEMA, BEHAVIOUR), authorizationPort).describeType(SCOPE, "Task");
+        TypeDescription result =
+                service(new FakeOntology(SCHEMA, BEHAVIOUR), authorizationPort).describeType(SCOPE, "Task");
 
         assertThat(capturedOperations).containsExactly(Operation.READ);
         assertThat(capturedResources).containsExactly(TASK_IRI);
+        assertThat(result.schema()).isSameAs(SCHEMA);
     }
 
     @Test

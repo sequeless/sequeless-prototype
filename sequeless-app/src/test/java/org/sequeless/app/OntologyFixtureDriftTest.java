@@ -20,8 +20,8 @@ import org.sequeless.ontology.testfixtures.Fixtures;
  * testkit outside test scope, so it carries its own copy. Nothing enforces the pairing at compile
  * time; only this test catches the copy drifting out of sync with its source of truth.
  *
- * <p>The two vocabulary copies that earlier phases compared ({@code sq-schema.ttl} and {@code
- * sq-behaviour.ttl}) are deleted with the rest of the ontology code, so they have no pair to check.
+ * <p>The test checks the app's {@code reference.ttl} against the released {@code ontology-testfixtures}
+ * copy. The vocabulary-copy comparison that earlier phases ran was removed with the ontology code.
  *
  * <p><b>Why the jar's copy is picked by origin.</b> Both copies sit at the classpath path {@code
  * ontology/reference.ttl}, and in app tests the app's own copy comes first. A plain classloader

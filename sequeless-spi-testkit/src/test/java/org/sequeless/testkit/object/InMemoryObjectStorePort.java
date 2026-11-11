@@ -33,11 +33,11 @@ import org.sequeless.spi.object.Update;
  * This testkit's own proof that {@link ObjectStoreContract} is not secretly biased toward
  * implementations backed by SQL, JSONB, or a Flyway-managed schema. This port holds every {@link
  * BusinessObject} in a plain map, guarded by a single monitor for the synchronized, all-or-nothing
- * {@link #commit} semantics the contract demands, and answers {@link #ontologyDocuments()} with an
- * equally trivial per-tenant version counter — genuine branching (the optimistic-lock check, the
- * soft-delete filtering, the atomic rollback of a whole {@link ChangeSet}), trivially implemented,
- * exactly like {@code FakeOntologyPort} plays for {@code OntologyContract} and {@code
- * DenyAllAuthorizationPort} plays for {@code AuthorizationContract}. If {@link ObjectStoreContract}
+ * {@link #commit} semantics the contract demands, and answers {@link #ontologyDocuments()} with the
+ * released {@code InMemoryOntologyDocumentStore}. The rest is genuine branching (the optimistic-lock
+ * check, the soft-delete filtering, the atomic rollback of a whole {@link ChangeSet}), trivially
+ * implemented, exactly like {@code DenyAllAuthorizationPort} plays for {@code AuthorizationContract}.
+ * {@code OntologyContract} is in {@code ontology-testfixtures}. If {@link ObjectStoreContract}
  * could only be passed by a relational adapter, it would not be a meaningful shared contract, and
  * this test's own contract subclass would fail.
  */

@@ -61,8 +61,7 @@ public class TypesController {
     @GetMapping("/types/{nameOrIri:.+}")
     public TypeDetailResponse describeType(@PathVariable("nameOrIri") String nameOrIri) {
         TypeDescription description = metaModelService.describeType(currentScope(), nameOrIri);
-        Schema schema = metaModelService.schema(currentScope());
-        return TypeResponseMapper.toDetail(description, schema);
+        return TypeResponseMapper.toDetail(description, description.schema());
     }
 
     /**

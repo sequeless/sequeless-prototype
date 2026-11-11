@@ -49,8 +49,9 @@
     </dependency>
 
     <!--
-      Brings OntologyContract, the reference-domain Turtle fixtures, and (transitively, at compile
-      scope there by design) JUnit Jupiter and AssertJ.
+      The test-scope ontology-testfixtures artifact supplies OntologyContract and the reference-domain
+      Turtle fixtures. sequeless-spi-testkit brings (transitively, at compile scope there by design)
+      JUnit Jupiter and AssertJ.
     -->
     <dependency>
       <groupId>org.sequeless</groupId>

@@ -101,8 +101,9 @@
         wiring module consumes. jena-ontapi transitively brings jena-arq, jena-core and jena-base; it
         does NOT bring Jackson (Jena 6 uses gson and titanium-json-ld), so nothing here contends with
         the Spring Boot BOM. The one genuine clash is org.slf4j:jcl-over-slf4j, which ships the same
-        org.apache.commons.logging classes as Boot's spring-jcl; the released adapter excludes it on
-        jena-ontapi, and the exclusion travels to consumers, so it is not banned here.
+        org.apache.commons.logging classes as Boot's spring-jcl. jcl-over-slf4j reaches the app through
+        the released ontology-jena-adapter's Jena dependency (jena-arq), and this POM does not exclude
+        it.
       -->
       <dependency>
         <groupId>org.apache.jena</groupId>

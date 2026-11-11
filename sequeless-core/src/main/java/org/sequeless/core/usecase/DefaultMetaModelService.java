@@ -90,7 +90,8 @@ public final class DefaultMetaModelService implements MetaModelService {
         authorize(scope, Operation.READ, type.iri());
 
         Behaviour behaviour = halves.behaviour();
-        return new TypeDescription(type, behaviour.stateMachine(type.iri()), derivedProperties(type, behaviour));
+        return new TypeDescription(
+                type, behaviour.stateMachine(type.iri()), derivedProperties(type, behaviour), schema);
     }
 
     @Override
