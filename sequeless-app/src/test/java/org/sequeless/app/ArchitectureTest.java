@@ -98,10 +98,13 @@ class ArchitectureTest {
                             "org.sequeless.filter.api..",
                             "com.fasterxml.jackson.databind..")
                     .or(PRIMITIVE_OR_ARRAY))
-            .because("sequeless-core holds the use cases and orchestration logic; it may depend on the "
-                    + "ports it calls through (sequeless-spi), the JDK, and the SLF4J logging facade "
-                    + "(a dependency-free API, not an adapter-specific technology), but nothing "
-                    + "else, or the core would stop being portable across adapter choices.");
+            .because("sequeless-core holds the use cases and orchestration logic; it may depend on the JDK, "
+                    + "the ports it calls through (sequeless-spi), the released sequeless-kernel values, "
+                    + "the expression api and the SLF4J logging facade (a dependency-free API, not an "
+                    + "adapter-specific technology), but nothing else, or the core would stop being portable "
+                    + "across adapter choices. The released filter api and Jackson 2's databind package are "
+                    + "allowed only because the criteria bridge (FilterNodeToCriterion) reads a rollup's "
+                    + "FieldFilter, whose value is a Jackson 2 JsonNode.");
 
     @ArchTest
     static final ArchRule spiAndCoreDoNotDependOnSpring = noClasses()

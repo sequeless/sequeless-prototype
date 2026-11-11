@@ -34,10 +34,23 @@ import org.sequeless.spi.query.Operator;
  * flattened and each {@link FieldFilter} becomes one {@link Criterion}. Any other node is rejected.
  *
  * <p>The op names are the filter-core canonical names the released loader writes (sequeless-ontology
- * c9726a7, the {@code Operator} enum of its SnapshotMapper, spec 11 section 3.2), inverted. {@code is}
- * and {@code is not} with no value are {@link Operator#IS_NULL} and {@link Operator#NOT_NULL}. Any
- * other op not listed here is rejected. {@link FieldFilter#path()} is the full property IRI (spec 11
- * Q5), looked up in the {@link Schema} from the source type and its subtypes.
+ * c9726a7, the {@code Operator} enum of its SnapshotMapper, spec 11 section 3.2), inverted. Any other
+ * op not listed here is rejected. {@link FieldFilter#path()} is the full property IRI (spec 11 Q5),
+ * looked up in the {@link Schema} from the source type and its subtypes.
+ *
+ * <p>{@code is} and {@code is not} with no value (a Java {@code null} or a {@code NullNode}) map to
+ * {@link Operator#IS_NULL} and {@link Operator#NOT_NULL} with no property lookup, so an undeclared
+ * property is accepted for them. Every other op looks the property up and rejects it if it is not
+ * declared. Both loaders also skip the property check for these two ops.
+ *
+ * <p>An {@link Operator#IN} criterion carries a {@link org.sequeless.kernel.values.ListValue} of the
+ * element values, not a scalar. The cut-over PR must render it as a list.
+ *
+ * <p>Values convert by the property's {@link Datatype} as the {@link Schema} gives it. The Schema keeps
+ * one datatype per attribute, the most specific range, while the released loader writes a value using
+ * the first range IRI in sorted order. For a property that declares several ranges the two can differ,
+ * and the bridge then rejects a JSON value that does not fit the Schema datatype. Matching the loader
+ * needs the Schema to carry every range, which is outside this bridge.
  */
 public final class FilterNodeToCriterion {
 

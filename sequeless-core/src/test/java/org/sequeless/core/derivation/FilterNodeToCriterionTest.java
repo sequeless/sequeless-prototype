@@ -4,13 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.BigIntegerNode;
 import com.fasterxml.jackson.databind.node.BooleanNode;
 import com.fasterxml.jackson.databind.node.DecimalNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -45,9 +48,14 @@ class FilterNodeToCriterionTest {
     private static final String NAME = ONT + "#name";
     private static final String ESTIMATE = ONT + "#estimate";
     private static final String COUNT = ONT + "#count";
+    private static final String BIG = ONT + "#big";
+    private static final String RATIO = ONT + "#ratio";
     private static final String ACTIVE = ONT + "#active";
     private static final String DUE = ONT + "#due";
     private static final String OPENED = ONT + "#opened";
+    private static final String AT = ONT + "#at";
+    private static final String SPAN = ONT + "#span";
+    private static final String SITE = ONT + "#site";
     private static final String OWNER = ONT + "#owner";
     private static final String SEVERITY = ONT + "#severity";
     private static final String SCORE = ONT + "#score";
@@ -63,13 +71,12 @@ class FilterNodeToCriterionTest {
                 new AndFilter(List.of(
                         field(COUNT, "is greater than", LongNode.valueOf(2)), field(ACTIVE, "is", BooleanNode.TRUE)))));
 
-        assertThat(FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK))
+        assertThat(criteria(node))
                 .containsExactly(
                         new Criterion(NAME, Operator.EQ, Optional.of(Value.text("a"))),
                         new Criterion(COUNT, Operator.GT, Optional.of(Value.integer(2))),
                         new Criterion(ACTIVE, Operator.EQ, Optional.of(Value.bool(true))));
-        assertThat(FilterNodeToCriterion.toCriteria(new AndFilter(List.of()), SCHEMA, TASK))
-                .isEmpty();
+        assertThat(criteria(new AndFilter(List.of()))).isEmpty();
     }
 
     @Test
@@ -77,21 +84,25 @@ class FilterNodeToCriterionTest {
         FilterNode node = new OrFilter(List.of(field(NAME, "is", TextNode.valueOf("a"))));
         FilterNode nestedInAnd = new AndFilter(List.of(node));
 
-        assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK))
+        assertThatThrownBy(() -> criteria(node))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("OrFilter");
-        assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(nestedInAnd, SCHEMA, TASK))
+                .hasMessageContaining("OrFilter is not supported");
+        assertThatThrownBy(() -> criteria(nestedInAnd))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("OrFilter");
+                .hasMessageContaining("OrFilter is not supported");
     }
 
     @Test
-    void rejectsAnyFilterNamingTheNodeType() {
+    void rejectsAnyFilterNamingTheNodeTypeAlsoWhenNestedInAnd() {
         FilterNode node = new AnyFilter("is", TextNode.valueOf("a"));
+        FilterNode nestedInAnd = new AndFilter(List.of(field(NAME, "is", TextNode.valueOf("a")), node));
 
-        assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK))
+        assertThatThrownBy(() -> criteria(node))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("AnyFilter");
+                .hasMessageContaining("AnyFilter is not supported");
+        assertThatThrownBy(() -> criteria(nestedInAnd))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("AnyFilter is not supported");
     }
 
     @Test
@@ -99,10 +110,10 @@ class FilterNodeToCriterionTest {
         for (String op : List.of("is like", "is not like", "exists", "does not exist", "bogus")) {
             FilterNode node = field(NAME, op, TextNode.valueOf("a"));
 
-            assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK))
+            assertThatThrownBy(() -> criteria(node))
                     .as(op)
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("'" + op + "'");
+                    .hasMessageContaining("Unsupported filter op '" + op + "' on " + NAME);
         }
     }
 
@@ -114,12 +125,20 @@ class FilterNodeToCriterionTest {
                 field(ESTIMATE, "is", null),
                 field(ESTIMATE, "is not", null)));
 
-        assertThat(FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK))
+        assertThat(criteria(node))
                 .containsExactly(
                         new Criterion(NAME, Operator.IS_NULL, Optional.empty()),
                         new Criterion(NAME, Operator.NOT_NULL, Optional.empty()),
                         new Criterion(ESTIMATE, Operator.IS_NULL, Optional.empty()),
                         new Criterion(ESTIMATE, Operator.NOT_NULL, Optional.empty()));
+    }
+
+    @Test
+    void acceptsNoValueOpOnUndeclaredPropertyWithoutLookup() {
+        assertThat(criteria(field(MISSING, "is", NullNode.getInstance())))
+                .containsExactly(new Criterion(MISSING, Operator.IS_NULL, Optional.empty()));
+        assertThat(criteria(field(MISSING, "is not", null)))
+                .containsExactly(new Criterion(MISSING, Operator.NOT_NULL, Optional.empty()));
     }
 
     @Test
@@ -143,33 +162,63 @@ class FilterNodeToCriterionTest {
     }
 
     @Test
-    void convertsValuesByPropertyDatatype() {
+    void convertsValuesByPropertyDatatypeForEveryDatatype() {
         assertThat(valueOf(NAME, TextNode.valueOf("x"))).isEqualTo(Value.text("x"));
         assertThat(valueOf(COUNT, LongNode.valueOf(7))).isEqualTo(Value.integer(7));
+        assertThat(valueOf(BIG, LongNode.valueOf(7))).isEqualTo(Value.integer(7));
         assertThat(valueOf(ESTIMATE, DecimalNode.valueOf(new BigDecimal("1.50"))))
                 .isEqualTo(Value.decimal(new BigDecimal("1.50")));
+        assertThat(valueOf(RATIO, DecimalNode.valueOf(new BigDecimal("2.5"))))
+                .isEqualTo(Value.decimal(new BigDecimal("2.5")));
         assertThat(valueOf(ACTIVE, BooleanNode.TRUE)).isEqualTo(Value.bool(true));
         assertThat(valueOf(DUE, TextNode.valueOf("2026-01-02"))).isEqualTo(Value.date(LocalDate.parse("2026-01-02")));
         assertThat(valueOf(OPENED, TextNode.valueOf("2026-01-02T03:04:05Z")))
                 .isEqualTo(Value.dateTime(Instant.parse("2026-01-02T03:04:05Z")));
+        assertThat(valueOf(AT, TextNode.valueOf("10:15:30"))).isEqualTo(Value.text("10:15:30"));
+        assertThat(valueOf(SPAN, TextNode.valueOf("P1D"))).isEqualTo(Value.text("P1D"));
+        assertThat(valueOf(SITE, TextNode.valueOf("https://example.org/x")))
+                .isEqualTo(Value.text("https://example.org/x"));
     }
 
     @Test
     void rejectsValuesThatDoNotFitTheirDatatype() {
         Map<FilterNode, String> malformed = Map.of(
-                field(COUNT, "is", TextNode.valueOf("7")), COUNT,
-                field(COUNT, "is", JSON.arrayNode().add(1L)), COUNT,
-                field(NAME, "is", BooleanNode.TRUE), NAME,
-                field(DUE, "is", TextNode.valueOf("2026-13-01")), DUE,
-                field(OPENED, "is", TextNode.valueOf("not a time")), OPENED,
-                field(COUNT, "is greater than", NullNode.getInstance()), COUNT,
-                field(COUNT, "is greater than", JSON.arrayNode().add(1L)), COUNT);
+                field(COUNT, "is", TextNode.valueOf("7")),
+                "on " + COUNT + " does not fit INTEGER",
+                field(COUNT, "is", JSON.arrayNode().add(1L)),
+                "on " + COUNT + " does not fit INTEGER",
+                field(COUNT, "is", BigIntegerNode.valueOf(BigInteger.TWO.pow(70))),
+                "on " + COUNT + " does not fit INTEGER",
+                field(COUNT, "is greater than", JSON.arrayNode().add(1L)),
+                "on " + COUNT + " does not fit INTEGER",
+                field(NAME, "is", BooleanNode.TRUE),
+                "on " + NAME + " does not fit STRING",
+                field(DUE, "is", TextNode.valueOf("2026-13-01")),
+                "on " + DUE + " does not fit DATE",
+                field(OPENED, "is", TextNode.valueOf("not a time")),
+                "on " + OPENED + " does not fit DATE_TIME");
 
-        malformed.forEach(
-                (node, property) -> assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK))
-                        .as(property)
-                        .isInstanceOf(IllegalArgumentException.class)
-                        .hasMessageContaining(property));
+        malformed.forEach((node, fragment) -> assertThatThrownBy(() -> criteria(node))
+                .as(fragment)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(fragment));
+    }
+
+    @Test
+    void rejectsNotANumberAndInfinityForDouble() {
+        assertThatThrownBy(() -> valueOf(RATIO, DoubleNode.valueOf(Double.NaN)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("on " + RATIO + " does not fit DOUBLE");
+        assertThatThrownBy(() -> valueOf(RATIO, DoubleNode.valueOf(Double.POSITIVE_INFINITY)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("on " + RATIO + " does not fit DOUBLE");
+    }
+
+    @Test
+    void rejectsNoValueForValueOpNamingTheOpAndProperty() {
+        assertThatThrownBy(() -> criteria(field(COUNT, "is greater than", NullNode.getInstance())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Filter op 'is greater than' on " + COUNT + " needs a value");
     }
 
     @Test
@@ -182,15 +231,14 @@ class FilterNodeToCriterionTest {
     void rejectsUndeclaredPropertyUnknownSourceTypeAndConflictingDeclarations() {
         assertThatThrownBy(() -> single(field(MISSING, "is", TextNode.valueOf("x"))))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(MISSING);
+                .hasMessageContaining("Property " + MISSING + " is not declared on " + TASK);
         assertThatThrownBy(
                         () -> FilterNodeToCriterion.toCriteria(field(NAME, "is", TextNode.valueOf("x")), SCHEMA, GHOST))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(NAME)
-                .hasMessageContaining(GHOST);
+                .hasMessageContaining("Property " + NAME + " is not declared on " + GHOST);
         assertThatThrownBy(() -> single(field(SCORE, "is", LongNode.valueOf(1))))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("different value kinds");
+                .hasMessageContaining("Property " + SCORE + " is declared with different value kinds on " + TASK);
     }
 
     @Test
@@ -207,12 +255,22 @@ class FilterNodeToCriterionTest {
         FilterNode scalar = field(COUNT, "is in", LongNode.valueOf(1));
         FilterNode nullElement = field(COUNT, "is in", JSON.arrayNode().add(1L).addNull());
 
-        assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(scalar, SCHEMA, TASK))
+        assertThatThrownBy(() -> criteria(scalar))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("'is in'");
-        assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(nullElement, SCHEMA, TASK))
+                .hasMessageContaining("Filter op 'is in' on " + COUNT + " needs a JSON array value");
+        assertThatThrownBy(() -> criteria(nullElement))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(COUNT);
+                .hasMessageContaining("on " + COUNT + " does not fit INTEGER");
+    }
+
+    @Test
+    void rejectsIsInWithNullValue() {
+        assertThatThrownBy(() -> criteria(field(COUNT, "is in", NullNode.getInstance())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Filter op 'is in' on " + COUNT + " needs a JSON array value");
+        assertThatThrownBy(() -> criteria(field(COUNT, "is in", null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Filter op 'is in' on " + COUNT + " needs a JSON array value");
     }
 
     @Test
@@ -220,29 +278,43 @@ class FilterNodeToCriterionTest {
         ObjectId target = ObjectId.random();
 
         assertThat(valueOf(OWNER, TextNode.valueOf(target.value().toString()))).isEqualTo(Value.ref(target));
-        assertThatThrownBy(() -> valueOf(OWNER, TextNode.valueOf("not-a-uuid")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(OWNER);
     }
 
     @Test
-    void rejectsNullArguments() {
+    void rejectsRelationshipValueThatIsNotUuidText() {
+        assertThatThrownBy(() -> valueOf(OWNER, TextNode.valueOf("not-a-uuid")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("on " + OWNER + " does not fit a UUID text (reference)");
+        assertThatThrownBy(() -> valueOf(OWNER, LongNode.valueOf(5)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("on " + OWNER + " does not fit a UUID text (reference)");
+    }
+
+    @Test
+    void rejectsNullArgumentsNamingTheArgument() {
         FilterNode node = field(NAME, "is", TextNode.valueOf("x"));
 
         assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(null, SCHEMA, TASK))
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("node must not be null");
         assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(node, null, TASK))
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("schema must not be null");
         assertThatThrownBy(() -> FilterNodeToCriterion.toCriteria(node, SCHEMA, null))
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("sourceTypeIri must not be null");
     }
 
     private static FieldFilter field(String path, String op, JsonNode value) {
         return new FieldFilter(path, op, value);
     }
 
+    private static List<Criterion> criteria(FilterNode node) {
+        return FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK);
+    }
+
     private static Criterion single(FilterNode node) {
-        return FilterNodeToCriterion.toCriteria(node, SCHEMA, TASK).get(0);
+        return criteria(node).get(0);
     }
 
     private static Value valueOf(String property, JsonNode node) {
@@ -258,9 +330,14 @@ class FilterNodeToCriterionTest {
                         attribute(NAME, Datatype.STRING),
                         attribute(ESTIMATE, Datatype.DECIMAL),
                         attribute(COUNT, Datatype.INTEGER),
+                        attribute(BIG, Datatype.LONG),
+                        attribute(RATIO, Datatype.DOUBLE),
                         attribute(ACTIVE, Datatype.BOOLEAN),
                         attribute(DUE, Datatype.DATE),
                         attribute(OPENED, Datatype.DATE_TIME),
+                        attribute(AT, Datatype.TIME),
+                        attribute(SPAN, Datatype.DURATION),
+                        attribute(SITE, Datatype.ANY_URI),
                         attribute(SCORE, Datatype.INTEGER),
                         new RelationshipDefinition(
                                 OWNER,
