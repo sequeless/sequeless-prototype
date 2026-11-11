@@ -16,7 +16,7 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Converts a {@link Value} to and from the tagged, JSON-compatible shape an {@link

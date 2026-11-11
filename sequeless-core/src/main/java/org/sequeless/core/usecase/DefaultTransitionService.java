@@ -53,9 +53,9 @@ import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.Update;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Reference implementation of {@link TransitionService}.

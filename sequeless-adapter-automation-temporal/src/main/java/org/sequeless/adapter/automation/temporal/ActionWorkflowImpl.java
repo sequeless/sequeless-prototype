@@ -7,7 +7,7 @@ import java.util.Set;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link ActionWorkflow} implementation. Temporal instantiates this class itself,

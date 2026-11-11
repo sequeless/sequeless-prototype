@@ -1,7 +1,7 @@
 package org.sequeless.spi.automation;
 
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The inbound port an automation adapter (the in-process relay, or a Temporal activity) calls back

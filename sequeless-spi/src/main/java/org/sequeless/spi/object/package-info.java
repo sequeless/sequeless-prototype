@@ -16,7 +16,7 @@
  *
  * <p>{@link org.sequeless.spi.object.Mutation}, sealed to {@link org.sequeless.spi.object.Create},
  * {@link org.sequeless.spi.object.Update}, and {@link org.sequeless.spi.object.Delete}, together
- * with {@link org.sequeless.spi.object.OutboxEntry} form a {@link
+ * with {@link org.sequeless.spi.outbox.OutboxEntry} form a {@link
  * org.sequeless.spi.object.ChangeSet}: the unit of atomic change an {@link
  * org.sequeless.spi.object.ObjectStorePort#commit} call applies, producing a {@link
  * org.sequeless.spi.object.CommitResult}. {@link org.sequeless.spi.object.Page} and {@link
@@ -33,9 +33,9 @@
  * on the port interface itself, and asserted mechanically by {@code sequeless-spi-testkit}'s {@code
  * ObjectStoreContract}.
  *
- * <p>{@link org.sequeless.spi.object.OutboxPort} is a sibling outbound port, not a method on
+ * <p>{@link org.sequeless.spi.outbox.OutboxPort} is a sibling outbound port, not a method on
  * {@link org.sequeless.spi.object.ObjectStorePort}: it lets a relay claim, one row at a time, an
- * unprocessed {@link org.sequeless.spi.object.OutboxEntry#KIND_ACTION_REQUEST} row written by
+ * unprocessed {@link org.sequeless.spi.outbox.OutboxEntry#KIND_ACTION_REQUEST} row written by
  * {@code commit} above, without forcing every {@code ObjectStorePort} implementation — including
  * test doubles that have no use for outbox claiming — to implement it.
  */

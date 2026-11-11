@@ -7,6 +7,7 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The outbound port every instance of an ontology type is stored, read, and mutated through.

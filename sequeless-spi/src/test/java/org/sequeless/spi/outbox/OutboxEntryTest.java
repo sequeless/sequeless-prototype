@@ -1,4 +1,4 @@
-package org.sequeless.spi.object;
+package org.sequeless.spi.outbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

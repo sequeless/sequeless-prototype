@@ -24,7 +24,7 @@ import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.AutomationContract;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingDerivationRecomputer;

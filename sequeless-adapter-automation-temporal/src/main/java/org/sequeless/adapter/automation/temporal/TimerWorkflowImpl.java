@@ -4,7 +4,7 @@ import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link TimerWorkflow} implementation. Like {@link ActionWorkflowImpl}, Temporal

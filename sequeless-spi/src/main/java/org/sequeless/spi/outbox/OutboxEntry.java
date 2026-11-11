@@ -1,10 +1,15 @@
-package org.sequeless.spi.object;
+package org.sequeless.spi.outbox;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.sequeless.spi.object.Create;
+import org.sequeless.spi.object.Delete;
+import org.sequeless.spi.object.Mutation;
+import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.object.Update;
 
 /**
  * A domain event recorded alongside a {@link Mutation} in the same atomic {@link ObjectStorePort#commit}

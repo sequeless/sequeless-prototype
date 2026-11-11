@@ -4,7 +4,7 @@ import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The four Temporal activities {@link ActionWorkflowImpl} calls, one per {@code sq:} action kind.

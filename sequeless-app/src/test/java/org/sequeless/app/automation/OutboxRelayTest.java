@@ -18,8 +18,8 @@ import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.OutboxPort;
+import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxPort;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**

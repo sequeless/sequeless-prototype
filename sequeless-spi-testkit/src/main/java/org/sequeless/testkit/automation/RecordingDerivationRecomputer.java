@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.DerivationRecomputer;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * A hand-rolled {@link DerivationRecomputer} test double (this codebase uses no Mockito),

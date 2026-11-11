@@ -3,7 +3,7 @@ package org.sequeless.adapter.automation.temporal;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The Temporal workflow that durably drives one {@code ObjectCreated}/{@code ObjectUpdated}/{@code

@@ -3,7 +3,7 @@ package org.sequeless.adapter.automation.temporal;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Workflow;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /** The real {@link SignalEventWorkflow} implementation. See {@link TimerWorkflowImpl}'s javadoc. */
 public final class SignalEventWorkflowImpl implements SignalEventWorkflow {
