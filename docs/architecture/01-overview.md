@@ -84,8 +84,8 @@ compile-time dependencies.
 
 Rules enforced by ArchUnit in `sequeless-app` and by Maven scopes:
 
-- `sequeless-spi` imports nothing outside `java.*`.
-- `sequeless-core` imports only `java.*` and `sequeless-spi`.
+- `sequeless-spi` imports only `java.*`, the kernel (`org.sequeless.kernel`), and two released ontology packages: `org.sequeless.ontology.schema.api` and `org.sequeless.ontology.spi`.
+- `sequeless-core` imports only `java.*`, `sequeless-spi`, the kernel, the released ontology (`org.sequeless.ontology.*`), the expression and filter `api` packages, `jackson-databind` and `slf4j-api`.
 - No adapter imports another adapter or `sequeless-core`.
 - Only `sequeless-app` may reference Spring MVC, and only the REST package may reference core use cases.
 - Lombok is banned from `sequeless-spi` and `sequeless-core` (compiler plugin not configured there).

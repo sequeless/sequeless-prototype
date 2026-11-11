@@ -16,8 +16,8 @@ import org.sequeless.ontology.testfixtures.Fixtures;
 /**
  * Guards against the one ontology-fixture duplication that remains after the spec 12 cut-over:
  * {@code sequeless-app}'s bundled {@code reference.ttl} must stay byte-identical to the copy in the
- * released {@code ontology-testfixtures} jar (spec 12 section 7). The app cannot depend on the
- * testkit outside test scope, so it carries its own copy. Nothing enforces the pairing at compile
+ * released {@code ontology-testfixtures} jar (spec 12 section 7). The app depends on that jar only
+ * at test scope, so main code carries its own copy. Nothing enforces the pairing at compile
  * time; only this test catches the copy drifting out of sync with its source of truth.
  *
  * <p>The test checks the app's {@code reference.ttl} against the released {@code ontology-testfixtures}
