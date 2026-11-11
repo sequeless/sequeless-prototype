@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.BigIntegerNode;
 import com.fasterxml.jackson.databind.node.BooleanNode;
 import com.fasterxml.jackson.databind.node.DecimalNode;
 import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -178,6 +179,28 @@ class FilterNodeToCriterionTest {
         assertThat(valueOf(SPAN, TextNode.valueOf("P1D"))).isEqualTo(Value.text("P1D"));
         assertThat(valueOf(SITE, TextNode.valueOf("https://example.org/x")))
                 .isEqualTo(Value.text("https://example.org/x"));
+    }
+
+    @Test
+    void convertsIntegralNodeOnIntegerKindAsInteger() {
+        assertThat(valueOf(COUNT, IntNode.valueOf(3))).isEqualTo(Value.integer(3));
+    }
+
+    @Test
+    void convertsDecimalNodeOnIntegerKindAsDecimal() {
+        // The OWL loader writes a DecimalNode for an xsd:integer property (sorted-first decimal range).
+        assertThat(valueOf(COUNT, DecimalNode.valueOf(new BigDecimal("3.0"))))
+                .isEqualTo(Value.decimal(new BigDecimal("3.0")));
+        assertThat(valueOf(BIG, DecimalNode.valueOf(new BigDecimal("3.5"))))
+                .isEqualTo(Value.decimal(new BigDecimal("3.5")));
+    }
+
+    @Test
+    void decimalNodeForIntegerKindMatchesOwlLoaderForLexicalThree() {
+        // Under OWL the loader coerces the literal "3" to Value.decimal(new BigDecimal("3")) and writes
+        // it as DecimalNode.valueOf(that BigDecimal). The bridge must read the same value back.
+        assertThat(valueOf(COUNT, DecimalNode.valueOf(new BigDecimal("3"))))
+                .isEqualTo(Value.decimal(new BigDecimal("3")));
     }
 
     @Test
