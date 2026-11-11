@@ -99,7 +99,12 @@ class DefaultDerivationRecomputerTest {
 
     private static RollupRule openTaskCountRule(boolean materialised) {
         return new RollupRule(
-                TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(), materialised);
+                TASK_IRI,
+                BELONGS_TO_PROJECT_IRI,
+                AggregateFunction.COUNT,
+                Optional.empty(),
+                Optional.empty(),
+                materialised);
     }
 
     private static AttributeDefinition openTaskCountAttribute() {

@@ -97,12 +97,12 @@
       </dependency>
 
       <!--
-        Jena 6 for the default OntologyAdministration adapter. jena-ontapi transitively brings jena-arq,
-        jena-core and jena-base; it does NOT bring Jackson (Jena 6 uses gson and titanium-json-ld),
-        so nothing here contends with the Spring Boot BOM. The one genuine clash is
-        org.slf4j:jcl-over-slf4j, which ships the same org.apache.commons.logging classes as Boot's
-        spring-jcl; it is excluded at the point of use in the adapter module rather than banned
-        here, because only that module pulls it in.
+        Jena 6 for the released ontology-jena-adapter (sequeless-ontology), which the prototype's
+        wiring module consumes. jena-ontapi transitively brings jena-arq, jena-core and jena-base; it
+        does NOT bring Jackson (Jena 6 uses gson and titanium-json-ld), so nothing here contends with
+        the Spring Boot BOM. The one genuine clash is org.slf4j:jcl-over-slf4j, which ships the same
+        org.apache.commons.logging classes as Boot's spring-jcl; the released adapter excludes it on
+        jena-ontapi, and the exclusion travels to consumers, so it is not banned here.
       -->
       <dependency>
         <groupId>org.apache.jena</groupId>
@@ -111,9 +111,9 @@
       </dependency>
 
       <!--
-        jena-shacl backs the SHACL ValidationPort adapter (Phase 2, T8). Declared here alongside
-        jena-ontapi even though T5 does not use it yet, so both Jena artifacts are pinned to the
-        same ${jena.version} from one place.
+        jena-shacl is used by the released ontology-jena-adapter for its SHACL validation. No prototype
+        module imports a Jena type, so the pin only keeps every Jena artifact at the same
+        ${jena.version} from one place.
       -->
       <dependency>
         <groupId>org.apache.jena</groupId>
@@ -122,8 +122,8 @@
       </dependency>
 
       <!--
-        jena-core and jena-arq are used directly by sequeless-adapter-ontology-jena, but no BOM
-        manages them. Pinned here so the module can declare them without a version.
+        jena-core and jena-arq come in transitively through the released adapter. No BOM manages
+        them, so this pin keeps them at ${jena.version} with the rest of Jena.
       -->
       <dependency>
         <groupId>org.apache.jena</groupId>

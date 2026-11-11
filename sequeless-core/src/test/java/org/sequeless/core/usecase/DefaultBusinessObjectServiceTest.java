@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -26,6 +27,7 @@ import org.sequeless.core.derivation.DerivationPlanner;
 import org.sequeless.core.derivation.DerivationPluginRegistry;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.ValidationException;
+import org.sequeless.filter.api.FieldFilter;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
@@ -207,10 +209,10 @@ class DefaultBusinessObjectServiceTest {
             BELONGS_TO_PROJECT_IRI,
             AggregateFunction.COUNT,
             Optional.empty(),
-            List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))),
+            Optional.of(new FieldFilter(STATUS_IRI, "is not", TextNode.valueOf("open"))),
             true);
     private static final RollupRule TOTAL_ESTIMATED_HOURS_RULE = new RollupRule(
-            TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM, Optional.of(HOURS_IRI), List.of(), false);
+            TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM, Optional.of(HOURS_IRI), Optional.empty(), false);
 
     /** The behaviour: the two rollups, keyed by the IRI of the property each derives. */
     private static final Behaviour BEHAVIOUR = new Behaviour(

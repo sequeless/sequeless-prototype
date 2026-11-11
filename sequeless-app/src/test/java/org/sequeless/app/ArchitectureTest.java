@@ -41,11 +41,12 @@ class ArchitectureTest {
     private static final String ADAPTER_PACKAGE = "org.sequeless.adapter..";
     private static final String KERNEL_PACKAGE = "org.sequeless.kernel..";
     private static final String EXPRESSION_PACKAGE = "org.sequeless.expression..";
-    private static final String SCHEMA_PACKAGE = "..spi.meta.schema..";
-    private static final String BEHAVIOUR_PACKAGE = "..spi.meta.behaviour..";
-    private static final String AUTOMATION_PACKAGE = "..spi.meta.automation..";
+    private static final String BEHAVIOUR_PACKAGE = "org.sequeless.ontology.behaviour..";
+    private static final String AUTOMATION_PACKAGE = "org.sequeless.ontology.automation..";
     private static final String QUERY_PACKAGE = "org.sequeless.spi.query..";
-    private static final String ONTOLOGY_PACKAGE = "org.sequeless.spi.ontology..";
+    private static final String ONTOLOGY_PACKAGE = "org.sequeless.ontology.api..";
+    private static final String ONTOLOGY_SPI_PACKAGE = "org.sequeless.ontology.spi..";
+    private static final String ONTOLOGY_SCHEMA_PACKAGE = "org.sequeless.ontology.schema..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
     private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
     private static final String ENSURE_INDEXES = "ensureIndexes";
@@ -66,11 +67,21 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(SPI_PACKAGE)
             .should()
-            .onlyDependOnClassesThat(
-                    resideInAnyPackage("java..", SPI_PACKAGE, KERNEL_PACKAGE).or(PRIMITIVE_OR_ARRAY))
+            .onlyDependOnClassesThat(resideInAnyPackage(
+                            "java..",
+                            SPI_PACKAGE,
+                            KERNEL_PACKAGE,
+                            ONTOLOGY_PACKAGE,
+                            ONTOLOGY_SPI_PACKAGE,
+                            ONTOLOGY_SCHEMA_PACKAGE,
+                            BEHAVIOUR_PACKAGE,
+                            AUTOMATION_PACKAGE)
+                    .or(PRIMITIVE_OR_ARRAY))
             .because("sequeless-spi is the outermost layer of the hexagon: it must be usable by any "
                     + "adapter or client without pulling in anything beyond the JDK, the released "
-                    + "sequeless-kernel types it is built on, and its own port types.");
+                    + "sequeless-kernel types it is built on, the released ontology contracts it names "
+                    + "(ontology-core, schema-contract, behaviour-contract and automation-contract, in their "
+                    + "api, spi, schema, behaviour and automation packages), and its own port types.");
 
     /**
      * {@code org.slf4j} (the facade, not any concrete provider) is allowed alongside the JDK: it is
@@ -96,16 +107,25 @@ class ArchitectureTest {
                             EXPRESSION_PACKAGE,
                             SLF4J_PACKAGE,
                             "org.sequeless.filter.api..",
-                            "com.fasterxml.jackson.databind..")
+                            "com.fasterxml.jackson.databind..",
+                            ONTOLOGY_PACKAGE,
+                            ONTOLOGY_SPI_PACKAGE,
+                            ONTOLOGY_SCHEMA_PACKAGE,
+                            BEHAVIOUR_PACKAGE,
+                            AUTOMATION_PACKAGE)
                     .or(PRIMITIVE_OR_ARRAY))
             .because("sequeless-core holds the use cases and orchestration logic; it may depend on the JDK, "
                     + "the ports it calls through (sequeless-spi), the released sequeless-kernel identity "
                     + "and values types, "
+                    + "the released ontology contracts it uses (ontology-core, schema-contract, "
+                    + "behaviour-contract and automation-contract, in their api, spi, schema, behaviour and "
+                    + "automation packages), "
                     + "the expression api and the SLF4J logging facade (a dependency-free API, not an "
                     + "adapter-specific technology), but nothing else, or the core would stop being portable "
                     + "across adapter choices. The released filter api and Jackson 2's databind package are "
                     + "allowed only because the criteria bridge (FilterNodeToCriterion) reads a rollup's "
-                    + "FieldFilter, whose value is a Jackson 2 JsonNode.");
+                    + "FieldFilter, whose value is a Jackson 2 JsonNode. The released jena adapter and the "
+                    + "testfixtures are not allowed, so core stays free of any concrete ontology backend.");
 
     @ArchTest
     static final ArchRule spiAndCoreDoNotDependOnSpring = noClasses()
@@ -216,43 +236,6 @@ class ArchitectureTest {
                     + "would force every adapter of every port to drag Jena onto its classpath.");
 
     @ArchTest
-    static final ArchRule schemaDependsOnlyOnJdkKernelAndItself = classes()
-            .that()
-            .resideInAPackage(SCHEMA_PACKAGE)
-            .should()
-            .onlyDependOnClassesThat(
-                    resideInAnyPackage("java..", SCHEMA_PACKAGE, KERNEL_PACKAGE).or(PRIMITIVE_OR_ARRAY))
-            .because("the Schema half is the base of the meta-model: it may depend on the JDK, the kernel "
-                    + "identity and value types, and its own package, and nothing else, so that the "
-                    + "Behaviour and Automation halves can depend on it without a cycle.");
-
-    @ArchTest
-    static final ArchRule behaviourDependsOnlyOnSchema = classes()
-            .that()
-            .resideInAPackage(BEHAVIOUR_PACKAGE)
-            .should()
-            .onlyDependOnClassesThat(
-                    resideInAnyPackage("java..", BEHAVIOUR_PACKAGE, SCHEMA_PACKAGE, KERNEL_PACKAGE, QUERY_PACKAGE)
-                            .or(PRIMITIVE_OR_ARRAY))
-            .because("the Behaviour half may depend on the Schema half, the kernel and org.sequeless.spi.query, "
-                    + "and on nothing else. The query dependency is RollupRule's Criterion, which stays in "
-                    + "spi.query until spec 14 replaces it (spec 10, section 11, question 1). Any other "
-                    + "dependency would couple state machines and derivations to the adapters or ports that "
-                    + "the Behaviour half is meant to describe, not to host.");
-
-    @ArchTest
-    static final ArchRule automationDependsOnlyOnBehaviourAndSchema = classes()
-            .that()
-            .resideInAPackage(AUTOMATION_PACKAGE)
-            .should()
-            .onlyDependOnClassesThat(
-                    resideInAnyPackage("java..", AUTOMATION_PACKAGE, BEHAVIOUR_PACKAGE, SCHEMA_PACKAGE, KERNEL_PACKAGE)
-                            .or(PRIMITIVE_OR_ARRAY))
-            .because("the Automation half holds the transition actions and may depend on the Behaviour and "
-                    + "Schema halves and the kernel, and on nothing else. A dependency on a port or an adapter "
-                    + "would make the action list depend on how it is executed, which spec 15 must not inherit.");
-
-    @ArchTest
     static final ArchRule querySeesOnlySchema = noClasses()
             .that()
             .resideInAPackage(QUERY_PACKAGE)
@@ -300,8 +283,7 @@ class ArchitectureTest {
         assertThat(classes.get("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort")
                         .getFullName())
                 .isEqualTo("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort");
-        assertThat(classes.get("org.sequeless.adapter.ontology.jena.JenaOntologyPort")
-                        .getFullName())
-                .isEqualTo("org.sequeless.adapter.ontology.jena.JenaOntologyPort");
+        assertThat(classes.get("org.sequeless.ontology.jena.JenaOntologyPort").getFullName())
+                .isEqualTo("org.sequeless.ontology.jena.JenaOntologyPort");
     }
 }

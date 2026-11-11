@@ -3,6 +3,7 @@ package org.sequeless.core.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.sequeless.filter.api.FieldFilter;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.DateTimeValue;
 import org.sequeless.kernel.values.DateValue;
@@ -31,8 +33,6 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.validation.Violation;
 
 /**
@@ -104,7 +104,7 @@ class ValueCoercerTest {
             BELONGS_TO_PROJECT_IRI,
             AggregateFunction.COUNT,
             Optional.empty(),
-            List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+            Optional.of(new FieldFilter(STATUS_IRI, "is not", TextNode.valueOf("done"))),
             false);
 
     /**

@@ -82,8 +82,8 @@ class DefaultMetaModelServiceTest {
 
     private static final Behaviour BEHAVIOUR = new Behaviour(new OntologyVersion(1), Map.of(), Map.of());
 
-    private static final RollupRule TOTAL_ROLLUP =
-            new RollupRule(TASK_IRI, PROJECT_REF_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(), true);
+    private static final RollupRule TOTAL_ROLLUP = new RollupRule(
+            TASK_IRI, PROJECT_REF_IRI, AggregateFunction.COUNT, Optional.empty(), Optional.empty(), true);
 
     private static final Behaviour BEHAVIOUR_WITH_ROLLUP =
             new Behaviour(new OntologyVersion(1), Map.of(), Map.of(TOTAL_IRI, TOTAL_ROLLUP));
