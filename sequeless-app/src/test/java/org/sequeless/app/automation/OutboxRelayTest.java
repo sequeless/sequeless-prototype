@@ -18,6 +18,7 @@ import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
 import org.springframework.beans.factory.ObjectProvider;
@@ -33,6 +34,14 @@ import org.springframework.beans.factory.ObjectProvider;
  */
 class OutboxRelayTest {
 
+    /**
+     * The recomputer for every test that dispatches only non-lifecycle kinds. Such a row must never
+     * reach the recompute, so this throws if it is ever called.
+     */
+    private static final DerivationRecomputer UNUSED_RECOMPUTER = (scope, changeEvent) -> {
+        throw new UnsupportedOperationException("recompute must not run for a non-lifecycle row");
+    };
+
     @Test
     void multipleQueuedRowsAllDrainWithinOnePollOnceCall() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
@@ -40,7 +49,7 @@ class OutboxRelayTest {
         outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
         outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort));
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
@@ -57,7 +66,7 @@ class OutboxRelayTest {
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
         automationPort.throwOnCall(2); // the second dispatched row fails
 
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort));
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
@@ -72,7 +81,7 @@ class OutboxRelayTest {
     void pollOnceMakesNoOutboxCallsWhenNoAutomationPortIsAvailable() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
-        OutboxRelay relay = new OutboxRelay(outboxPort, unavailableProvider());
+        OutboxRelay relay = new OutboxRelay(outboxPort, unavailableProvider(), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
@@ -85,7 +94,7 @@ class OutboxRelayTest {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("acme-tenant", actionRequest("acme-tenant", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort));
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
@@ -101,13 +110,45 @@ class OutboxRelayTest {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort));
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
         assertThat(automationPort.dispatchedEntries).hasSize(1);
         assertThat(automationPort.dispatchedEntries.get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
         assertThat(outboxPort.isEmpty()).isTrue();
+    }
+
+    /**
+     * The recompute must run before the ingress for the same row: the automation adapter's change
+     * handling reads the materialised values the recompute writes.
+     */
+    @Test
+    void recomputeRunsBeforeTheIngressForAnObjectUpdatedRow() {
+        InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
+        outboxPort.enqueue("tenant-a", objectLifecycle(OutboxEntry.KIND_OBJECT_UPDATED));
+        List<String> order = new ArrayList<>();
+        DerivationRecomputer recomputer = (scope, changeEvent) -> order.add("recompute");
+        AutomationPort automationPort = (scope, entry) -> order.add("dispatch");
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), recomputer);
+
+        relay.pollOnce();
+
+        assertThat(order).containsExactly("recompute", "dispatch");
+        assertThat(outboxPort.isEmpty()).isTrue();
+    }
+
+    /**
+     * Builds an object-lifecycle {@link OutboxEntry} carrying the fields the recompute reads
+     * ({@code objectId}, {@code typeIri}) plus {@code version}, matching the shape {@code
+     * DefaultBusinessObjectService} writes.
+     */
+    private static OutboxEntry objectLifecycle(String kind) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", UUID.randomUUID().toString());
+        payload.put("typeIri", "https://example.com/ns#Task");
+        payload.put("version", 2);
+        return new OutboxEntry(UUID.randomUUID(), kind, payload, Instant.now());
     }
 
     /** Builds a {@code TransitionFired}-kind {@link OutboxEntry} carrying the stamped Ontology version. */

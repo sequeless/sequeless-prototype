@@ -51,7 +51,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  */
 public abstract class AutomationContract {
 
-    private static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
+    /** The scope every test in this contract dispatches under; also reused by subclasses' own tests. */
+    protected static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
 
     /**
      * @return the {@link AutomationPort} implementation under test, wired with {@link
@@ -76,8 +77,9 @@ public abstract class AutomationContract {
 
     /**
      * @return the same {@link RecordingDerivationRecomputer} spy {@link #port()}'s implementation
-     *     was constructed with, so this contract can observe whether {@code dispatch} routed an
-     *     object-lifecycle entry to {@link DerivationRecomputer#recompute}
+     *     was constructed with, so this contract can observe whether {@code dispatch} called {@link
+     *     DerivationRecomputer#recompute}. An adapter whose {@code dispatch} does not recompute may
+     *     return a spy that nothing is wired to; the contract then sees no calls
      */
     protected abstract RecordingDerivationRecomputer recordingDerivationRecomputer();
 
@@ -183,27 +185,23 @@ public abstract class AutomationContract {
     }
 
     @Test
-    void dispatchRoutesObjectLifecycleEventToRecomputeThenOnChange() {
+    void dispatchRoutesObjectLifecycleEventToOnChange() {
         OutboxEntry entry = objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED);
 
         port().dispatch(SCOPE, entry);
 
-        assertThat(recordingDerivationRecomputer().calls()).hasSize(1);
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
                 .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
     }
 
     @Test
-    void dispatchRoutesObjectDeletedToRecomputeThenOnChangeToo() {
+    void dispatchRoutesObjectDeletedToOnChangeToo() {
         OutboxEntry entry = objectDeletedEntry();
 
         port().dispatch(SCOPE, entry);
 
-        assertThat(recordingDerivationRecomputer().calls()).hasSize(1);
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
                 .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
     }
 
     @Test
@@ -266,30 +264,12 @@ public abstract class AutomationContract {
     }
 
     /**
-     * Asserts that, for the single change event most recently dispatched, {@link
-     * #recordingDerivationRecomputer()}'s one recorded call happened strictly before {@link
-     * #recordingTriggerEvaluator()}'s first recorded {@link RecordingTriggerEvaluator#METHOD_ON_CHANGE}
-     * call, by comparing each {@code Call}'s {@code sequenceNanos()} — see {@link
-     * RecordingTriggerEvaluator}'s javadoc for why that field, rather than any state shared between
-     * the two doubles, is what makes this comparison possible.
-     */
-    private void assertRecomputeRanBeforeOnChange() {
-        long recomputeAt = recordingDerivationRecomputer().calls().get(0).sequenceNanos();
-        long onChangeAt = recordingTriggerEvaluator().calls().stream()
-                .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .findFirst()
-                .orElseThrow()
-                .sequenceNanos();
-        assertThat(recomputeAt).isLessThan(onChangeAt);
-    }
-
-    /**
      * Builds a valid {@code ObjectCreated}/{@code ObjectUpdated} {@link OutboxEntry} payload
      * matching the exact shape {@code DefaultBusinessObjectService}/{@code DefaultActionExecutor}'s
      * shared {@code outboxPayload} helper produces: {@code objectId}, {@code version}, {@code
      * typeIri} — no {@code tenantId}/{@code principalId}, unlike the automation-specific kinds.
      */
-    private static OutboxEntry objectChangeEntry(String kind) {
+    protected static OutboxEntry objectChangeEntry(String kind) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("version", 1);
@@ -306,7 +286,7 @@ public abstract class AutomationContract {
      * TriggerEvaluator} implementation would need real, IRI-keyed, {@code PayloadValueCodec}-encoded
      * entries, but this contract only proves routing, not decoding.
      */
-    private static OutboxEntry objectDeletedEntry() {
+    protected static OutboxEntry objectDeletedEntry() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("version", 1);

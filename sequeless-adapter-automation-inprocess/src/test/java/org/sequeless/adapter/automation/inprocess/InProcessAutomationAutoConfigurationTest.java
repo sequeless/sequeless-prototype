@@ -5,10 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
-import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -26,8 +24,7 @@ class InProcessAutomationAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(InProcessAutomationAutoConfiguration.class))
             .withBean(ActionExecutor.class, RecordingActionExecutor::new)
-            .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
-            .withBean(DerivationRecomputer.class, RecordingDerivationRecomputer::new);
+            .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new);
 
     @Test
     void wiresAutomationPortWhenAdapterPropertySetAndActionExecutorPresent() {

@@ -159,12 +159,17 @@ class CoreConfigurationContextRunnerTest {
 
         @Bean
         OutboxRelay outboxRelay(OutboxPort outboxPort) {
-            return new OutboxRelay(outboxPort, new ObjectProvider<>() {
-                @Override
-                public AutomationPort getIfAvailable() {
-                    return null;
-                }
-            });
+            return new OutboxRelay(
+                    outboxPort,
+                    new ObjectProvider<>() {
+                        @Override
+                        public AutomationPort getIfAvailable() {
+                            return null;
+                        }
+                    },
+                    (scope, changeEvent) -> {
+                        throw new UnsupportedOperationException("not needed by this test");
+                    });
         }
     }
 

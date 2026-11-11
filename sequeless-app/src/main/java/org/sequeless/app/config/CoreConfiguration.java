@@ -2,6 +2,7 @@ package org.sequeless.app.config;
 
 import java.time.Clock;
 import java.time.Duration;
+import javax.sql.DataSource;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.MetaModelService;
 import org.sequeless.core.api.OntologyAdministration;
@@ -28,10 +29,13 @@ import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.validation.ValidationPort;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 
 /**
  * Wires sequeless-core's use cases into the Spring context.
@@ -317,13 +321,12 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link DerivationRecomputer} implementation an automation adapter calls back into
-     * once an {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event might have
-     * invalidated a materialised derived property. Exactly the same reasoning as {@link
-     * #actionExecutor} and {@link #triggerEvaluator} applies here: {@code DerivationRecomputer} is
-     * not consumed by a REST controller in this module, it is consumed by whichever automation
-     * adapter is configured, and neither adapter module may depend on {@code sequeless-core} (the
-     * {@code noAdapterDependsOnCore} architecture rule) — this bean is that unavoidable wiring seam.
+     * Builds the {@link DerivationRecomputer} implementation the outbox relay calls once an {@code
+     * ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event might have invalidated a
+     * materialised derived property, before that row is dispatched to the automation port.
+     * {@code DerivationRecomputer} is not consumed by a REST controller in this module. The relay
+     * lives in this module, so this bean is the wiring seam between that relay and the core
+     * implementation, which {@code sequeless-core} provides.
      *
      * <p>{@link DefaultDerivationRecomputer} takes the {@link #derivationPlanner} bean built above
      * rather than constructing its own, so a recompute driven by a domain event resolves {@code
@@ -335,12 +338,32 @@ public class CoreConfiguration {
      * @Value}-annotated bean-method parameters, not port slots, so they need no such treatment; the
      * defaults (8 attempts, a 20ms jittered base delay) match this phase's design document.
      *
+     * <p><b>The commit runs in its own transaction.</b> When a {@link DataSource} bean exists (the
+     * Postgres persistence adapter's {@code sequelessPersistenceDataSource}), the {@link
+     * ObjectStorePort} this recomputer commits through is wrapped in {@link
+     * RequiresNewCommitObjectStore}, whose {@code commit} runs in {@code REQUIRES_NEW} over that
+     * DataSource. The relay calls this recomputer inside its claim transaction. Without the wrapper, a
+     * {@link org.sequeless.spi.object.StaleObjectException} absorbed by the retry loop would mark the
+     * claim rollback-only. With it, each commit attempt commits or rolls back on its own, so a later
+     * rollback of the claim does not undo a recompute that already succeeded, and re-running that
+     * recompute changes nothing. Only this instance is wrapped. The shared {@link ObjectStorePort}
+     * bean stays {@code REQUIRED}, so every other use case still commits inside the claim.
+     *
+     * <p>The DataSource is taken through an {@link ObjectProvider}, not a {@code @Lazy} proxy. A proxy
+     * is a different object from the DataSource the claim binds to its transaction, so {@code
+     * REQUIRES_NEW} would not suspend the claim. When no DataSource bean exists, nothing is wrapped,
+     * and this bean is built exactly as before.
+     *
      * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
      * javadoc for why {@link Clock#systemUTC()} is called inline here too.
      *
      * @param schemaSource the lazily-resolved schema read port
      * @param behaviourSource the lazily-resolved behaviour read port
-     * @param objectStorePort the lazily-resolved object store port adapter
+     * @param objectStorePort the lazily-resolved object store port adapter; the instance this
+     *     recomputer commits through is wrapped as described above
+     * @param persistenceDataSource the persistence {@link DataSource} bean {@code
+     *     sequelessPersistenceDataSource}, if one exists, resolved by that name through an {@link
+     *     ObjectProvider} rather than a {@code @Lazy} proxy (see above)
      * @param derivationPlanner the {@link DerivationPlanner} bean built above
      * @param maxAttempts the maximum number of commit attempts per recompute before a stale-version
      *     conflict is allowed to propagate, from {@code
@@ -363,13 +386,18 @@ public class CoreConfiguration {
             @Lazy SchemaSource schemaSource,
             @Lazy BehaviourSource behaviourSource,
             @Lazy ObjectStorePort objectStorePort,
+            @Qualifier("sequelessPersistenceDataSource") ObjectProvider<DataSource> persistenceDataSource,
             DerivationPlanner derivationPlanner,
             @Value("${sequeless.automation.recompute.retry.max-attempts:8}") int maxAttempts,
             @Value("${sequeless.automation.recompute.retry.base-delay:PT0.02S}") String baseDelayText) {
+        DataSource dataSource = persistenceDataSource.getIfAvailable();
+        ObjectStorePort recomputeStore = dataSource == null
+                ? objectStorePort
+                : new RequiresNewCommitObjectStore(objectStorePort, new DataSourceTransactionManager(dataSource));
         return new DefaultDerivationRecomputer(
                 schemaSource,
                 behaviourSource,
-                objectStorePort,
+                recomputeStore,
                 derivationPlanner,
                 maxAttempts,
                 Duration.parse(baseDelayText),

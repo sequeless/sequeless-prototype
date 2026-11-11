@@ -454,4 +454,6 @@ Each item names the evidence and the command that settles it. DECIDED items are 
 - R3 (N8, recompute mode). P5a runs the recompute synchronously, with each store commit in REQUIRES_NEW through the decorator in `CoreConfiguration` (section 3), and does not use COALESCE on the relay path. RETRY_ONLY, which runs inside the claim transaction, is the alternative. The owner may choose it, at the cost of the stale-object risk named in section 3.
 - R4 (C7, signal rejection). A type-valid signal with no transition from the current state, or with a failing guard, returns 409 instead of 202 (P4; section 7.1). It is a REST behaviour change, listed here for owner review with R1 to R3.
 
+**P5a deviation.** The Temporal removal of `activities.recompute` moved to P5b, which stays held on O-4; the P5b PR names `ChangeEventWorkflow` in its O-4 list, because the workflow code changes too.
+
 O-17 (side effects aimed at a Store) is not open. #20's resolution point 5 decides it: the outbound port belongs to automation, and the host binds it to store-core's Store Command port. Section 3 records the decision. This spec keeps today's path.

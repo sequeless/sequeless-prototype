@@ -7,6 +7,7 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
 import org.slf4j.Logger;
@@ -24,6 +25,13 @@ import org.springframework.stereotype.Component;
  * OutboxEntry#KIND_SIGNAL_RECEIVED}) — one row at a time, into whichever {@link AutomationPort}
  * adapter is currently configured. The automation adapters accept {@link
  * OutboxEntry#KIND_TRANSITION_FIRED} as a no-op until it carries actions and timers.
+ *
+ * <p><b>Recompute before the ingress.</b> For each object-lifecycle row ({@link
+ * OutboxEntry#KIND_OBJECT_CREATED}, {@link OutboxEntry#KIND_OBJECT_UPDATED}, {@link
+ * OutboxEntry#KIND_OBJECT_DELETED}), {@link #pollOnce()} calls {@link
+ * DerivationRecomputer#recompute} synchronously, in the same claim, before it dispatches that row to
+ * the {@link AutomationPort}. The automation adapter's change handling therefore reads materialised
+ * values that are already fresh.
  *
  * <p><b>Why an {@link ObjectProvider}, not a plain {@code AutomationPort} constructor
  * parameter.</b> {@code AutomationPort} is supplied by an {@code @AutoConfiguration} class ({@code
@@ -54,8 +62,12 @@ public class OutboxRelay {
             OutboxEntry.KIND_TIMER_CANCELLED,
             OutboxEntry.KIND_SIGNAL_RECEIVED);
 
+    private static final Set<String> OBJECT_LIFECYCLE_KINDS =
+            Set.of(OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED);
+
     private final OutboxPort outboxPort;
     private final ObjectProvider<AutomationPort> automationPortProvider;
+    private final DerivationRecomputer derivationRecomputer;
 
     /**
      * @param outboxPort the lazily-resolved outbox port adapter; {@code @Lazy} for the same reason
@@ -65,12 +77,20 @@ public class OutboxRelay {
      *     thing that actually counts them and reports a misconfiguration
      * @param automationPortProvider resolved lazily on every {@link #pollOnce()} call; see this
      *     class's javadoc for why this must not be collapsed into a plain constructor parameter
-     * @throws NullPointerException if either argument is {@code null}
+     * @param derivationRecomputer the recompute run before each object-lifecycle row is dispatched;
+     *     {@code @Lazy} for the same reason as {@code outboxPort}, so this bean constructs in
+     *     Spring's first singleton pass and the bean is resolved only when a row needs it
+     * @throws NullPointerException if any argument is {@code null}
      */
-    public OutboxRelay(@Lazy OutboxPort outboxPort, ObjectProvider<AutomationPort> automationPortProvider) {
+    public OutboxRelay(
+            @Lazy OutboxPort outboxPort,
+            ObjectProvider<AutomationPort> automationPortProvider,
+            @Lazy DerivationRecomputer derivationRecomputer) {
         this.outboxPort = Objects.requireNonNull(outboxPort, "outboxPort must not be null");
         this.automationPortProvider =
                 Objects.requireNonNull(automationPortProvider, "automationPortProvider must not be null");
+        this.derivationRecomputer =
+                Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
     }
 
     /**
@@ -93,8 +113,8 @@ public class OutboxRelay {
      * unprocessed row (among {@link #DISPATCHABLE_KINDS}) first, and there is no dead-letter or
      * skip-ahead mechanism yet
      * ({@code sq_outbox.attempts} exists but is write-only per an earlier phase's finding). A single
-     * "poison pill" row whose payload always makes {@link AutomationPort#dispatch} throw will
-     * therefore block every row behind it indefinitely, at one-tick granularity. This is an
+     * "poison pill" row whose payload always makes the recompute or {@link AutomationPort#dispatch}
+     * throw will therefore block every row behind it indefinitely, at one-tick granularity. This is an
      * accepted limitation for this phase, not something this task solves.
      */
     @Scheduled(fixedDelayString = "${sequeless.automation.relay.poll-interval-ms:1000}")
@@ -106,7 +126,12 @@ public class OutboxRelay {
         while (true) {
             try {
                 Optional<Boolean> claimed = outboxPort.claimNext(DISPATCHABLE_KINDS, (tenantId, entry) -> {
-                    automationPort.dispatch(buildScope(tenantId, entry), entry);
+                    Scope scope = buildScope(tenantId, entry);
+                    if (OBJECT_LIFECYCLE_KINDS.contains(entry.kind())) {
+                        // Recompute first, in this same claim, so the ingress below reads fresh values.
+                        derivationRecomputer.recompute(scope, entry);
+                    }
+                    automationPort.dispatch(scope, entry);
                     // Non-null sentinel: OutboxPort#claimNext returns
                     // Optional.empty() both when no row was available AND (per its own
                     // javadoc) if handler legitimately returned null, so the handler must
