@@ -20,6 +20,7 @@ This section is the entry point for the next session. It records the state after
 
 ### Next actions
 
+0. Resume the extraction from [`docs/extraction/resume-plan-spec13.md`](resume-plan-spec13.md). Its plan was approved by an Opus review at `c335483`. The spec 13 draft is on branch `spec-13-draft` at `05c3b6a`, with no PR yet.
 1. Spec 13, prototype stage 4 prepare (outbox, automation ingress, Read port; [#41](https://github.com/sequeless/sequeless-prototype/issues/41)). Its only dependency, spec 12, is done. Specs 14 to 19 wait as in the table.
 2. Open follow-ups, listed under Open items: the BOM filter versions, the spec 11 body defaults, the prototype `codeql.yml` grant, and the `SchemaValidationSchema` factory.
 
