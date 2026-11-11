@@ -42,7 +42,7 @@ Recorded 2026-11-11 so another session can continue. Facts checked at origin/mai
    - Posting comments on #41 and closing #39 are issue actions the owner's standing direction covers: "updating related GitHub issues in the process of merging into main".
 3. **Revise the spec 13 draft.** Apply B1 and B3 as decided in section 3, and B4 as the navigator's choice that the owner confirms (section 3). Apply or record each of review 2's N1 to N18 and NB1. Rework the C5 migration design for B4. The P7 design must state where `sq_extract_searchable_text` (V2 line 28) and the GIN index (V2 line 72) live, how the Command-side trigger reads the Query-owned `sq_searchable_property` (V2 line 60), and which side owns the backfill `UPDATE sq_object` (`PostgresQueryStore` line 371). Make these spec changes:
    - Split P5 into P5a (recompute before ingress) and P5b (the Store-event ingress).
-   - Replace "merged in this order" (draft line 76) with the step order P0, P1, P2a, P5a, P2, P3, P4, P5b, P6, P7. This is the order of the plan's steps 4 to 6.
+   - Replace "merged in this order" (draft line 76) with the step order P0, P1, P2a, P5a, P2, P3, P4, P5b, P6, P7. This is the order of the plan's steps 4 to 6 (P6 later split: spec 13 section 12, item 23).
    - Record B4 as "the navigator's choice; owner to confirm", not as decided. Use the same wording in the spec's section 12.
    - Opus review until the verdict is APPROVE with zero blocking findings. Then open the spec PR. Merge it before any code step, as spec 12 did (#109 before #110).
 4. **Implement the steps that need no owner decision.** One PR per step. Each gets an Opus review before its PR, and the full gate on JDK 25 before merge.
@@ -56,8 +56,8 @@ Recorded 2026-11-11 so another session can continue. Facts checked at origin/mai
    - P3, timers leave the outbox: changes `TimerWorkflowImpl.run`, which waits in `Workflow.await` with a 72-hour timer (reference.ttl line 310). Schedules from `TransitionFired`, and its timer lookup reads the version that B2 selects. Held on **B2, O-3 and O-4**.
    - P4, signals become Store Commands: the signal path (`DefaultTransitionService.signal`) reads the active `SchemaAndBehaviour` at request time (line 272) and commits through the agreement check at lines 325 to 330, so it does not read a stamp and does not depend on B2. It depends on **O-3** (drain pending `SignalReceived` before its backfill, under B1), **O-4** (running `SignalEventWorkflow` instances), and the kind-set count. Its kind-set test expects 4 constants, which holds only after P2 and P3; if it runs earlier the count is 7. So P4 runs after P2 and P3, not ahead of them.
    - P5b, the Store-event ingress: replaces the adapter switches. It needs P2 to P4 landed, because until then the relay still dispatches ActionRequest, TimerScheduled, TimerCancelled and SignalReceived through the switch. It depends on **O-4** (the Temporal adapter changes with it), and on **B2** if the ingress reads the stamped version (#20 point 5).
-   - P6, Read and Browse ports and the Object view: depends on **O-8**.
-6. **After the holds clear**, run in the order P2a is already in: P5a, P2, P3, P4, P5b, P6. Each step that removes a kind carries that kind's removal and backfill. P5b, P6 and P7 remove no kind. P7 is not repeated here (step 4).
+   - P6a, the Read and Browse ports with the `BusinessObject` return type, the prepare port and use case, and the removals: not held on O-8 (spec 13 section 12, item 23). P6b, `ObjectView`, the `state` and `audit` fields and the JSON: depends on **O-8**.
+6. **After the holds clear**, run in the order P2a is already in, with P6a moved before P2 (spec 13 section 12, item 23): P5a, P6a, P2, P3, P4, P5b, P6b. P6a is not held and runs now (step 5). Each step that removes a kind carries that kind's removal and backfill. P5b, P6a, P6b and P7 remove no kind. P7 is not repeated here (step 4).
 7. **Then specs 14 to 19.** Each needs its own draft, review and PR. Spec 14 creates `sequeless-query`; spec 15 creates `sequeless-automation`; spec 19 creates `sequeless-knowledge`. The owner approved creating those three repos on 2026-11-06; each is created when its spec starts.
 
 ## 5. Process rules
@@ -114,13 +114,13 @@ Merged on main (origin/main at the time of writing):
 - P1 (outbox types to `org.sequeless.spi.outbox`): #116, squash `844e3b5`. Opus APPROVE, gate green (580 unit, 57 IT).
 - P2a (TransitionFired claimable, Ontology version stamp): #117, squash `fbb82c5`. Opus APPROVE, gate green (643 tests). Migration V5 is merged. Recorded deviation: DefaultActionExecutor copies the version from its ActionRequest row; it reads no snapshot.
 
-Every remaining step waits on an owner answer:
+Every remaining step, except P6a (see section 9), waits on an owner answer:
 - P2 (actions leave the outbox): held on B2, O-3 and O-4.
 - P3 (timers leave the outbox): held on B2, O-3 and O-4.
 - P4 (signals become Store Commands): held on O-3 and O-4; runs after P2 and P3.
 - P5a (recompute before the ingress): in the P5a PR. P5a ships the relay recompute, the REQUIRES_NEW decorator and the in-process removal, and changes no Temporal workflow code (javadoc only). The Temporal removal of `activities.recompute` in `ChangeEventWorkflowImpl.run` moves to P5b, which stays held on O-4. Until P5b, a Temporal change event recomputes twice, and the second recompute is a no-op.
 - P5b (Store-event ingress): held on O-4, and on B2 if it reads the stamp. It also carries the Temporal removal of `activities.recompute` moved from P5a. Its PR names `ChangeEventWorkflow` in its O-4 list, because the workflow code changes too.
-- P6 (Read and Browse ports, Object view): held on O-8.
+- P6 (Read and Browse ports, Object view): held on O-8. (Split in section 9: P6a is not held; P6b is held on O-8.)
 - P7 (index separation): held on the B4 confirmation, and on section 12 item 21 (the backfill transaction question), which must be settled before P7 merges.
 
 Owner answers needed, in one place: O-8, B2, the B4 confirmation, O-3, O-4. The #41 comment with these questions was posted on 2026-11-11.
@@ -136,3 +136,11 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 - P5a merged as #119, squash `6e7764f`. Deviation from the spec: the Temporal removal of `activities.recompute` moved to P5b, which stays held on O-4 and names `ChangeEventWorkflow` in its O-4 list. Until P5b, a Temporal change event recomputes twice.
 - The relay runs the recompute before the ingress. Open risk, with no remedy yet: a persistent recompute failure blocks the relay, because the relay has no dead-letter or skip. Choosing a remedy is an owner decision.
 - The BOM refresh for sequeless-build: #49 merged as `593d03d` (filter versions). Release #50 (`6ba3d29`) published sequeless-bom 0.1.4. The import bump #51 (`a822b8e`) moved bom-contracts to 0.1.4.
+
+## 9. Session of 2026-11-11 (after P5a; navigator Q1 and Q2)
+
+- Start of session: origin/main `789609c`. P5a is #119 (`6e7764f`), and the docs follow-up is #120 (`789609c`). Issue #39 was closed 2026-11-11 14:02Z.
+- Q2, closed: the SchemaValidationSchema tracker item is closed as not needed (option b). The navigator decision is recorded in its session. Evidence is in remaining-work.md's open-item text.
+- Q1, allowed: P6 may be split. P6a is not held on O-8; P6b is. See spec 13 section 12, item 23.
+- Not done in this session: the P6a code. Also still held on owner answers: P2, P3, P4, P5b, P6b and P7 (O-8, B2, the B4 confirmation, O-3 and O-4). The #41 questions are unanswered.
+- Next action for the next session: write the P6a code PR in a fresh worktree from origin/main. Write it first as a short plan, get an Opus review, then implement, run the gate on JDK 25 (`source ~/.bashrc.ext && export JAVA_HOME=/opt/sdkman/candidates/java/25.0.3-tem && mvn spotless:apply && mvn -B -Prelease verify`), then get an Opus review of the diff before the PR, and comment on #41.
