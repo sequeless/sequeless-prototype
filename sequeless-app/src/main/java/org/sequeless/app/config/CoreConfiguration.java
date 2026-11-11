@@ -338,8 +338,8 @@ public class CoreConfiguration {
      * @Value}-annotated bean-method parameters, not port slots, so they need no such treatment; the
      * defaults (8 attempts, a 20ms jittered base delay) match this phase's design document.
      *
-     * <p><b>The commit runs in its own transaction.</b> When a {@link DataSource} bean exists (the
-     * Postgres persistence adapter's {@code sequelessPersistenceDataSource}), the {@link
+     * <p><b>The commit runs in its own transaction.</b> When the {@code sequelessPersistenceDataSource}
+     * bean exists (the Postgres persistence adapter's DataSource), the {@link
      * ObjectStorePort} this recomputer commits through is wrapped in {@link
      * RequiresNewCommitObjectStore}, whose {@code commit} runs in {@code REQUIRES_NEW} over that
      * DataSource. The relay calls this recomputer inside its claim transaction. Without the wrapper, a

@@ -11,8 +11,9 @@ import org.sequeless.spi.object.ObjectStorePort;
  * action never blocks other rows and a crash mid-dispatch simply releases the row's lock for the
  * next poll. Originally shaped around {@link OutboxEntry#KIND_ACTION_REQUEST} alone, this port now
  * claims across whatever set of kinds the caller names — {@code OutboxRelay} passes the full
- * dispatchable set ({@link OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, and
- * the three automation kinds introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec}) —
+ * dispatchable set ({@link OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, {@link
+ * OutboxEntry#KIND_TRANSITION_FIRED}, and the three automation kinds introduced alongside {@code
+ * org.sequeless.ontology.behaviour.api.TriggerSpec}) —
  * because a single relay now fans one polling loop out to several inbound ports rather than always
  * calling {@code ActionExecutor}. {@link OutboxEntry#KIND_TRANSITION_FIRED} is claimable: the relay
  * hands it to the automation port, whose adapters accept it as a no-op until it carries actions and

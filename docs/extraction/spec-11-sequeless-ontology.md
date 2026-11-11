@@ -284,6 +284,8 @@ Notes:
 | `ontology-testfixtures` | `ontology-testfixtures` | 0.1.0 | `ontology-core`, the three contracts, `kernel-identity`. JUnit and AssertJ at compile scope, as in ADR 0002's pattern |
 | `ontology-facet-core`, `ontology-facet-core-testfixtures` | frozen, not released | unchanged | nothing new |
 
+> **Superseded by section 11, OQ-3:** ontology-core also depends on kernel-values (added by S2b, so its validation api can use `ObjectId` and `Value`). The `ontology-core` row above gives the default.
+
 > **Superseded by section 11, Q12:** schema-contract and behaviour-contract depend on kernel-values, as #12 point 3 says.
 
 > **Superseded by section 11, Q10:** automation-contract depends on behaviour-contract, as #20 decision 2 says.
@@ -299,6 +301,7 @@ The BOM (remote `main`, 0.1.2) lists `kernel-identity` 0.1.0, `kernel-values` 0.
 - **`kernel-identity`:** `ontology-core`, the three contracts, `ontology-jena-adapter`, and `ontology-testfixtures` (directly or through a contract). `facet-core` has none (verified).
 - **`kernel-values`:** `automation-contract` (`SetPropertyAction`, `PropertyAssignment`) and `ontology-jena-adapter`. The Jena adapter needs it whatever happens to D16. `SnapshotMapper` builds `Value` for criterion values (lines 812 to 929) and for `sq:SetProperty` through `resolveValueForProperty` (line 1537). Schema and behaviour: see Q12 (D26).
   > **Superseded by section 11, Q12:** schema-contract and behaviour-contract depend on kernel-values, as #12 point 3 says.
+  > **Superseded by section 11, OQ-3:** ontology-core also depends on kernel-values, which this list leaves out.
 - **`expression-api`:** none. No file under `spi/meta`, `spi/ontology` or the Jena module imports `org.sequeless.expression` (verified).
 - **`filter-core`:** `behaviour-contract` (`FilterNode`, `FieldFilter`, `AndFilter`), and `ontology-jena-adapter`, which builds these nodes directly (D28). Through `behaviour-contract`, also `ontology-testfixtures`. Not `schema-contract`, and not `ontology-core`.
 
