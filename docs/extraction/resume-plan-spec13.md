@@ -105,3 +105,29 @@ Non-blocking (to apply or record in step 3):
 - Navigator session `a63eab5e54944407971cf5274c5fda21` has ended and is recorded only here. Do not resume it.
 - Worktrees are machine-local and are not needed: the branch names are enough.
 - The JDK 25 path is machine-local; the gate command in section 1 needs it.
+
+## 8. Progress (recorded after P2a)
+
+Merged on main (origin/main at the time of writing):
+- Spec 13 draft: #115, squash `511280e`. Reviewed seven rounds; approved at `3ca9771`, wording fixes at `31addfc`.
+- P0 (gate baseline): satisfied by the cut-over gate at `29c2492` (all 9 modules, JDK 25). Later commits on main are docs-only.
+- P1 (outbox types to `org.sequeless.spi.outbox`): #116, squash `844e3b5`. Opus APPROVE, gate green (580 unit, 57 IT).
+- P2a (TransitionFired claimable, Ontology version stamp): #117, squash `fbb82c5`. Opus APPROVE, gate green (643 tests). Migration V5 is merged. Recorded deviation: DefaultActionExecutor copies the version from its ActionRequest row; it reads no snapshot.
+
+Every remaining step waits on an owner answer:
+- P2 (actions leave the outbox): held on B2, O-3 and O-4.
+- P3 (timers leave the outbox): held on B2, O-3 and O-4.
+- P4 (signals become Store Commands): held on O-3 and O-4; runs after P2 and P3.
+- P5a (recompute before the ingress): held on O-4 (it changes ChangeEventWorkflow).
+- P5b (Store-event ingress): held on O-4, and on B2 if it reads the stamp.
+- P6 (Read and Browse ports, Object view): held on O-8.
+- P7 (index separation): held on the B4 confirmation, and on section 12 item 21 (the backfill transaction question), which must be settled before P7 merges.
+
+Owner answers needed, in one place: O-8, B2, the B4 confirmation, O-3, O-4. The #41 comment with these questions was posted on 2026-11-11.
+
+Follow-ups noted by the reviews, not yet done:
+- P2a review NB-1: the frozen V1 to V5 migration set is not saved as a test resource. The P7 PR saves it from P2a's merge commit `fbb82c5`.
+- P2a review NB-4: the V5 migration IT (PostgresOutboxV5MigrationIT) runs later migrations and uses kind constants that P2 to P4 delete. Each of P2, P3 and P4 must pin that test to `migrateTo("5")` and use string literals.
+- P2a review judgment 1: if B2 selects the active version for P2's actions, the executor's stamp must be revisited.
+- Stale text: docs/architecture/automation.md lines 21, 43, 65, 72 and the OutboxPort javadoc list (lines 13 to 16) still say TransitionFired is audit-only.
+- Stale paths: docs/architecture/automation.md lines 37 and 131 cite the old `spi/object/Outbox*.java` paths.
