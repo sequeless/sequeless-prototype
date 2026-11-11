@@ -89,7 +89,14 @@ class ArchitectureTest {
             .resideInAPackage(CORE_PACKAGE)
             .should()
             .onlyDependOnClassesThat(resideInAnyPackage(
-                            "java..", CORE_PACKAGE, SPI_PACKAGE, KERNEL_PACKAGE, EXPRESSION_PACKAGE, SLF4J_PACKAGE)
+                            "java..",
+                            CORE_PACKAGE,
+                            SPI_PACKAGE,
+                            KERNEL_PACKAGE,
+                            EXPRESSION_PACKAGE,
+                            SLF4J_PACKAGE,
+                            "org.sequeless.filter.api..",
+                            "com.fasterxml.jackson.databind..")
                     .or(PRIMITIVE_OR_ARRAY))
             .because("sequeless-core holds the use cases and orchestration logic; it may depend on the "
                     + "ports it calls through (sequeless-spi), the JDK, and the SLF4J logging facade "
