@@ -523,7 +523,7 @@ Decided, and not open: O1 (Option A, the owner's answer on #39 on 2026-11-08), r
     - OQ-11: package references rewritten, and the section 10.3 grep is empty; ImportResolver javadoc still describes the prototype copies (S3-a).
     - OQ-12: automation javadoc copied as-is apart from the package renames.
     - OQ-13: `protected abstract OntologyDocumentStore freshDocuments();`, at line 42 of ontology-testfixtures/src/main/java/org/sequeless/ontology/testfixtures/OntologyDocumentStoreContract.java, unchanged from b2ff8a6 to 76f5d43. It is abstract, not the Supplier the S2 plan assumed.
-18. **S2b decision pending**
+18. **S2b decision: route (a), decided 2026-11-11**
 
     Context: item 13 fixes the placement (validation api in `ontology-core` over kernel types, implementation in `ontology-jena-adapter`). Item 16, a driver decision, makes 0.1.0 wait for S2b. `ShaclValidationPort` and `ShaclDataGraphBuilder` take `BusinessObject`, which stays in the prototype (#16 decision 9), so S2b is new design, not a copy.
 
