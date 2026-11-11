@@ -512,7 +512,7 @@ Decided, and not open: O1 (Option A, the owner's answer on #39 on 2026-11-08), r
 16. **S4 waits for S2b.** 0.1.0 ships the validation api in `ontology-core` (Q1 and ADR 0004), so S4 depends on S2b as well as S2 and S3. This is a driver decision of 2026-11-10 from the review of PR #99, not an owner answer. The owner may redirect it.
 17. **S2 outcomes**
     - OQ-1 and OQ-2: SHACL not in S2.
-    - OQ-3: ontology-core has no kernel-values dependency; it imports only kernel-identity.
+    - OQ-3: S2 left ontology-core importing only kernel-identity. S2b adds kernel-values, per the S2b signature approved on #39 (2026-11-11), so ontology-core's public validation api can use ObjectId and Value. ontology-core does not import schema-contract, and no module depends on ontology-core through schema-contract. The validation api's Schema-facing side is an adapter in ontology-jena-adapter, which already depends on both modules.
     - OQ-4: the Q4 check is included, from prototype #100.
     - OQ-5: RollupRuleMappingTest was written at ontology-jena-adapter src/test/java/.../jena/internal/RollupRuleMappingTest.java, using the public FieldRegistry and FilterValidator API; the EQ cases were added in 76f5d43.
     - OQ-6: moved tests follow their class's package.
