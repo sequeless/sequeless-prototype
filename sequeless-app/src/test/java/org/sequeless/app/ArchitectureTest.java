@@ -99,7 +99,8 @@ class ArchitectureTest {
                             "com.fasterxml.jackson.databind..")
                     .or(PRIMITIVE_OR_ARRAY))
             .because("sequeless-core holds the use cases and orchestration logic; it may depend on the JDK, "
-                    + "the ports it calls through (sequeless-spi), the released sequeless-kernel values, "
+                    + "the ports it calls through (sequeless-spi), the released sequeless-kernel identity "
+                    + "and values types, "
                     + "the expression api and the SLF4J logging facade (a dependency-free API, not an "
                     + "adapter-specific technology), but nothing else, or the core would stop being portable "
                     + "across adapter choices. The released filter api and Jackson 2's databind package are "

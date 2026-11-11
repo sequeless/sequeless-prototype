@@ -38,19 +38,27 @@ import org.sequeless.spi.query.Operator;
  * op not listed here is rejected. {@link FieldFilter#path()} is the full property IRI (spec 11 Q5),
  * looked up in the {@link Schema} from the source type and its subtypes.
  *
- * <p>{@code is} and {@code is not} with no value (a Java {@code null} or a {@code NullNode}) map to
- * {@link Operator#IS_NULL} and {@link Operator#NOT_NULL} with no property lookup, so an undeclared
- * property is accepted for them. Every other op looks the property up and rejects it if it is not
- * declared. Both loaders also skip the property check for these two ops.
+ * <p>The op and the no-value check come first. An unmapped op is rejected, and a value op other than
+ * {@code is in} with no value is rejected, both before the property lookup. The lookup then runs for
+ * every value op, {@code is in} included (its array check runs after the lookup). {@code is} and
+ * {@code is not} with no value (a Java {@code null} or a {@code NullNode}) map to {@link
+ * Operator#IS_NULL} and {@link Operator#NOT_NULL} with no lookup, so an undeclared property is accepted
+ * for them. Both loaders also skip the property check for these two ops.
  *
  * <p>An {@link Operator#IN} criterion carries a {@link org.sequeless.kernel.values.ListValue} of the
  * element values, not a scalar. The cut-over PR must render it as a list.
  *
  * <p>Values convert by the property's {@link Datatype} as the {@link Schema} gives it. The Schema keeps
  * one datatype per attribute, the most specific range, while the released loader writes a value using
- * the first range IRI in sorted order. For a property that declares several ranges the two can differ,
- * and the bridge then rejects a JSON value that does not fit the Schema datatype. Matching the loader
- * needs the Schema to carry every range, which is outside this bridge.
+ * the first range IRI in sorted order. The two differ when a property has several ranges, declared or
+ * entailed. Under the OWL reasoner (the prototype's default), an {@code xsd:integer} property also gets
+ * the entailed range {@code xsd:decimal}, which sorts first, so the loader may write a {@code DecimalNode}
+ * for it. The bridge then rejects any {@code DecimalNode} for INTEGER and LONG with an {@link
+ * IllegalArgumentException}, including an integral one such as {@code 3.0}. The prototype's
+ * {@code StateMachineMappingTest} and {@code mostSpecificXsdIri} comments say this was verified
+ * empirically under OWL. It has NOT been reproduced in this bridge PR. The cut-over must verify it
+ * before the bridge is wired into {@code DerivationPlanner.resolveRollup}. This javadoc makes no claim
+ * that the bridge matches the loader.
  */
 public final class FilterNodeToCriterion {
 
