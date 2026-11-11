@@ -60,7 +60,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that must already
  * be fresh. {@code TimerScheduled}/{@code TimerCancelled} go to {@link InProcessTimerScheduler},
  * and {@code SignalReceived} to {@link TriggerEvaluator#onSignal}. {@code TransitionFired} is
- * audit-only and, like any other unrecognised kind, is rejected.
+ * accepted and does nothing: it carries no action or timer yet, so this port records nothing for it.
  */
 public final class InProcessAutomationPort implements AutomationPort {
 
@@ -111,6 +111,11 @@ public final class InProcessAutomationPort implements AutomationPort {
     public void dispatch(Scope scope, OutboxEntry entry) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(entry, "entry must not be null");
+
+        if (OutboxEntry.KIND_TRANSITION_FIRED.equals(entry.kind())) {
+            // Accepted as a no-op, before the redelivery record below, so it leaves no state behind.
+            return;
+        }
 
         if (!dispatched.add(entry.id())) {
             return;

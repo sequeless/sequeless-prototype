@@ -1,7 +1,6 @@
 package org.sequeless.testkit.automation;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.time.Duration;
@@ -165,7 +164,7 @@ public abstract class AutomationContract {
     }
 
     @Test
-    void dispatchStillRejectsTransitionFiredKind() {
+    void dispatchAcceptsTransitionFiredAsANoOp() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
@@ -176,7 +175,11 @@ public abstract class AutomationContract {
         OutboxEntry entry =
                 new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
-        assertThatIllegalArgumentException().isThrownBy(() -> port().dispatch(SCOPE, entry));
+        port().dispatch(SCOPE, entry);
+
+        assertThat(recordingExecutor().calls()).isEmpty();
+        assertThat(recordingTriggerEvaluator().calls()).isEmpty();
+        assertThat(recordingDerivationRecomputer().calls()).isEmpty();
     }
 
     @Test

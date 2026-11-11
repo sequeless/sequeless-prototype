@@ -266,7 +266,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_CREATED,
-                outboxPayload(candidate.id(), 1L, candidate.type().iri()),
+                outboxPayload(
+                        candidate.id(),
+                        1L,
+                        candidate.type().iri(),
+                        schema.ontologyVersion().value()),
                 now);
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
 
@@ -312,7 +316,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
-                outboxPayload(id, expectedVersion + 1, existing.type().iri()),
+                outboxPayload(
+                        id,
+                        expectedVersion + 1,
+                        existing.type().iri(),
+                        schema.ontologyVersion().value()),
                 now);
         ChangeSet changeSet =
                 new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), List.of(outboxEntry));
@@ -339,8 +347,11 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Instant now = now();
         String by = scope.principal().id();
         Delete deletion = new Delete(id, versionToDelete, now, by);
-        Map<String, Object> payload =
-                outboxPayload(id, versionToDelete + 1, existing.type().iri());
+        Map<String, Object> payload = outboxPayload(
+                id,
+                versionToDelete + 1,
+                existing.type().iri(),
+                schema.ontologyVersion().value());
         payload.put("properties", propertiesSnapshot(existing));
         OutboxEntry outboxEntry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED, payload, now);
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(deletion), List.of(outboxEntry));
@@ -643,11 +654,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         return clock.instant().truncatedTo(ChronoUnit.MICROS);
     }
 
-    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri) {
+    /**
+     * Builds the payload of an object-lifecycle Store event. {@code ontologyVersion} is the version of
+     * the schema the write validated against, so the event records which ontology it was committed under.
+     */
+    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri, int ontologyVersion) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
         payload.put("typeIri", typeIri);
+        payload.put("ontologyVersion", ontologyVersion);
         return payload;
     }
 

@@ -96,6 +96,33 @@ class OutboxRelayTest {
         assertThat(scope.principal().roles()).isEmpty();
     }
 
+    @Test
+    void transitionFiredRowIsClaimedAndHandedToAutomation() {
+        InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        RecordingAutomationPort automationPort = new RecordingAutomationPort();
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort));
+
+        relay.pollOnce();
+
+        assertThat(automationPort.dispatchedEntries).hasSize(1);
+        assertThat(automationPort.dispatchedEntries.get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+        assertThat(outboxPort.isEmpty()).isTrue();
+    }
+
+    /** Builds a {@code TransitionFired}-kind {@link OutboxEntry} carrying the stamped Ontology version. */
+    private static OutboxEntry transitionFired(String tenantId, String principalId) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", UUID.randomUUID().toString());
+        payload.put("tenantId", tenantId);
+        payload.put("principalId", principalId);
+        payload.put("transitionName", "activate");
+        payload.put("fromState", "https://example.com/ns#Draft");
+        payload.put("toState", "https://example.com/ns#Active");
+        payload.put("ontologyVersion", 1);
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+    }
+
     /**
      * Builds an {@code ActionRequest}-kind {@link OutboxEntry} matching the payload shape {@code
      * DefaultTransitionService#actionRequestPayload} produces for a {@code Log} action — the

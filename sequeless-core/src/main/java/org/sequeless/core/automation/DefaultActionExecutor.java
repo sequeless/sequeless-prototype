@@ -114,7 +114,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
         OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
-                outboxPayload(objectId, current.version() + 1, current.type().iri()),
+                outboxPayload(objectId, current.version() + 1, current.type().iri(), entry),
                 now);
         ChangeSet changeSet =
                 new ChangeSet(List.<Mutation>of(new Update(candidate, current.version())), List.of(outboxEntry));
@@ -161,7 +161,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 false);
 
         OutboxEntry outboxEntry = new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, outboxPayload(newId, 1L, createType), now);
+                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, outboxPayload(newId, 1L, createType, entry), now);
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
@@ -243,12 +243,22 @@ public final class DefaultActionExecutor implements ActionExecutor {
      * DefaultTriggerEvaluator}/{@code DefaultDerivationRecomputer} need the changed object's type
      * from these payloads exactly as much as from those. Without it, a write made by an action
      * (a {@code SetProperty} or {@code CreateObject}) would silently fail to retrigger automation.
+     *
+     * <p>The {@code ontologyVersion} is copied from {@code actionRequest}, the {@code ActionRequest} row
+     * this action was applied from, which carries the version its transition fired under. This
+     * executor reads no ontology snapshot of its own. A row written before the stamp existed has no
+     * version, so the key is left out for it.
      */
-    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri) {
+    private static Map<String, Object> outboxPayload(
+            ObjectId id, long version, String typeIri, OutboxEntry actionRequest) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
         payload.put("typeIri", typeIri);
+        Object ontologyVersion = actionRequest.payload().get("ontologyVersion");
+        if (ontologyVersion != null) {
+            payload.put("ontologyVersion", ontologyVersion);
+        }
         return payload;
     }
 

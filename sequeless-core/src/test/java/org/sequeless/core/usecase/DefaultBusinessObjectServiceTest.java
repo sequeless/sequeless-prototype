@@ -807,6 +807,34 @@ class DefaultBusinessObjectServiceTest {
     }
 
     @Test
+    void addStampsTheOntologyVersionOfTheSchemaItValidatedAgainst() {
+        // Isolated schema and behaviour at version 7, so the stamp must come from the snapshot read,
+        // not from the shared fixtures' version 1.
+        String ticketIri = NS + "Ticket";
+        TypeDefinition ticket =
+                new TypeDefinition(ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(7), NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(ticket));
+        Behaviour behaviour = new Behaviour(new OntologyVersion(7), Map.of(), Map.of());
+
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        DefaultBusinessObjectService service = new DefaultBusinessObjectService(
+                new FakeOntology(schema, behaviour),
+                new FakeOntology(schema, behaviour),
+                store,
+                new FakeValidationPort(List.of()),
+                permitAll(),
+                new FakeQueryPort(),
+                CLOCK);
+
+        service.add(ALICE, "Ticket", Map.of());
+
+        OutboxEntry created = store.commits.get(0).outbox().get(0);
+        assertThat(created.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_CREATED);
+        assertThat(created.payload()).containsEntry("ontologyVersion", 7);
+    }
+
+    @Test
     void addWithStateMachineInitializesStateToInitialState() {
         // Isolated schema and behaviour (not the shared fixtures) whose behaviour carries the state
         // machine for its one type, so this test exercises add()'s new "initialize state" branch

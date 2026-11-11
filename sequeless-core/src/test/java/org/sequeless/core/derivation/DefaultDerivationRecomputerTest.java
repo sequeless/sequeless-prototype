@@ -215,6 +215,8 @@ class DefaultDerivationRecomputerTest {
         assertThat(updated.version()).isEqualTo(4);
         assertThat(store.commitCalls).isEqualTo(1);
         assertThat(store.lastOutboxKind).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
+        // The recompute read the schema at version 1, so its ObjectUpdated event carries that version.
+        assertThat(store.lastOutboxPayload).containsEntry("ontologyVersion", 1);
     }
 
     @Test
@@ -372,6 +374,7 @@ class DefaultDerivationRecomputerTest {
         private final Map<ObjectId, Integer> staleFailuresRemaining = new HashMap<>();
         private int commitCalls;
         private String lastOutboxKind;
+        private Map<String, Object> lastOutboxPayload;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
@@ -451,6 +454,7 @@ class DefaultDerivationRecomputerTest {
             List<UUID> outboxIds = new ArrayList<>();
             for (OutboxEntry entry : changeSet.outbox()) {
                 lastOutboxKind = entry.kind();
+                lastOutboxPayload = entry.payload();
                 outboxIds.add(UUID.randomUUID());
             }
             return new CommitResult(resultObjects, outboxIds);

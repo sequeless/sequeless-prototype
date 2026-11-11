@@ -216,6 +216,8 @@ class DefaultActionExecutorTest {
         executor.applySetProperty(ALICE, actionRequests.get(0));
         BusinessObject afterFirstSet = store.store.get(projectId);
         assertThat(afterFirstSet.properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("kicked-off"));
+        // The ObjectUpdated event carries the version its ActionRequest row was stamped with.
+        assertThat(store.commits.get(1).outbox().get(0).payload()).containsEntry("ontologyVersion", 1);
 
         // actionIndex 1: SetProperty, expression variant ("self.owner") — self is frozen at
         // transition-fire time, so it still resolves to "alice" even though status is now
@@ -322,6 +324,25 @@ class DefaultActionExecutorTest {
                 .containsEntry("objectId", id.value().toString())
                 .containsEntry("version", 4L)
                 .containsEntry("typeIri", PROJECT_IRI);
+    }
+
+    @Test
+    void objectUpdatedFromAnActionRowWrittenBeforeTheStampLeavesTheVersionOut() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+
+        // This builder sets no ontologyVersion, which is how a row written before the stamp looks.
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+                .valueVariant(Value.text("new"))
+                .build();
+
+        executor.applySetProperty(ALICE, entry);
+
+        assertThat(store.commitCalls).isEqualTo(1);
+        assertThat(store.commits.get(0).outbox().get(0).payload()).doesNotContainKey("ontologyVersion");
     }
 
     @Test

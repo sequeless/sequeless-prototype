@@ -18,11 +18,12 @@ import org.springframework.stereotype.Component;
 
 /**
  * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — {@link
- * OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, and the three automation
- * kinds ({@link OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, {@link
+ * OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, {@link
+ * OutboxEntry#KIND_TRANSITION_FIRED}, and the three automation kinds ({@link
+ * OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, {@link
  * OutboxEntry#KIND_SIGNAL_RECEIVED}) — one row at a time, into whichever {@link AutomationPort}
- * adapter is currently configured. {@link OutboxEntry#KIND_TRANSITION_FIRED} is deliberately never
- * included: it is audit-only and nothing ever claims it.
+ * adapter is currently configured. The automation adapters accept {@link
+ * OutboxEntry#KIND_TRANSITION_FIRED} as a no-op until it carries actions and timers.
  *
  * <p><b>Why an {@link ObjectProvider}, not a plain {@code AutomationPort} constructor
  * parameter.</b> {@code AutomationPort} is supplied by an {@code @AutoConfiguration} class ({@code
@@ -48,6 +49,7 @@ public class OutboxRelay {
             OutboxEntry.KIND_OBJECT_CREATED,
             OutboxEntry.KIND_OBJECT_UPDATED,
             OutboxEntry.KIND_OBJECT_DELETED,
+            OutboxEntry.KIND_TRANSITION_FIRED,
             OutboxEntry.KIND_TIMER_SCHEDULED,
             OutboxEntry.KIND_TIMER_CANCELLED,
             OutboxEntry.KIND_SIGNAL_RECEIVED);

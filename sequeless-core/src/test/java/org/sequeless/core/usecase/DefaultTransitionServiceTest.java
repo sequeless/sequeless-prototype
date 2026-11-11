@@ -343,12 +343,14 @@ class DefaultTransitionServiceTest {
                 .containsEntry("principalId", "alice")
                 .containsEntry("transitionName", "activate")
                 .containsEntry("fromState", DRAFT_IRI)
-                .containsEntry("toState", ACTIVE_IRI);
+                .containsEntry("toState", ACTIVE_IRI)
+                .containsEntry("ontologyVersion", 1);
 
         List<OutboxEntry> actionRequests = changeSet.outbox().subList(1, 5);
         for (int i = 0; i < actionRequests.size(); i++) {
             OutboxEntry entry = actionRequests.get(i);
             assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
+            assertThat(entry.payload()).containsEntry("ontologyVersion", 1);
             assertThat(entry.payload())
                     .containsEntry("objectId", id.value().toString())
                     .containsEntry("tenantId", "acme")
