@@ -3,18 +3,20 @@
 
 Namespace: `https://sequeless.dev/ns/meta#`. Document (ontology) IRI: `https://sequeless.dev/ns/meta`
 (no trailing `#` — the `#` is the fragment separator used by every term IRI). Conventional prefix:
-`sq:`. The canonical Turtle declaration of every term below lives in
-`sequeless-spi-testkit/src/main/resources/ontology/sq-schema.ttl` and
-`sequeless-spi-testkit/src/main/resources/ontology/sq-behaviour.ttl` (T4); any ontology document that
-uses `sq:` terms imports this document via `owl:imports <https://sequeless.dev/ns/meta>`.
+`sq:`. The canonical Turtle declaration of every term below lives in `sq-schema.ttl` and
+`sq-behaviour.ttl` (T4). sequeless-ontology owns both files, in
+`ontology-jena-adapter/src/main/resources/ontology/`, and the prototype consumes them only as
+released artifacts; any ontology document that uses `sq:` terms imports this document via
+`owl:imports <https://sequeless.dev/ns/meta>`.
 
 `sq:` is a small annotation vocabulary layered on top of standard OWL. OWL describes what a type
 *is* (classes, subclass relationships, properties, domains, ranges, cardinality restrictions,
 consistency); `sq:` describes what the application needs to *display and enforce* that OWL has no
 term for — labels, ordering, grouping, facets, indexing hints, and two structural flags OWL itself
 cannot express (see "Two terms beyond OWL" below). Every `sq:` term maps to exactly one field on a
-record of the Schema, Behaviour or Automation half (packages `org.sequeless.spi.meta.schema`,
-`org.sequeless.spi.meta.behaviour` and `org.sequeless.spi.meta.automation`; T2); this document is the
+record of the Schema, Behaviour or Automation half (released packages
+`org.sequeless.ontology.schema.api`, `org.sequeless.ontology.behaviour.api` and
+`org.sequeless.ontology.automation.api` in sequeless-ontology; T2); this document is the
 single source of truth for that mapping, and the Jena adapter's `SqVocabulary` (T7) is a direct
 transcription of it.
 
@@ -78,7 +80,7 @@ Notes:
   cannot express without `owl:oneOf`. The set is validated at snapshot activation instead.
 - The five function individuals — `sq:count`, `sq:sum`, `sq:min`, `sq:max`, `sq:avg` — are
   `owl:NamedIndividual`s with no snapshot field of their own: they are the *values* `sq:function`
-  takes, matched by IRI local name against `org.sequeless.spi.meta.schema.AggregateFunction`'s enum
+  takes, matched by IRI local name against `org.sequeless.ontology.schema.api.AggregateFunction`'s enum
   constant names (T3's job).
 - The eleven operator individuals — `sq:eq`, `sq:ne`, `sq:in`, `sq:lt`, `sq:lte`, `sq:gt`,
   `sq:gte`, `sq:contains`, `sq:startsWith`, `sq:isNull`, `sq:notNull` — are likewise
@@ -167,7 +169,7 @@ correct in `sq_object.props` from domain events instead of only ever being compu
 
 `sq:trigger`'s four legal values, each an `owl:NamedIndividual` with no snapshot field of its own —
 they are the values `sq:trigger` takes, matched by IRI local name against
-`org.sequeless.spi.meta.behaviour.TriggerKind`'s enum constant names, exactly as the phase-4 function/operator
+`org.sequeless.ontology.behaviour.api.TriggerKind`'s enum constant names, exactly as the phase-4 function/operator
 individuals are matched against their own enums:
 
 | Individual | Paired `TriggerSpec` | Required companion terms |

@@ -30,7 +30,7 @@ machines, events. Materialised derived values are shipped in phase 6 (DR-11) for
 
 ## SPI shapes
 
-`org.sequeless.spi.meta.behaviour` (`AggregateFunction` is in `org.sequeless.spi.meta.schema`):
+`org.sequeless.ontology.behaviour.api` (`AggregateFunction` is in `org.sequeless.ontology.schema.api`):
 
 ```java
 public sealed interface DerivationRule permits RollupRule, PluginRule {

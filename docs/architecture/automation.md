@@ -401,7 +401,7 @@ adapter-specific quirk.
 
 Through Phase 5, `sq:trigger` accepted exactly one legal value (`sq:UserAction`) and a transition
 could only ever fire from `POST /api/objects/{type}/{id}/transitions/{name}`. Phase 6 widens this to a
-sealed `TriggerSpec` hierarchy (`org.sequeless.spi.meta.behaviour`) with a `TriggerKind kind()` discriminator
+sealed `TriggerSpec` hierarchy (`org.sequeless.ontology.behaviour.api`) with a `TriggerKind kind()` discriminator
 — `USER_ACTION`, `ON_CHANGE`, `TIMER`, `EXTERNAL_SIGNAL` — so a transition can also fire from a
 data change, a timer, or an external signal, without becoming reachable from the REST fire
 endpoint (which now rejects any transition whose `trigger().kind() != TriggerKind.USER_ACTION`
