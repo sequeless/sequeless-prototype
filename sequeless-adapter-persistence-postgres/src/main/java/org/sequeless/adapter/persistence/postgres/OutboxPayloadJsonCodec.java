@@ -5,7 +5,7 @@ import java.util.Objects;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Encodes an {@link org.sequeless.spi.object.OutboxEntry#payload()} to JSON text for {@code
+ * Encodes an {@link org.sequeless.spi.outbox.OutboxEntry#payload()} to JSON text for {@code
  * sq_outbox.payload}, and decodes it back. Unlike {@link ValueJsonCodec}, no tagging is needed
  * here: {@code OutboxEntry}'s constructor already guarantees every value in the payload, at any
  * depth, is a plain {@code String}, {@code Number}, {@code Boolean}, {@code List<?>}, or {@code

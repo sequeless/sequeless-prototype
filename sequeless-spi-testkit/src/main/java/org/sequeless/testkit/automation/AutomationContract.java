@@ -17,7 +17,7 @@ import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The mechanical form of the behavioural contract documented on {@link AutomationPort}'s

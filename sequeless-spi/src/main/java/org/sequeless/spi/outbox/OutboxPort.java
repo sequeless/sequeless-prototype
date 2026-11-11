@@ -1,8 +1,9 @@
-package org.sequeless.spi.object;
+package org.sequeless.spi.outbox;
 
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import org.sequeless.spi.object.ObjectStorePort;
 
 /**
  * The outbound port a relay polls to claim one unprocessed outbox row of a caller-chosen kind at a
@@ -25,9 +26,8 @@ import java.util.function.BiFunction;
  *
  * <p>This port deliberately hands the handler a raw {@code tenantId} {@link String}, not a
  * pre-built {@link org.sequeless.kernel.identity.Scope}: it cannot know how the caller wants to construct a
- * {@link org.sequeless.kernel.identity.Principal} from the payload's {@code principalId} (display name?
- * roles? a "system" role for authz?) — that policy belongs to whichever relay calls this port, not
- * to this SPI.
+ * {@link org.sequeless.kernel.identity.Principal} from the payload's {@code principalId} — that policy
+ * belongs to whichever relay calls this port, not to this SPI.
  */
 public interface OutboxPort {
 

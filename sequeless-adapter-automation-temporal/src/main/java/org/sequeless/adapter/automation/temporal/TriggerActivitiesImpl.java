@@ -4,7 +4,7 @@ import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link TriggerActivities} implementation: four pure pass-throughs to the injected

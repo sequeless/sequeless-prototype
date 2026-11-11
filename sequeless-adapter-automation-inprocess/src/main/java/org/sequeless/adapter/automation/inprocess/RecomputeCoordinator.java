@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.DerivationRecomputer;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Applies {@link InProcessAutomationPort}'s configured {@link InProcessRecomputeProperties.Mode}

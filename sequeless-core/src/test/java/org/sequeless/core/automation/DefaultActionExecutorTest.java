@@ -68,13 +68,13 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Unit tests for {@link DefaultActionExecutor}, built with the same hand-written-fixture idiom as

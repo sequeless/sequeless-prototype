@@ -1,7 +1,7 @@
 package org.sequeless.spi.automation;
 
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The inbound port an automation adapter calls back into to evaluate the state machine against a
@@ -52,7 +52,7 @@ public interface TriggerEvaluator {
      * the object left that state and a corresponding {@code TimerCancelled} either raced this call
      * or was missed entirely. That staleness check, not cancellation, is the real safety net
      * against a timer firing twice or against the wrong state; cancellation (see {@link
-     * org.sequeless.spi.object.OutboxEntry#KIND_TIMER_CANCELLED}) is purely the optimisation that
+     * org.sequeless.spi.outbox.OutboxEntry#KIND_TIMER_CANCELLED}) is purely the optimisation that
      * avoids waking a durable timer workflow that both sides already know is moot.
      *
      * <p>Kind-specific payload fields, beyond {@code objectId}/{@code tenantId}/{@code

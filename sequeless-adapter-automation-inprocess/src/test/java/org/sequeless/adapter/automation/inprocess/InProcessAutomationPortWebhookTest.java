@@ -19,7 +19,7 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;

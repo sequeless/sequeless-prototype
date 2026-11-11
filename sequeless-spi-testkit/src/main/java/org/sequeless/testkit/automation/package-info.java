@@ -7,7 +7,7 @@
  * org.sequeless.spi.automation.AutomationPort#dispatch} routes each of the four {@code
  * ActionRequest} action kinds ({@code SetProperty}, {@code CreateObject}, {@code Webhook}, {@code
  * Log}) to the matching {@link org.sequeless.spi.automation.ActionExecutor} method, that a second
- * {@code dispatch} call for the same {@link org.sequeless.spi.object.OutboxEntry#id()} is a no-op
+ * {@code dispatch} call for the same {@link org.sequeless.spi.outbox.OutboxEntry#id()} is a no-op
  * on the spy (idempotent redispatch), and null-safety/kind-validation. It deliberately does not
  * assert anything about HTTP retry behaviour for webhooks — that is adapter-specific policy,
  * tested separately per adapter.

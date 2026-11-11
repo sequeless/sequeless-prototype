@@ -1,7 +1,7 @@
 package org.sequeless.spi.automation;
 
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The outbound port a relay (the in-process poller, or a future Temporal-backed one) calls to

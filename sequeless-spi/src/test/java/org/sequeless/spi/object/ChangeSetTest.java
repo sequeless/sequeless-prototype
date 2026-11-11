@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 class ChangeSetTest {
 

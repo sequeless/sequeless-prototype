@@ -8,7 +8,7 @@ import io.temporal.client.WorkflowOptions;
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The default, durable {@link AutomationPort} adapter. {@link #dispatch} routes by {@code

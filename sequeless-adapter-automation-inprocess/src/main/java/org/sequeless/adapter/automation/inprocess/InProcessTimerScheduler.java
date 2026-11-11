@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The in-process substitute for a durable timer engine (a future Temporal adapter's {@code

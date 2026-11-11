@@ -27,8 +27,8 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Reference implementation of {@link TriggerEvaluator}, called back into by an automation adapter

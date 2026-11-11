@@ -11,7 +11,7 @@ import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link ActionActivities} implementation: three of its four methods are pure

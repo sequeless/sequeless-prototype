@@ -17,7 +17,7 @@ import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The test/dev {@link AutomationPort} adapter: {@link #dispatch} runs an {@code ActionRequest}
