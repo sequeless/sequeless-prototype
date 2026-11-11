@@ -28,25 +28,25 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.automation.Action;
-import org.sequeless.spi.meta.automation.Automation;
-import org.sequeless.spi.meta.automation.AutomationSource;
-import org.sequeless.spi.meta.automation.CreateObjectAction;
-import org.sequeless.spi.meta.automation.LogAction;
-import org.sequeless.spi.meta.automation.PropertyAssignment;
-import org.sequeless.spi.meta.automation.SetPropertyAction;
-import org.sequeless.spi.meta.automation.TransitionRef;
-import org.sequeless.spi.meta.automation.WebhookAction;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
-import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
-import org.sequeless.spi.meta.behaviour.TimerTrigger;
-import org.sequeless.spi.meta.behaviour.Transition;
-import org.sequeless.spi.meta.behaviour.TriggerKind;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.automation.api.CreateObjectAction;
+import org.sequeless.ontology.automation.api.LogAction;
+import org.sequeless.ontology.automation.api.PropertyAssignment;
+import org.sequeless.ontology.automation.api.SetPropertyAction;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TimerTrigger;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -180,7 +180,7 @@ public final class DefaultTransitionService implements TransitionService {
      * <p>Every check {@link #fire} performs via {@link TransitionNotAvailableException} is performed
      * here too, plus one more: {@code transition.trigger().kind()} must equal {@code expected},
      * checked via the {@link TriggerKind} discriminator rather than an {@code instanceof} match on
-     * {@link org.sequeless.spi.meta.behaviour.TriggerSpec}, exactly so a caller with only a {@link
+     * {@link org.sequeless.ontology.behaviour.api.TriggerSpec}, exactly so a caller with only a {@link
      * TriggerKind} in hand (as every inbound automation port method has, from the outbox entry it is
      * dispatching) never needs to reconstruct or guess at the full trigger payload just to compare
      * kinds.

@@ -12,12 +12,12 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.Cardinality;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.RelationshipDefinition;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.validation.Violation;
 
@@ -27,7 +27,7 @@ import org.sequeless.spi.validation.Violation;
  * keyed by {@link PropertyRef}, per a {@link TypeDefinition}'s declared properties.
  *
  * <p><b>Property keys are accepted as either the full IRI or the short (local) name.</b> {@link
- * org.sequeless.spi.meta.schema.Schema#typeByName(String)} already accepts both forms for
+ * org.sequeless.ontology.schema.api.Schema#typeByName(String)} already accepts both forms for
  * <em>type</em> resolution; nothing in the SPI does the equivalent for <em>properties</em>
  * attributed to a {@link TypeDefinition}. Since the REST layer (out of scope here) hands this class
  * an already-short-named JSON body while documenting that full IRIs are also accepted on input,
@@ -53,7 +53,7 @@ import org.sequeless.spi.validation.Violation;
  * Behaviour#derivation(String)} of its IRI.
  *
  * <p>Stateless utility class: it has no dependencies to inject, so an instance would carry no
- * state, the same reason {@link org.sequeless.spi.meta.schema.Datatype#fromXsd} and {@link Value}'s own
+ * state, the same reason {@link org.sequeless.ontology.schema.api.Datatype#fromXsd} and {@link Value}'s own
  * static factories are plain static methods rather than instantiated helpers.
  */
 public final class ValueCoercer {

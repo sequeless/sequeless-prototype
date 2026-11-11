@@ -36,15 +36,15 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.Datatype;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -84,7 +84,7 @@ import org.sequeless.spi.validation.Violation;
  * reference-target checking — rather than a hand-rolled equality check.
  *
  * <p>{@code state} on a freshly {@link #add added} object is {@link Optional#of} the resolved
- * type's {@link org.sequeless.spi.meta.behaviour.StateMachineDefinition#initialState()} IRI when the
+ * type's {@link org.sequeless.ontology.behaviour.api.StateMachineDefinition#initialState()} IRI when the
  * resolved type has a state machine, or {@link Optional#empty()} otherwise; {@link #edit} never
  * changes an existing object's {@code state} itself — moving an object through its state machine
  * after creation is {@link org.sequeless.core.usecase.DefaultTransitionService}'s job, not this

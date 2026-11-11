@@ -37,6 +37,22 @@
     </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
+      <artifactId>ontology-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>behaviour-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
       <artifactId>expression-api</artifactId>
     </dependency>
 

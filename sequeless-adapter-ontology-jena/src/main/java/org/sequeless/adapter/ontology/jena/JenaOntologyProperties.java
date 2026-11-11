@@ -1,5 +1,8 @@
 package org.sequeless.adapter.ontology.jena;
 
+import org.sequeless.ontology.jena.JenaOntologyPort;
+import org.sequeless.ontology.jena.JenaOntologySettings;
+import org.sequeless.ontology.jena.ReasonerSetting;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**

@@ -7,7 +7,7 @@ import org.sequeless.spi.validation.Violation;
 /**
  * Thrown by the browse use case (Phase 3, {@code org.sequeless.core.usecase}, out of scope here)
  * when a {@link BrowseQuery}'s filter, sort, or facet property names or operators are invalid
- * against the current {@link org.sequeless.spi.meta.schema.Schema} — for example, an unknown
+ * against the current {@link org.sequeless.ontology.schema.api.Schema} — for example, an unknown
  * property, an operator not applicable to the property's datatype, a non-facet property requested
  * as a facet, or a multi-valued property used somewhere only a scalar is supported.
  *

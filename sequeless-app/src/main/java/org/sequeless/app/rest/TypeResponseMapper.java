@@ -15,28 +15,29 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
-import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
-import org.sequeless.spi.meta.behaviour.OnChangeTrigger;
-import org.sequeless.spi.meta.behaviour.PluginRule;
-import org.sequeless.spi.meta.behaviour.RollupRule;
-import org.sequeless.spi.meta.behaviour.State;
-import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
-import org.sequeless.spi.meta.behaviour.TimerTrigger;
-import org.sequeless.spi.meta.behaviour.Transition;
-import org.sequeless.spi.meta.behaviour.TriggerKind;
-import org.sequeless.spi.meta.behaviour.TriggerSpec;
-import org.sequeless.spi.meta.behaviour.UserActionTrigger;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.RelationshipDefinition;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
+import org.sequeless.ontology.behaviour.api.OnChangeTrigger;
+import org.sequeless.ontology.behaviour.api.PluginRule;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.api.State;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TimerTrigger;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.behaviour.api.TriggerSpec;
+import org.sequeless.ontology.behaviour.api.UserActionTrigger;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Operator;
 
 /**
- * Maps the {@code org.sequeless.spi.meta} schema and behaviour types, and core's {@link
+ * Maps the {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.ontology.behaviour.api}
+ * types, and core's {@link
  * TypeDescription}, onto their {@link TypesController} wire representations. Factored out of {@link
  * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.core.api.WhoAmIResult)},
  * because both {@link TypeSummaryResponse} and {@link TypeDetailResponse} need the same

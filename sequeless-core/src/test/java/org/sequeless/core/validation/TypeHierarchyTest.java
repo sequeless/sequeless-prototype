@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.meta.schema.DisplayHints;
-import org.sequeless.spi.meta.schema.OntologyVersion;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.TypeRef;
 
 /**

@@ -7,9 +7,9 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.behaviour.ExternalSignalTrigger;
-import org.sequeless.spi.meta.behaviour.Transition;
-import org.sequeless.spi.meta.behaviour.TriggerKind;
+import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.StaleObjectException;
 
@@ -19,7 +19,7 @@ import org.sequeless.spi.object.StaleObjectException;
  * to state-machine-governed objects only.
  *
  * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against
- * the current {@link org.sequeless.spi.meta.schema.Schema}, the same way {@link
+ * the current {@link org.sequeless.ontology.schema.api.Schema}, the same way {@link
  * BusinessObjectService}'s own {@code type} parameters do.
  *
  * @see org.sequeless.core.usecase.DefaultTransitionService
@@ -46,7 +46,7 @@ public interface TransitionService {
      * @param type the type's short name or full IRI; must not be {@code null}
      * @param id the id of the object to transition; must not be {@code null}
      * @param transitionName the name of the transition to fire ({@link
-     *     org.sequeless.spi.meta.behaviour.Transition#name()}); must not be {@code null}
+     *     org.sequeless.ontology.behaviour.api.Transition#name()}); must not be {@code null}
      * @param expectedVersion the version the caller expects the stored object to currently be at
      * @return the object after the transition, at version {@code expectedVersion + 1}, with {@code
      *     state} moved to the transition's target state

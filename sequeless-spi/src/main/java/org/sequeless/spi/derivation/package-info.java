@@ -4,8 +4,8 @@
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside the
  * JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
- * org.sequeless.kernel.identity.Scope} from its parent package, {@link org.sequeless.spi.meta.schema.Schema}
- * from {@code org.sequeless.spi.meta.schema}, {@link org.sequeless.spi.query.QueryPort} from {@code
+ * org.sequeless.kernel.identity.Scope} from its parent package, {@link org.sequeless.ontology.schema.api.Schema}
+ * from {@code org.sequeless.ontology.schema.api}, {@link org.sequeless.spi.query.QueryPort} from {@code
  * org.sequeless.spi.query}, and {@link org.sequeless.spi.object.BusinessObject}, {@link
  * org.sequeless.kernel.values.ObjectId}, and {@link org.sequeless.kernel.values.Value} from {@code
  * org.sequeless.spi.object}. {@link org.sequeless.spi.derivation.DerivationPlugin} is the {@link
@@ -14,7 +14,7 @@
  * implementing class (not a record) can be instantiated reflectively via a no-arg constructor.
  * {@link org.sequeless.spi.derivation.DerivationContext} is the request-scoped state {@code
  * ServiceLoader}'s no-arg instantiation cannot otherwise supply: the tenant/principal {@link
- * org.sequeless.kernel.identity.Scope}, the {@link org.sequeless.spi.meta.schema.Schema} in effect, and
+ * org.sequeless.kernel.identity.Scope}, the {@link org.sequeless.ontology.schema.api.Schema} in effect, and
  * {@link org.sequeless.spi.query.QueryPort} access for a plug-in that needs to look up related
  * objects itself.
  */

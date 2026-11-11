@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.sequeless.kernel.values.ObjectId;
-import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.ontology.schema.api.AggregateFunction;
 
 /**
  * A single request to {@link QueryPort#aggregate}: compute one {@link AggregateFunction} over the
@@ -29,7 +29,7 @@ import org.sequeless.spi.meta.schema.AggregateFunction;
  * @param ofPropertyIri the IRI of the source-side property to aggregate, required for every {@link
  *     AggregateFunction} other than {@link AggregateFunction#COUNT}; must not be {@code null} (the
  *     {@link Optional} wrapper itself, not just its contents) — this record does not itself enforce
- *     that coherence, mirroring {@code org.sequeless.spi.meta.behaviour.RollupRule}'s own disclaimer
+ *     that coherence, mirroring {@code org.sequeless.ontology.behaviour.api.RollupRule}'s own disclaimer
  * @param criteria the filter clauses narrowing which source objects are aggregated, combined with
  *     AND; must not be {@code null}; may be empty; returned as an unmodifiable copy so callers
  *     cannot mutate this request after construction

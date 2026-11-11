@@ -4,8 +4,8 @@ import java.util.Objects;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.QueryPort;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -53,7 +53,7 @@ public class OntologyStartupValidator implements ApplicationRunner {
 
     /**
      * Reads the Schema of the default tenant once, then prepares query indexes for it. If the
-     * ontology is inconsistent, the {@link org.sequeless.spi.ontology.OntologyException} the read
+     * ontology is inconsistent, the {@link org.sequeless.ontology.api.OntologyException} the read
      * throws propagates out of {@code SpringApplication.run}, failing startup.
      *
      * @param args the application's startup arguments; unused

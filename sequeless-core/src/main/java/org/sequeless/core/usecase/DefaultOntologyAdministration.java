@@ -7,10 +7,10 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyFormat;
 
 /**
  * Reference implementation of {@link OntologyAdministration}.
@@ -19,14 +19,14 @@ import org.sequeless.spi.ontology.OntologyFormat;
  * same as it is for {@link DefaultWhoAmI} and {@link DefaultMetaModelService}: it is never
  * optional, never cached, and never short-circuited. Both methods authorize {@link Operation#ADMIN}
  * against {@link AuthorizationPort#EVERYTHING} — export/import act on the ontology as a whole, not
- * on any single type — before delegating to {@link org.sequeless.spi.ontology.OntologyAdministration}.
+ * on any single type — before delegating to {@link org.sequeless.ontology.api.OntologyAdministration}.
  *
  * <p>Index preparation for the imported type system is not done here. The host wraps the
  * administration port and prepares indexes around it.
  */
 public final class DefaultOntologyAdministration implements OntologyAdministration {
 
-    private final org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration;
+    private final org.sequeless.ontology.api.OntologyAdministration ontologyAdministration;
     private final AuthorizationPort authorizationPort;
 
     /**
@@ -35,7 +35,7 @@ public final class DefaultOntologyAdministration implements OntologyAdministrati
      * @throws NullPointerException if either argument is {@code null}
      */
     public DefaultOntologyAdministration(
-            org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            org.sequeless.ontology.api.OntologyAdministration ontologyAdministration,
             AuthorizationPort authorizationPort) {
         this.ontologyAdministration =
                 Objects.requireNonNull(ontologyAdministration, "ontologyAdministration must not be null");

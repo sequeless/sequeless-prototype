@@ -11,7 +11,8 @@ import org.apache.jena.shacl.validation.ReportEntry;
 import org.apache.jena.sparql.path.P_Link;
 import org.apache.jena.sparql.path.Path;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.ontology.jena.JenaOntologyPort;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
@@ -22,7 +23,7 @@ import org.sequeless.spi.validation.Violation;
  * API shapes — see this class's constructor javadoc and plan §4 "Validation split").
  *
  * <h2>Why this class depends on the concrete {@link JenaOntologyPort}, not {@link
- * org.sequeless.spi.ontology.OntologyAdministration}</h2>
+ * org.sequeless.ontology.api.OntologyAdministration}</h2>
  *
  * <p>SHACL shapes live in the same ontology document the running {@link JenaOntologyPort} serves,
  * and must always reflect whatever that port's current ontology is — including after a live {@code

@@ -21,23 +21,23 @@ import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.behaviour.RollupRule;
-import org.sequeless.spi.meta.schema.AggregateFunction;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.Cardinality;
-import org.sequeless.spi.meta.schema.Datatype;
-import org.sequeless.spi.meta.schema.DisplayHints;
-import org.sequeless.spi.meta.schema.OntologyVersion;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
-import org.sequeless.spi.meta.schema.TypeDefinition;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.ontology.api.OntologyReport;
 
 /**
  * Unit tests for {@link DefaultMetaModelService}. Neither the ports nor {@link AuthorizationPort} is
@@ -393,7 +393,7 @@ class DefaultMetaModelServiceTest {
      * counted. {@code export} and {@code importDocument} are not exercised by these tests.
      */
     private static final class FakeOntology
-            implements SchemaSource, BehaviourSource, org.sequeless.spi.ontology.OntologyAdministration {
+            implements SchemaSource, BehaviourSource, org.sequeless.ontology.api.OntologyAdministration {
 
         private final Schema schema;
         private final Behaviour behaviour;

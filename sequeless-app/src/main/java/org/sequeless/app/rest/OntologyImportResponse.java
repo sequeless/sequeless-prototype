@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.List;
-import org.sequeless.spi.ontology.ImportReport;
+import org.sequeless.ontology.api.ImportReport;
 
 /**
  * JSON response body rendered from an {@link ImportReport} — the body of {@code POST /ontology} on
@@ -23,7 +23,7 @@ public record OntologyImportResponse(
 
     /**
      * Maps a core {@link ImportReport} onto its wire representation, reusing {@link
-     * OntologyReportResponse}'s own rendering of {@link org.sequeless.spi.ontology.OntologyReport}
+     * OntologyReportResponse}'s own rendering of {@link org.sequeless.ontology.api.OntologyReport}
      * rather than duplicating it.
      *
      * @param report the report to map; must not be {@code null}

@@ -2,7 +2,7 @@ package org.sequeless.app.rest;
 
 /**
  * JSON response shape describing how a derived property's value is computed, mapped from {@code
- * org.sequeless.spi.meta.behaviour.DerivationRule} by {@link TypeResponseMapper}. Present only on properties
+ * org.sequeless.ontology.behaviour.api.DerivationRule} by {@link TypeResponseMapper}. Present only on properties
  * that carry a {@code sq:derivedBy} rule; every such property is also forced {@code readOnly} at
  * the schema level, so {@code readOnly} together with a non-null {@code derivation} always agree.
  *

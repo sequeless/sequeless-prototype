@@ -9,11 +9,11 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.derivation.DerivationContext;
 import org.sequeless.spi.derivation.DerivationPlugin;
-import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.ontology.schema.api.AggregateFunction;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.testkit.Fixtures;
+import org.sequeless.ontology.testfixtures.Fixtures;
 
 /**
  * Sample {@code sq:Plugin}-backed derivation: {@code ex:Person.workload} is the sum of {@code

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.spi.AdapterDescriptor;
 import org.sequeless.spi.AdapterDescriptorProvider;
 import org.sequeless.spi.SpiVersion;
-import org.sequeless.spi.ontology.OntologyAdministration;
+import org.sequeless.ontology.api.OntologyAdministration;
 
 /**
  * The real proof that {@code META-INF/services/org.sequeless.spi.AdapterDescriptorProvider}'s

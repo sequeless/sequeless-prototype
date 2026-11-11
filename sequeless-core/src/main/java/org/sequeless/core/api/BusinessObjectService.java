@@ -22,7 +22,7 @@ import org.sequeless.spi.query.QueryResult;
  * before the shape-based {@code ValidationPort} SHACL check runs.
  *
  * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against
- * the current {@link org.sequeless.spi.meta.schema.Schema} the same way {@link
+ * the current {@link org.sequeless.ontology.schema.api.Schema} the same way {@link
  * MetaModelService#describeType} resolves its own {@code nameOrIri} argument.
  *
  * @see org.sequeless.core.usecase.DefaultBusinessObjectService
@@ -35,7 +35,7 @@ public interface BusinessObjectService {
      *
      * <p>Authorizes {@link Operation#BROWSE} against the resolved type's IRI, then resolves {@code
      * type} to its concrete subtype IRIs against the current {@link
-     * org.sequeless.spi.meta.schema.Schema} — the set a {@link
+     * org.sequeless.ontology.schema.api.Schema} — the set a {@link
      * org.sequeless.spi.query.Query#types()} is built from, since a query port never sees an
      * abstract type IRI — validates {@code query}'s filter, sort, and facet property names (each
      * given as a property short name or full IRI) and operator applicability against that

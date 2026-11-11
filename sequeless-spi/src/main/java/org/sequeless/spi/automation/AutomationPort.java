@@ -8,7 +8,7 @@ import org.sequeless.spi.object.OutboxEntry;
  * durably start — or, for a synchronous adapter, fully complete — the handling of one outbox row,
  * whatever its kind: an {@link OutboxEntry#KIND_ACTION_REQUEST} applies a fired transition's
  * action, the three object-lifecycle kinds trigger a recompute and then trigger-evaluation pass,
- * and the three automation kinds introduced alongside {@link org.sequeless.spi.meta.behaviour.TriggerSpec}
+ * and the three automation kinds introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec}
  * drive a timer or a signal. Exactly one implementation is wired into the running application at a
  * time, selected by configuration property, the same way every other outbound port in this SPI
  * is selected.

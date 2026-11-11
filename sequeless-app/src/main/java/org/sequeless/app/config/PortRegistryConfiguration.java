@@ -5,7 +5,7 @@ import org.sequeless.app.port.PortDefinition;
 import org.sequeless.app.port.PortRegistry;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.ontology.OntologyAdministration;
+import org.sequeless.ontology.api.OntologyAdministration;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

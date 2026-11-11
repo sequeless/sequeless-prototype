@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
-import org.sequeless.testkit.Fixtures;
+import org.sequeless.ontology.testfixtures.Fixtures;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;

@@ -5,9 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
-import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 
 /**
  * One type as the type detail shows it: its schema definition, its state machine if it has one, and

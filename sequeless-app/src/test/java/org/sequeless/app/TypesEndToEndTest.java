@@ -20,7 +20,7 @@ import org.sequeless.app.rest.OntologyReportResponse;
 import org.sequeless.app.rest.TransitionResponse;
 import org.sequeless.app.rest.TypeSummaryResponse;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
-import org.sequeless.testkit.Fixtures;
+import org.sequeless.ontology.testfixtures.Fixtures;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;

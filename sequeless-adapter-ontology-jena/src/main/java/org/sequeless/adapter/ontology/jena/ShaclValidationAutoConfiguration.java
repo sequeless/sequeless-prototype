@@ -1,6 +1,7 @@
 package org.sequeless.adapter.ontology.jena;
 
-import org.sequeless.spi.ontology.OntologyAdministration;
+import org.sequeless.ontology.api.OntologyAdministration;
+import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

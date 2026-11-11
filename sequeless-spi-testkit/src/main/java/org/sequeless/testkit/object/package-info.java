@@ -1,6 +1,6 @@
 /**
  * The mechanical contract test for {@link org.sequeless.spi.object.ObjectStorePort} and its
- * companion {@link org.sequeless.spi.object.OntologyDocumentStore}.
+ * companion {@link org.sequeless.ontology.spi.OntologyDocumentStore}.
  *
  * <p>{@link org.sequeless.testkit.object.ObjectStoreContract} asserts every clause of the
  * behavioural contract documented on {@code ObjectStorePort} itself, against any implementation

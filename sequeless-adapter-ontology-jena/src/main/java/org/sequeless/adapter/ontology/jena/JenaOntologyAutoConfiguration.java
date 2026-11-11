@@ -6,9 +6,11 @@ import java.util.stream.Collectors;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.jena.JenaOntologyPort;
+import org.sequeless.ontology.jena.JenaOntologySettings;
 import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.ontology.OntologyAdministration;
+import org.sequeless.ontology.api.OntologyAdministration;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,9 +28,9 @@ import org.springframework.context.annotation.Bean;
  * this auto-configuration silently conjuring a default.
  *
  * <p>The bean is typed as the concrete {@link JenaOntologyPort}, so one bean serves all four of its
- * interfaces ({@link org.sequeless.spi.meta.schema.SchemaSource}, {@link
- * org.sequeless.spi.meta.behaviour.BehaviourSource}, {@link
- * org.sequeless.spi.meta.automation.AutomationSource} and {@link OntologyAdministration}) and the
+ * interfaces ({@link org.sequeless.ontology.schema.spi.SchemaSource}, {@link
+ * org.sequeless.ontology.behaviour.spi.BehaviourSource}, {@link
+ * org.sequeless.ontology.automation.spi.AutomationSource} and {@link OntologyAdministration}) and the
  * port registry can see it without eager initialisation.
  *
  * <p>Deliberately has no {@code @ConditionalOnMissingBean}: if another adapter's auto-configuration

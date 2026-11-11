@@ -41,20 +41,6 @@ class OntologyFixtureDriftTest {
                 Path.of("../sequeless-spi-testkit/src/main/resources/ontology/reference.ttl"));
     }
 
-    @Test
-    void adapterSqSchemaTurtleIsByteIdenticalToTestkits() {
-        assertSameBytes(
-                Path.of("../sequeless-adapter-ontology-jena/src/main/resources/ontology/sq-schema.ttl"),
-                Path.of("../sequeless-spi-testkit/src/main/resources/ontology/sq-schema.ttl"));
-    }
-
-    @Test
-    void adapterSqBehaviourTurtleIsByteIdenticalToTestkits() {
-        assertSameBytes(
-                Path.of("../sequeless-adapter-ontology-jena/src/main/resources/ontology/sq-behaviour.ttl"),
-                Path.of("../sequeless-spi-testkit/src/main/resources/ontology/sq-behaviour.ttl"));
-    }
-
     private static void assertSameBytes(Path first, Path second) {
         assertThat(first).exists();
         assertThat(second).exists();

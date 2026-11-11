@@ -11,8 +11,8 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 
@@ -78,7 +78,7 @@ final class ObjectPropertyMapper {
      * Maps one {@link Value} onto its plain, JSON-serializable wire representation. The {@code
      * switch} is exhaustive over the sealed {@link Value} hierarchy with no {@code default}
      * branch, mirroring {@link TypeResponseMapper#toProperty}'s rationale for {@link
-     * org.sequeless.spi.meta.schema.PropertyDefinition}.
+     * org.sequeless.ontology.schema.api.PropertyDefinition}.
      */
     private static Object toWireValue(Value value) {
         return switch (value) {

@@ -8,8 +8,8 @@ import java.util.Set;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyFormat;
 
 /**
  * Shared, port-agnostic test data for every contract in this testkit. This class lives at the top
@@ -226,7 +226,7 @@ public final class Fixtures {
     /**
      * Identical in shape to {@link #referencePluginOntology()}, except {@link #WORKLOAD_IRI}'s
      * {@code sq:pluginName} names a plug-in nothing on the classpath registers. Activation must
-     * fail with an ERROR {@link org.sequeless.spi.ontology.OntologyIssue} naming {@link
+     * fail with an ERROR {@link org.sequeless.ontology.api.OntologyIssue} naming {@link
      * #WORKLOAD_IRI}, exactly as an unresolved import or a reserved term does.
      *
      * @return a fresh {@link OntologyDocument} holding the unknown-plugin ontology as Turtle
