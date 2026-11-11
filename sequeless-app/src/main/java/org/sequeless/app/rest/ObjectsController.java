@@ -28,10 +28,10 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
-import org.sequeless.spi.meta.behaviour.TriggerKind;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.query.QueryResult;
@@ -413,7 +413,7 @@ public class ObjectsController {
      *     {@code null}
      * @param object the object whose type's state machine is consulted; must not be {@code null}
      * @return the names of every transition on {@code object}'s type's state machine whose {@link
-     *     org.sequeless.spi.meta.behaviour.Transition#trigger()} is {@link TriggerKind#USER_ACTION};
+     *     org.sequeless.ontology.behaviour.api.Transition#trigger()} is {@link TriggerKind#USER_ACTION};
      *     empty if the type has no state machine
      */
     private static Set<String> userActionTransitionNames(Behaviour behaviour, BusinessObject object) {
@@ -424,7 +424,7 @@ public class ObjectsController {
         }
         return machine.get().transitions().stream()
                 .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
-                .map(org.sequeless.spi.meta.behaviour.Transition::name)
+                .map(org.sequeless.ontology.behaviour.api.Transition::name)
                 .collect(Collectors.toSet());
     }
 
@@ -477,7 +477,7 @@ public class ObjectsController {
     /**
      * @param type the type's short name or full IRI
      * @param id the id of the object the signal targets
-     * @param name the signal name ({@link org.sequeless.spi.meta.behaviour.ExternalSignalTrigger#signalName()})
+     * @param name the signal name ({@link org.sequeless.ontology.behaviour.api.ExternalSignalTrigger#signalName()})
      * @param body an arbitrary JSON object recorded alongside the signal for audit, or {@code null}
      *     if the request has no body at all — {@link TransitionService#signal} requires a non-null
      *     {@code Map}, so a missing body is treated as {@code Map.of()}

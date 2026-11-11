@@ -12,9 +12,9 @@ import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.StateMachineDefinition;
-import org.sequeless.spi.meta.behaviour.Transition;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 

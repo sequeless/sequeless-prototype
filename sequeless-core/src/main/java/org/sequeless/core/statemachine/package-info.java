@@ -4,7 +4,7 @@
  * transition against an object's current state and guard, then dispatches it as a {@link
  * org.sequeless.spi.object.OutboxEntry}) and a later REST task's read path ({@code GET
  * .../objects/{type}/{id}/transitions}, not built by this package's originating task), both of
- * which resolve a {@link org.sequeless.spi.meta.behaviour.Behaviour#stateMachine(String)} against an object's
+ * which resolve a {@link org.sequeless.ontology.behaviour.api.Behaviour#stateMachine(String)} against an object's
  * {@link org.sequeless.spi.object.BusinessObject#state()} through {@link
  * org.sequeless.core.statemachine.StateMachineInterpreter#availableTransitions}.
  *

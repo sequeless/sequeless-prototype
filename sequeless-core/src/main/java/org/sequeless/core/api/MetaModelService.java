@@ -2,10 +2,10 @@ package org.sequeless.core.api;
 
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Exposes the ontology's type system to the rest of the application: the current schema and
@@ -23,7 +23,7 @@ public interface MetaModelService {
      *
      * <p>Authorizes {@link org.sequeless.spi.authz.Operation#BROWSE} against {@link
      * AuthorizationPort#EVERYTHING} before delegating to {@link
-     * org.sequeless.spi.meta.schema.SchemaSource#schema}.
+     * org.sequeless.ontology.schema.spi.SchemaSource#schema}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
@@ -38,7 +38,7 @@ public interface MetaModelService {
      *
      * <p>Authorizes {@link org.sequeless.spi.authz.Operation#BROWSE} against {@link
      * AuthorizationPort#EVERYTHING} before delegating to {@link
-     * org.sequeless.spi.meta.behaviour.BehaviourSource#behaviour}.
+     * org.sequeless.ontology.behaviour.spi.BehaviourSource#behaviour}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
@@ -76,14 +76,14 @@ public interface MetaModelService {
      *
      * <p>Authorizes {@link org.sequeless.spi.authz.Operation#ADMIN} against {@link
      * AuthorizationPort#EVERYTHING} before delegating to {@link
-     * org.sequeless.spi.ontology.OntologyAdministration#reload}.
+     * org.sequeless.ontology.api.OntologyAdministration#reload}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
      * @return the report on the ontology built fresh from the current backing source
      * @throws NullPointerException if {@code scope} is {@code null}
      * @throws AuthorizationException if the authorization port denies the operation
-     * @throws org.sequeless.spi.ontology.OntologyException if the freshly read ontology is
+     * @throws org.sequeless.ontology.api.OntologyException if the freshly read ontology is
      *     inconsistent
      */
     OntologyReport reload(Scope scope);

@@ -1,5 +1,8 @@
 package org.sequeless.adapter.ontology.jena;
 
+import org.sequeless.ontology.jena.JenaOntologyPort;
+import org.sequeless.ontology.jena.JenaOntologySettings;
+import org.sequeless.ontology.jena.ReasonerSetting;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -14,11 +17,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>{@link #reasoner} defaults to {@link ReasonerSetting#OWL} because it is empirically the
  * <em>only</em> one of the three settings that detects the project's inconsistency fixture (see
- * {@code sequeless-spi-testkit}'s {@code inconsistent.ttl} and the adapter's {@code
- * ConsistencyCheckerTest}): {@link ReasonerSetting#RDFS}-only inference has no notion of {@code
- * owl:disjointWith} at all, so the very inconsistency the fixture is built to exercise is invisible
- * to it and it reports the document as valid; {@link ReasonerSetting#NONE} has no reasoner attached
- * to the model whatsoever, so there is nothing to run {@code validate()} against in the first place.
+ * {@code inconsistent.ttl} in {@code ontology-testfixtures} and the {@code ConsistencyCheckerTest}
+ * in sequeless-ontology's {@code ontology-jena-adapter}): {@link ReasonerSetting#RDFS}-only
+ * inference has no notion of {@code owl:disjointWith} at all, so the very inconsistency the fixture
+ * is built to exercise is invisible to it and it reports the document as valid; {@link
+ * ReasonerSetting#NONE} has no reasoner attached to the model whatsoever, so there is nothing to run
+ * {@code validate()} against in the first place.
  * Shipping either of those as the default would mean a freshly started application silently accepts
  * an ontology it should have rejected at startup — defaulting to {@code owl} is what makes "detect
  * an inconsistent ontology" an actual guarantee rather than something that only holds if an operator

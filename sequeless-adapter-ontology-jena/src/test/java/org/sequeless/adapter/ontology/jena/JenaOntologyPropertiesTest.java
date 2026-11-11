@@ -3,6 +3,7 @@ package org.sequeless.adapter.ontology.jena;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.sequeless.ontology.jena.ReasonerSetting;
 
 /**
  * {@link JenaOntologyProperties} plain-POJO behaviour: the {@code owl} default this class's javadoc

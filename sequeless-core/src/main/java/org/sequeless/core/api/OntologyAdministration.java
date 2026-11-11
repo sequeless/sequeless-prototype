@@ -2,13 +2,13 @@ package org.sequeless.core.api;
 
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyException;
+import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyException;
-import org.sequeless.spi.ontology.OntologyFormat;
 
 /**
  * Administrative export/import of the ontology as a whole, distinct from the read-only, per-type
@@ -24,7 +24,7 @@ public interface OntologyAdministration {
      * Serialises the ontology currently loaded for {@code scope} as Turtle.
      *
      * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING} before
-     * delegating to {@link org.sequeless.spi.ontology.OntologyAdministration#export(Scope,
+     * delegating to {@link org.sequeless.ontology.api.OntologyAdministration#export(Scope,
      * OntologyFormat)} with {@link OntologyFormat#TURTLE}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
@@ -42,7 +42,7 @@ public interface OntologyAdministration {
      *
      * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING}, wraps
      * {@code content} in an {@link OntologyDocument} tagged {@link OntologyFormat#TURTLE}, and
-     * delegates to {@link org.sequeless.spi.ontology.OntologyAdministration#importDocument(Scope,
+     * delegates to {@link org.sequeless.ontology.api.OntologyAdministration#importDocument(Scope,
      * OntologyDocument, ImportMode)} with {@link ImportMode#REPLACE}. Preparing indexes for the
      * resulting type system is the host's job, not this use case's.
      *

@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
  * {@link EncodedSolidusHandling#DECODE} turns that rejection into "decode it and proceed", which
  * is safe here because {@code TypesController} never uses its path variable to address the
  * filesystem; it is looked up purely against in-memory {@link
- * org.sequeless.spi.meta.schema.Schema} type IRIs.
+ * org.sequeless.ontology.schema.api.Schema} type IRIs.
  *
  * <p><b>Must be a top-level class, not nested inside {@link TypesController}.</b> A nested
  * {@code @Configuration} class is a well-known Spring idiom in general, but it only registers via

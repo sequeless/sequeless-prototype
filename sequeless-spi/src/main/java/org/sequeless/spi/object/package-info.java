@@ -27,8 +27,8 @@
  * throws when a mutation's optimistic-locking expectation is not met or its target does not exist.
  *
  * <p>The {@link org.sequeless.spi.object.ObjectStorePort} outbound port interface (together with
- * {@link org.sequeless.spi.object.OntologyDocumentStore} and {@link
- * org.sequeless.spi.object.StoredOntologyDocument}, its ontology-persistence companion) lives in
+ * {@link org.sequeless.ontology.spi.OntologyDocumentStore} and {@link
+ * org.sequeless.ontology.spi.StoredOntologyDocument}, its ontology-persistence companion) lives in
  * this same package, added alongside these value types. Its full behavioural contract is documented
  * on the port interface itself, and asserted mechanically by {@code sequeless-spi-testkit}'s {@code
  * ObjectStoreContract}.

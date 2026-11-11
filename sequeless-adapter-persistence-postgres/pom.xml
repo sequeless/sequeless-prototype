@@ -30,6 +30,14 @@
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -85,6 +93,11 @@
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi-testkit</artifactId>
       <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-testfixtures</artifactId>
       <scope>test</scope>
     </dependency>
 

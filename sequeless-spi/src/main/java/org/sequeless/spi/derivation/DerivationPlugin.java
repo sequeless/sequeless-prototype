@@ -18,9 +18,9 @@ import org.sequeless.spi.object.BusinessObject;
  * pointless provider wrapper here.
  *
  * <p>The planner (core) groups every property in a page whose rule is a {@code
- * org.sequeless.spi.meta.behaviour.PluginRule} by {@link #name()} and calls {@link #derive} once per plug-in
+ * org.sequeless.ontology.behaviour.api.PluginRule} by {@link #name()} and calls {@link #derive} once per plug-in
  * per page with every target object across that page — never once per object — exactly as it groups
- * {@code org.sequeless.spi.meta.behaviour.RollupRule}s into batched {@link
+ * {@code org.sequeless.ontology.behaviour.api.RollupRule}s into batched {@link
  * org.sequeless.spi.query.AggregateRequest}s. A plug-in that needs to look up related objects
  * itself does so through {@link DerivationContext#queryPort()}, which is subject to the same
  * bounded-query expectation.

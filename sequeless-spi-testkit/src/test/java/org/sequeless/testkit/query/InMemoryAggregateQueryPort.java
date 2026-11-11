@@ -13,7 +13,7 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.query.AggregateRequest;

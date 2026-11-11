@@ -3,64 +3,78 @@ package org.sequeless.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.sequeless.ontology.testfixtures.Fixtures;
 
 /**
- * Guards against the two ontology-fixture duplications this reactor carries, both called out as
- * hazards in earlier phases (F17/F25/F57): {@code sequeless-app}'s bundled {@code reference.ttl}
- * must stay byte-identical to {@code sequeless-spi-testkit}'s copy (F57 — the app cannot depend on
- * the testkit outside test scope, so it carries its own), and {@code
- * sequeless-adapter-ontology-jena}'s bundled {@code sq-schema.ttl} and {@code sq-behaviour.ttl} must
- * each stay byte-identical to {@code sequeless-spi-testkit}'s copies (F17 — same reason, for the
- * {@code sq:} vocabulary import the adapter's {@code ImportResolver} resolves locally). Nothing
- * enforces either pairing at compile time; only a test like this one catches a copy silently
- * drifting out of sync with its source of truth.
+ * Guards against the one ontology-fixture duplication that remains after the spec 12 cut-over:
+ * {@code sequeless-app}'s bundled {@code reference.ttl} must stay byte-identical to the copy in the
+ * released {@code ontology-testfixtures} jar (spec 12 section 7). The app depends on that jar only
+ * at test scope, so main code carries its own copy. Nothing enforces the pairing at compile
+ * time; only this test catches the copy drifting out of sync with its source of truth.
  *
- * <p><b>Why these are read from the filesystem, not the classpath.</b> Both pairs share the exact
- * same classpath-relative resource path in each other's module ({@code /ontology/reference.ttl},
- * {@code /ontology/sq-schema.ttl}, {@code /ontology/sq-behaviour.ttl}), so at test run time {@code
- * sequeless-app}'s test classpath contains both copies of each file under the identical name — one
- * from this module's own {@code target/classes} (or, for the {@code sq-} files, transitively from
- * the Jena adapter's jar), the other from the testkit's jar. A classloader resource lookup by that
- * shared path returns whichever entry happens to come first on the classpath, silently hiding the
- * other; it cannot be used to compare
- * the two. Reading each copy by its module-relative filesystem path instead — Maven Surefire's
- * working directory is the module's own {@code ${basedir}}, so {@code ../<module>/...} reaches a
- * sibling reactor module directly — sidesteps the collision entirely and compares the two actual
- * source files.
+ * <p>The test checks the app's {@code reference.ttl} against the released {@code ontology-testfixtures}
+ * copy. The vocabulary-copy comparison that earlier phases ran was removed with the ontology code.
+ *
+ * <p><b>Why the jar's copy is picked by origin.</b> Both copies sit at the classpath path {@code
+ * ontology/reference.ttl}, and in app tests the app's own copy comes first. A plain classloader
+ * lookup would therefore return the app's copy and compare it with itself. The test enumerates every
+ * entry for the path and keeps the one that comes from the jar holding the released {@link Fixtures}
+ * class.
  */
 class OntologyFixtureDriftTest {
 
-    @Test
-    void appReferenceTurtleIsByteIdenticalToTestkits() {
-        assertSameBytes(
-                Path.of("src/main/resources/ontology/reference.ttl"),
-                Path.of("../sequeless-spi-testkit/src/main/resources/ontology/reference.ttl"));
-    }
+    private static final String REFERENCE = "ontology/reference.ttl";
 
     @Test
-    void adapterSqSchemaTurtleIsByteIdenticalToTestkits() {
-        assertSameBytes(
-                Path.of("../sequeless-adapter-ontology-jena/src/main/resources/ontology/sq-schema.ttl"),
-                Path.of("../sequeless-spi-testkit/src/main/resources/ontology/sq-schema.ttl"));
+    void appReferenceTurtleIsByteIdenticalToTheReleasedFixture() {
+        Path app = Path.of("src/main/resources/ontology/reference.ttl");
+
+        assertThat(app).exists();
+        assertThat(readBytes(app))
+                .as("%s must be byte-identical to the ontology-testfixtures jar's %s", app, REFERENCE)
+                .isEqualTo(releasedReferenceTurtle());
     }
 
-    @Test
-    void adapterSqBehaviourTurtleIsByteIdenticalToTestkits() {
-        assertSameBytes(
-                Path.of("../sequeless-adapter-ontology-jena/src/main/resources/ontology/sq-behaviour.ttl"),
-                Path.of("../sequeless-spi-testkit/src/main/resources/ontology/sq-behaviour.ttl"));
+    /**
+     * The bytes of {@value #REFERENCE} as the released jar holds them. The jar is the code source of
+     * the released {@link Fixtures} class, so its entry has the URL {@code jar:<code source>!/<path>}.
+     */
+    private static byte[] releasedReferenceTurtle() {
+        String codeSource = Fixtures.class
+                .getProtectionDomain()
+                .getCodeSource()
+                .getLocation()
+                .toString();
+        String releasedEntry = "jar:" + codeSource + "!/" + REFERENCE;
+
+        List<URL> matches = enumerate(REFERENCE).stream()
+                .filter(url -> url.toString().equals(releasedEntry))
+                .toList();
+        assertThat(matches)
+                .as("the ontology-testfixtures jar must carry %s", releasedEntry)
+                .hasSize(1);
+
+        try (InputStream in = matches.get(0).openStream()) {
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read released ontology fixture: " + releasedEntry, e);
+        }
     }
 
-    private static void assertSameBytes(Path first, Path second) {
-        assertThat(first).exists();
-        assertThat(second).exists();
-        assertThat(readBytes(first))
-                .as("%s must be byte-identical to %s", first, second)
-                .isEqualTo(readBytes(second));
+    private static List<URL> enumerate(String path) {
+        try {
+            return Collections.list(Fixtures.class.getClassLoader().getResources(path));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to enumerate classpath resource: " + path, e);
+        }
     }
 
     private static byte[] readBytes(Path path) {

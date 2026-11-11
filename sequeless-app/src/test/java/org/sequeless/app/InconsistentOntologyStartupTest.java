@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
-import org.sequeless.spi.ontology.OntologyException;
+import org.sequeless.ontology.api.OntologyException;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 

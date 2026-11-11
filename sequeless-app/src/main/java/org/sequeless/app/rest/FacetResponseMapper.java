@@ -3,8 +3,8 @@ package org.sequeless.app.rest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.query.FacetBucket;
 
 /**

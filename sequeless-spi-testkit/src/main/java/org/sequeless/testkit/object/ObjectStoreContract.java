@@ -22,6 +22,7 @@ import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -30,17 +31,13 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
 import org.sequeless.testkit.Fixtures;
 
 /**
@@ -178,18 +175,6 @@ public abstract class ObjectStoreContract {
 
         assertThatNullPointerException().isThrownBy(() -> store.commit(null, changeSet));
         assertThatNullPointerException().isThrownBy(() -> store.commit(scope, null));
-    }
-
-    @Test
-    void ontologyDocumentsRejectsNullArguments() {
-        ObjectStorePort store = freshStore();
-        OntologyDocumentStore documents = store.ontologyDocuments();
-        Scope scope = Fixtures.defaultScope();
-        OntologyDocument document = new OntologyDocument("content", OntologyFormat.TURTLE);
-
-        assertThatNullPointerException().isThrownBy(() -> documents.active(null));
-        assertThatNullPointerException().isThrownBy(() -> documents.activate(null, document));
-        assertThatNullPointerException().isThrownBy(() -> documents.activate(scope, null));
     }
 
     @Test
@@ -397,29 +382,6 @@ public abstract class ObjectStoreContract {
         assertThat(store.typesOf(otherTenant, Set.of(id))).isEmpty();
 
         assertThat(store.find(alice, id)).isPresent();
-    }
-
-    @Test
-    void ontologyDocumentActiveIsEmptyInitiallyThenTracksVersions() {
-        ObjectStorePort store = freshStore();
-        Scope scope = Fixtures.defaultScope();
-        OntologyDocumentStore documents = store.ontologyDocuments();
-
-        assertThat(documents.active(scope)).isEmpty();
-
-        OntologyDocument first = new OntologyDocument("first content", OntologyFormat.TURTLE);
-        StoredOntologyDocument stored1 = documents.activate(scope, first);
-        assertThat(stored1.version()).isEqualTo(1);
-        assertThat(documents.active(scope)).contains(stored1);
-
-        OntologyDocument second = new OntologyDocument("second content", OntologyFormat.TURTLE);
-        StoredOntologyDocument stored2 = documents.activate(scope, second);
-        assertThat(stored2.version()).isEqualTo(2);
-
-        Optional<StoredOntologyDocument> active = documents.active(scope);
-        assertThat(active).isPresent();
-        assertThat(active.orElseThrow().version()).isEqualTo(2);
-        assertThat(active.orElseThrow().document()).isEqualTo(second);
     }
 
     private static BusinessObject newObject(

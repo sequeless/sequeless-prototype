@@ -3,6 +3,7 @@ package org.sequeless.core.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.sequeless.filter.api.FieldFilter;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.DateTimeValue;
 import org.sequeless.kernel.values.DateValue;
@@ -20,19 +22,17 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.RollupRule;
-import org.sequeless.spi.meta.schema.AggregateFunction;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.Cardinality;
-import org.sequeless.spi.meta.schema.Datatype;
-import org.sequeless.spi.meta.schema.DisplayHints;
-import org.sequeless.spi.meta.schema.OntologyVersion;
-import org.sequeless.spi.meta.schema.RelationshipDefinition;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.validation.Violation;
 
 /**
@@ -104,7 +104,7 @@ class ValueCoercerTest {
             BELONGS_TO_PROJECT_IRI,
             AggregateFunction.COUNT,
             Optional.empty(),
-            List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+            Optional.of(new FieldFilter(STATUS_IRI, "is not", TextNode.valueOf("done"))),
             false);
 
     /**

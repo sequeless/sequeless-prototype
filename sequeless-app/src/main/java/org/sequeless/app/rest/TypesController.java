@@ -8,7 +8,7 @@ import org.sequeless.core.api.TypeDescription;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.ontology.schema.api.Schema;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,7 +61,7 @@ public class TypesController {
     @GetMapping("/types/{nameOrIri:.+}")
     public TypeDetailResponse describeType(@PathVariable("nameOrIri") String nameOrIri) {
         TypeDescription description = metaModelService.describeType(currentScope(), nameOrIri);
-        return TypeResponseMapper.toDetail(description);
+        return TypeResponseMapper.toDetail(description, description.schema());
     }
 
     /**

@@ -2,7 +2,7 @@
  * Contract under test (lib/projections.ts): pure, read-only projections from a parsed `RdfStore`
  * into form-friendly view shapes, mirroring the OWL -> snapshot mapping table in
  * docs/architecture/sq-vocabulary.md. Every fact asserted below comes straight from
- * sequeless-spi-testkit/src/main/resources/ontology/reference.ttl (via `FIXTURE_TTL`, which only
+ * sequeless-app/src/main/resources/ontology/reference.ttl (via `FIXTURE_TTL`, which only
  * appends a stray `rdfs:comment` outside the `sq:` vocabulary that no projection here touches).
  *
  * `RollupDerivationView.function`/`.filter` are read as the *local name* form of the asserted

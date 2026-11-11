@@ -1,5 +1,9 @@
 package org.sequeless.testkit.derivation;
 
+import static org.sequeless.ontology.testfixtures.Fixtures.ASSIGNED_TO_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.ESTIMATED_HOURS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -7,13 +11,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.schema.api.AggregateFunction;
 import org.sequeless.spi.derivation.DerivationContext;
 import org.sequeless.spi.derivation.DerivationPlugin;
-import org.sequeless.spi.meta.schema.AggregateFunction;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.testkit.Fixtures;
 
 /**
  * Sample {@code sq:Plugin}-backed derivation: {@code ex:Person.workload} is the sum of {@code
@@ -37,7 +40,7 @@ import org.sequeless.testkit.Fixtures;
  */
 public final class WorkloadDerivationPlugin implements DerivationPlugin {
 
-    private static final Set<String> SOURCE_TYPES = Set.of(Fixtures.TASK_IRI);
+    private static final Set<String> SOURCE_TYPES = Set.of(TASK_IRI);
 
     public WorkloadDerivationPlugin() {}
 
@@ -51,10 +54,10 @@ public final class WorkloadDerivationPlugin implements DerivationPlugin {
         Set<ObjectId> targetIds = objects.stream().map(BusinessObject::id).collect(Collectors.toUnmodifiableSet());
         AggregateRequest request = new AggregateRequest(
                 SOURCE_TYPES,
-                Fixtures.ASSIGNED_TO_IRI,
+                ASSIGNED_TO_IRI,
                 targetIds,
                 AggregateFunction.SUM,
-                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
+                Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
         AggregateResult result = context.queryPort().aggregate(context.scope(), context.schema(), request);
         return result.values();

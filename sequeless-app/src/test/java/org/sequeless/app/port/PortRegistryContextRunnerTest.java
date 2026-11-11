@@ -15,18 +15,18 @@ import org.sequeless.adapter.ontology.jena.JenaOntologyAutoConfiguration;
 import org.sequeless.app.config.PortRegistryConfiguration;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.ontology.spi.StoredOntologyDocument;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PageResult;
-import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -221,7 +221,7 @@ class PortRegistryContextRunnerTest {
 
     /**
      * A single-tenant, single-version in-memory {@link OntologyDocumentStore}: enough for {@link
-     * org.sequeless.adapter.ontology.jena.JenaOntologyPort#fromStore} to seed itself from {@code
+     * org.sequeless.ontology.jena.JenaOntologyPort#fromStore} to seed itself from {@code
      * sequeless.ontology.source} on the first {@link #active(Scope)} call (which finds nothing) and
      * activate what it built.
      */

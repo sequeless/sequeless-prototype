@@ -14,7 +14,8 @@
   <name>sequeless-core</name>
   <description>Use cases (inbound API in org.sequeless.core.api), BREAD orchestration, structural validation,
     state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok.
-    Depends only on sequeless-spi and the JDK.</description>
+    Depends on sequeless-spi, the released kernel, ontology, behaviour, automation, expression and
+    filter artifacts, jackson-databind, slf4j-api and the JDK.</description>
 
   <properties>
     <!-- Core modules: ban Spring, Jena and Lombok from the compile classpath. -->
@@ -34,6 +35,22 @@
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>behaviour-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-contract</artifactId>
     </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>

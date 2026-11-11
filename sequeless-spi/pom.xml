@@ -14,8 +14,9 @@
   <name>sequeless-spi</name>
   <description>Outbound port interfaces for Sequeless: SpiVersion, AdapterDescriptor,
     AdapterDescriptorProvider, and per-port packages such as org.sequeless.spi.authz. Identity and
-    value types come from sequeless-kernel. Imports nothing outside the JDK and sequeless-kernel;
-    enforced both by Maven (bannedDependencies below) and by ArchUnit in sequeless-app.</description>
+    value types come from sequeless-kernel. Depends on sequeless-kernel and the released ontology-core
+    and schema-contract artifacts, and imports nothing else outside the JDK; enforced both by Maven
+    (bannedDependencies below) and by ArchUnit in sequeless-app.</description>
 
   <properties>
     <!-- Core modules: ban Spring, Jena and Lombok from the compile classpath. -->
@@ -30,6 +31,14 @@
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>kernel-values</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
     </dependency>
 
     <dependency>

@@ -1,8 +1,8 @@
 package org.sequeless.spi.query;
 
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.meta.schema.AggregateFunction;
-import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.Schema;
 
 /**
  * The outbound port that runs filtered, sorted, paged, faceted, and free-text queries over stored

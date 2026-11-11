@@ -10,7 +10,7 @@ import org.sequeless.kernel.values.ObjectId;
  * that appeared earlier in the list — a conforming adapter never partially applies a changeset.
  *
  * <p>This is deliberately unchecked, the same way {@code
- * org.sequeless.spi.ontology.OntologyException} is: a stale version is a condition every
+ * org.sequeless.ontology.api.OntologyException} is: a stale version is a condition every
  * intermediate signature up the call chain should not have to declare, and the caller (typically a
  * core use case, ultimately the REST boundary) is expected to catch it once, at the edge, to
  * produce an HTTP 409 response.

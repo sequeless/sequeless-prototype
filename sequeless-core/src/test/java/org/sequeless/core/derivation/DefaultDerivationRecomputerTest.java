@@ -24,19 +24,20 @@ import org.sequeless.kernel.values.IntegerValue;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.behaviour.RollupRule;
-import org.sequeless.spi.meta.schema.AggregateFunction;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.Cardinality;
-import org.sequeless.spi.meta.schema.Datatype;
-import org.sequeless.spi.meta.schema.DisplayHints;
-import org.sequeless.spi.meta.schema.OntologyVersion;
-import org.sequeless.spi.meta.schema.RelationshipDefinition;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -45,7 +46,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PageResult;
@@ -99,7 +99,12 @@ class DefaultDerivationRecomputerTest {
 
     private static RollupRule openTaskCountRule(boolean materialised) {
         return new RollupRule(
-                TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(), materialised);
+                TASK_IRI,
+                BELONGS_TO_PROJECT_IRI,
+                AggregateFunction.COUNT,
+                Optional.empty(),
+                Optional.empty(),
+                materialised);
     }
 
     private static AttributeDefinition openTaskCountAttribute() {

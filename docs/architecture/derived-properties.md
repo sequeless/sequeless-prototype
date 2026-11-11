@@ -30,7 +30,7 @@ machines, events. Materialised derived values are shipped in phase 6 (DR-11) for
 
 ## SPI shapes
 
-`org.sequeless.spi.meta.behaviour` (`AggregateFunction` is in `org.sequeless.spi.meta.schema`):
+`org.sequeless.ontology.behaviour.api` (`AggregateFunction` is in `org.sequeless.ontology.schema.api`):
 
 ```java
 public sealed interface DerivationRule permits RollupRule, PluginRule {
@@ -137,10 +137,11 @@ way `ex:status` does on `ex:WorkItem`. `ex:estimatedHours` itself gained `owl:ma
 `ex:Task` in this phase specifically so the Postgres `sum()` below can extract it directly as a bare
 tagged JSONB value (`{"decimal": n}`) rather than unnesting a JSON list.
 
-The plug-in form, shipped only in the testkit's `reference-plugin.ttl` fixture (the production
-`sequeless-app/.../ontology/reference.ttl` deliberately carries no `sq:Plugin`, since the sample
-plug-in lives in `sequeless-spi-testkit`, a test-scope dependency — referencing it from the
-production ontology would fail `spring-boot:run` at startup by design):
+The plug-in form, shipped only in the `reference-plugin.ttl` fixture of sequeless-ontology's
+`ontology-testfixtures` (the production `sequeless-app/.../ontology/reference.ttl` deliberately
+carries no `sq:Plugin`, since the sample plug-in (`WorkloadDerivationPlugin`) lives in
+`sequeless-spi-testkit`, a test-scope dependency — referencing it from the production ontology would
+fail `spring-boot:run` at startup by design):
 
 ```turtle
 ex:workload

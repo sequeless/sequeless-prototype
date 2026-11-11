@@ -18,13 +18,13 @@ import org.sequeless.core.usecase.DefaultOntologyAdministration;
 import org.sequeless.core.usecase.DefaultTransitionService;
 import org.sequeless.core.usecase.DefaultWhoAmI;
 import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.meta.automation.AutomationSource;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.schema.SchemaSource;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.validation.ValidationPort;
@@ -113,7 +113,7 @@ public class CoreConfiguration {
     public MetaModelService metaModelService(
             @Lazy SchemaSource schemaSource,
             @Lazy BehaviourSource behaviourSource,
-            @Lazy org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            @Lazy org.sequeless.ontology.api.OntologyAdministration ontologyAdministration,
             @Lazy QueryPort queryPort,
             @Lazy AuthorizationPort authorizationPort) {
         return new DefaultMetaModelService(
@@ -206,7 +206,7 @@ public class CoreConfiguration {
      */
     @Bean
     public OntologyAdministration ontologyAdministration(
-            @Lazy org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            @Lazy org.sequeless.ontology.api.OntologyAdministration ontologyAdministration,
             @Lazy SchemaSource schemaSource,
             @Lazy QueryPort queryPort,
             @Lazy AuthorizationPort authorizationPort) {

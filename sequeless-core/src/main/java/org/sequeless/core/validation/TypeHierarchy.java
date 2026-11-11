@@ -5,8 +5,8 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.TypeDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.TypeRef;
 
 /**

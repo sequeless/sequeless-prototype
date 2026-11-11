@@ -11,6 +11,9 @@ import java.util.UUID;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.ontology.spi.StoredOntologyDocument;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -19,15 +22,12 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyDocument;
 
 /**
  * A minimal in-memory {@link ObjectStorePort} purely so {@link AggregateContract} — abstract, and

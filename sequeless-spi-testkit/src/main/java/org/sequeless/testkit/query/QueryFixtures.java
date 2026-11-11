@@ -1,29 +1,47 @@
 package org.sequeless.testkit.query;
 
+import static org.sequeless.ontology.testfixtures.Fixtures.ASSIGNED_TO_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.BELONGS_TO_PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.CREATED_AT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DELIVERABLE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DESCRIPTION_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DUE_DATE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.ESTIMATED_HOURS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.HAS_TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.OPEN_TASK_COUNT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PERSON_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PRIORITY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.REFERENCE_ONTOLOGY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.STATUS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TOTAL_ESTIMATED_HOURS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.WORK_ITEM_IRI;
+
+import com.fasterxml.jackson.databind.node.TextNode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.sequeless.kernel.values.TextValue;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.RollupRule;
-import org.sequeless.spi.meta.schema.AggregateFunction;
-import org.sequeless.spi.meta.schema.AttributeDefinition;
-import org.sequeless.spi.meta.schema.Cardinality;
-import org.sequeless.spi.meta.schema.Datatype;
-import org.sequeless.spi.meta.schema.DisplayHints;
-import org.sequeless.spi.meta.schema.OntologyVersion;
-import org.sequeless.spi.meta.schema.RelationshipDefinition;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.TypeDefinition;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
-import org.sequeless.testkit.Fixtures;
+import org.sequeless.filter.api.FieldFilter;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 
 /**
  * A hand-built {@link Schema} mirroring {@code reference.ttl} exactly — the same {@code
  * Deliverable}/{@code WorkItem}/{@code Task}/{@code Project}/{@code Person} hierarchy {@link
- * Fixtures} already declares IRI constants for — constructed directly from SPI records rather than
- * parsed from Turtle, since this testkit is deliberately Jena-free.
+ * org.sequeless.ontology.testfixtures.Fixtures} already declares IRI constants for — constructed
+ * directly from SPI records rather than parsed from Turtle, since this testkit is deliberately
+ * Jena-free.
  *
  * <p>{@link TypeDefinition#properties()} on each concrete type includes not only that type's own
  * properties but every property it inherits, exactly as a real {@code SnapshotMapper} would
@@ -49,6 +67,18 @@ import org.sequeless.testkit.Fixtures;
  */
 public final class QueryFixtures {
 
+    /**
+     * {@code ex:name}, declared here rather than in the released {@code Fixtures}, which has no such
+     * member. The value is the released {@code REFERENCE_ONTOLOGY_IRI} plus {@code #name}.
+     */
+    public static final String NAME_IRI = REFERENCE_ONTOLOGY_IRI + "#name";
+
+    /**
+     * {@code ex:email}, declared here rather than in the released {@code Fixtures}, which has no such
+     * member. The value is the released {@code REFERENCE_ONTOLOGY_IRI} plus {@code #email}.
+     */
+    public static final String EMAIL_IRI = REFERENCE_ONTOLOGY_IRI + "#email";
+
     private QueryFixtures() {}
 
     /**
@@ -62,9 +92,9 @@ public final class QueryFixtures {
         List<TypeDefinition> types = List.of(deliverable(), workItem(), task(), project(), person());
         return new Schema(
                 new OntologyVersion(1),
-                Fixtures.REFERENCE_ONTOLOGY_IRI,
+                REFERENCE_ONTOLOGY_IRI,
                 Optional.empty(),
-                Map.of("ex", Fixtures.REFERENCE_ONTOLOGY_IRI + "#", "sq", "https://sequeless.dev/ns/meta#"),
+                Map.of("ex", REFERENCE_ONTOLOGY_IRI + "#", "sq", "https://sequeless.dev/ns/meta#"),
                 types);
     }
 
@@ -81,14 +111,14 @@ public final class QueryFixtures {
                 new OntologyVersion(1),
                 Map.of(),
                 Map.of(
-                        Fixtures.OPEN_TASK_COUNT_IRI, openTaskCountRule(),
-                        Fixtures.TOTAL_ESTIMATED_HOURS_IRI, totalEstimatedHoursRule()));
+                        OPEN_TASK_COUNT_IRI, openTaskCountRule(),
+                        TOTAL_ESTIMATED_HOURS_IRI, totalEstimatedHoursRule()));
     }
 
     /** {@code ex:Deliverable} — abstract, no supertypes, declares {@code title} and {@code createdAt}. */
     public static TypeDefinition deliverable() {
         return new TypeDefinition(
-                Fixtures.DELIVERABLE_IRI,
+                DELIVERABLE_IRI,
                 "Deliverable",
                 List.of(),
                 List.of(titleOptional(), createdAt()),
@@ -103,9 +133,9 @@ public final class QueryFixtures {
      */
     public static TypeDefinition workItem() {
         return new TypeDefinition(
-                Fixtures.WORK_ITEM_IRI,
+                WORK_ITEM_IRI,
                 "Work Item",
-                List.of(Fixtures.DELIVERABLE_IRI),
+                List.of(DELIVERABLE_IRI),
                 List.of(titleOptional(), createdAt(), status(), description()),
                 DisplayHints.none(),
                 true);
@@ -119,9 +149,9 @@ public final class QueryFixtures {
      */
     public static TypeDefinition task() {
         return new TypeDefinition(
-                Fixtures.TASK_IRI,
+                TASK_IRI,
                 "Task",
-                List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
+                List.of(WORK_ITEM_IRI, DELIVERABLE_IRI),
                 List.of(
                         titleRequired(),
                         createdAt(),
@@ -145,9 +175,9 @@ public final class QueryFixtures {
      */
     public static TypeDefinition project() {
         return new TypeDefinition(
-                Fixtures.PROJECT_IRI,
+                PROJECT_IRI,
                 "Project",
-                List.of(Fixtures.WORK_ITEM_IRI, Fixtures.DELIVERABLE_IRI),
+                List.of(WORK_ITEM_IRI, DELIVERABLE_IRI),
                 List.of(
                         titleOptional(),
                         createdAt(),
@@ -163,37 +193,27 @@ public final class QueryFixtures {
     /** {@code ex:Person} — concrete, standalone, declares {@code name} (required) and {@code email}. */
     public static TypeDefinition person() {
         return new TypeDefinition(
-                Fixtures.PERSON_IRI, "Person", List.of(), List.of(name(), email()), DisplayHints.none(), false);
+                PERSON_IRI, "Person", List.of(), List.of(name(), email()), DisplayHints.none(), false);
     }
 
     // -- Attribute definitions -------------------------------------------------------------
 
     private static AttributeDefinition titleOptional() {
-        return attribute(
-                Fixtures.TITLE_IRI, "Title", Cardinality.optional(), false, false, true, false, true, Datatype.STRING);
+        return attribute(TITLE_IRI, "Title", Cardinality.optional(), false, false, true, false, true, Datatype.STRING);
     }
 
     private static AttributeDefinition titleRequired() {
-        return attribute(
-                Fixtures.TITLE_IRI, "Title", Cardinality.required(), false, false, true, false, true, Datatype.STRING);
+        return attribute(TITLE_IRI, "Title", Cardinality.required(), false, false, true, false, true, Datatype.STRING);
     }
 
     private static AttributeDefinition status() {
         return attribute(
-                Fixtures.STATUS_IRI,
-                "Status",
-                Cardinality.optional(),
-                true,
-                true,
-                false,
-                false,
-                false,
-                Datatype.STRING);
+                STATUS_IRI, "Status", Cardinality.optional(), true, true, false, false, false, Datatype.STRING);
     }
 
     private static AttributeDefinition description() {
         return attribute(
-                Fixtures.DESCRIPTION_IRI,
+                DESCRIPTION_IRI,
                 "Description",
                 Cardinality.optional(),
                 false,
@@ -206,7 +226,7 @@ public final class QueryFixtures {
 
     private static AttributeDefinition createdAt() {
         return attribute(
-                Fixtures.CREATED_AT_IRI,
+                CREATED_AT_IRI,
                 "Created At",
                 Cardinality.optional(),
                 false,
@@ -219,15 +239,7 @@ public final class QueryFixtures {
 
     private static AttributeDefinition priority() {
         return attribute(
-                Fixtures.PRIORITY_IRI,
-                "Priority",
-                Cardinality.optional(),
-                false,
-                false,
-                false,
-                false,
-                false,
-                Datatype.INTEGER);
+                PRIORITY_IRI, "Priority", Cardinality.optional(), false, false, false, false, false, Datatype.INTEGER);
     }
 
     /**
@@ -238,7 +250,7 @@ public final class QueryFixtures {
      */
     private static AttributeDefinition estimatedHours() {
         return attribute(
-                Fixtures.ESTIMATED_HOURS_IRI,
+                ESTIMATED_HOURS_IRI,
                 "Estimated Hours",
                 Cardinality.atMost(1),
                 false,
@@ -255,7 +267,7 @@ public final class QueryFixtures {
      */
     private static AttributeDefinition openTaskCount() {
         return attribute(
-                Fixtures.OPEN_TASK_COUNT_IRI,
+                OPEN_TASK_COUNT_IRI,
                 "Open Tasks",
                 Cardinality.atMost(1),
                 false,
@@ -272,7 +284,7 @@ public final class QueryFixtures {
      */
     private static AttributeDefinition totalEstimatedHours() {
         return attribute(
-                Fixtures.TOTAL_ESTIMATED_HOURS_IRI,
+                TOTAL_ESTIMATED_HOURS_IRI,
                 "Total Estimated Hours",
                 Cardinality.atMost(1),
                 false,
@@ -285,33 +297,16 @@ public final class QueryFixtures {
 
     private static AttributeDefinition dueDate() {
         return attribute(
-                Fixtures.DUE_DATE_IRI,
-                "Due Date",
-                Cardinality.optional(),
-                false,
-                false,
-                false,
-                false,
-                false,
-                Datatype.DATE);
+                DUE_DATE_IRI, "Due Date", Cardinality.optional(), false, false, false, false, false, Datatype.DATE);
     }
 
     private static AttributeDefinition name() {
-        return attribute(
-                Fixtures.NAME_IRI, "Name", Cardinality.required(), false, false, false, false, true, Datatype.STRING);
+        return attribute(NAME_IRI, "Name", Cardinality.required(), false, false, false, false, true, Datatype.STRING);
     }
 
     private static AttributeDefinition email() {
         return attribute(
-                Fixtures.EMAIL_IRI,
-                "Email",
-                Cardinality.optional(),
-                false,
-                false,
-                false,
-                false,
-                false,
-                Datatype.STRING);
+                EMAIL_IRI, "Email", Cardinality.optional(), false, false, false, false, false, Datatype.STRING);
     }
 
     private static AttributeDefinition attribute(
@@ -340,34 +335,37 @@ public final class QueryFixtures {
     // -- Derivation rules (held by behaviour()) -----------------------------------------------
 
     /**
-     * {@code ex:openTaskCount}'s rule: {@code count} of {@link Fixtures#TASK_IRI} via {@link
-     * Fixtures#BELONGS_TO_PROJECT_IRI}, filtered to {@code status != "done"}. Matches the exact
-     * {@link RollupRule} {@code SnapshotMapper} produces from {@code reference.ttl}'s {@code
-     * ex:openTaskCount} declaration, including the typed {@link TextValue} criterion value.
+     * {@code ex:openTaskCount}'s rule: {@code count} of {@link org.sequeless.ontology.testfixtures.Fixtures#TASK_IRI}
+     * via {@link org.sequeless.ontology.testfixtures.Fixtures#BELONGS_TO_PROJECT_IRI}, filtered to
+     * {@code status != "done"}. Matches the exact {@link RollupRule} {@code SnapshotMapper} produces
+     * from {@code reference.ttl}'s {@code ex:openTaskCount} declaration: a single {@code sq:Criterion}
+     * is its own {@link FieldFilter}, with the filter-core op {@code "is not"} and a JSON text value.
      */
     private static RollupRule openTaskCountRule() {
         return new RollupRule(
-                Fixtures.TASK_IRI,
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                TASK_IRI,
+                BELONGS_TO_PROJECT_IRI,
                 AggregateFunction.COUNT,
                 Optional.empty(),
-                List.of(new Criterion(Fixtures.STATUS_IRI, Operator.NE, Optional.of(new TextValue("done")))),
+                Optional.of(new FieldFilter(STATUS_IRI, "is not", TextNode.valueOf("done"))),
                 false);
     }
 
     /**
-     * {@code ex:totalEstimatedHours}'s rule: {@code sum} of {@link Fixtures#ESTIMATED_HOURS_IRI}
-     * over {@link Fixtures#TASK_IRI} via {@link Fixtures#BELONGS_TO_PROJECT_IRI}, no filter. Matches
-     * the exact {@link RollupRule} {@code SnapshotMapper} produces from {@code reference.ttl}'s
-     * {@code ex:totalEstimatedHours} declaration.
+     * {@code ex:totalEstimatedHours}'s rule: {@code sum} of {@link
+     * org.sequeless.ontology.testfixtures.Fixtures#ESTIMATED_HOURS_IRI} over {@link
+     * org.sequeless.ontology.testfixtures.Fixtures#TASK_IRI} via {@link
+     * org.sequeless.ontology.testfixtures.Fixtures#BELONGS_TO_PROJECT_IRI}, no filter. Matches the
+     * exact {@link RollupRule} {@code SnapshotMapper} produces from {@code reference.ttl}'s {@code
+     * ex:totalEstimatedHours} declaration, which has no {@code sq:filter}: the criteria are empty.
      */
     private static RollupRule totalEstimatedHoursRule() {
         return new RollupRule(
-                Fixtures.TASK_IRI,
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                TASK_IRI,
+                BELONGS_TO_PROJECT_IRI,
                 AggregateFunction.SUM,
-                Optional.of(Fixtures.ESTIMATED_HOURS_IRI),
-                List.of(),
+                Optional.of(ESTIMATED_HOURS_IRI),
+                Optional.empty(),
                 false);
     }
 
@@ -375,7 +373,7 @@ public final class QueryFixtures {
 
     private static RelationshipDefinition assignedTo() {
         return relationship(
-                Fixtures.ASSIGNED_TO_IRI,
+                ASSIGNED_TO_IRI,
                 "Assigned To",
                 Cardinality.atMost(1),
                 true,
@@ -383,14 +381,14 @@ public final class QueryFixtures {
                 false,
                 false,
                 false,
-                Fixtures.PERSON_IRI,
+                PERSON_IRI,
                 Optional.empty(),
                 false);
     }
 
     private static RelationshipDefinition belongsToProject() {
         return relationship(
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                BELONGS_TO_PROJECT_IRI,
                 "Belongs To Project",
                 Cardinality.atMost(1),
                 false,
@@ -398,14 +396,14 @@ public final class QueryFixtures {
                 false,
                 false,
                 false,
-                Fixtures.PROJECT_IRI,
-                Optional.of(Fixtures.HAS_TASK_IRI),
+                PROJECT_IRI,
+                Optional.of(HAS_TASK_IRI),
                 false);
     }
 
     private static RelationshipDefinition hasTask() {
         return relationship(
-                Fixtures.HAS_TASK_IRI,
+                HAS_TASK_IRI,
                 "Has Task",
                 Cardinality.optional(),
                 false,
@@ -413,7 +411,7 @@ public final class QueryFixtures {
                 false,
                 false,
                 false,
-                Fixtures.TASK_IRI,
+                TASK_IRI,
                 Optional.empty(),
                 false);
     }

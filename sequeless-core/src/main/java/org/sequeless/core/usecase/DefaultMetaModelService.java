@@ -10,17 +10,17 @@ import org.sequeless.core.api.TypeDescription;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
-import org.sequeless.spi.meta.schema.TypeDefinition;
-import org.sequeless.spi.ontology.OntologyReport;
 
 /**
  * Reference implementation of {@link MetaModelService}.
@@ -40,7 +40,7 @@ public final class DefaultMetaModelService implements MetaModelService {
 
     private final SchemaSource schemaSource;
     private final BehaviourSource behaviourSource;
-    private final org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration;
+    private final org.sequeless.ontology.api.OntologyAdministration ontologyAdministration;
     private final AuthorizationPort authorizationPort;
 
     /**
@@ -53,7 +53,7 @@ public final class DefaultMetaModelService implements MetaModelService {
     public DefaultMetaModelService(
             SchemaSource schemaSource,
             BehaviourSource behaviourSource,
-            org.sequeless.spi.ontology.OntologyAdministration ontologyAdministration,
+            org.sequeless.ontology.api.OntologyAdministration ontologyAdministration,
             AuthorizationPort authorizationPort) {
         this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
         this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
@@ -90,7 +90,8 @@ public final class DefaultMetaModelService implements MetaModelService {
         authorize(scope, Operation.READ, type.iri());
 
         Behaviour behaviour = halves.behaviour();
-        return new TypeDescription(type, behaviour.stateMachine(type.iri()), derivedProperties(type, behaviour));
+        return new TypeDescription(
+                type, behaviour.stateMachine(type.iri()), derivedProperties(type, behaviour), schema);
     }
 
     @Override

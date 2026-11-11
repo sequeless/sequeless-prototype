@@ -1,6 +1,5 @@
 package org.sequeless.testkit.object;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -11,9 +10,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.ontology.testfixtures.InMemoryOntologyDocumentStore;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -22,25 +22,22 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
 import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyDocument;
 
 /**
  * This testkit's own proof that {@link ObjectStoreContract} is not secretly biased toward
  * implementations backed by SQL, JSONB, or a Flyway-managed schema. This port holds every {@link
  * BusinessObject} in a plain map, guarded by a single monitor for the synchronized, all-or-nothing
- * {@link #commit} semantics the contract demands, and answers {@link #ontologyDocuments()} with an
- * equally trivial per-tenant version counter — genuine branching (the optimistic-lock check, the
- * soft-delete filtering, the atomic rollback of a whole {@link ChangeSet}), trivially implemented,
- * exactly like {@code FakeOntologyPort} plays for {@code OntologyContract} and {@code
- * DenyAllAuthorizationPort} plays for {@code AuthorizationContract}. If {@link ObjectStoreContract}
+ * {@link #commit} semantics the contract demands, and answers {@link #ontologyDocuments()} with the
+ * released {@code InMemoryOntologyDocumentStore}. The rest is genuine branching (the optimistic-lock
+ * check, the soft-delete filtering, the atomic rollback of a whole {@link ChangeSet}), trivially
+ * implemented, exactly like {@code DenyAllAuthorizationPort} plays for {@code AuthorizationContract}.
+ * {@code OntologyContract} is in {@code ontology-testfixtures}. If {@link ObjectStoreContract}
  * could only be passed by a relational adapter, it would not be a meaningful shared contract, and
  * this test's own contract subclass would fail.
  */
@@ -211,39 +208,5 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
                 yield stored;
             }
         };
-    }
-
-    /**
-     * A per-tenant version counter with no persistence at all: {@link #activate} assigns the next
-     * integer for the tenant and overwrites whatever was previously active, which is all {@link
-     * OntologyDocumentStore}'s contract requires — there is no separate "deactivate" step to forget
-     * because only the currently-active document is ever kept.
-     */
-    private static final class InMemoryOntologyDocumentStore implements OntologyDocumentStore {
-
-        private final Object lock = new Object();
-        private final Map<TenantId, StoredOntologyDocument> active = new LinkedHashMap<>();
-        private final Map<TenantId, Integer> nextVersion = new LinkedHashMap<>();
-
-        @Override
-        public Optional<StoredOntologyDocument> active(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            synchronized (lock) {
-                return Optional.ofNullable(active.get(scope.tenantId()));
-            }
-        }
-
-        @Override
-        public StoredOntologyDocument activate(Scope scope, OntologyDocument document) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(document, "document must not be null");
-            synchronized (lock) {
-                int version = nextVersion.merge(scope.tenantId(), 1, Integer::sum);
-                StoredOntologyDocument stored =
-                        new StoredOntologyDocument(UUID.randomUUID(), version, document, Instant.now());
-                active.put(scope.tenantId(), stored);
-                return stored;
-            }
-        }
     }
 }

@@ -10,11 +10,11 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.schema.OntologyVersion;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 
 /** Unit tests for {@link SchemaAndBehaviour#read}, the version check that keeps one request on one activation. */
 class SchemaAndBehaviourTest {

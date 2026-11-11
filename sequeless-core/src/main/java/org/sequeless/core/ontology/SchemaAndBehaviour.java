@@ -2,15 +2,15 @@ package org.sequeless.core.ontology;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.BehaviourSource;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.SchemaSource;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 
 /**
  * The schema and behaviour halves of one ontology activation, read together.
  *
- * <p>Both halves carry the {@link org.sequeless.spi.meta.schema.OntologyVersion} of the activation
+ * <p>Both halves carry the {@link org.sequeless.ontology.schema.api.OntologyVersion} of the activation
  * they came from. {@link #read} only returns a pair whose versions match, so one request never mixes
  * two activations.
  *

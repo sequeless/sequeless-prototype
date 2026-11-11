@@ -12,19 +12,20 @@ import org.sequeless.core.validation.TypeHierarchy;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.api.PluginRule;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.derivation.DerivationContext;
 import org.sequeless.spi.derivation.DerivationPlugin;
-import org.sequeless.spi.meta.behaviour.Behaviour;
-import org.sequeless.spi.meta.behaviour.DerivationRule;
-import org.sequeless.spi.meta.behaviour.PluginRule;
-import org.sequeless.spi.meta.behaviour.RollupRule;
-import org.sequeless.spi.meta.schema.PropertyDefinition;
-import org.sequeless.spi.meta.schema.Schema;
-import org.sequeless.spi.meta.schema.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
+import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.QueryPort;
 
 /**
@@ -173,8 +174,11 @@ public final class DerivationPlanner {
 
     private Map<ObjectId, Value> resolveRollup(Scope scope, Schema schema, RollupRule rollup, Set<ObjectId> targetIds) {
         Set<String> sourceTypes = TypeHierarchy.concreteTypeAndSubtypes(schema, rollup.sourceTypeIri());
+        List<Criterion> criteria = rollup.criteria()
+                .map(node -> FilterNodeToCriterion.toCriteria(node, schema, rollup.sourceTypeIri()))
+                .orElse(List.of());
         AggregateRequest request = new AggregateRequest(
-                sourceTypes, rollup.viaIri(), targetIds, rollup.function(), rollup.ofPropertyIri(), rollup.criteria());
+                sourceTypes, rollup.viaIri(), targetIds, rollup.function(), rollup.ofPropertyIri(), criteria);
         AggregateResult result = queryPort.aggregate(scope, schema, request);
         return result.values();
     }

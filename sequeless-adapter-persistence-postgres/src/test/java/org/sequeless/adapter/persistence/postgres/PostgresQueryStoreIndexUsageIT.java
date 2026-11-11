@@ -1,6 +1,13 @@
 package org.sequeless.adapter.persistence.postgres;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.sequeless.ontology.testfixtures.Fixtures.BELONGS_TO_PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DESCRIPTION_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PRIORITY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.STATUS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -17,7 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.schema.AggregateFunction;
+import org.sequeless.ontology.schema.api.AggregateFunction;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -55,13 +62,13 @@ class PostgresQueryStoreIndexUsageIT {
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:18");
 
-    private static final TypeRef TASK = new TypeRef(Fixtures.TASK_IRI);
-    private static final TypeRef PROJECT = new TypeRef(Fixtures.PROJECT_IRI);
-    private static final PropertyRef TITLE = new PropertyRef(Fixtures.TITLE_IRI);
-    private static final PropertyRef STATUS = new PropertyRef(Fixtures.STATUS_IRI);
-    private static final PropertyRef DESCRIPTION = new PropertyRef(Fixtures.DESCRIPTION_IRI);
-    private static final PropertyRef PRIORITY = new PropertyRef(Fixtures.PRIORITY_IRI);
-    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(Fixtures.BELONGS_TO_PROJECT_IRI);
+    private static final TypeRef TASK = new TypeRef(TASK_IRI);
+    private static final TypeRef PROJECT = new TypeRef(PROJECT_IRI);
+    private static final PropertyRef TITLE = new PropertyRef(TITLE_IRI);
+    private static final PropertyRef STATUS = new PropertyRef(STATUS_IRI);
+    private static final PropertyRef DESCRIPTION = new PropertyRef(DESCRIPTION_IRI);
+    private static final PropertyRef PRIORITY = new PropertyRef(PRIORITY_IRI);
+    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(BELONGS_TO_PROJECT_IRI);
 
     private static final int ROW_COUNT = 400;
 
@@ -94,7 +101,7 @@ class PostgresQueryStoreIndexUsageIT {
 
     /**
      * {@code ex:status} is the reference domain's one {@code sq:facet + sq:indexed} property (see
-     * {@code Fixtures.STATUS_IRI}'s javadoc and {@code QueryFixtures.status()}), {@code
+     * {@code STATUS_IRI}'s javadoc and {@code QueryFixtures.status()}), {@code
      * xsd:string}-typed. Seeds {@link #ROW_COUNT} {@code Task}s alternating {@code status} between
      * {@code "OPEN"} and {@code "CLOSED"} so a filter on it is selective, then proves an {@code
      * EXPLAIN} of that filter both names an Index Scan and names the specific index {@code
@@ -113,7 +120,7 @@ class PostgresQueryStoreIndexUsageIT {
                 .sql("SELECT index_name FROM sq_index_registry WHERE tenant_id = :tenantId "
                         + "AND property_iri = :propertyIri")
                 .param("tenantId", tenantId)
-                .param("propertyIri", Fixtures.STATUS_IRI)
+                .param("propertyIri", STATUS_IRI)
                 .query(String.class)
                 .single();
 
@@ -122,7 +129,7 @@ class PostgresQueryStoreIndexUsageIT {
         // castExpression's STRING-datatype cast is `props -> :propParam ->> 'text'`; the DDL-time
         // variant embeds the property IRI as a literal instead of a bind parameter (see
         // PostgresQueryStore.castExpressionLiteral), which is exactly what EXPLAIN needs here too.
-        String jsonPathExpression = "props -> '" + Fixtures.STATUS_IRI.replace("'", "''") + "' ->> 'text'";
+        String jsonPathExpression = "props -> '" + STATUS_IRI.replace("'", "''") + "' ->> 'text'";
 
         List<String> explainLines = transactionTemplate.execute(status -> {
             jdbcClient.sql("SET LOCAL enable_seqscan = OFF").update();
@@ -130,7 +137,7 @@ class PostgresQueryStoreIndexUsageIT {
                     .sql("EXPLAIN SELECT id FROM sq_object WHERE tenant_id = :tenantId "
                             + "AND type_iri = :typeIri AND (" + jsonPathExpression + ") = :status")
                     .param("tenantId", tenantId)
-                    .param("typeIri", Fixtures.TASK_IRI)
+                    .param("typeIri", TASK_IRI)
                     .param("status", "OPEN")
                     .query(String.class)
                     .list();
@@ -166,8 +173,8 @@ class PostgresQueryStoreIndexUsageIT {
         seedTasksForProjects(scope, ROW_COUNT, projectIds);
 
         AggregateRequest request = new AggregateRequest(
-                Set.of(Fixtures.TASK_IRI),
-                Fixtures.BELONGS_TO_PROJECT_IRI,
+                Set.of(TASK_IRI),
+                BELONGS_TO_PROJECT_IRI,
                 Set.copyOf(projectIds),
                 AggregateFunction.COUNT,
                 Optional.empty(),
@@ -183,9 +190,9 @@ class PostgresQueryStoreIndexUsageIT {
                         + "COUNT(*) AS agg_value FROM sq_object WHERE tenant_id = :tenantId "
                         + "AND type_iri IN (:sourceTypes) AND deleted_at IS NULL "
                         + "AND (props -> :via ->> 'ref')::uuid IN (:targetIds) GROUP BY 1")
-                .param("via", Fixtures.BELONGS_TO_PROJECT_IRI)
+                .param("via", BELONGS_TO_PROJECT_IRI)
                 .param("tenantId", tenantId)
-                .param("sourceTypes", List.of(Fixtures.TASK_IRI))
+                .param("sourceTypes", List.of(TASK_IRI))
                 .param("targetIds", projectIds.stream().map(ObjectId::value).toList())
                 .query(String.class)
                 .list());

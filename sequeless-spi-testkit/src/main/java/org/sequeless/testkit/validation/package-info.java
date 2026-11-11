@@ -5,7 +5,7 @@
  * behavioural contract documented on {@code ValidationPort} itself, against any implementation a
  * subclass supplies for a given ontology document via {@code fixtureFor(OntologyDocument)}. Unlike
  * {@link org.sequeless.testkit.object.ObjectStoreContract}, this contract is not ontology-agnostic:
- * building a {@link org.sequeless.spi.meta.schema.Schema} from Turtle requires an OWL/RDF library
+ * building a {@link org.sequeless.ontology.schema.api.Schema} from Turtle requires an OWL/RDF library
  * this testkit deliberately does not depend on, so all Schema-building work is delegated to
  * whichever adapter's own contract test extends this class. Assertions here are limited to null-safety,
  * determinism, the "unmodifiable, non-null list" result shape, and two representative violations

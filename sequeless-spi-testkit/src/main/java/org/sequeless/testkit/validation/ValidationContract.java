@@ -3,6 +3,12 @@ package org.sequeless.testkit.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.sequeless.ontology.testfixtures.Fixtures.ESTIMATED_HOURS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PERSON_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.REFERENCE_ONTOLOGY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.referenceOntology;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,12 +21,12 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.meta.schema.Schema;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
 import org.sequeless.testkit.Fixtures;
@@ -57,6 +63,12 @@ import org.sequeless.testkit.Fixtures;
  */
 public abstract class ValidationContract {
 
+    /** {@code ex:name}, declared here rather than in the released {@code Fixtures} (no such member). */
+    private static final String NAME_IRI = REFERENCE_ONTOLOGY_IRI + "#name";
+
+    /** {@code ex:email}, declared here rather than in the released {@code Fixtures} (no such member). */
+    private static final String EMAIL_IRI = REFERENCE_ONTOLOGY_IRI + "#email";
+
     /**
      * A {@link ValidationPort} paired with the {@link Schema} it was built to validate against,
      * since a conforming {@link ValidationPort} implementation is typically tied to the ontology its
@@ -83,23 +95,23 @@ public abstract class ValidationContract {
 
     @Test
     void validateRejectsNullScope() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task = task(Map.of(new PropertyRef(Fixtures.TITLE_IRI), Value.text("x")));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(new PropertyRef(TITLE_IRI), Value.text("x")));
 
         assertThatNullPointerException().isThrownBy(() -> fixture.port().validate(null, fixture.schema(), task));
     }
 
     @Test
     void validateRejectsNullSchema() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task = task(Map.of(new PropertyRef(Fixtures.TITLE_IRI), Value.text("x")));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(new PropertyRef(TITLE_IRI), Value.text("x")));
 
         assertThatNullPointerException().isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), null, task));
     }
 
     @Test
     void validateRejectsNullObject() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
 
         assertThatNullPointerException()
                 .isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), null));
@@ -107,10 +119,10 @@ public abstract class ValidationContract {
 
     @Test
     void validReferenceTaskProducesNoViolations() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
         BusinessObject task = task(Map.of(
-                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Write plan"),
-                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("40"))));
+                new PropertyRef(TITLE_IRI), Value.text("Write plan"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("40"))));
 
         List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), task);
 
@@ -119,37 +131,37 @@ public abstract class ValidationContract {
 
     @Test
     void outOfRangeEstimatedHoursProducesViolationOnItsPath() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
         BusinessObject task = task(Map.of(
-                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Too big"),
-                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
+                new PropertyRef(TITLE_IRI), Value.text("Too big"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
         List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), task);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations).extracting(Violation::path).contains(Fixtures.ESTIMATED_HOURS_IRI);
+        assertThat(violations).extracting(Violation::path).contains(ESTIMATED_HOURS_IRI);
     }
 
     @Test
     void invalidPersonEmailProducesViolationOnItsPath() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
         BusinessObject person = person(Map.of(
-                new PropertyRef(Fixtures.NAME_IRI), Value.text("Alice"),
-                new PropertyRef(Fixtures.EMAIL_IRI), Value.text("not-an-email")));
+                new PropertyRef(NAME_IRI), Value.text("Alice"),
+                new PropertyRef(EMAIL_IRI), Value.text("not-an-email")));
 
         List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), person);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations).extracting(Violation::path).contains(Fixtures.EMAIL_IRI);
+        assertThat(violations).extracting(Violation::path).contains(EMAIL_IRI);
     }
 
     @Test
     void validateIsDeterministic() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
         Scope scope = Fixtures.defaultScope();
         BusinessObject task = task(Map.of(
-                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Determinism check"),
-                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
+                new PropertyRef(TITLE_IRI), Value.text("Determinism check"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
         List<Violation> first = fixture.port().validate(scope, fixture.schema(), task);
         List<Violation> second = fixture.port().validate(scope, fixture.schema(), task);
@@ -159,10 +171,10 @@ public abstract class ValidationContract {
 
     @Test
     void violationsListIsUnmodifiable() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
         BusinessObject task = task(Map.of(
-                new PropertyRef(Fixtures.TITLE_IRI), Value.text("Immutable check"),
-                new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
+                new PropertyRef(TITLE_IRI), Value.text("Immutable check"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
         List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), task);
 
@@ -172,11 +184,11 @@ public abstract class ValidationContract {
     }
 
     private static BusinessObject task(Map<PropertyRef, Value> properties) {
-        return businessObject(new TypeRef(Fixtures.TASK_IRI), properties);
+        return businessObject(new TypeRef(TASK_IRI), properties);
     }
 
     private static BusinessObject person(Map<PropertyRef, Value> properties) {
-        return businessObject(new TypeRef(Fixtures.PERSON_IRI), properties);
+        return businessObject(new TypeRef(PERSON_IRI), properties);
     }
 
     private static BusinessObject businessObject(TypeRef type, Map<PropertyRef, Value> properties) {
