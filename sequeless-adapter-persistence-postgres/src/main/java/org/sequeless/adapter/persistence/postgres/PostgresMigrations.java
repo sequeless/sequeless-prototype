@@ -24,4 +24,22 @@ public final class PostgresMigrations {
         Objects.requireNonNull(dataSource, "dataSource must not be null");
         Flyway.configure().dataSource(dataSource).locations(LOCATION).load().migrate();
     }
+
+    /**
+     * Migrates {@code dataSource} up to and including {@code version} only, so a test can stop at an
+     * earlier schema, write rows into it, and then run the later migrations.
+     *
+     * @param dataSource the data source to migrate; must not be {@code null}
+     * @param version the last version to apply, for example {@code "4"}; must not be {@code null}
+     */
+    static void migrateTo(DataSource dataSource, String version) {
+        Objects.requireNonNull(dataSource, "dataSource must not be null");
+        Objects.requireNonNull(version, "version must not be null");
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(LOCATION)
+                .target(version)
+                .load()
+                .migrate();
+    }
 }

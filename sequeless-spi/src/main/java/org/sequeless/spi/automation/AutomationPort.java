@@ -38,8 +38,8 @@ public interface AutomationPort {
      *     OutboxEntry#KIND_ACTION_REQUEST}, {@link OutboxEntry#KIND_OBJECT_CREATED}, {@link
      *     OutboxEntry#KIND_OBJECT_UPDATED}, {@link OutboxEntry#KIND_OBJECT_DELETED}, {@link
      *     OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, or {@link
-     *     OutboxEntry#KIND_SIGNAL_RECEIVED} — {@link OutboxEntry#KIND_TRANSITION_FIRED} is
-     *     audit-only and is never dispatched here
+     *     OutboxEntry#KIND_SIGNAL_RECEIVED}. An {@link OutboxEntry#KIND_TRANSITION_FIRED} entry is
+     *     accepted and does nothing
      */
     void dispatch(Scope scope, OutboxEntry entry);
 }

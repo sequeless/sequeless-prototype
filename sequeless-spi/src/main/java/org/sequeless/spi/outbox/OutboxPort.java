@@ -14,8 +14,9 @@ import org.sequeless.spi.object.ObjectStorePort;
  * dispatchable set ({@link OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, and
  * the three automation kinds introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec}) —
  * because a single relay now fans one polling loop out to several inbound ports rather than always
- * calling {@code ActionExecutor}. {@link OutboxEntry#KIND_TRANSITION_FIRED} stays audit-only and
- * must never appear in the requested {@code kinds}, since nothing ever claims it.
+ * calling {@code ActionExecutor}. {@link OutboxEntry#KIND_TRANSITION_FIRED} is claimable: the relay
+ * hands it to the automation port, whose adapters accept it as a no-op until it carries actions and
+ * timers.
  *
  * <p>Deliberately a sibling port to {@link ObjectStorePort}, not a method added to it: {@code
  * ObjectStorePort} has many implementers (the postgres adapter and several in-memory test doubles)

@@ -165,8 +165,8 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                 case OutboxEntry.KIND_TIMER_CANCELLED ->
                     awaitCancellationTakesEffect((String) entry.payload().get("timerKey"));
                 default -> {
-                    // TransitionFired (and anything else): dispatch() itself already threw
-                    // synchronously, nothing further to wait for.
+                    // TransitionFired: dispatch() accepted it as a no-op, so there is no
+                    // workflow to wait for.
                 }
             }
         };

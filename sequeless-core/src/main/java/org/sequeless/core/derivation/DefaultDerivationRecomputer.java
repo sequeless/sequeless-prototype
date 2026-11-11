@@ -234,7 +234,11 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
             ChangeSet changeSet = new ChangeSet(
                     List.of(new Update(candidate, target.version())),
                     List.of(objectUpdatedEntry(
-                            targetId, target.version() + 1, target.type().iri(), now)));
+                            targetId,
+                            target.version() + 1,
+                            target.type().iri(),
+                            schema.ontologyVersion().value(),
+                            now)));
 
             try {
                 objectStorePort.commit(scope, changeSet);
@@ -268,13 +272,16 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      * Builds an {@code ObjectUpdated} outbox entry whose payload matches the shape {@code
      * DefaultBusinessObjectService.outboxPayload} produces — duplicated here rather than shared,
      * exactly as {@code DefaultActionExecutor} already keeps its own copy of the same small
-     * map-builder, since that method is private to a different class.
+     * map-builder, since that method is private to a different class. {@code ontologyVersion} is the
+     * version of the schema this recompute read.
      */
-    private static OutboxEntry objectUpdatedEntry(ObjectId id, long version, String typeIri, Instant occurredAt) {
+    private static OutboxEntry objectUpdatedEntry(
+            ObjectId id, long version, String typeIri, int ontologyVersion, Instant occurredAt) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
         payload.put("typeIri", typeIri);
+        payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED, payload, occurredAt);
     }
 

@@ -294,6 +294,7 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("principalId", scope.principal().id());
         payload.put("signalName", signalName);
         payload.put("body", body);
+        payload.put("ontologyVersion", halves.schema().ontologyVersion().value());
         OutboxEntry signalEntry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, payload, now());
 
         objectStorePort.commit(scope, new ChangeSet(List.of(), List.of(signalEntry)));
@@ -343,14 +344,16 @@ public final class DefaultTransitionService implements TransitionService {
                 audit,
                 false);
 
+        int ontologyVersion = halves.schema().ontologyVersion().value();
         List<OutboxEntry> outbox = new ArrayList<>();
-        outbox.add(transitionFiredEntry(scope, existing, transition, now));
+        outbox.add(transitionFiredEntry(scope, existing, transition, ontologyVersion, now));
         List<Action> actions =
                 automation.actions(new TransitionRef(machine.iri(), transition.fromStateIri(), transition.name()));
         for (int i = 0; i < actions.size(); i++) {
-            outbox.add(actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), now));
+            outbox.add(
+                    actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), ontologyVersion, now));
         }
-        addTimerOutboxEntries(scope, resolved, machine, existing, transition, now, outbox);
+        addTimerOutboxEntries(scope, resolved, machine, existing, transition, ontologyVersion, now, outbox);
 
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
         CommitResult result = objectStorePort.commit(scope, changeSet);
@@ -372,6 +375,7 @@ public final class DefaultTransitionService implements TransitionService {
             StateMachineDefinition machine,
             BusinessObject existing,
             Transition transition,
+            int ontologyVersion,
             Instant now,
             List<OutboxEntry> outbox) {
         for (Transition candidate : machine.transitions()) {
@@ -379,10 +383,10 @@ public final class DefaultTransitionService implements TransitionService {
                 continue;
             }
             if (candidate.fromStateIri().equals(transition.fromStateIri())) {
-                outbox.add(timerCancelledEntry(scope, existing, candidate, now));
+                outbox.add(timerCancelledEntry(scope, existing, candidate, ontologyVersion, now));
             }
             if (candidate.fromStateIri().equals(transition.toStateIri())) {
-                outbox.add(timerScheduledEntry(scope, resolved, existing, candidate, timer, now));
+                outbox.add(timerScheduledEntry(scope, resolved, existing, candidate, timer, ontologyVersion, now));
             }
         }
     }
@@ -401,6 +405,7 @@ public final class DefaultTransitionService implements TransitionService {
             BusinessObject existing,
             Transition timerTransition,
             TimerTrigger timer,
+            int ontologyVersion,
             Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
@@ -411,6 +416,7 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("transitionName", timerTransition.name());
         payload.put("after", timer.after().toString());
         payload.put("timerKey", timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED, payload, now);
     }
 
@@ -422,11 +428,12 @@ public final class DefaultTransitionService implements TransitionService {
      * schedule entry carried — the two can never drift apart.
      */
     private OutboxEntry timerCancelledEntry(
-            Scope scope, BusinessObject existing, Transition timerTransition, Instant now) {
+            Scope scope, BusinessObject existing, Transition timerTransition, int ontologyVersion, Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
         payload.put("timerKey", timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_CANCELLED, payload, now);
     }
 
@@ -444,7 +451,8 @@ public final class DefaultTransitionService implements TransitionService {
         return "No transition named '" + transitionName + "' is available from the object's current state";
     }
 
-    private OutboxEntry transitionFiredEntry(Scope scope, BusinessObject existing, Transition transition, Instant now) {
+    private OutboxEntry transitionFiredEntry(
+            Scope scope, BusinessObject existing, Transition transition, int ontologyVersion, Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
@@ -452,6 +460,7 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("transitionName", transition.name());
         payload.put("fromState", transition.fromStateIri());
         payload.put("toState", transition.toStateIri());
+        payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, now);
     }
 
@@ -462,8 +471,10 @@ public final class DefaultTransitionService implements TransitionService {
             Transition transition,
             int actionIndex,
             Action action,
+            int ontologyVersion,
             Instant now) {
         Map<String, Object> payload = actionRequestPayload(scope, resolved, existing, transition, actionIndex, action);
+        payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, now);
     }
 

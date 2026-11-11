@@ -19,8 +19,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * {@code TimerCancelled} signals that same {@code timerKey}'s {@link TimerWorkflow}; {@code
  * SignalReceived} starts a {@link SignalEventWorkflow} keyed by {@code entry.id()}. Every case is
  * fire-and-forget — {@link #dispatch} never waits for a started workflow to complete. {@code
- * TransitionFired} (and any other unrecognised kind) is rejected with {@link
- * IllegalArgumentException}.
+ * TransitionFired} is accepted and starts nothing, because it carries no action or timer yet. Any
+ * other unrecognised kind is rejected with {@link IllegalArgumentException}.
  *
  * <p><b>Idempotency comes from Temporal's own workflow-id semantics, not from any state this class
  * keeps.</b> A second {@link #dispatch} call for an entry (or, for timers, a {@code timerKey})
@@ -78,6 +78,8 @@ public final class TemporalAutomationPort implements AutomationPort {
             case OutboxEntry.KIND_TIMER_SCHEDULED -> startTimerWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_CANCELLED -> signalTimerCancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> startSignalEventWorkflow(scope, entry);
+            // Accepted as a no-op: a TransitionFired row carries no action or timer yet.
+            case OutboxEntry.KIND_TRANSITION_FIRED -> {}
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }
