@@ -139,9 +139,9 @@ tagged JSONB value (`{"decimal": n}`) rather than unnesting a JSON list.
 
 The plug-in form, shipped only in the `reference-plugin.ttl` fixture of sequeless-ontology's
 `ontology-testfixtures` (the production `sequeless-app/.../ontology/reference.ttl` deliberately
-carries no `sq:Plugin`, since the sample plug-in lives in `ontology-testfixtures`, a test-scope
-dependency — referencing it from the production ontology would fail `spring-boot:run` at startup by
-design):
+carries no `sq:Plugin`, since the sample plug-in (`WorkloadDerivationPlugin`) lives in
+`sequeless-spi-testkit`, a test-scope dependency — referencing it from the production ontology would
+fail `spring-boot:run` at startup by design):
 
 ```turtle
 ex:workload
