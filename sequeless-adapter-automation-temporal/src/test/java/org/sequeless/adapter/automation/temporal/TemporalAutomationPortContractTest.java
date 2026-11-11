@@ -1,5 +1,7 @@
 package org.sequeless.adapter.automation.temporal;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.sun.net.httpserver.HttpServer;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowNotFoundException;
@@ -18,6 +20,7 @@ import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
@@ -280,6 +283,51 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     @Override
     protected RecordingDerivationRecomputer recordingDerivationRecomputer() {
         return recomputerRecorder;
+    }
+
+    /**
+     * Since P5a the relay runs the recompute before it dispatches an object-lifecycle row, but this
+     * adapter still runs its own recompute, in {@link ChangeEventWorkflowImpl}, before {@code
+     * onChange}. Until that workflow activity is removed (P5b), this test keeps the
+     * recompute-before-onChange order checked for the Temporal adapter, which {@link
+     * AutomationContract} no longer asserts.
+     */
+    @Test
+    void dispatchRunsRecomputeBeforeOnChangeForObjectUpdated() {
+        port().dispatch(SCOPE, objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED));
+
+        assertThat(recomputerRecorder.calls()).hasSize(1);
+        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
+                .isEqualTo(1);
+        assertRecomputeRanBeforeOnChange();
+    }
+
+    /** The {@code ObjectDeleted} counterpart of {@link #dispatchRunsRecomputeBeforeOnChangeForObjectUpdated()}. */
+    @Test
+    void dispatchRunsRecomputeBeforeOnChangeForObjectDeleted() {
+        port().dispatch(SCOPE, objectDeletedEntry());
+
+        assertThat(recomputerRecorder.calls()).hasSize(1);
+        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
+                .isEqualTo(1);
+        assertRecomputeRanBeforeOnChange();
+    }
+
+    /**
+     * Asserts that the one recompute call recorded for the change event most recently dispatched
+     * happened strictly before the first {@link RecordingTriggerEvaluator#METHOD_ON_CHANGE} call, by
+     * comparing each recorded call's {@code sequenceNanos()}. See {@link RecordingTriggerEvaluator}'s
+     * javadoc for why that field, rather than any state shared between the two doubles, makes this
+     * comparison possible.
+     */
+    private void assertRecomputeRanBeforeOnChange() {
+        long recomputeAt = recomputerRecorder.calls().get(0).sequenceNanos();
+        long onChangeAt = triggerRecorder.calls().stream()
+                .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
+                .findFirst()
+                .orElseThrow()
+                .sequenceNanos();
+        assertThat(recomputeAt).isLessThan(onChangeAt);
     }
 
     /**

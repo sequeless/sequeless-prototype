@@ -447,17 +447,19 @@ concatenation at each call site, is what guarantees a schedule and its matching 
 drift apart: an adapter finds a running timer to cancel by looking up this same string, whether
 it's a `ScheduledExecutorService` key (in-process) or a Temporal workflow id (Temporal).
 
-**Recompute-then-`onChange` ordering.** For a single dispatched change event
-(`ObjectCreated`/`ObjectUpdated`/`ObjectDeleted`), both automation adapters call
-`DerivationRecomputer.recompute` **before** `TriggerEvaluator.onChange`, for the same event. This
-matters concretely: the reference ontology's `autoClose` transition guards on `self.openTaskCount
-== 0`, read from *stored* props — so the materialised count must already be fresh by the time
-`onChange` evaluates that guard, or the happy path (closing the last open Task should immediately
-make the Project eligible to auto-close) would take an extra hop to converge. The system still
-converges even if a particular adapter ever called these out of order — recompute's own
-`ObjectUpdated` write re-triggers evaluation regardless — but the fixed order makes the common case
-resolve in one hop instead of two. `InProcessAutomationPort`'s own class javadoc documents this
-ordering guarantee as load-bearing for exactly this reason.
+**Recompute-then-`onChange` ordering.** For a single outbox row of kind `ObjectCreated`,
+`ObjectUpdated` or `ObjectDeleted`, the relay calls `DerivationRecomputer.recompute` **before** it
+dispatches that row to the automation port, which then calls `TriggerEvaluator.onChange`. The relay
+does this for every adapter, inside the same claim. This matters concretely: the reference
+ontology's `autoClose` transition guards on `self.openTaskCount == 0`, read from *stored* props — so
+the materialised count must already be fresh by the time `onChange` evaluates that guard, or the
+happy path (closing the last open Task should immediately make the Project eligible to auto-close)
+would take an extra hop to converge. The system still converges even if the relay ever ran them out
+of order — recompute's own `ObjectUpdated` write re-triggers evaluation regardless — but the fixed
+order makes the common case resolve in one hop instead of two. `OutboxRelay#pollOnce`'s javadoc
+documents this ordering. The Temporal adapter's `ChangeEventWorkflow` still runs its own recompute
+before `onChange`; for the same change that recompute finds nothing to commit, until the workflow
+step is removed.
 
 ## 10. Event flow
 
@@ -485,10 +487,10 @@ sequenceDiagram
     loop @Scheduled poll tick
         Relay->>DB: claimNext(DISPATCHABLE_KINDS) — oldest unprocessed row
         DB-->>Relay: ObjectUpdated(Task)
-        Relay->>Port: dispatch(scope, entry)
-        Port->>Recomp: recompute(scope, entry)
+        Relay->>Recomp: recompute(scope, entry)
         Recomp->>DB: read Project fresh, computeRule, commit only if changed
         Note over Recomp,DB: writes its own ObjectUpdated(Project)<br/>row if openTaskCount changed
+        Relay->>Port: dispatch(scope, entry)
         Port->>Trig: onChange(scope, entry)
         Trig->>TS: fireAutomated(Project, "autoClose", ON_CHANGE)
         TS->>DB: guard true (openTaskCount == 0, already fresh) →<br/>commit state move + TransitionFired + ActionRequest(s)<br/>+ TimerCancelled/TimerScheduled as applicable
@@ -559,24 +561,22 @@ Temporal activity retry for Temporal) is what recovers from there, not a second 
 on the correct `openTaskCount` losslessly under real contention (20-thread pool, 200 futures)
 depends on both the retry loop and the commit-only-if-changed rule holding.
 
-**Concurrency modes.** `sequeless.automation.recompute.mode` selects one of three
-`InProcessRecomputeProperties.Mode` values, **`COALESCE`** by default:
+**Concurrency.** The relay runs `DerivationRecomputer.recompute` once per object-lifecycle row,
+inside the claim transaction, before the row reaches the automation port. The in-process adapter
+has no concurrency mode of its own: the `sequeless.automation.recompute.mode` key and its
+`RETRY_ONLY`, `SERIALIZE` and `COALESCE` values were removed with the in-process recompute. The
+`sequeless.automation.recompute.retry.*` keys still tune the intra-call retry loop above. When a
+persistence DataSource bean exists, each commit inside that recompute runs in its own
+`REQUIRES_NEW` transaction (a decorator `CoreConfiguration` puts on the recomputer's
+`ObjectStorePort`), so a retried `StaleObjectException` rolls back only its own attempt and does
+not mark the claim transaction rollback-only.
 
-- **`RETRY_ONLY`** — dispatch straight through to `recompute`; the intra-call retry above is the
-  only correctness guard. Same-target recomputes can run concurrently on different threads.
-- **`SERIALIZE`** — the in-process adapter keys work by `tenant|objectId|propertyIri` (a striped
-  lock) so same-target recomputes never overlap.
-- **`COALESCE`** — `SERIALIZE` plus collapsing pending duplicate recomputes for the same key into
-  one run, via a pending-set + single-flight runner. This is safe specifically because a recompute
-  always reads fresh state: the one surviving run still sees the final value, so collapsing several
-  queued recomputes into one can never lose an update.
-
-**The Temporal adapter only implements `RETRY_ONLY`** — this is a deliberate, stated scope
-reduction, not an oversight, and there is no `sequeless.automation.temporal.recompute.mode`
-property at all. `ChangeEventWorkflow` always calls the `recompute` then `onChange` activities
-directly, relying on `DefaultDerivationRecomputer`'s own intra-call retry (plus Temporal's
-activity-level `RetryOptions` on top) — the same effective behaviour as the in-process adapter's
-`RETRY_ONLY` mode. Building a Temporal equivalent of `SERIALIZE`/`COALESCE` would need a per-key
+**The Temporal adapter has one recompute per change event, with no serialize or coalesce mode** —
+a deliberate, stated scope reduction, not an oversight, and there is no
+`sequeless.automation.temporal.recompute.mode` property at all. `ChangeEventWorkflow` still calls
+the `recompute` then `onChange` activities directly, relying on `DefaultDerivationRecomputer`'s own
+intra-call retry (plus Temporal's activity-level `RetryOptions` on top). Building a Temporal
+equivalent of `SERIALIZE`/`COALESCE` would need a per-key
 `RecomputeWorkflow` driven by `signalWithStart` — but `WorkflowClient.signalWithStart`/
 `WorkflowStub.signalWithStart` in this SDK are fire-and-forget: they start and signal a workflow but
 hand back no handle a caller can use to learn when *that specific signal's own effect* has actually

@@ -21,7 +21,6 @@ import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
-import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
@@ -113,8 +112,6 @@ class InProcessAutomationPortWebhookTest {
                 recorder,
                 properties,
                 triggerEvaluator,
-                new RecordingDerivationRecomputer(),
-                InProcessRecomputeProperties.Mode.RETRY_ONLY,
                 new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator));
     }
 

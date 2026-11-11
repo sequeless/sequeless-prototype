@@ -118,8 +118,8 @@ Every remaining step waits on an owner answer:
 - P2 (actions leave the outbox): held on B2, O-3 and O-4.
 - P3 (timers leave the outbox): held on B2, O-3 and O-4.
 - P4 (signals become Store Commands): held on O-3 and O-4; runs after P2 and P3.
-- P5a (recompute before the ingress): held on O-4 (it changes ChangeEventWorkflow).
-- P5b (Store-event ingress): held on O-4, and on B2 if it reads the stamp.
+- P5a (recompute before the ingress): in the P5a PR. P5a ships the relay recompute, the REQUIRES_NEW decorator and the in-process removal, and changes no Temporal workflow code (javadoc only). The Temporal removal of `activities.recompute` in `ChangeEventWorkflowImpl.run` moves to P5b, which stays held on O-4. Until P5b, a Temporal change event recomputes twice, and the second recompute is a no-op.
+- P5b (Store-event ingress): held on O-4, and on B2 if it reads the stamp. It also carries the Temporal removal of `activities.recompute` moved from P5a. Its PR names `ChangeEventWorkflow` in its O-4 list, because the workflow code changes too.
 - P6 (Read and Browse ports, Object view): held on O-8.
 - P7 (index separation): held on the B4 confirmation, and on section 12 item 21 (the backfill transaction question), which must be settled before P7 merges.
 

@@ -29,7 +29,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * org.sequeless.adapter.automation.inprocess.InProcessAutomationPort}, which has to track
  * dispatched ids itself because it has no equivalent durable-engine mechanism to lean on.
  *
- * <p><b>Recompute concurrency is {@code RETRY_ONLY} only, for this first cut.</b> See {@link
+ * <p><b>Recompute concurrency has no serialize or coalesce mode, for this first cut.</b> See {@link
  * ChangeEventWorkflow}'s javadoc for why the plan's full {@code serialize}/{@code coalesce}
  * per-key-{@code RecomputeWorkflow}-via-{@code signalWithStart} design was not attempted, and what
  * would be needed to add it later.

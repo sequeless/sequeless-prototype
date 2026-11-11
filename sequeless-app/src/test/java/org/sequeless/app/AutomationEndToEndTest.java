@@ -47,14 +47,10 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * scheduler before advancing the clock at all — see {@link #awaitOutboxProcessed} and the timer
  * tests' own javadoc for why the naive "fire, then immediately advance" ordering races the relay.
  *
- * <p>The {@code properties} array below is deliberately not byte-identical to any other {@code
- * @SpringBootTest} class in this module (see {@code TransitionsEndToEndTest}'s own javadoc on this
- * point, and {@code automation.md} §8) — {@code sequeless.automation.recompute.mode=retry-only} is
- * the one extra key that both guarantees this class gets its own Spring test context (rather than
- * reusing another class's already-stopped Testcontainers Postgres container) and gives the
- * on-change test the tighter same-dispatch recompute-then-onChange ordering documented on {@code
- * InProcessRecomputeProperties.Mode#RETRY_ONLY} (the production default, {@code COALESCE}, still
- * converges, just possibly one extra outbox hop later).
+ * <p>The relay recomputes each object-lifecycle row before it dispatches that row, so the on-change
+ * test gets the same-dispatch recompute-then-onChange ordering the {@code autoClose} guard needs.
+ * This class keeps its own Spring test context because of its nested {@link ClockTestConfiguration},
+ * which is part of the context key (see {@code automation.md} §8).
  */
 @SpringBootTest(
         webEnvironment = RANDOM_PORT,
@@ -62,8 +58,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
             "sequeless.persistence.adapter=postgres",
             "sequeless.automation.adapter=inprocess",
             "sequeless.expression.adapter=jexl",
-            "sequeless.automation.relay.poll-interval-ms=100",
-            "sequeless.automation.recompute.mode=retry-only"
+            "sequeless.automation.relay.poll-interval-ms=100"
         })
 class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 

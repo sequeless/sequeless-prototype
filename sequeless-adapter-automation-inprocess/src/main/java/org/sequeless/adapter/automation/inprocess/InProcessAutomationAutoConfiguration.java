@@ -6,7 +6,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -33,7 +32,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnProperty(name = "sequeless.automation.adapter", havingValue = "inprocess")
-@EnableConfigurationProperties({InProcessAutomationProperties.class, InProcessRecomputeProperties.class})
+@EnableConfigurationProperties(InProcessAutomationProperties.class)
 public class InProcessAutomationAutoConfiguration {
 
     /**
@@ -105,11 +104,7 @@ public class InProcessAutomationAutoConfiguration {
      * @param properties the bound {@code sequeless.automation.inprocess.*} webhook retry
      *     configuration
      * @param triggerEvaluator the {@link TriggerEvaluator} bean an object-lifecycle, timer, or
-     *     signal entry is routed to after any recompute
-     * @param derivationRecomputer the {@link DerivationRecomputer} bean an object-lifecycle entry's
-     *     recompute is routed to, under {@code recomputeProperties}'s configured mode
-     * @param recomputeProperties the bound {@code sequeless.automation.recompute.*} concurrency
-     *     mode configuration
+     *     signal entry is routed to
      * @param timerScheduler the scheduler {@code TimerScheduled}/{@code TimerCancelled} entries are
      *     routed to
      * @return a new {@link InProcessAutomationPort} over all of the above
@@ -119,15 +114,7 @@ public class InProcessAutomationAutoConfiguration {
             ActionExecutor actionExecutor,
             InProcessAutomationProperties properties,
             TriggerEvaluator triggerEvaluator,
-            DerivationRecomputer derivationRecomputer,
-            InProcessRecomputeProperties recomputeProperties,
             InProcessTimerScheduler timerScheduler) {
-        return new InProcessAutomationPort(
-                actionExecutor,
-                properties,
-                triggerEvaluator,
-                derivationRecomputer,
-                recomputeProperties.getMode(),
-                timerScheduler);
+        return new InProcessAutomationPort(actionExecutor, properties, triggerEvaluator, timerScheduler);
     }
 }
