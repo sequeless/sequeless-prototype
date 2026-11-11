@@ -325,9 +325,11 @@ coercion always short-circuits first.
   under concurrency and the mechanism that terminates the recompute-triggers-another-recompute
   loop), and retrying the whole read-recompute-commit cycle on a `StaleObjectException` (default 8
   attempts, ~20ms base delay, both configurable — `sequeless.automation.recompute.retry.*`). See
-  `automation.md` §11 for the full design, including the three configurable concurrency modes
-  (`retry-only`/`serialize`/`coalesce`, in-process default `coalesce`) and the Temporal adapter's
-  deliberate `retry-only`-only scope reduction.
+  `automation.md` §11 for the full design. The relay runs the recompute synchronously, before it
+  dispatches the row to the automation port, and each store commit it makes runs in its own
+  `REQUIRES_NEW` transaction when the `sequelessPersistenceDataSource` bean exists. The in-process
+  concurrency modes (`retry-only`, `serialize`, `coalesce`) are gone, and the Temporal adapter has
+  no mode either: its one recompute per change event is a stated scope reduction.
 - **Filtering, sorting, or faceting on a *non*-materialised derived property is now a `400`, not a
   silent no-match.** `Query`/`Criterion`/`Sort`/`facetProperties` still only ever address stored
   properties, but as of Phase 6 naming an unmaterialised derived property on either side of a

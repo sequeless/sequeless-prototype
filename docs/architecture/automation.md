@@ -17,8 +17,9 @@ all committed atomically with the state change, so there is no window where the 
 but the record of what should happen next has not been durably written (or vice versa). `sq_outbox`
 is the same transactional-outbox table `ObjectCreated`/`ObjectUpdated`/`ObjectDeleted` events have
 used since DR-12; Phase 5 adds two new `kind` values to it and a `processed_at` marker column.
-Phase 6 (DR-11) adds three more `kind` values (§2), for a total of eight, seven of which are ever
-claimed for dispatch (§9's "dispatchable set" — `TransitionFired` stays audit-only).
+Phase 6 (DR-11) adds three more `kind` values (§2), for a total of eight. The relay claims all eight
+for dispatch (§2's "dispatchable set"); `TransitionFired` is claimed too, and both automation
+adapters accept it as a no-op.
 
 `OutboxRelay` (`sequeless-app`, `org.sequeless.app.automation`) is a `@Scheduled` poller that
 drains the full **dispatchable** outbox kind set, one row at a time, into whichever
@@ -29,20 +30,20 @@ implementation (`DefaultActionExecutor` in `sequeless-core`) to actually apply a
 the other dispatchable kinds route to `TriggerEvaluator`/`DerivationRecomputer` instead — see §9.
 
 Phase 6 (DR-11) widens this considerably: what was originally a single `ActionRequest`-only queue
-is now a 7-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
+is now an 8-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
 `kind()`, not a single hard-coded call.
 
 ## 2. The outbox and the `ActionRequest` payload shape
 
-`OutboxEntry` (`sequeless-spi/src/main/java/org/sequeless/spi/object/OutboxEntry.java`) is the one
+`OutboxEntry` (`sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxEntry.java`) is the one
 record type every outbox row uses, keyed by a `kind` string. Phase 5 adds two constants to it,
 deliberately declared on `OutboxEntry` itself rather than on `DefaultTransitionService`: an
 adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depend on
 `sequeless-core`, and the `noAdapterDependsOnCore` ArchUnit rule forbids it from trying.
 
 - `OutboxEntry.KIND_TRANSITION_FIRED = "TransitionFired"` — an audit event, one per fired
-  transition. This is the **only** kind that is never claimed for dispatch — every other kind
-  `OutboxEntry` defines is in the dispatchable set (§9).
+  transition. The relay claims it like every other kind, and both automation adapters accept it as
+  a no-op until it carries actions or timers (§2's dispatchable set).
 - `OutboxEntry.KIND_ACTION_REQUEST = "ActionRequest"` — one per `sq:action` in the fired
   transition's action list, carrying a payload that is fully self-contained and frozen at
   transition-fire time.
@@ -60,9 +61,9 @@ see the javadoc for the exact field list of each):
   /api/objects/{type}/{id}/signals/{name}` is called (§12).
 
 Together with the three pre-existing object-lifecycle kinds (`ObjectCreated`/`ObjectUpdated`/
-`ObjectDeleted`, in use since DR-12) and `ActionRequest`, that makes **seven dispatchable kinds**
-in total — `OutboxRelay` claims across all seven in one poll loop (§3, §9); only
-`TransitionFired` is excluded.
+`ObjectDeleted`, in use since DR-12) and `ActionRequest`, that makes seven kinds besides
+`TransitionFired`, eight in all. `OutboxRelay` claims across all eight in one poll loop (§3), and
+the automation adapters treat `TransitionFired` as a no-op.
 
 `OutboxEntry`'s constructor enforces the payload is JSON-compatible end to end (`String`,
 `Number`, `Boolean`, or nested `List`/`Map` of the same; no `null` anywhere) and contains a
@@ -128,13 +129,13 @@ plain `@Component` with one `@Scheduled(fixedDelayString =
 
 **Claim → dispatch → mark processed, in one short transaction.** `OutboxRelay` doesn't touch SQL
 itself; it calls `OutboxPort#claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T>
-handler)` (`sequeless-spi/src/main/java/org/sequeless/spi/object/OutboxPort.java`) — Phase 6
+handler)` (`sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxPort.java`) — Phase 6
 (DR-11) widened this from the original `claimNextActionRequest()` (no `kinds` parameter, hardcoded
 to `ActionRequest` alone) to take an explicit, caller-chosen kind set, because a single relay now
 fans its one polling loop out to several inbound ports (`ActionExecutor`, `TriggerEvaluator`,
 `DerivationRecomputer`), not just `ActionExecutor`. `OutboxRelay` builds the set it passes,
 `DISPATCHABLE_KINDS`, once as a `static final Set<String>` field (not reconstructed per poll) —
-see §9 for exactly which seven kinds it contains. The sole implementation (the postgres adapter)
+see §2 for the eight kinds it contains. The sole implementation (the postgres adapter)
 runs `SELECT ... FROM sq_outbox WHERE kind = ANY(?) AND processed_at IS NULL ORDER BY occurred_at
 LIMIT 1 FOR UPDATE SKIP LOCKED` against that set, calls `handler` once with the claimed row's raw
 `tenantId` string and the reconstructed `OutboxEntry`, then stamps `processed_at = now()` — all
@@ -276,11 +277,12 @@ gap doesn't matter.
   it unclaimed for the next scheduled tick.
 - **No dead-letter mechanism.** `OutboxPort#claimNext` always claims the oldest unprocessed row
   among the dispatchable kind set first (`ORDER BY occurred_at`), and there is no skip-ahead or
-  quarantine path. Since Phase 6 (DR-11) widened that set from `ActionRequest` alone to all seven
-  dispatchable kinds (§2, §9), a single "poison pill" row of **any** dispatchable kind — an
+  quarantine path. Since Phase 6 (DR-11) widened that set from `ActionRequest` alone to the full
+  dispatchable set (§2), a single "poison pill" row of **any** dispatchable kind — an
   `ActionRequest`, but equally a `TimerScheduled`, `SignalReceived`, or object-lifecycle row whose
-  payload always makes `dispatch()` throw — now blocks every row behind it indefinitely, at
-  one-scheduled-tick granularity, not just a malformed action.
+  payload always makes `dispatch()` throw, or, for an object-lifecycle row, whose recompute always
+  throws — now blocks every row behind it indefinitely, at one-scheduled-tick granularity, not just
+  a malformed action.
 - **No secondary sort key beyond `occurred_at`.** When a single transition fires multiple actions
   (e.g. `activate`'s `CreateObject` then `Webhook`), every row that transition produces shares the
   exact same commit timestamp. Their relative dispatch order relative to each other is therefore
@@ -504,9 +506,10 @@ sequenceDiagram
 ```
 
 A `TimerScheduled`/`TimerCancelled`/`SignalReceived` row follows the same claim → dispatch shape,
-just routed to `onTimerElapsed`/(cancel by `timerKey`)/`onSignal` instead of `onChange` — see §5's
-per-kind adapter table. `TransitionFired` rows are written for audit alongside every fired
-transition but are never claimed by the relay at all.
+just routed to `onTimerElapsed`/(cancel by `timerKey`)/`onSignal` instead of `onChange`; each
+adapter's `dispatch` switches on `kind()` to route them. `TransitionFired` rows are written for audit
+alongside every fired transition, and the relay claims them like any other kind. Both adapters
+accept them as a no-op.
 
 ## 11. Materialised derivations (Phase 6 / DR-11)
 
@@ -554,11 +557,15 @@ by:
 - `sequeless.automation.recompute.retry.max-attempts` (default **8**)
 - `sequeless.automation.recompute.retry.base-delay` (default **PT0.02S**, ~20ms, jittered)
 
-If every attempt is exhausted, the exception propagates uncaught out of `recompute()` — the
-dispatching adapter's own redispatch/retry mechanism (an unprocessed outbox row for in-process; a
-Temporal activity retry for Temporal) is what recovers from there, not a second retry loop inside
-`recompute` itself. This is exactly what a 200-concurrent-Task-update load test exercises: settling
-on the correct `openTaskCount` losslessly under real contention (20-thread pool, 200 futures)
+If every attempt is exhausted, the exception propagates uncaught out of `recompute()`. The relay
+calls `recompute()` inside its claim handler, so the claim rolls back: the row stays unprocessed,
+and the next poll tick retries it. That is the recovery for both adapters, because the relay runs
+the recompute before dispatch for both. A row that never succeeds blocks the rows behind it (§6).
+`recompute` itself does not retry a second time. The Temporal `ChangeEventWorkflow` still has its
+own recompute activity, which Temporal retries, until its workflow step is removed.
+
+This is exactly what a 200-concurrent-Task-update load test exercises: settling on the correct
+`openTaskCount` losslessly under real contention (20-thread pool, 200 futures)
 depends on both the retry loop and the commit-only-if-changed rule holding.
 
 **Concurrency.** The relay runs `DerivationRecomputer.recompute` once per object-lifecycle row,

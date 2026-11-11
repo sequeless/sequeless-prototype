@@ -131,3 +131,8 @@ Follow-ups noted by the reviews, not yet done:
 - P2a review judgment 1: if B2 selects the active version for P2's actions, the executor's stamp must be revisited.
 - Stale text: docs/architecture/automation.md lines 21, 43, 65, 72 and the OutboxPort javadoc list (lines 13 to 16) still say TransitionFired is audit-only.
 - Stale paths: docs/architecture/automation.md lines 37 and 131 cite the old `spi/object/Outbox*.java` paths.
+
+Recorded after P5a (the docs change that follows it fixes the two stale-text items above):
+- P5a merged as #119, squash `6e7764f`. Deviation from the spec: the Temporal removal of `activities.recompute` moved to P5b, which stays held on O-4 and names `ChangeEventWorkflow` in its O-4 list. Until P5b, a Temporal change event recomputes twice.
+- The relay runs the recompute before the ingress. Open risk, with no remedy yet: a persistent recompute failure blocks the relay, because the relay has no dead-letter or skip. Choosing a remedy is an owner decision.
+- The BOM refresh for sequeless-build: #49 merged as `593d03d` (filter versions). Release #50 (`6ba3d29`) published sequeless-bom 0.1.4. The import bump #51 (`a822b8e`) moved bom-contracts to 0.1.4.
