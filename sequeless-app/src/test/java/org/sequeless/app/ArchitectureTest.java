@@ -17,7 +17,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import org.sequeless.spi.query.QueryPort;
+import org.sequeless.spi.query.IndexPreparationPort;
 
 /**
  * Encodes the Maven module boundary rules from {@code docs/architecture/01-overview.md} as
@@ -49,7 +49,7 @@ class ArchitectureTest {
     private static final String ONTOLOGY_SCHEMA_PACKAGE = "org.sequeless.ontology.schema..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
     private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
-    private static final String ENSURE_INDEXES = "ensureIndexes";
+    private static final String PREPARE = "prepare";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -247,7 +247,7 @@ class ArchitectureTest {
                     + "decision 3). The Schema is the only part of the type system a query needs.");
 
     /**
-     * Index preparation is a host concern (#24): the host calls {@code QueryPort#ensureIndexes} after every
+     * Index preparation is a host concern (#24): the host calls {@code IndexPreparationPort#prepare} after every
      * ontology activation, through {@code org.sequeless.app.config}. Use cases and adapters never call it,
      * so no caller can prepare indexes for a Schema that is not the active one.
      */
@@ -256,14 +256,14 @@ class ArchitectureTest {
             .that()
             .resideOutsideOfPackages(HOST_CONFIG_PACKAGE, TESTKIT_QUERY_PACKAGE)
             .should()
-            .callMethodWhere(target(name(ENSURE_INDEXES)).and(target(declaredIn(assignableTo(QueryPort.class)))))
+            .callMethodWhere(target(name(PREPARE)).and(target(declaredIn(assignableTo(IndexPreparationPort.class)))))
             .because("index preparation after an ontology activation is a host responsibility (#24). Only the "
-                    + "host's configuration package may call QueryPort#ensureIndexes in production code, so that "
-                    + "the use cases never see QueryPort for that purpose and the host can swap it to the "
-                    + "prepare(tenant, version) call of spec 13 in one place. The call is matched on its owner "
-                    + "type, so a call through a concrete store such as PostgresQueryStore is caught too. The "
-                    + "testkit's query contract kit (org.sequeless.testkit.query) is excluded: it exercises the "
-                    + "port's own contract, including the null-argument clause, and is not a production caller.");
+                    + "host's configuration package may call IndexPreparationPort#prepare in production code, so "
+                    + "that the use cases never see the index preparation port for that purpose and the host can "
+                    + "swap it in one place. The call is matched on its owner type, so a call through a concrete "
+                    + "store such as PostgresQueryStore is caught too. The testkit's query contract kit "
+                    + "(org.sequeless.testkit.query) is excluded: it exercises the port contracts and is not a "
+                    + "production caller.");
 
     /**
      * Proves this suite is analyzing real classes from every module rather than passing

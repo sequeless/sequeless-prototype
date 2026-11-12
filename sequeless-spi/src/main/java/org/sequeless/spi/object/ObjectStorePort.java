@@ -34,14 +34,6 @@ import org.sequeless.spi.outbox.OutboxEntry;
  *       Optional#empty()} for an id that does not exist, that belongs to an object that has been
  *       soft-deleted, or that belongs to a different tenant than {@code scope.tenantId()}. These
  *       three cases are indistinguishable to the caller by design.
- *   <li><b>{@link #browse(Scope, Set, Page)} is non-deleted, tenant-filtered, and ordered.</b>
- *       Results are ordered by {@code (createdAt, id)} ascending, contain only objects that are not
- *       soft-deleted, and are restricted to {@code scope.tenantId()}. {@code types} may contain more
- *       than one {@link TypeRef}: matching objects are the union across every type in the set, not
- *       their intersection. A {@link Page} whose {@link Page#number()} is past the last page
- *       returns a {@link PageResult} with an empty {@link PageResult#items()} but the correct
- *       {@link PageResult#totalItems()} and {@link PageResult#totalPages()} — it never throws for
- *       overrun.
  *   <li><b>{@link #typesOf(Scope, Set)} is a best-effort lookup, not a validating one.</b> It
  *       returns an entry only for ids that exist, are not soft-deleted, and belong to {@code
  *       scope.tenantId()}; an id that is unknown, deleted, or belongs to another tenant is silently
@@ -80,22 +72,6 @@ public interface ObjectStorePort {
      * @throws NullPointerException if either argument is {@code null}
      */
     Optional<BusinessObject> find(Scope scope, ObjectId id);
-
-    /**
-     * Lists non-deleted objects of the given types, one page at a time. See the interface-level
-     * javadoc for the full contract this method must satisfy, including ordering, tenant scoping,
-     * and page-overrun behaviour.
-     *
-     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
-     *     null}
-     * @param types the types to include, matched as a union; must not be {@code null}, must not
-     *     contain {@code null}
-     * @param page the page to return; must not be {@code null}
-     * @return a non-null page of matching objects, ordered by {@code (createdAt, id)} ascending
-     * @throws NullPointerException if any argument, or any element of {@code types}, is {@code
-     *     null}
-     */
-    PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page);
 
     /**
      * Looks up the type of every id in {@code ids} that currently exists, is not soft-deleted, and

@@ -40,7 +40,7 @@ public interface BusinessObjectService {
      * abstract type IRI — validates {@code query}'s filter, sort, and facet property names (each
      * given as a property short name or full IRI) and operator applicability against that
      * schema, coerces raw filter values to the properties' declared datatypes, and delegates to
-     * {@link org.sequeless.spi.query.QueryPort#query}.
+     * {@link org.sequeless.spi.query.BrowsePort#browse}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}

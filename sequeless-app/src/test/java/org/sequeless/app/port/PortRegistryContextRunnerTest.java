@@ -24,8 +24,6 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -195,11 +193,6 @@ class PortRegistryContextRunnerTest {
 
         @Override
         public Optional<BusinessObject> find(Scope scope, ObjectId id) {
-            throw new UnsupportedOperationException("not needed by this test");
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
             throw new UnsupportedOperationException("not needed by this test");
         }
 

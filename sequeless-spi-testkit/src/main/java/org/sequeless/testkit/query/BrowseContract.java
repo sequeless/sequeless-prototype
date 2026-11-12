@@ -16,13 +16,16 @@ import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.schema.api.Schema;
@@ -35,31 +38,33 @@ import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
-import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.query.Sort;
 import org.sequeless.testkit.Fixtures;
 
 /**
- * The mechanical form of the behavioural contract documented on {@link QueryPort}'s
- * interface-level javadoc. Every {@link QueryPort} implementation — adapter or test double — is
+ * The mechanical form of the behavioural contract documented on {@link BrowsePort}'s
+ * interface-level javadoc. Every {@link BrowsePort} implementation — adapter or test double — is
  * expected to satisfy every clause of that javadoc, and this class exercises each clause once,
- * against whatever {@link Environment} {@link #freshEnvironment()} supplies.
+ * against whatever {@link Environment} {@link #freshEnvironment()} supplies. It holds every test
+ * of the query contract that predated the split into read, browse and index preparation ports,
+ * re-expressed against {@link BrowsePort#browse}.
  *
  * <p>To use this contract, extend it from a test class in your own module and implement {@link
  * #freshEnvironment()} to return a brand-new, empty {@link ObjectStorePort} paired with a {@link
- * QueryPort} that queries the same underlying storage:
+ * BrowsePort} that queries the same underlying storage:
  *
  * <pre>{@code
- * class MyAdapterContractTest extends QueryContract {
+ * class MyAdapterContractTest extends BrowseContract {
  *     protected Environment freshEnvironment() {
  *         ObjectStorePort store = new MyAdapter();
- *         return new Environment(store, MyQueryAdapter.over(store));
+ *         return new Environment(store, MyBrowseAdapter.over(store));
  *     }
  * }
  * }</pre>
@@ -69,18 +74,16 @@ import org.sequeless.testkit.Fixtures;
  * Schema} built from real properties, so every test here seeds {@link
  * org.sequeless.spi.object.BusinessObject}s of the reference-domain {@code Task}, {@code
  * Project}, and {@code Person} types — via {@link Environment#store()}'s {@link
- * ObjectStorePort#commit} — and queries them through {@link Environment#queryPort()} against
- * {@link QueryFixtures#schema()}, a hand-built {@link Schema} mirroring {@code
- * reference.ttl}.
+ * ObjectStorePort#commit} — and browses them through {@link Environment#browsePort()} against
+ * {@link QueryFixtures#schema()}, a hand-built {@link Schema} mirroring {@code reference.ttl}.
  *
  * <p><b>What this contract deliberately does not check.</b> No assertion here depends on a
  * particular storage or indexing technology. Every assertion is about the behaviour {@link
- * QueryPort}'s javadoc documents: null-safety, tenant scoping (inherited from {@link
- * ObjectStorePort}'s own contract and not re-asserted here), soft-delete filtering, the union
+ * BrowsePort}'s javadoc documents: null-safety, tenant scoping, soft-delete filtering, the union
  * semantics of {@link Query#types()}, the {@code (createdAt, id)} ascending default sort order,
- * and the "conventional multi-select" facet-counting rule.
+ * page overrun, and the "conventional multi-select" facet-counting rule.
  */
-public abstract class QueryContract {
+public abstract class BrowseContract {
 
     private static final TypeRef TASK = new TypeRef(TASK_IRI);
     private static final TypeRef PROJECT = new TypeRef(PROJECT_IRI);
@@ -97,8 +100,8 @@ public abstract class QueryContract {
     private static final PropertyRef EMAIL = new PropertyRef(QueryFixtures.EMAIL_IRI);
 
     /**
-     * An {@link ObjectStorePort} paired with the {@link QueryPort} that queries the same
-     * underlying storage — a conforming {@link QueryPort} implementation only makes sense against
+     * An {@link ObjectStorePort} paired with the {@link BrowsePort} that queries the same
+     * underlying storage — a conforming {@link BrowsePort} implementation only makes sense against
      * objects committed through a particular store, exactly as {@link
      * org.sequeless.testkit.validation.ValidationContract.Fixture} pairs a {@link
      * org.sequeless.spi.validation.ValidationPort} with the {@link Schema} it
@@ -106,20 +109,20 @@ public abstract class QueryContract {
      *
      * @param store the store to seed fixture data into via {@link ObjectStorePort#commit}; must
      *     not be {@code null}
-     * @param queryPort the port under test, expected to answer queries over whatever {@code
+     * @param browsePort the port under test, expected to answer queries over whatever {@code
      *     store} holds; must not be {@code null}
      */
-    public record Environment(ObjectStorePort store, QueryPort queryPort) {
+    public record Environment(ObjectStorePort store, BrowsePort browsePort) {
 
         public Environment {
             Objects.requireNonNull(store, "store must not be null");
-            Objects.requireNonNull(queryPort, "queryPort must not be null");
+            Objects.requireNonNull(browsePort, "browsePort must not be null");
         }
     }
 
     /**
      * @return a fresh {@link Environment} pairing a brand-new, empty {@link ObjectStorePort} with
-     *     a {@link QueryPort} that queries it; invoked fresh for every {@code @Test} method, so
+     *     a {@link BrowsePort} that queries it; invoked fresh for every {@code @Test} method, so
      *     implementors may return new instances each time or shared ones, whichever suits the
      *     port under test — but the returned environment must not carry over state from a
      *     previous test
@@ -127,25 +130,21 @@ public abstract class QueryContract {
     protected abstract Environment freshEnvironment();
 
     @Test
-    void queryRejectsNullArguments() {
+    void browseRejectsNullArguments() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
         Schema schema = QueryFixtures.schema();
         Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
 
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(null, schema, query));
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(scope, null, query));
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().query(scope, schema, null));
-    }
+        assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(null, schema, query));
+        assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(scope, null, query));
+        assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(scope, schema, null));
 
-    @Test
-    void ensureIndexesRejectsNullArguments() {
-        Environment env = freshEnvironment();
-        Scope scope = Fixtures.defaultScope();
-        Schema schema = QueryFixtures.schema();
-
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().ensureIndexes(null, schema));
-        assertThatNullPointerException().isThrownBy(() -> env.queryPort().ensureIndexes(scope, null));
+        Set<String> withNull = new HashSet<>();
+        withNull.add(null);
+        assertThatNullPointerException()
+                .isThrownBy(() ->
+                        new Query(withNull, List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false));
     }
 
     @Test
@@ -164,7 +163,7 @@ public abstract class QueryContract {
                 List.of(new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))),
                 new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(open1, open2);
         assertThat(result.total()).isEqualTo(2);
@@ -188,7 +187,7 @@ public abstract class QueryContract {
                 List.of(new Criterion(ASSIGNED_TO_IRI, Operator.EQ, Optional.of(Value.ref(alice)))),
                 new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(taskForAlice);
         assertThat(result.total()).isEqualTo(1);
@@ -212,7 +211,7 @@ public abstract class QueryContract {
                         new Criterion(DUE_DATE_IRI, Operator.LTE, Optional.of(Value.date(LocalDate.of(2026, 2, 28))))),
                 new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(inWindow);
         assertThat(result.total()).isEqualTo(1);
@@ -234,12 +233,12 @@ public abstract class QueryContract {
 
         Query ascending =
                 queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.ASC)), new Page(0, 20));
-        QueryResult ascResult = env.queryPort().query(scope, schema, ascending);
+        QueryResult ascResult = env.browsePort().browse(scope, schema, ascending);
         assertThat(ascResult.items()).extracting(BusinessObject::id).containsExactly(low, mid, high);
 
         Query descending =
                 queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.DESC)), new Page(0, 20));
-        QueryResult descResult = env.queryPort().query(scope, schema, descending);
+        QueryResult descResult = env.browsePort().browse(scope, schema, descending);
         assertThat(descResult.items()).extracting(BusinessObject::id).containsExactly(high, mid, low);
     }
 
@@ -255,7 +254,7 @@ public abstract class QueryContract {
         seedTask(env, scope, base.plusSeconds(3), "Closed high", "CLOSED", 2, LocalDate.of(2026, 2, 4), null, null);
 
         // Both a criterion on the facet property itself (status = OPEN) and an unrelated one
-        // (priority = 1) are applied. Per QueryPort's "conventional multi-select" rule, the
+        // (priority = 1) are applied. Per BrowsePort's "conventional multi-select" rule, the
         // status facet's bucket counts must be computed against every criterion EXCEPT the one
         // on status itself — so they should reflect both OPEN and CLOSED among the
         // priority-filtered subset, not just the single OPEN value the result set is narrowed to.
@@ -270,7 +269,7 @@ public abstract class QueryContract {
                 List.of(STATUS_IRI),
                 false);
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactly(openLow);
         assertThat(result.total()).isEqualTo(1);
@@ -294,7 +293,7 @@ public abstract class QueryContract {
 
         Query query = queryOf(Set.of(TASK_IRI), List.of(), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         List<FacetBucket> assignedToBuckets = result.facets().get(ASSIGNED_TO_IRI);
         assertThat(assignedToBuckets)
@@ -355,7 +354,7 @@ public abstract class QueryContract {
                 List.of(),
                 false);
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).isNotEmpty();
         assertThat(result.items().get(0).id()).isEqualTo(bestMatch);
@@ -372,7 +371,7 @@ public abstract class QueryContract {
 
         Query query = queryOf(Set.of(TASK_IRI, PROJECT_IRI), List.of(), new Page(0, 20));
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(task, project);
         assertThat(result.items())
@@ -395,22 +394,25 @@ public abstract class QueryContract {
 
         Schema schema = QueryFixtures.schema();
 
-        // No explicit sort: relies on QueryPort's documented default order, ascending
+        // No explicit sort: relies on BrowsePort's documented default order, ascending
         // (createdAt, id), so page contents are deterministic.
-        QueryResult page0 = env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 2)));
+        QueryResult page0 =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 2)));
         assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
         assertThat(page0.total()).isEqualTo(5);
 
-        QueryResult page1 = env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(1, 2)));
+        QueryResult page1 =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(1, 2)));
         assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(2, 4));
         assertThat(page1.total()).isEqualTo(5);
 
-        QueryResult page2 = env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(2, 2)));
+        QueryResult page2 =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(2, 2)));
         assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
         assertThat(page2.total()).isEqualTo(5);
 
         QueryResult overrun =
-                env.queryPort().query(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(5, 2)));
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(5, 2)));
         assertThat(overrun.items()).isEmpty();
         assertThat(overrun.total()).isEqualTo(5);
     }
@@ -427,9 +429,76 @@ public abstract class QueryContract {
         Query query =
                 new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false);
 
-        QueryResult result = env.queryPort().query(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(BusinessObject::id).doesNotContain(id);
+    }
+
+    @Test
+    void paginationOverUnionOfTypesIsOrderedByCreatedAtThenId() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        List<ObjectId> expectedOrder = List.of(
+                seedTask(env, scope, base, "Task 1", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null),
+                seedProject(env, scope, base.plusSeconds(1), "Project 1", "ACTIVE"),
+                seedTask(env, scope, base.plusSeconds(2), "Task 2", "OPEN", 2, LocalDate.of(2026, 2, 2), null, null),
+                seedProject(env, scope, base.plusSeconds(3), "Project 2", "ACTIVE"),
+                seedTask(env, scope, base.plusSeconds(4), "Task 3", "OPEN", 3, LocalDate.of(2026, 2, 3), null, null));
+
+        Schema schema = QueryFixtures.schema();
+        Set<String> types = Set.of(TASK_IRI, PROJECT_IRI);
+
+        QueryResult page0 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(0, 2)));
+        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
+        assertThat(page0.total()).isEqualTo(5);
+
+        QueryResult page2 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(2, 2)));
+        assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
+        assertThat(page2.total()).isEqualTo(5);
+
+        QueryResult overrun = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(3, 2)));
+        assertThat(overrun.items()).isEmpty();
+        assertThat(overrun.total()).isEqualTo(5);
+    }
+
+    @Test
+    void includeDeletedWhenRequestedIncludesSoftDeleted() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId id = seedTask(env, scope, base, "Soon deleted", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        env.store().commit(scope, new ChangeSet(List.of(new Delete(id, 1, base.plusSeconds(1), "tester")), List.of()));
+
+        Query query =
+                new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), true);
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(id);
+        assertThat(result.total()).isEqualTo(1);
+    }
+
+    @Test
+    void browseIsTenantScoped() {
+        Environment env = freshEnvironment();
+        Scope alice = Fixtures.scope("alice");
+        Scope otherTenant = new Scope(new TenantId("other-tenant"), Principal.ANONYMOUS);
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTask(env, alice, base, "Alice's task", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+
+        Schema schema = QueryFixtures.schema();
+        Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
+
+        QueryResult otherResult = env.browsePort().browse(otherTenant, schema, query);
+        assertThat(otherResult.items()).isEmpty();
+        assertThat(otherResult.total()).isZero();
+
+        QueryResult aliceResult = env.browsePort().browse(alice, schema, query);
+        assertThat(aliceResult.total()).isEqualTo(1);
     }
 
     // -- Fixture-seeding helpers -------------------------------------------------------------

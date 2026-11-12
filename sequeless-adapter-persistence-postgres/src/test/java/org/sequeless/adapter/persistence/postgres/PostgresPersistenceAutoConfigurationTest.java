@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.query.BrowsePort;
+import org.sequeless.spi.query.IndexPreparationPort;
+import org.sequeless.spi.query.QueryPort;
+import org.sequeless.spi.query.ReadPort;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -37,6 +41,25 @@ class PostgresPersistenceAutoConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ObjectStorePort.class);
                     assertThat(context).hasSingleBean(DataSource.class);
+                });
+    }
+
+    @Test
+    void wiresReadBrowseIndexPreparationAndQueryPortsAsOneSharedBean() {
+        runner.withPropertyValues(
+                        "sequeless.persistence.adapter=postgres",
+                        "sequeless.persistence.url=jdbc:postgresql://localhost:5432/test",
+                        "sequeless.persistence.username=test",
+                        "sequeless.persistence.password=test")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ReadPort.class);
+                    assertThat(context).hasSingleBean(BrowsePort.class);
+                    assertThat(context).hasSingleBean(IndexPreparationPort.class);
+                    assertThat(context).hasSingleBean(QueryPort.class);
+                    assertThat(context.getBean(ReadPort.class)).isSameAs(context.getBean(QueryPort.class));
+                    assertThat(context.getBean(BrowsePort.class)).isSameAs(context.getBean(QueryPort.class));
+                    assertThat(context.getBean(IndexPreparationPort.class)).isSameAs(context.getBean(QueryPort.class));
                 });
     }
 

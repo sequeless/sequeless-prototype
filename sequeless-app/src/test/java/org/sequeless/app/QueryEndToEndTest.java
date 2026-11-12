@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * against a real Postgres container: facet counts (including reference-facet display-label
  * resolution), a reference-property filter, a date-range filter, numeric (not lexical) sort,
  * {@code WorkItem} returning both {@code Task} and {@code Project}, free-text search ranking, and
- * the invalid-query 400 shape. {@code QueryContract} (spi-testkit) and the Postgres adapter's own
+ * the invalid-query 400 shape. {@code BrowseContract} (spi-testkit) and the Postgres adapter's own
  * {@code EXPLAIN} index-usage test already prove the underlying {@code QueryPort} contract and
  * index usage directly against Postgres; this class's job is only to prove the same behaviour is
  * reachable through {@code GET /api/objects/{type}} end to end.

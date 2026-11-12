@@ -57,12 +57,15 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.ReadPort;
+import org.sequeless.spi.query.ReadRequest;
 import org.sequeless.spi.query.Sort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
@@ -99,7 +102,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     private final ObjectStorePort objectStorePort;
     private final ValidationPort validationPort;
     private final AuthorizationPort authorizationPort;
-    private final QueryPort queryPort;
+    private final ReadPort readPort;
+    private final BrowsePort browsePort;
     private final Clock clock;
     private final DerivationPlanner derivationPlanner;
 
@@ -109,13 +113,17 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      *
      * @param schemaSource the port the schema half is read from; must not be {@code null}
      * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
-     * @param objectStorePort the port every read and write ultimately goes through; must not be
-     *     {@code null}
+     * @param objectStorePort the port every write, and every existence check before a write, goes
+     *     through; must not be {@code null}
      * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
      *     must not be {@code null}
      * @param authorizationPort the port every call consults; must not be {@code null}
-     * @param queryPort the port {@link #browse} delegates to once its {@link BrowseQuery} resolves
-     *     cleanly against the current schema; must not be {@code null}
+     * @param readPort the port {@link #read} resolves a single object through; must not be {@code
+     *     null}
+     * @param browsePort the port {@link #browse} runs its query through once its {@link BrowseQuery}
+     *     resolves cleanly against the current schema; must not be {@code null}
+     * @param queryPort the port the {@link DerivationPlanner} built here uses to resolve rollups; must
+     *     not be {@code null}
      * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
      *     {@code null}
      * @throws NullPointerException if any argument is {@code null}
@@ -126,6 +134,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             ObjectStorePort objectStorePort,
             ValidationPort validationPort,
             AuthorizationPort authorizationPort,
+            ReadPort readPort,
+            BrowsePort browsePort,
             QueryPort queryPort,
             Clock clock) {
         this(
@@ -134,7 +144,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
                 objectStorePort,
                 validationPort,
                 authorizationPort,
-                queryPort,
+                readPort,
+                browsePort,
                 clock,
                 new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader()));
     }
@@ -142,14 +153,15 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     /**
      * @param schemaSource the port the schema half is read from; must not be {@code null}
      * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
-     * @param objectStorePort the port every read and write ultimately goes through; must not be
-     *     {@code null}
+     * @param objectStorePort the port every write, and every existence check before a write, goes
+     *     through; must not be {@code null}
      * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
      *     must not be {@code null}
      * @param authorizationPort the port every call consults; must not be {@code null}
-     * @param queryPort the port {@link #browse} delegates to once its {@link BrowseQuery} resolves
-     *     cleanly against the current schema, and {@code derivationPlanner} uses to compute rollups;
-     *     must not be {@code null}
+     * @param readPort the port {@link #read} resolves a single object through; must not be {@code
+     *     null}
+     * @param browsePort the port {@link #browse} runs its query through once its {@link BrowseQuery}
+     *     resolves cleanly against the current schema; must not be {@code null}
      * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
      *     {@code null}
      * @param derivationPlanner computes every derived property on the object(s) {@link #read} and
@@ -162,7 +174,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             ObjectStorePort objectStorePort,
             ValidationPort validationPort,
             AuthorizationPort authorizationPort,
-            QueryPort queryPort,
+            ReadPort readPort,
+            BrowsePort browsePort,
             Clock clock,
             DerivationPlanner derivationPlanner) {
         this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
@@ -170,7 +183,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.validationPort = Objects.requireNonNull(validationPort, "validationPort must not be null");
         this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
-        this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
+        this.readPort = Objects.requireNonNull(readPort, "readPort must not be null");
+        this.browsePort = Objects.requireNonNull(browsePort, "browsePort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.derivationPlanner = Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
     }
@@ -202,7 +216,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         }
 
         Query spiQuery = new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
-        QueryResult result = queryPort.query(scope, schema, spiQuery);
+        QueryResult result = browsePort.browse(scope, schema, spiQuery);
         List<BusinessObject> derived = derivationPlanner.apply(scope, schema, behaviour, resolved, result.items());
         return new QueryResult(derived, result.total(), result.facets());
     }
@@ -218,7 +232,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.READ, resolved.iri());
 
-        BusinessObject found = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        BusinessObject found =
+                readPort.read(scope, new ReadRequest(id)).orElseThrow(() -> new ObjectNotFoundException(id));
         requireMatchingType(schema, found, resolved, id);
         return derivationPlanner
                 .apply(scope, schema, halves.behaviour(), resolved, List.of(found))
@@ -389,7 +404,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
      * index}, rejecting an unknown property, a multi-valued one — every one of the three query
      * clauses this method backs requires a scalar property, per phase-3's explicit scope — or a
      * derived property whose rule is not materialised, since only a materialised rule's value ever
-     * reaches {@code sq_object.props} for {@code QueryPort} to filter, sort, or facet on. Records a
+     * reaches {@code sq_object.props} for {@code BrowsePort} to filter, sort, or facet on. Records a
      * {@link Violation} and returns {@code null} on any failure, rather than throwing, so a
      * single {@link BrowseQuery} can report every violation it contains at once.
      */

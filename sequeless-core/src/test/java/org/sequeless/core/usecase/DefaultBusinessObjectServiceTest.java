@@ -9,7 +9,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +64,6 @@ import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
@@ -73,12 +71,14 @@ import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.query.Sort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
@@ -273,7 +273,23 @@ class DefaultBusinessObjectServiceTest {
             AuthorizationPort authorizationPort,
             FakeQueryPort queryPort) {
         return new DefaultBusinessObjectService(
-                new FakeOntology(), new FakeOntology(), store, validationPort, authorizationPort, queryPort, CLOCK);
+                new FakeOntology(),
+                new FakeOntology(),
+                store,
+                validationPort,
+                authorizationPort,
+                readOver(store),
+                queryPort,
+                queryPort,
+                CLOCK);
+    }
+
+    /**
+     * A {@link ReadPort} over {@code store}, so {@link DefaultBusinessObjectService#read} sees the
+     * same objects the command side commits to it.
+     */
+    private static ReadPort readOver(FakeObjectStorePort store) {
+        return (scope, request) -> store.find(scope, request.id());
     }
 
     private static ValidationPort noViolations() {
@@ -824,6 +840,8 @@ class DefaultBusinessObjectServiceTest {
                 store,
                 new FakeValidationPort(List.of()),
                 permitAll(),
+                readOver(store),
+                new FakeQueryPort(),
                 new FakeQueryPort(),
                 CLOCK);
 
@@ -860,6 +878,8 @@ class DefaultBusinessObjectServiceTest {
                 store,
                 validationPort,
                 permitAll(),
+                readOver(store),
+                new FakeQueryPort(),
                 new FakeQueryPort(),
                 CLOCK);
 
@@ -1169,28 +1189,107 @@ class DefaultBusinessObjectServiceTest {
     @Test
     void constructorRejectsNullArguments() {
         FakeObjectStorePort store = new FakeObjectStorePort();
+        ReadPort readPort = readOver(store);
         FakeQueryPort queryPort = new FakeQueryPort();
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        null, new FakeOntology(), store, noViolations(), permitAll(), queryPort, CLOCK));
+                        null,
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntology(), null, store, noViolations(), permitAll(), queryPort, CLOCK));
+                        new FakeOntology(),
+                        null,
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntology(), new FakeOntology(), null, noViolations(), permitAll(), queryPort, CLOCK));
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        null,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntology(), new FakeOntology(), store, null, permitAll(), queryPort, CLOCK));
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        null,
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntology(), new FakeOntology(), store, noViolations(), null, queryPort, CLOCK));
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        null,
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntology(), new FakeOntology(), store, noViolations(), permitAll(), null, CLOCK));
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        null,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
                 .isThrownBy(() -> new DefaultBusinessObjectService(
-                        new FakeOntology(), new FakeOntology(), store, noViolations(), permitAll(), queryPort, null));
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        null,
+                        queryPort,
+                        CLOCK));
+        assertThatNullPointerException()
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        null,
+                        CLOCK));
+        assertThatNullPointerException()
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        null));
     }
 
     @Test
@@ -1204,6 +1303,7 @@ class DefaultBusinessObjectServiceTest {
                         store,
                         noViolations(),
                         permitAll(),
+                        readOver(store),
                         queryPort,
                         CLOCK,
                         null));
@@ -1287,30 +1387,24 @@ class DefaultBusinessObjectServiceTest {
     }
 
     /**
-     * Hand-written {@link QueryPort} double: captures every {@link Query} passed to {@link
-     * #query}, returning a configurable (default empty) {@link QueryResult}. {@link #ensureIndexes}
-     * is not exercised by these tests (that's {@code DefaultOntologyAdministrationTest}'s job), so
-     * it throws, matching how every other fake in this file leaves an unexercised method
-     * unimplemented.
+     * Hand-written {@link QueryPort} and {@link BrowsePort} double: captures every {@link Query}
+     * passed to {@link #browse}, returning a configurable (default empty) {@link QueryResult}. It
+     * serves aggregate for the derivation planner and browse for the service under test; the
+     * index preparation port is not exercised by these tests at all.
      */
-    private static final class FakeQueryPort implements QueryPort {
+    private static final class FakeQueryPort implements QueryPort, BrowsePort {
 
         private final List<Query> queries = new ArrayList<>();
         private final List<AggregateRequest> aggregateRequests = new ArrayList<>();
         private QueryResult response = new QueryResult(List.of(), 0, Map.of());
 
         @Override
-        public QueryResult query(Scope scope, Schema schema, Query query) {
+        public QueryResult browse(Scope scope, Schema schema, Query query) {
             Objects.requireNonNull(scope, "scope must not be null");
             Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(query, "query must not be null");
             queries.add(query);
             return response;
-        }
-
-        @Override
-        public void ensureIndexes(Scope scope, Schema schema) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         /**
@@ -1408,10 +1502,8 @@ class DefaultBusinessObjectServiceTest {
         private final Map<ObjectId, BusinessObject> store = new HashMap<>();
         private final List<ChangeSet> commits = new ArrayList<>();
         private int findCalls;
-        private int browseCalls;
         private int typesOfCalls;
         private int commitCalls;
-        private Set<TypeRef> lastBrowseTypes;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
@@ -1427,22 +1519,6 @@ class DefaultBusinessObjectServiceTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(types, "types must not be null");
-            Objects.requireNonNull(page, "page must not be null");
-            browseCalls++;
-            lastBrowseTypes = types;
-            List<BusinessObject> items = store.values().stream()
-                    .filter(object -> !object.deleted() && types.contains(object.type()))
-                    .sorted(Comparator.comparing(
-                                    (BusinessObject object) -> object.audit().createdAt())
-                            .thenComparing(object -> object.id().value()))
-                    .toList();
-            return new PageResult<>(items, page.number(), page.size(), items.size());
         }
 
         @Override

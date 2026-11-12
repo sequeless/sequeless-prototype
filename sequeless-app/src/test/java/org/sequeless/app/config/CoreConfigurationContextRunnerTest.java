@@ -37,16 +37,12 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -234,11 +230,6 @@ class CoreConfigurationContextRunnerTest {
                 }
 
                 @Override
-                public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
                 public Map<ObjectId, TypeRef> typesOf(Scope scope, Set<ObjectId> ids) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
@@ -263,16 +254,6 @@ class CoreConfigurationContextRunnerTest {
         @Bean
         QueryPort queryPort() {
             return new QueryPort() {
-                @Override
-                public QueryResult query(Scope scope, Schema schema, Query query) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public void ensureIndexes(Scope scope, Schema schema) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
                 @Override
                 public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
                     throw new UnsupportedOperationException("not needed by this test");

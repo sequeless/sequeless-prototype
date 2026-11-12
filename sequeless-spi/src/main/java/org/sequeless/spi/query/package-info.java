@@ -10,7 +10,9 @@
  * from {@code org.sequeless.ontology.schema.api}, and {@link org.sequeless.kernel.values.Value}, {@link
  * org.sequeless.spi.object.BusinessObject}, {@link org.sequeless.kernel.values.ObjectId}, and {@link
  * org.sequeless.spi.object.Page} from {@code org.sequeless.spi.object}. {@link
- * org.sequeless.spi.query.QueryPort} is the port interface. {@link org.sequeless.spi.query.Query},
+ * org.sequeless.spi.query.ReadPort}, {@link org.sequeless.spi.query.BrowsePort},
+ * {@link org.sequeless.spi.query.IndexPreparationPort}, and {@link org.sequeless.spi.query.QueryPort} are
+ * the port interfaces. {@link org.sequeless.spi.query.Query},
  * {@link org.sequeless.spi.query.Criterion}, {@link org.sequeless.spi.query.Operator}, {@link
  * org.sequeless.spi.query.Sort}, {@link org.sequeless.spi.query.Direction}, {@link
  * org.sequeless.spi.query.QueryResult}, and {@link org.sequeless.spi.query.FacetBucket} are its
@@ -33,8 +35,8 @@
  * an aggregate computes, the same {@code TextValue}/{@code IntegerValue}/{@code DecimalValue}/{@code
  * BoolValue}/{@code DateTimeValue}/{@code DateValue}/{@code ReferenceValue}/{@code ListValue} shapes
  * a stored object's properties already use. The full behavioural contract every implementation must
- * satisfy is documented on {@link org.sequeless.spi.query.QueryPort} itself, and will be asserted
- * mechanically by a future {@code sequeless-spi-testkit} {@code QueryContract}; see
+ * satisfy is documented on the port interface itself, and is asserted mechanically by the
+ * {@code sequeless-spi-testkit} contracts {@code ReadContract}, {@code BrowseContract} and {@code AggregateContract}; see
  * docs/architecture/query-port.md.
  */
 package org.sequeless.spi.query;

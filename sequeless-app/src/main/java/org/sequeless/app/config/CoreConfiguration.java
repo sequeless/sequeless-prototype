@@ -27,7 +27,10 @@ import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.query.BrowsePort;
+import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.spi.query.QueryPort;
+import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -109,7 +112,7 @@ public class CoreConfiguration {
      * @param behaviourSource the lazily-resolved behaviour read port
      * @param ontologyAdministration the lazily-resolved ontology admin port, the same bean the read
      *     ports come from
-     * @param queryPort the lazily-resolved query port, whose indexes {@code reload} prepares
+     * @param indexPreparation the host use case that {@code reload} prepares indexes through
      * @param authorizationPort the lazily-resolved authorization port adapter
      * @return a {@link DefaultMetaModelService} consulting the ports on every call
      */
@@ -118,12 +121,12 @@ public class CoreConfiguration {
             @Lazy SchemaSource schemaSource,
             @Lazy BehaviourSource behaviourSource,
             @Lazy org.sequeless.ontology.api.OntologyAdministration ontologyAdministration,
-            @Lazy QueryPort queryPort,
+            IndexPreparation indexPreparation,
             @Lazy AuthorizationPort authorizationPort) {
         return new DefaultMetaModelService(
                 schemaSource,
                 behaviourSource,
-                new IndexPreparingOntologyAdministration(ontologyAdministration, schemaSource, queryPort),
+                new IndexPreparingOntologyAdministration(ontologyAdministration, schemaSource, indexPreparation),
                 authorizationPort);
     }
 
@@ -166,7 +169,10 @@ public class CoreConfiguration {
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @param queryPort the lazily-resolved query port adapter
+     * @param readPort the lazily-resolved ReadPort adapter, which {@code read} resolves one object
+     *     through
+     * @param browsePort the lazily-resolved browse port adapter, which {@code browse} runs its query
+     *     through
      * @param derivationPlanner the {@link DerivationPlanner} bean built above, shared with {@link
      *     #derivationRecomputer}
      * @return a {@link DefaultBusinessObjectService} consulting all of its ports on every call, with
@@ -179,7 +185,8 @@ public class CoreConfiguration {
             @Lazy ObjectStorePort objectStorePort,
             @Lazy ValidationPort validationPort,
             @Lazy AuthorizationPort authorizationPort,
-            @Lazy QueryPort queryPort,
+            @Lazy ReadPort readPort,
+            @Lazy BrowsePort browsePort,
             DerivationPlanner derivationPlanner) {
         return new DefaultBusinessObjectService(
                 schemaSource,
@@ -187,9 +194,28 @@ public class CoreConfiguration {
                 objectStorePort,
                 validationPort,
                 authorizationPort,
-                queryPort,
+                readPort,
+                browsePort,
                 Clock.systemUTC(),
                 derivationPlanner);
+    }
+
+    /**
+     * Builds the {@link IndexPreparation} host use case that the ontology lifecycle call sites use to
+     * prepare query indexes after every activation.
+     *
+     * <p>Its port parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #businessObjectService}, and none may be "simplified" away.
+     *
+     * @param schemaSource the lazily-resolved schema read port
+     * @param indexPreparationPort the lazily-resolved index preparation port adapter
+     * @return an {@link IndexPreparation} that reads the schema and prepares indexes through the port
+     *     on every call
+     */
+    @Bean
+    public IndexPreparation indexPreparation(
+            @Lazy SchemaSource schemaSource, @Lazy IndexPreparationPort indexPreparationPort) {
+        return new IndexPreparation(schemaSource, indexPreparationPort);
     }
 
     /**
@@ -202,7 +228,7 @@ public class CoreConfiguration {
      * @param ontologyAdministration the lazily-resolved ontology admin port
      * @param schemaSource the lazily-resolved schema read port, used to read the imported Schema
      *     when indexes are prepared
-     * @param queryPort the lazily-resolved query port, whose indexes are prepared after a successful
+     * @param indexPreparation the host use case that indexes are prepared through after a successful
      *     import
      * @param authorizationPort the lazily-resolved authorization port adapter
      * @return a {@link DefaultOntologyAdministration} consulting {@code authorizationPort} on every
@@ -212,10 +238,10 @@ public class CoreConfiguration {
     public OntologyAdministration ontologyAdministration(
             @Lazy org.sequeless.ontology.api.OntologyAdministration ontologyAdministration,
             @Lazy SchemaSource schemaSource,
-            @Lazy QueryPort queryPort,
+            IndexPreparation indexPreparation,
             @Lazy AuthorizationPort authorizationPort) {
         return new DefaultOntologyAdministration(
-                new IndexPreparingOntologyAdministration(ontologyAdministration, schemaSource, queryPort),
+                new IndexPreparingOntologyAdministration(ontologyAdministration, schemaSource, indexPreparation),
                 authorizationPort);
     }
 

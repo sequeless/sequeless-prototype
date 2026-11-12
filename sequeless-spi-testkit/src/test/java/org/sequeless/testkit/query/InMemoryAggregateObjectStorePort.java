@@ -22,8 +22,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
@@ -58,13 +56,6 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             }
             return Optional.of(object);
         }
-    }
-
-    @Override
-    public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-        throw new UnsupportedOperationException(
-                "browse is not exercised by AggregateContract; this double only supports commit and "
-                        + "aggregation reads");
     }
 
     @Override
@@ -111,10 +102,26 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
     }
 
     /**
+     * Lists every object of {@code scope.tenantId()}, soft-deleted ones included, for the browse
+     * and read doubles, which apply soft-delete filtering themselves.
+     *
      * @param scope the tenant to read for; only objects with a matching {@link
      *     org.sequeless.kernel.identity.TenantId} are returned
-     * @param typeIris the type IRIs to include, matched as a union exactly like {@link
-     *     ObjectStorePort#browse}'s {@code types}
+     * @return every object of {@code scope.tenantId()} in insertion order, deleted or not
+     */
+    List<BusinessObject> everyObject(Scope scope) {
+        synchronized (lock) {
+            return objects.values().stream()
+                    .filter(object -> object.tenant().equals(scope.tenantId()))
+                    .toList();
+        }
+    }
+
+    /**
+     * @param scope the tenant to read for; only objects with a matching {@link
+     *     org.sequeless.kernel.identity.TenantId} are returned
+     * @param typeIris the type IRIs to include, matched as a union, as {@link
+     *     org.sequeless.spi.query.Query#types()} is
      * @return every non-deleted object of {@code scope.tenantId()} whose type is in {@code
      *     typeIris}
      */

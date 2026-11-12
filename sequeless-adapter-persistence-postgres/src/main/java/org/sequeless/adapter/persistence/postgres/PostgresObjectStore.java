@@ -26,8 +26,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
@@ -80,45 +78,6 @@ public final class PostgresObjectStore implements ObjectStorePort {
                 .param("tenantId", scope.tenantId().value())
                 .query(PostgresObjectStore::mapRow)
                 .optional();
-    }
-
-    @Override
-    public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(types, "types must not be null");
-        for (TypeRef type : types) {
-            Objects.requireNonNull(type, "types must not contain null");
-        }
-        Objects.requireNonNull(page, "page must not be null");
-
-        if (types.isEmpty()) {
-            return new PageResult<>(List.of(), page.number(), page.size(), 0);
-        }
-
-        List<String> typeIris = types.stream().map(TypeRef::iri).toList();
-        String tenantId = scope.tenantId().value();
-
-        long totalItems = jdbcClient
-                .sql("SELECT COUNT(*) FROM sq_object WHERE tenant_id = :tenantId "
-                        + "AND type_iri IN (:types) AND deleted_at IS NULL")
-                .param("tenantId", tenantId)
-                .param("types", typeIris)
-                .query(Long.class)
-                .single();
-
-        List<BusinessObject> items = jdbcClient
-                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
-                        + "updated_at, updated_by, deleted_at FROM sq_object "
-                        + "WHERE tenant_id = :tenantId AND type_iri IN (:types) AND deleted_at IS NULL "
-                        + "ORDER BY created_at, id LIMIT :limit OFFSET :offset")
-                .param("tenantId", tenantId)
-                .param("types", typeIris)
-                .param("limit", page.size())
-                .param("offset", page.number() * page.size())
-                .query(PostgresObjectStore::mapRow)
-                .list();
-
-        return new PageResult<>(items, page.number(), page.size(), totalItems);
     }
 
     @Override

@@ -46,8 +46,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
@@ -55,9 +53,7 @@ import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
 
 /**
  * Unit tests for {@link DefaultDerivationRecomputer}, built against a hand-written {@code Project}
@@ -345,16 +341,6 @@ class DefaultDerivationRecomputerTest {
         }
 
         @Override
-        public QueryResult query(Scope scope, Schema schema, Query query) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public void ensureIndexes(Scope scope, Schema schema) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
         public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
             Objects.requireNonNull(schema, "schema must not be null");
@@ -393,11 +379,6 @@ class DefaultDerivationRecomputerTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override

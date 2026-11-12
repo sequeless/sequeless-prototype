@@ -1,8 +1,8 @@
 package org.sequeless.spi.object;
 
 /**
- * The IRI of an ontology type, as carried by a {@link BusinessObject} or used to scope an
- * {@link ObjectStorePort#browse} call. This is a plain IRI reference, not a {@code
+ * The IRI of an ontology type, as carried by a {@link BusinessObject} or returned by {@link
+ * ObjectStorePort#typesOf}. This is a plain IRI reference, not a {@code
  * org.sequeless.ontology.schema.api.TypeDefinition} — the object store never needs the full meta-model to
  * store or filter by type, only its identity.
  *

@@ -45,9 +45,9 @@ import org.sequeless.testkit.Fixtures;
  * satisfy every clause of that javadoc, and this class exercises each clause once, against
  * whatever {@link Environment} {@link #freshEnvironment()} supplies.
  *
- * <p>This is deliberately not a subclass of {@link QueryContract}: {@code aggregate} needs its
+ * <p>This is deliberately not a subclass of {@link BrowseContract}: {@code aggregate} needs its
  * own source data shaped around a {@code Project}/{@code Task} rollup rather than the flat
- * filter/sort/facet fixtures {@link QueryContract} seeds, so it declares its own {@link
+ * filter/sort/facet fixtures {@link BrowseContract} seeds, so it declares its own {@link
  * Environment} of the same shape.
  *
  * <p>To use this contract, extend it from a test class in your own module and implement {@link
@@ -82,7 +82,7 @@ public abstract class AggregateContract {
     /**
      * An {@link ObjectStorePort} paired with the {@link QueryPort} that aggregates over the same
      * underlying storage — a conforming {@link QueryPort} implementation only makes sense against
-     * objects committed through a particular store, exactly as {@link QueryContract.Environment}
+     * objects committed through a particular store, exactly as {@link BrowseContract.Environment}
      * pairs the two for filtered/sorted/faceted queries.
      *
      * @param store the store to seed fixture data into via {@link ObjectStorePort#commit}; must

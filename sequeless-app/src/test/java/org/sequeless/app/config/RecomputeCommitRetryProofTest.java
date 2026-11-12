@@ -47,8 +47,6 @@ import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.outbox.OutboxEntry;
@@ -277,11 +275,6 @@ class RecomputeCommitRetryProofTest extends PostgresTestcontainersSupport {
         @Override
         public Optional<BusinessObject> find(Scope scope, ObjectId id) {
             return delegate.find(scope, id);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            return delegate.browse(scope, types, page);
         }
 
         @Override

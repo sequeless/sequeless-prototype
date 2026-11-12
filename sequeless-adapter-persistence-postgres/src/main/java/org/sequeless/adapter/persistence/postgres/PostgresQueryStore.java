@@ -32,6 +32,7 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.schema.api.AggregateFunction;
 import org.sequeless.ontology.schema.api.AttributeDefinition;
 import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.Schema;
@@ -39,26 +40,30 @@ import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
+import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.ReadPort;
+import org.sequeless.spi.query.ReadRequest;
 import org.sequeless.spi.query.Sort;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The PostgreSQL-backed {@link QueryPort}: filtered, sorted, paged, faceted, and free-text queries
- * over {@code sq_object}'s tagged JSONB {@code props} column, sharing the same {@link JdbcClient}
- * wiring convention as {@link PostgresObjectStore}. See {@code plan.md} "PostgreSQL adapter design"
- * for the tagged-JSONB extraction/cast table this class implements, and {@link QueryPort}'s
- * interface-level javadoc for the full behavioural contract ({@code QueryContract} asserts every
- * clause of it mechanically).
+ * The PostgreSQL-backed {@link ReadPort}, {@link BrowsePort}, {@link IndexPreparationPort}, and
+ * {@link QueryPort}: single-object reads, filtered, sorted, paged, faceted, and free-text browse
+ * queries, index preparation, and aggregates, over {@code sq_object}'s tagged JSONB {@code props}
+ * column, sharing the same {@link JdbcClient} wiring convention as {@link PostgresObjectStore}. See
+ * {@code plan.md} "PostgreSQL adapter design" for the tagged-JSONB extraction/cast table this class
+ * implements, and each port's interface-level javadoc for the full behavioural contract.
  */
-public final class PostgresQueryStore implements QueryPort {
+public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPreparationPort, QueryPort {
 
     private final JdbcClient jdbcClient;
     private final TransactionTemplate transactionTemplate;
@@ -66,7 +71,7 @@ public final class PostgresQueryStore implements QueryPort {
     /**
      * @param jdbcClient the client to run reads through; must not be {@code null}
      * @param transactionManager the transaction manager backing {@link #transactionTemplate},
-     *     mirroring {@link PostgresObjectStore}'s constructor even though {@link #query} itself
+     *     mirroring {@link PostgresObjectStore}'s constructor even though {@link #browse} itself
      *     does not currently need a transaction; must not be {@code null}
      */
     public PostgresQueryStore(JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
@@ -75,8 +80,27 @@ public final class PostgresQueryStore implements QueryPort {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
+    /**
+     * Reads one object with the same tenant and soft-delete predicates as {@link
+     * PostgresObjectStore}'s {@code find}: an id that is soft-deleted or belongs to another tenant
+     * yields {@link Optional#empty()}.
+     */
     @Override
-    public QueryResult query(Scope scope, Schema schema, Query query) {
+    public Optional<BusinessObject> read(Scope scope, ReadRequest request) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(request, "request must not be null");
+        return jdbcClient
+                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
+                        + "updated_at, updated_by, deleted_at FROM sq_object "
+                        + "WHERE id = :id AND tenant_id = :tenantId AND deleted_at IS NULL")
+                .param("id", request.id().value())
+                .param("tenantId", scope.tenantId().value())
+                .query(PostgresObjectStore::mapRow)
+                .optional();
+    }
+
+    @Override
+    public QueryResult browse(Scope scope, Schema schema, Query query) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(query, "query must not be null");
@@ -132,16 +156,18 @@ public final class PostgresQueryStore implements QueryPort {
      * property in {@code sq_searchable_property}, backfilling {@code search_vector} for the
      * tenant's existing rows when a new searchable property is registered. Idempotent: a property
      * already present in either registry table is left untouched, so calling this repeatedly for
-     * the same {@link Schema} is cheap.
+     * the same {@link Schema} is cheap. The {@code version} argument is not used: the work depends
+     * on {@code schema} alone.
      *
-     * <p>Runs inside {@link #transactionTemplate} so a concurrent {@code ensureIndexes} call for
-     * the same tenant cannot interleave a registry insert with another's backfill, matching
-     * {@link PostgresOntologyDocumentStore#activate}'s use of the same transactional-wrapping
-     * pattern for multi-statement atomicity.
+     * <p>Runs inside {@link #transactionTemplate} so a concurrent {@code prepare} call for the
+     * same tenant cannot interleave a registry insert with another's backfill, matching {@link
+     * PostgresOntologyDocumentStore#activate}'s use of the same transactional-wrapping pattern for
+     * multi-statement atomicity.
      */
     @Override
-    public void ensureIndexes(Scope scope, Schema schema) {
+    public void prepare(Scope scope, OntologyVersion version, Schema schema) {
         Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(version, "version must not be null");
         Objects.requireNonNull(schema, "schema must not be null");
         String tenantId = scope.tenantId().value();
         Map<String, PropertyDefinition> allProperties = indexAllProperties(schema);
@@ -164,7 +190,7 @@ public final class PostgresQueryStore implements QueryPort {
 
     /**
      * Computes {@code request.function()} in one {@code GROUP BY} query over {@code sq_object},
-     * reusing {@link #castExpression} and {@link #criterionSql} exactly as {@link #query}'s {@link
+     * reusing {@link #castExpression} and {@link #criterionSql} exactly as {@link #browse}'s {@link
      * #buildWhere} does. See {@link QueryPort#aggregate}'s javadoc for the full density contract:
      * {@link AggregateFunction#COUNT} is zero-filled for every requested
      * target id, while {@code SUM}/{@code MIN}/{@code MAX}/{@code AVG} simply omit a target with no
@@ -568,7 +594,7 @@ public final class PostgresQueryStore implements QueryPort {
     /**
      * DDL-time cast expression with the property IRI embedded as an escaped string literal, for use
      * in a {@code CREATE INDEX ... ON sq_object ((<expr>))} statement, which cannot take bind
-     * parameters. Package-private so [T6]'s {@code ensureIndexes} can reuse the same per-datatype
+     * parameters. Package-private so {@code prepare} can reuse the same per-datatype
      * switch logic as {@link #castExpression} rather than re-deriving it.
      */
     static String castExpressionLiteral(PropertyDefinition property) {
