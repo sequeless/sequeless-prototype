@@ -13,7 +13,6 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.outbox.OutboxEntry;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -28,8 +27,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * the eight claimable kinds, {@code TransitionFired} included.
  *
  * <p>Each test empties the {@code public} schema first, so it starts from a database with no migration
- * history. Migrations run through {@link PostgresMigrations}: {@code migrateTo("4")} stops at V4, and
- * {@code migrate} then applies V5 and anything later.
+ * history. The pre-existing-rows test calls {@code migrateTo("4")}, which stops at V4 so the seeded rows
+ * can be written first, and then {@code migrateTo("5")}, which applies V5 and nothing later. The other
+ * tests call {@code migrate}, which applies every migration, V5 and any later one included.
  */
 @Testcontainers
 class PostgresOutboxV5MigrationIT {
@@ -38,14 +38,14 @@ class PostgresOutboxV5MigrationIT {
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:18");
 
     private static final Set<String> CLAIMABLE_KINDS = Set.of(
-            OutboxEntry.KIND_ACTION_REQUEST,
-            OutboxEntry.KIND_OBJECT_CREATED,
-            OutboxEntry.KIND_OBJECT_UPDATED,
-            OutboxEntry.KIND_OBJECT_DELETED,
-            OutboxEntry.KIND_TRANSITION_FIRED,
-            OutboxEntry.KIND_TIMER_SCHEDULED,
-            OutboxEntry.KIND_TIMER_CANCELLED,
-            OutboxEntry.KIND_SIGNAL_RECEIVED);
+            "ActionRequest",
+            "ObjectCreated",
+            "ObjectUpdated",
+            "ObjectDeleted",
+            "TransitionFired",
+            "TimerScheduled",
+            "TimerCancelled",
+            "SignalReceived");
 
     private static final Instant BASE = Instant.parse("2026-11-01T00:00:00Z");
 
@@ -66,16 +66,16 @@ class PostgresOutboxV5MigrationIT {
     @Test
     void preExistingTransitionFiredRowsAreMarkedProcessedAndOtherKindsStayClaimable() {
         PostgresMigrations.migrateTo(dataSource, "4");
-        UUID firedOne = insertRow(OutboxEntry.KIND_TRANSITION_FIRED, BASE, null);
-        UUID firedTwo = insertRow(OutboxEntry.KIND_TRANSITION_FIRED, BASE.plusSeconds(1), null);
-        UUID firedDone = insertRow(OutboxEntry.KIND_TRANSITION_FIRED, BASE.plusSeconds(2), BASE.plusSeconds(20));
-        UUID actionRequest = insertRow(OutboxEntry.KIND_ACTION_REQUEST, BASE.plusSeconds(3), null);
-        UUID timerScheduled = insertRow(OutboxEntry.KIND_TIMER_SCHEDULED, BASE.plusSeconds(4), null);
-        UUID timerCancelled = insertRow(OutboxEntry.KIND_TIMER_CANCELLED, BASE.plusSeconds(5), null);
-        UUID signalReceived = insertRow(OutboxEntry.KIND_SIGNAL_RECEIVED, BASE.plusSeconds(6), null);
-        UUID objectCreated = insertRow(OutboxEntry.KIND_OBJECT_CREATED, BASE.plusSeconds(7), null);
+        UUID firedOne = insertRow("TransitionFired", BASE, null);
+        UUID firedTwo = insertRow("TransitionFired", BASE.plusSeconds(1), null);
+        UUID firedDone = insertRow("TransitionFired", BASE.plusSeconds(2), BASE.plusSeconds(20));
+        UUID actionRequest = insertRow("ActionRequest", BASE.plusSeconds(3), null);
+        UUID timerScheduled = insertRow("TimerScheduled", BASE.plusSeconds(4), null);
+        UUID timerCancelled = insertRow("TimerCancelled", BASE.plusSeconds(5), null);
+        UUID signalReceived = insertRow("SignalReceived", BASE.plusSeconds(6), null);
+        UUID objectCreated = insertRow("ObjectCreated", BASE.plusSeconds(7), null);
 
-        PostgresMigrations.migrate(dataSource);
+        PostgresMigrations.migrateTo(dataSource, "5");
 
         assertThat(processedAt(firedOne)).isNotNull();
         assertThat(processedAt(firedTwo)).isNotNull();
@@ -93,7 +93,7 @@ class PostgresOutboxV5MigrationIT {
     @Test
     void transitionFiredRowWrittenAfterV5IsClaimed() {
         PostgresMigrations.migrate(dataSource);
-        UUID fired = insertRow(OutboxEntry.KIND_TRANSITION_FIRED, BASE, null);
+        UUID fired = insertRow("TransitionFired", BASE, null);
 
         assertThat(claimAll()).containsExactly(fired);
     }
