@@ -225,8 +225,9 @@ public class CoreConfiguration {
      * @param persistenceDataSource the persistence {@link DataSource} bean {@code
      *     sequelessPersistenceDataSource}, if one exists, resolved by that name through an {@link
      *     ObjectProvider}
-     * @return an {@link IndexPreparation} that reads the schema, prepares indexes through the port, and
-     *     backfills the search data on every call
+     * @return an {@link IndexPreparation} that reads the schema and prepares indexes through the port
+     *     on every call, and backfills the search data only when the port registered a new searchable
+     *     property
      */
     @Bean
     public IndexPreparation indexPreparation(
