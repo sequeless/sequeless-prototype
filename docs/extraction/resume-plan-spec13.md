@@ -144,3 +144,11 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 - Q1, allowed: P6 may be split. P6a is not held on O-8; P6b is. See spec 13 section 12, item 23.
 - Not done in this session: the P6a code. Also still held on owner answers: P2, P3, P4, P5b, P6b and P7 (O-8, B2, the B4 confirmation, O-3 and O-4). The #41 questions are unanswered.
 - Next action for the next session: write the P6a code PR in a fresh worktree from origin/main. Write it first as a short plan, get an Opus review, then implement, run the gate on JDK 25 (`source ~/.bashrc.ext && export JAVA_HOME=/opt/sdkman/candidates/java/25.0.3-tem && mvn spotless:apply && mvn -B -Prelease verify`), then get an Opus review of the diff before the PR, and comment on #41.
+
+## 10. Progress after P6a (recorded 2026-11-12)
+
+- P6a is merged as #122, squash `098171d`, on top of `544f64e`. The approved plan is the step list in the PR body and the #41 comment (posted 2026-11-12), not the draft files under /tmp, which are not durable. Its commits are C1 to C6 (additive first, removals last) plus the spec correction C7, and one javadoc follow-up `beda51b`.
+- Evidence: the full `-Prelease verify` passes on `beda51b`. The golden JSON diff of five endpoints is empty between `544f64e` and `5987c3b`. The residual grep for removed members is empty.
+- Decisions taken with the navigator in this session, and recorded in the PR body: `ReadRequest(ObjectId id)` (single component, type check stays in `DefaultBusinessObjectService`); the version path (each call site reads the schema and passes its version, and the use case re-reads it, with no guard); `PageResult` kept; the method name `BrowsePort.browse`.
+- Still held on owner answers: P6b (O-8); P2, P3 and P5b (B2, O-3 and O-4; P4 also after P2 and P3); P7 (the B4 confirmation and spec item 21). No code step is unblocked.
+- Follow-ups from the reviews, not blocking: `PageResult` is dead SPI surface; some `BrowseContract` assertions are weak; `CoreConfiguration` javadoc still lists `QueryPort` among the service's ports; stale prose in `docs/architecture/01-overview.md` (line 103) and a few test and main comments.
