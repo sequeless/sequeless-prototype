@@ -19,17 +19,14 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
 
 /**
  * A minimal {@link QueryPort} test double, existing purely to prove {@link AggregateContract}
- * itself is correct before T7's real Postgres implementation extends it. {@link #query} and
- * {@link #ensureIndexes} are not exercised by {@link AggregateContract} — that is {@link
- * QueryContract}'s job, and this module has no in-memory {@code QueryPort} implementation
- * complete enough to pass that broader contract — so they are left unimplemented here rather than
- * faked into something that would silently pass a contract this double was never meant to satisfy.
+ * itself is correct before the Postgres adapter extends it. {@link QueryPort} holds only aggregation
+ * now: browsing and reads are proven by {@link BrowseContract} and {@link ReadContract}, and index
+ * preparation by its own null-argument test, so this double implements {@link QueryPort#aggregate}
+ * alone and nothing else.
  *
  * <p>{@link #aggregate} is implemented honestly against {@link InMemoryAggregateObjectStorePort}'s
  * {@link InMemoryAggregateObjectStorePort#snapshot(Scope, java.util.Set)}: it reproduces the exact
@@ -45,18 +42,6 @@ final class InMemoryAggregateQueryPort implements QueryPort {
 
     InMemoryAggregateQueryPort(InMemoryAggregateObjectStorePort store) {
         this.store = Objects.requireNonNull(store, "store must not be null");
-    }
-
-    @Override
-    public QueryResult query(Scope scope, Schema schema, Query query) {
-        throw new UnsupportedOperationException(
-                "query is not exercised by AggregateContract; use QueryContract against a real "
-                        + "QueryPort implementation for that surface");
-    }
-
-    @Override
-    public void ensureIndexes(Scope scope, Schema schema) {
-        throw new UnsupportedOperationException("ensureIndexes is not exercised by AggregateContract");
     }
 
     @Override

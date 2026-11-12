@@ -20,8 +20,9 @@
  * org.sequeless.spi.object.ChangeSet}: the unit of atomic change an {@link
  * org.sequeless.spi.object.ObjectStorePort#commit} call applies, producing a {@link
  * org.sequeless.spi.object.CommitResult}. {@link org.sequeless.spi.object.Page} and {@link
- * org.sequeless.spi.object.PageResult} are the paging vocabulary for {@link
- * org.sequeless.spi.object.ObjectStorePort#browse}. {@link
+ * org.sequeless.spi.object.PageResult} are the paging vocabulary: a {@link
+ * org.sequeless.spi.object.Page} is the request for one page, and a {@link
+ * org.sequeless.spi.object.PageResult} is the page that answers it. {@link
  * org.sequeless.spi.object.StaleObjectException} and {@link
  * org.sequeless.kernel.values.ObjectNotFoundException} are the unchecked exceptions {@code commit}
  * throws when a mutation's optimistic-locking expectation is not met or its target does not exist.

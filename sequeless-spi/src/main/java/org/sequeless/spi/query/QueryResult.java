@@ -6,7 +6,7 @@ import java.util.Objects;
 import org.sequeless.spi.object.BusinessObject;
 
 /**
- * The result of a single {@link QueryPort#query} call: the matching objects on the requested
+ * The result of a single {@link BrowsePort#browse} call: the matching objects on the requested
  * page, the total number of matches across every page, and the computed facet buckets.
  *
  * @param items the objects on the requested page; must not be {@code null}; may be empty;

@@ -100,11 +100,6 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
     }
 
     @Override
-    public QueryResult query(Scope scope, Schema schema, Query query) {
-        return browse(scope, schema, query);
-    }
-
-    @Override
     public QueryResult browse(Scope scope, Schema schema, Query query) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(schema, "schema must not be null");
@@ -174,22 +169,6 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(version, "version must not be null");
         Objects.requireNonNull(schema, "schema must not be null");
-        doPrepare(scope, schema);
-    }
-
-    /**
-     * The {@link QueryPort} entry point for index preparation. It does the same work as {@link
-     * #prepare} for the same scope and schema, and is removed together with the {@link QueryPort}
-     * methods it sits beside.
-     */
-    @Override
-    public void ensureIndexes(Scope scope, Schema schema) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(schema, "schema must not be null");
-        doPrepare(scope, schema);
-    }
-
-    private void doPrepare(Scope scope, Schema schema) {
         String tenantId = scope.tenantId().value();
         Map<String, PropertyDefinition> allProperties = indexAllProperties(schema);
 
@@ -615,7 +594,7 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
     /**
      * DDL-time cast expression with the property IRI embedded as an escaped string literal, for use
      * in a {@code CREATE INDEX ... ON sq_object ((<expr>))} statement, which cannot take bind
-     * parameters. Package-private so [T6]'s {@code ensureIndexes} can reuse the same per-datatype
+     * parameters. Package-private so {@code prepare} can reuse the same per-datatype
      * switch logic as {@link #castExpression} rather than re-deriving it.
      */
     static String castExpressionLiteral(PropertyDefinition property) {

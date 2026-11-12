@@ -9,7 +9,7 @@ import org.sequeless.kernel.identity.TenantId;
  * Shared, port-agnostic test data for every contract in this testkit. This class lives at the top
  * level of {@code org.sequeless.testkit} — not under a per-port subpackage such as {@code
  * org.sequeless.testkit.authz} — precisely because later contracts (an {@code ObjectStoreContract},
- * a {@code QueryContract}) need the same tenant, principal, and scope building blocks that {@link
+ * a {@code BrowseContract}) need the same tenant, principal, and scope building blocks that {@link
  * org.sequeless.testkit.authz.AuthorizationContract} needs, and none of that data is specific to
  * authorization.
  *

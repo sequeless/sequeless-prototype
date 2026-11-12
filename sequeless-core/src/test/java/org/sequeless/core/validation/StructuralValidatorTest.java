@@ -31,8 +31,6 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.validation.Violation;
@@ -327,11 +325,6 @@ class StructuralValidatorTest {
 
         @Override
         public Optional<BusinessObject> find(Scope scope, ObjectId id) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
             throw new UnsupportedOperationException("not exercised by these tests");
         }
 

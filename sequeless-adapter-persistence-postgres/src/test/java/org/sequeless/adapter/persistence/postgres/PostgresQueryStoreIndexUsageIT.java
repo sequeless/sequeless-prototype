@@ -46,7 +46,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Proves {@link PostgresQueryStore#ensureIndexes} does more than register a row in {@code
+ * Proves {@link PostgresQueryStore#prepare} does more than register a row in {@code
  * sq_index_registry}: the expression index it creates is actually chosen by PostgreSQL's planner
  * for a query filtering on that indexed property, over a realistic volume of data.
  *
@@ -105,7 +105,7 @@ class PostgresQueryStoreIndexUsageIT {
      * xsd:string}-typed. Seeds {@link #ROW_COUNT} {@code Task}s alternating {@code status} between
      * {@code "OPEN"} and {@code "CLOSED"} so a filter on it is selective, then proves an {@code
      * EXPLAIN} of that filter both names an Index Scan and names the specific index {@code
-     * ensureIndexes} created and registered — read back from {@code sq_index_registry} rather than
+     * prepare} created and registered — read back from {@code sq_index_registry} rather than
      * recomputed via {@link PostgresQueryStore#indexNameFor}, so this test stays decoupled from
      * that hashing implementation detail.
      */
@@ -114,7 +114,7 @@ class PostgresQueryStoreIndexUsageIT {
         Scope scope = Fixtures.defaultScope();
         String tenantId = scope.tenantId().value();
 
-        queryPort.ensureIndexes(scope, QueryFixtures.schema());
+        queryPort.prepare(scope, QueryFixtures.schema().ontologyVersion(), QueryFixtures.schema());
 
         String indexName = jdbcClient
                 .sql("SELECT index_name FROM sq_index_registry WHERE tenant_id = :tenantId "
@@ -166,7 +166,7 @@ class PostgresQueryStoreIndexUsageIT {
         Scope scope = Fixtures.defaultScope();
         String tenantId = scope.tenantId().value();
 
-        queryPort.ensureIndexes(scope, QueryFixtures.schema());
+        queryPort.prepare(scope, QueryFixtures.schema().ontologyVersion(), QueryFixtures.schema());
 
         int projectCount = 8;
         List<ObjectId> projectIds = seedProjects(scope, projectCount);

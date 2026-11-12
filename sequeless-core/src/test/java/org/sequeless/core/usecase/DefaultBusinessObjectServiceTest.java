@@ -9,7 +9,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +64,6 @@ import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
@@ -1390,10 +1388,9 @@ class DefaultBusinessObjectServiceTest {
 
     /**
      * Hand-written {@link QueryPort} and {@link BrowsePort} double: captures every {@link Query}
-     * passed to {@link #browse} (or to {@link #query}, which delegates to it), returning a
-     * configurable (default empty) {@link QueryResult}. {@link #ensureIndexes} is not exercised by
-     * these tests (that's {@code DefaultOntologyAdministrationTest}'s job), so it throws, matching
-     * how every other fake in this file leaves an unexercised method unimplemented.
+     * passed to {@link #browse}, returning a configurable (default empty) {@link QueryResult}. It
+     * serves aggregate for the derivation planner and browse for the service under test; the
+     * index preparation port is not exercised by these tests at all.
      */
     private static final class FakeQueryPort implements QueryPort, BrowsePort {
 
@@ -1402,22 +1399,12 @@ class DefaultBusinessObjectServiceTest {
         private QueryResult response = new QueryResult(List.of(), 0, Map.of());
 
         @Override
-        public QueryResult query(Scope scope, Schema schema, Query query) {
-            return browse(scope, schema, query);
-        }
-
-        @Override
         public QueryResult browse(Scope scope, Schema schema, Query query) {
             Objects.requireNonNull(scope, "scope must not be null");
             Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(query, "query must not be null");
             queries.add(query);
             return response;
-        }
-
-        @Override
-        public void ensureIndexes(Scope scope, Schema schema) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         /**
@@ -1515,10 +1502,8 @@ class DefaultBusinessObjectServiceTest {
         private final Map<ObjectId, BusinessObject> store = new HashMap<>();
         private final List<ChangeSet> commits = new ArrayList<>();
         private int findCalls;
-        private int browseCalls;
         private int typesOfCalls;
         private int commitCalls;
-        private Set<TypeRef> lastBrowseTypes;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
@@ -1534,22 +1519,6 @@ class DefaultBusinessObjectServiceTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(types, "types must not be null");
-            Objects.requireNonNull(page, "page must not be null");
-            browseCalls++;
-            lastBrowseTypes = types;
-            List<BusinessObject> items = store.values().stream()
-                    .filter(object -> !object.deleted() && types.contains(object.type()))
-                    .sorted(Comparator.comparing(
-                                    (BusinessObject object) -> object.audit().createdAt())
-                            .thenComparing(object -> object.id().value()))
-                    .toList();
-            return new PageResult<>(items, page.number(), page.size(), items.size());
         }
 
         @Override

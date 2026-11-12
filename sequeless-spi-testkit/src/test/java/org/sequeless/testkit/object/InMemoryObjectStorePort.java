@@ -1,7 +1,6 @@
 package org.sequeless.testkit.object;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +21,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
@@ -58,30 +55,6 @@ final class InMemoryObjectStorePort implements ObjectStorePort {
                 return Optional.empty();
             }
             return Optional.of(object);
-        }
-    }
-
-    @Override
-    public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(types, "types must not be null");
-        for (TypeRef type : types) {
-            Objects.requireNonNull(type, "types must not contain null");
-        }
-        Objects.requireNonNull(page, "page must not be null");
-        synchronized (lock) {
-            List<BusinessObject> matching = objects.values().stream()
-                    .filter(object -> !object.deleted())
-                    .filter(object -> object.tenant().equals(scope.tenantId()))
-                    .filter(object -> types.contains(object.type()))
-                    .sorted(Comparator.comparing(
-                                    (BusinessObject object) -> object.audit().createdAt())
-                            .thenComparing(object -> object.id().value()))
-                    .toList();
-            long totalItems = matching.size();
-            int fromIndex = Math.min(page.number() * page.size(), matching.size());
-            int toIndex = Math.min(fromIndex + page.size(), matching.size());
-            return new PageResult<>(matching.subList(fromIndex, toIndex), page.number(), page.size(), totalItems);
         }
     }
 

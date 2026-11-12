@@ -8,7 +8,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +30,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
@@ -135,22 +132,6 @@ public abstract class ObjectStoreContract {
         ObjectStorePort store = freshStore();
         assertThatNullPointerException().isThrownBy(() -> store.find(null, ObjectId.random()));
         assertThatNullPointerException().isThrownBy(() -> store.find(Fixtures.defaultScope(), null));
-    }
-
-    @Test
-    void browseRejectsNullArguments() {
-        ObjectStorePort store = freshStore();
-        Scope scope = Fixtures.defaultScope();
-        Page page = new Page(0, 20);
-        Set<TypeRef> types = Set.of(TYPE_A);
-
-        assertThatNullPointerException().isThrownBy(() -> store.browse(null, types, page));
-        assertThatNullPointerException().isThrownBy(() -> store.browse(scope, null, page));
-        assertThatNullPointerException().isThrownBy(() -> store.browse(scope, types, null));
-
-        Set<TypeRef> withNull = new HashSet<>();
-        withNull.add(null);
-        assertThatNullPointerException().isThrownBy(() -> store.browse(scope, withNull, page));
     }
 
     @Test
@@ -277,7 +258,7 @@ public abstract class ObjectStoreContract {
     }
 
     @Test
-    void softDeleteHidesFromFindBrowseAndTypesOf() {
+    void softDeleteHidesFromFindAndTypesOf() {
         ObjectStorePort store = freshStore();
         Scope scope = Fixtures.defaultScope();
         ObjectId id = ObjectId.random();
@@ -289,8 +270,6 @@ public abstract class ObjectStoreContract {
                         List.of(new Delete(id, 1, Instant.now().truncatedTo(ChronoUnit.MICROS), "tester")), List.of()));
 
         assertThat(store.find(scope, id)).isEmpty();
-        PageResult<BusinessObject> page = store.browse(scope, Set.of(TYPE_A), new Page(0, 20));
-        assertThat(page.items()).extracting(BusinessObject::id).doesNotContain(id);
         assertThat(store.typesOf(scope, Set.of(id))).isEmpty();
     }
 
@@ -306,41 +285,6 @@ public abstract class ObjectStoreContract {
         Map<ObjectId, TypeRef> resolved = store.typesOf(scope, Set.of(known, unknown));
         assertThat(resolved).containsExactly(Map.entry(known, TYPE_A));
         assertThat(store.typesOf(scope, Set.of())).isEmpty();
-    }
-
-    @Test
-    void browsePagingTotalsOrderingAndOverrun() {
-        ObjectStorePort store = freshStore();
-        Scope scope = Fixtures.defaultScope();
-        Instant base = Instant.parse("2026-01-01T00:00:00Z");
-
-        List<ObjectId> expectedOrder = new ArrayList<>();
-        List<Mutation> mutations = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
-            ObjectId id = ObjectId.random();
-            expectedOrder.add(id);
-            mutations.add(new Create(objectAt(scope, id, TYPE_A, base.plusSeconds(i))));
-        }
-        for (int i = 0; i < 2; i++) {
-            ObjectId id = ObjectId.random();
-            expectedOrder.add(id);
-            mutations.add(new Create(objectAt(scope, id, TYPE_B, base.plusSeconds(10 + i))));
-        }
-        store.commit(scope, new ChangeSet(mutations, List.of()));
-
-        PageResult<BusinessObject> page0 = store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(0, 3));
-        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 3));
-        assertThat(page0.totalItems()).isEqualTo(5);
-        assertThat(page0.totalPages()).isEqualTo(2);
-
-        PageResult<BusinessObject> page1 = store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(1, 3));
-        assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(3, 5));
-        assertThat(page1.totalItems()).isEqualTo(5);
-
-        PageResult<BusinessObject> overrun = store.browse(scope, Set.of(TYPE_A, TYPE_B), new Page(5, 3));
-        assertThat(overrun.items()).isEmpty();
-        assertThat(overrun.totalItems()).isEqualTo(5);
-        assertThat(overrun.totalPages()).isEqualTo(2);
     }
 
     @Test
@@ -377,8 +321,6 @@ public abstract class ObjectStoreContract {
         store.commit(alice, new ChangeSet(List.of(new Create(newObject(alice, id, TYPE_A, Map.of()))), List.of()));
 
         assertThat(store.find(otherTenant, id)).isEmpty();
-        assertThat(store.browse(otherTenant, Set.of(TYPE_A), new Page(0, 20)).items())
-                .isEmpty();
         assertThat(store.typesOf(otherTenant, Set.of(id))).isEmpty();
 
         assertThat(store.find(alice, id)).isPresent();
