@@ -437,6 +437,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).doesNotContain(id);
+        assertThat(result.total()).isZero();
     }
 
     @Test
