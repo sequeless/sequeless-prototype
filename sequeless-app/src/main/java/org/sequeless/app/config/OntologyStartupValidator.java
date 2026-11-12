@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 /**
- * Forces the active ontology to be read and validated once, at startup, and prepares query indexes
+ * Forces the active ontology to be read and validated at startup, and prepares query indexes
  * for it, so an inconsistent ontology fails the application before it ever accepts a request —
  * plan.md's Decision 4.
  *
@@ -25,7 +25,7 @@ import org.springframework.stereotype.Component;
  * <p><b>Why {@link ApplicationRunner} and not another lifecycle hook.</b> {@link
  * org.sequeless.app.port.PortRegistry} validates port cardinality in {@code
  * afterSingletonsInstantiated()} — the second of two {@code SmartInitializingSingleton} passes —
- * and this validator's own parameters are {@code @Lazy} proxies, so dereferencing them (by calling
+ * and this validator's schemaSource parameter is a {@code @Lazy} proxy, so dereferencing it (by calling
  * {@link #run}) must happen only once that validation has already guaranteed exactly one port bean
  * exists. {@code ApplicationRunner}s execute after {@code refreshContext()} completes, which already
  * includes every {@code SmartInitializingSingleton} callback — so this runs strictly after {@code
@@ -50,7 +50,7 @@ public class OntologyStartupValidator implements ApplicationRunner {
     }
 
     /**
-     * Reads the Schema of the default tenant once, then prepares query indexes for the version of
+     * Reads the Schema of the default tenant, then prepares query indexes for the version of
      * that Schema. If the ontology is inconsistent, the {@link org.sequeless.ontology.api.OntologyException}
      * the read throws propagates out of {@code SpringApplication.run}, failing startup.
      *

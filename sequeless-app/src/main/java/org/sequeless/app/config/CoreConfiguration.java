@@ -169,7 +169,7 @@ public class CoreConfiguration {
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @param readPort the lazily-resolved read port adapter, which {@code read} resolves one object
+     * @param readPort the lazily-resolved ReadPort adapter, which {@code read} resolves one object
      *     through
      * @param browsePort the lazily-resolved browse port adapter, which {@code browse} runs its query
      *     through

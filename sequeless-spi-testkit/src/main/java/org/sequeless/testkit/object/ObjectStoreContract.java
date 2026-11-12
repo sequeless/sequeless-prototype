@@ -93,7 +93,6 @@ public abstract class ObjectStoreContract {
     private static final String NS = "https://example.org/objectstore#";
 
     private static final TypeRef TYPE_A = new TypeRef(NS + "TypeA");
-    private static final TypeRef TYPE_B = new TypeRef(NS + "TypeB");
 
     private static final PropertyRef TEXT_PROP = new PropertyRef(NS + "text");
     private static final PropertyRef INTEGER_PROP = new PropertyRef(NS + "integer");
@@ -329,10 +328,6 @@ public abstract class ObjectStoreContract {
     private static BusinessObject newObject(
             Scope scope, ObjectId id, TypeRef type, Map<PropertyRef, Value> properties) {
         return objectAt(scope, id, type, properties, Instant.now().truncatedTo(ChronoUnit.MICROS));
-    }
-
-    private static BusinessObject objectAt(Scope scope, ObjectId id, TypeRef type, Instant createdAt) {
-        return objectAt(scope, id, type, Map.of(), createdAt);
     }
 
     private static BusinessObject objectAt(
