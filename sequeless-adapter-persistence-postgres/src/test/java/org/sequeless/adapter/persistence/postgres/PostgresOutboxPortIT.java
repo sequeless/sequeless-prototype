@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,8 +27,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Proves {@link PostgresOutboxPort} claims one unprocessed {@code ActionRequest} row at a time,
  * skips other outbox kinds, marks a claimed row processed, never lets two concurrent claimers
- * take the same row (thanks to {@code SKIP LOCKED}), and leaves a row unprocessed when the
- * handler throws — against a real PostgreSQL 18 instance started by Testcontainers, mirroring
+ * take the same row (thanks to {@code SKIP LOCKED}), leaves a row unprocessed when the handler
+ * throws, and dead-letters a row after its third failed dispatch (DR-23) — against a real
+ * PostgreSQL 18 instance started by Testcontainers, mirroring
  * {@link PostgresObjectStoreContractIT}'s own container/migration/truncation pattern.
  *
  * <p>{@code sq_outbox} rows are inserted directly via SQL in these tests rather than through
@@ -179,6 +181,99 @@ class PostgresOutboxPortIT {
         Optional<UUID> retried =
                 freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
         assertThat(retried).contains(rowId);
+    }
+
+    @Test
+    void rowWhoseHandlerAlwaysThrowsIsDeadLetteredAfterThreeFailedDispatches() {
+        UUID rowId = UUID.randomUUID();
+        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+
+        for (int failure = 0; failure < 3; failure++) {
+            assertThatThrownBy(PostgresOutboxPortIT::claimThatThrows).hasMessage("boom");
+        }
+
+        AtomicInteger handlerCalls = new AtomicInteger();
+        Optional<UUID> claimedAfterThree = freshPort()
+                .claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+                    handlerCalls.incrementAndGet();
+                    return entry.id();
+                });
+
+        assertThat(claimedAfterThree).isEmpty();
+        assertThat(handlerCalls).hasValue(0);
+        assertThat(failCountOf(rowId)).isEqualTo(3);
+        assertThat(isDeadLettered(rowId)).isTrue();
+        assertThat(errorOf(rowId)).isEqualTo("boom");
+        assertThat(isProcessed(rowId)).isFalse();
+    }
+
+    @Test
+    void rowBehindADeadLetteredRowIsStillClaimedAndProcessed() {
+        UUID deadLetteredId = UUID.randomUUID();
+        UUID behindId = UUID.randomUUID();
+        Instant now = Instant.now();
+        insertOutboxRow(deadLetteredId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now);
+        insertOutboxRow(behindId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now.plusSeconds(1));
+
+        for (int failure = 0; failure < 3; failure++) {
+            assertThatThrownBy(PostgresOutboxPortIT::claimThatThrows).hasMessage("boom");
+        }
+        assertThat(isDeadLettered(deadLetteredId)).isTrue();
+
+        Optional<UUID> next =
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+
+        assertThat(next).contains(behindId);
+        assertThat(isProcessed(behindId)).isTrue();
+        assertThat(isProcessed(deadLetteredId)).isFalse();
+    }
+
+    @Test
+    void rowThatFailsTwiceAndThenSucceedsIsProcessedAndNotDeadLettered() {
+        UUID rowId = UUID.randomUUID();
+        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+
+        for (int failure = 0; failure < 2; failure++) {
+            assertThatThrownBy(PostgresOutboxPortIT::claimThatThrows).hasMessage("boom");
+        }
+
+        Optional<UUID> third =
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+
+        assertThat(third).contains(rowId);
+        assertThat(failCountOf(rowId)).isEqualTo(2);
+        assertThat(isDeadLettered(rowId)).isFalse();
+        assertThat(isProcessed(rowId)).isTrue();
+    }
+
+    private static void claimThatThrows() {
+        freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+            throw new RuntimeException("boom");
+        });
+    }
+
+    private static Boolean isProcessed(UUID id) {
+        return outboxColumn("processed_at IS NOT NULL", id, Boolean.class);
+    }
+
+    private static Boolean isDeadLettered(UUID id) {
+        return outboxColumn("dead_lettered_at IS NOT NULL", id, Boolean.class);
+    }
+
+    private static Integer failCountOf(UUID id) {
+        return outboxColumn("fail_count", id, Integer.class);
+    }
+
+    private static String errorOf(UUID id) {
+        return outboxColumn("error", id, String.class);
+    }
+
+    private static <V> V outboxColumn(String expression, UUID id, Class<V> type) {
+        return JdbcClient.create(dataSource)
+                .sql("SELECT " + expression + " FROM sq_outbox WHERE id = :id")
+                .param("id", id)
+                .query(type)
+                .single();
     }
 
     private static void await(CountDownLatch latch) {

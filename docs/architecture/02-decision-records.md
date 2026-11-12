@@ -141,3 +141,22 @@ collation, which orders mixed-case values differently from the double; (b) an id
 apply to scalar buckets and matches neither the double nor the label. Consequences: a target with no label
 no longer makes browse throw; it adds no bucket. The scalar and reference facets agree; the double and
 PostgreSQL agree for all code points. Reversibility: easy (query and test-double change only).
+
+### DR-23 Relay dead-letter after three failed dispatches
+Context: under B2 route 1 (resume plan spec 13, section 3), a row whose dispatch fails is left unprocessed
+and retried, so a permanently failing row blocks every row behind it. `OutboxRelay` recorded this as an
+accepted limitation with no dead-letter. `sq_outbox.attempts` is write-only, so it cannot count failures.
+Decision: B2 route 1 changes from "fail and retry" to "three failed dispatches, then dead-letter". Three V7
+columns (`fail_count`, `dead_lettered_at` and `error`) are added to `sq_outbox`. A failed dispatch rolls back its claim, then increments
+`fail_count` in its own transaction; the third failure stamps `dead_lettered_at` and `error` in that
+transaction. The claim query skips dead-lettered rows, so the queue continues. A dead-lettered row keeps
+`processed_at` NULL. Alternatives: skip-ahead, where the claim moves past a failing row (the row is silently
+lost); a separate dead-letter table (the row leaves `sq_outbox`, so O-3's count no longer sees it); set
+`processed_at` on failure (silently removes the row from the O-3 count).
+Consequences: O-3's command still counts dead-lettered rows as unprocessed, so the kind-removal gate sees
+them. The P2 to P4 plans must drain or resolve dead-lettered rows before their kinds leave the outbox. A
+stamp mismatch under B2 that throws in dispatch now dead-letters after three tries instead of blocking the
+queue. The main cost: during a systemic failure (for example, the Temporal server being down), the oldest
+row fails on every poll, so a healthy row is dead-lettered every three polls. Nothing retries a
+dead-lettered row; recovery is manual: reset `dead_lettered_at`, `fail_count` and `error`.
+Reversibility: moderate (three V7 columns are added; the claim query changes).
