@@ -4,7 +4,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.outbox.OutboxPort;
-import org.sequeless.spi.query.QueryPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -109,7 +108,7 @@ public class PostgresPersistenceAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(name = "sequeless.query.adapter", havingValue = "postgres", matchIfMissing = true)
-    public QueryPort queryPort(DataSource sequelessPersistenceDataSource) {
+    public PostgresQueryStore queryPort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
                 new DataSourceTransactionManager(sequelessPersistenceDataSource);
