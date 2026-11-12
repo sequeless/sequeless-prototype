@@ -80,7 +80,7 @@ public class PostgresPersistenceAutoConfiguration {
      * @return a new {@link PostgresObjectStore} over that {@link DataSource}
      */
     @Bean
-    public ObjectStorePort objectStorePort(DataSource sequelessPersistenceDataSource) {
+    public PostgresObjectStore objectStorePort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
                 new DataSourceTransactionManager(sequelessPersistenceDataSource);

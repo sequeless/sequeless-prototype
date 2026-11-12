@@ -27,6 +27,7 @@ import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.spi.query.QueryPort;
@@ -39,6 +40,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Wires sequeless-core's use cases into the Spring context.
@@ -207,15 +210,35 @@ public class CoreConfiguration {
      * <p>Its port parameters are {@code @Lazy} for exactly the reason spelled out on {@link
      * #businessObjectService}, and none may be "simplified" away.
      *
+     * <p><b>One transaction over the persistence DataSource.</b> When the {@code
+     * sequelessPersistenceDataSource} bean exists, the preparation and the backfill run inside one
+     * {@link TransactionTemplate} over it. The Postgres adapter's own templates are {@code REQUIRED}
+     * over the same DataSource object, so they join this transaction, and the registry rows and the
+     * backfill commit or roll back together. The DataSource is taken through an {@link ObjectProvider}
+     * and not through a lazy proxy, because a proxy is a different object from the DataSource the
+     * transaction binds to, as {@link #derivationRecomputer} explains. When no DataSource bean exists,
+     * the use case runs without a transaction, as before.
+     *
      * @param schemaSource the lazily-resolved schema read port
      * @param indexPreparationPort the lazily-resolved index preparation port adapter
-     * @return an {@link IndexPreparation} that reads the schema and prepares indexes through the port
-     *     on every call
+     * @param searchVectorBackfillPort the lazily-resolved search backfill port adapter
+     * @param persistenceDataSource the persistence {@link DataSource} bean {@code
+     *     sequelessPersistenceDataSource}, if one exists, resolved by that name through an {@link
+     *     ObjectProvider}
+     * @return an {@link IndexPreparation} that reads the schema, prepares indexes through the port, and
+     *     backfills the search data on every call
      */
     @Bean
     public IndexPreparation indexPreparation(
-            @Lazy SchemaSource schemaSource, @Lazy IndexPreparationPort indexPreparationPort) {
-        return new IndexPreparation(schemaSource, indexPreparationPort);
+            @Lazy SchemaSource schemaSource,
+            @Lazy IndexPreparationPort indexPreparationPort,
+            @Lazy SearchVectorBackfillPort searchVectorBackfillPort,
+            @Qualifier("sequelessPersistenceDataSource") ObjectProvider<DataSource> persistenceDataSource) {
+        DataSource dataSource = persistenceDataSource.getIfAvailable();
+        TransactionOperations transactions = dataSource == null
+                ? TransactionOperations.withoutTransaction()
+                : new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        return new IndexPreparation(schemaSource, indexPreparationPort, searchVectorBackfillPort, transactions);
     }
 
     /**

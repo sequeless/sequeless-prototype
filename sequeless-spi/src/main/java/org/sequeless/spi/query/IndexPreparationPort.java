@@ -37,12 +37,20 @@ public interface IndexPreparationPort {
      * per {@code sq:indexed} property and a full-text index over every {@code sq:searchable}
      * property. See the interface-level javadoc for the full contract this method must satisfy.
      *
+     * <p>Preparing a searchable property registers it for the tenant, but does not change the
+     * objects already stored. The caller learns from the return value whether the existing objects
+     * need their full-text data recomputed, and recomputes it through {@link
+     * org.sequeless.spi.object.SearchVectorBackfillPort}.
+     *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
      * @param version the ontology version the caller is activating; must not be {@code null}; not
      *     checked against {@code schema}
      * @param schema the type system to prepare indexes for; must not be {@code null}
+     * @return {@code true} iff this call newly registered a searchable property for the tenant of
+     *     {@code scope}; {@code false} otherwise, including on every repeat call for an unchanged
+     *     {@code schema}
      * @throws NullPointerException if any argument is {@code null}
      */
-    void prepare(Scope scope, OntologyVersion version, Schema schema);
+    boolean prepare(Scope scope, OntologyVersion version, Schema schema);
 }

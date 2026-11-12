@@ -39,5 +39,10 @@
  * unprocessed {@link org.sequeless.spi.outbox.OutboxEntry#KIND_ACTION_REQUEST} row written by
  * {@code commit} above, without forcing every {@code ObjectStorePort} implementation — including
  * test doubles that have no use for outbox claiming — to implement it.
+ *
+ * <p>{@link org.sequeless.spi.object.SearchVectorBackfillPort} is a sibling outbound port, not a
+ * method on {@link org.sequeless.spi.object.ObjectStorePort}: it recomputes the full-text search data
+ * of a tenant's stored objects after index preparation registers a new searchable property. Keeping
+ * it separate leaves every {@code ObjectStorePort} implementation as it was.
  */
 package org.sequeless.spi.object;
