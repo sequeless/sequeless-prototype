@@ -100,7 +100,7 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 | `OntologyAdministration`, `SchemaSource`, `BehaviourSource`, `AutomationSource` | Parse, reason, resolve and activate the ontology; import/export Turtle; read the Schema, Behaviour and Automation halves of the active version. One adapter bean implements all four | `jena` | `rdf4j`, external DL reasoner, static YAML for tests | `sequeless.ontology.adapter=jena` |
 | `ValidationPort` | Validate a business object against shapes | `shacl` (Jena module) | `noop`, JSON Schema | `sequeless.validation.adapter=shacl` |
 | `ObjectStorePort` | Atomic commit of object mutations plus outbox rows; read by id; ontology document storage | `postgres` | `inmemory`, MongoDB, Neo4j | `sequeless.persistence.adapter=postgres` |
-| `QueryPort` | Filtered, sorted, paged browse; facet counts; text search; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
+| `ReadPort`, `BrowsePort`, `IndexPreparationPort`, `QueryPort` | Read one object by id; filtered, sorted, paged browse with facet counts and text search; prepare query indexes after an ontology activation; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
 | `ExpressionPort` | Evaluate guard expressions against an object context | `jexl` | SpEL, GraalJS | `sequeless.expression.adapter=jexl` |
 | `AutomationPort` | Durably execute transition actions, timers and external signals from the outbox | `temporal` | `inprocess` | `sequeless.automation.adapter=temporal` |
 | `AuthorizationPort` | Decide whether a principal may perform an operation on a type, object or field | `permit-all` | Spring Security + OIDC | `sequeless.authz.adapter=permit-all` |
@@ -133,8 +133,19 @@ public interface ObjectStorePort {
     Optional<BusinessObject> find(Scope scope, TypeRef type, ObjectId id);
 }
 
+public interface ReadPort {
+    Optional<ObjectView> read(Scope scope, ReadRequest request);
+}
+
+public interface BrowsePort {
+    QueryResult browse(Scope scope, Schema schema, Query query);
+}
+
+public interface IndexPreparationPort {
+    boolean prepare(Scope scope, OntologyVersion version, Schema schema);
+}
+
 public interface QueryPort {
-    QueryResult query(Scope scope, Schema schema, Query query);
     AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 }
 
@@ -161,7 +172,7 @@ Startup fails with a clear message if a property names an adapter that is not on
 fails the build on a binary-incompatible change without a major bump.
 
 **Compliance.** `sequeless-spi-testkit` publishes one abstract contract test class per port (for
-example `ObjectStoreContract`, `QueryContract`, `OntologyContract`, `AutomationContract`). An
+example `ObjectStoreContract`, `BrowseContract`, `OntologyContract`, `AutomationContract`). An
 adapter test extends the class and supplies a factory. Contracts cover the reference domain,
 optimistic locking, atomicity of commit with outbox rows, facet counts, and idempotent dispatch.
 An adapter is compliant when it passes the kit.
