@@ -159,7 +159,7 @@ public class CoreConfiguration {
     /**
      * Builds the {@link BusinessObjectService} use case around whichever schema and behaviour read
      * ports, {@link ObjectStorePort}, {@link ValidationPort}, {@link AuthorizationPort}, {@link
-     * ReadPort}, {@link BrowsePort} and {@link QueryPort} adapters are configured.
+     * ReadPort}, {@link BrowsePort} and {@link QueryPort} adapters are configured; QueryPort is reached through the DerivationPlanner.
      *
      * <p><b>All port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
      * #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code

@@ -6,8 +6,7 @@
 `ObjectStorePort` (DR-04) commits and reads one object at a time. Listing a type — with filters,
 sorting, facet counts, and free-text search, across an abstract type's concrete subtypes — is a
 different access pattern with its own indexing and query-planning concerns, so it is its own port:
-`QueryPort`. `01-overview.md`'s port catalogue lists it as "Filtered, sorted, paged browse; facet
-counts; text search; aggregations for rollups," backed by `postgres` by default, with OpenSearch or
+`QueryPort`. `01-overview.md`'s port catalogue lists the read, browse, index-preparation and aggregate ports as one row, backed by `postgres` by default, with OpenSearch or
 a SPARQL endpoint as plausible alternative adapters. DR-13 decided full-text search would live
 inside the default query adapter (`tsvector` over `sq:searchable` properties) rather than behind a
 separate search-index port from day one, with a dedicated search adapter only "if facet queries
@@ -85,7 +84,7 @@ meaningful for" only informationally; operator/datatype coherence is enforced by
 not something the port resolves itself. When a request names an abstract type (`WorkItem` in the
 reference domain), core expands it to its concrete subtypes (`Task`, `Project`) using the
 `Schema`'s type hierarchy *before* constructing the `Query` — the port never sees an
-abstract type IRI and never does hierarchy reasoning. `QueryPort`'s interface-level javadoc is
+abstract type IRI and never does hierarchy reasoning. `BrowsePort`'s interface-level javadoc is
 explicit that `types()` is a union: a matching object's type is any one of the listed IRIs, not
 every one at once — the same union semantics `ObjectStorePort#browse`'s `Set<TypeRef>` parameter
 already has.
@@ -178,7 +177,7 @@ silently dropped from the response.
 
 ## Facet counting: conventional multi-select
 
-`QueryPort`'s interface-level javadoc states the rule precisely:
+`BrowsePort`'s interface-level javadoc states the rule precisely:
 
 > For a facet property `P` in `query.facetProperties()`, the bucket counts returned for `P` are
 > computed against every criterion in `query.criteria()` *except* any criterion whose `property` is
@@ -237,7 +236,7 @@ configuration — no stemming/stopword removal — used consistently by the trig
 backfill). When `query.sorts()` is empty and `query.text()` is present, results are ordered by
 `ts_rank(search_vector, plainto_tsquery('simple', :searchText)) DESC`, then `created_at`, then `id`
 as a stable tiebreak (`PostgresQueryStore.buildOrderBy`) — see "Default ordering" below for how this
-interacts with `QueryPort`'s own default-order contract.
+interacts with `BrowsePort`'s own default-order contract.
 
 ## `prepare` and the index registry
 
@@ -247,7 +246,7 @@ on the `Schema`'s properties:
 - For every property with `sq:indexed=true` not already present in `sq_index_registry`
   `(tenant_id, property_iri, index_name, created_at)` (PK `(tenant_id, property_iri)`): runs
   `CREATE INDEX IF NOT EXISTS <name> ON sq_object ((<cast-expression>))` using the same
-  datatype-aware cast expression `query`'s own `WHERE`/`ORDER BY` clauses use (`castExpressionLiteral`,
+  datatype-aware cast expression `browse`'s own `WHERE`/`ORDER BY` clauses use (`castExpressionLiteral`,
   a DDL-time twin of `castExpression` with the property IRI embedded as an escaped literal instead of
   a bind parameter, since `CREATE INDEX` cannot take bind parameters), then registers the row.
   Index names are deterministic hashes — `"sq_idx_"` plus 16 hex characters of an MD5 digest of
@@ -256,8 +255,8 @@ on the `Schema`'s properties:
 - For every property with `sq:searchable=true` not already present in `sq_searchable_property`:
   inserts it, and `prepare` returns `true` if any new searchable property was registered. The host
   then runs the Command-side backfill of `search_vector` for every existing row of the tenant
-  (`SearchVectorBackfillPort`, implemented by `PostgresObjectStore`) in the same transaction, so the
-  backfill sees the newly registered properties. Its statement stays in sync with the trigger's logic.
+  (`SearchVectorBackfillPort`, implemented by `PostgresObjectStore`) in the same transaction, so the registry rows and the
+  backfill commit or roll back together. Its statement stays in sync with the trigger's logic.
 
 Both loops skip already-registered properties, so a repeat call with an unchanged `Schema` is a
 no-op beyond the registry lookups, and a `Schema` with no `sq:indexed`/`sq:searchable` properties at
@@ -272,7 +271,7 @@ The host use case `IndexPreparation.prepare` in `sequeless-app` is called from t
   means the import succeeded.
 - `OntologyStartupValidator`, once at startup, for the ontology the application booted with (the
   stored active document, or the one seeded from `sequeless.ontology.source`). It reads
-  `schemaSource.schema(TenantId.DEFAULT)` and passes that `Schema` to index preparation. An application
+  `schemaSource.schema(TenantId.DEFAULT)` and passes the tenant and the activated version to index preparation, which re-reads the Schema. An application
   that never calls the import or reload endpoint therefore still gets its expression indexes and
   searchable-property registry. `QueryEndToEndTest`'s search and facet assertions depend on this call.
 
@@ -285,13 +284,13 @@ only tenant the REST controllers use today.
 When `query.sorts()` is empty:
 
 - and `query.text()` is absent — ascending by `created_at`, then `id` (a stable tiebreak). This
-  matches `ObjectStorePort#browse`'s own documented default order, and `QueryPort`'s own
+  matches the default order that `ObjectStorePort#browse` documented before P6a, and `BrowsePort`'s own
   interface-level javadoc states it unconditionally as "the" default order.
 - and `query.text()` is present — descending by `ts_rank(search_vector, plainto_tsquery('simple',
   :searchText))`, then ascending by `created_at`, then `id`. This is what `PostgresQueryStore`
-  actually implements and what the `QueryContract` test suite's `textSearchRanksBestMatchFirst`
+  actually implements and what the `BrowseContract` test suite's `textSearchRanksBestMatchFirst`
   exercises (it asserts the top-ranked item is the expected best match, though it does not pin down
-  full ordering beyond that). Note this is a narrower, more specific rule than `QueryPort`'s
+  full ordering beyond that). Note this is a narrower, more specific rule than `BrowsePort`'s
   interface-level javadoc literally states — that javadoc's "ascending `(createdAt, id)`" default is
   written without an explicit carve-out for active text search. Treat the rule above (explicit sort
   wins; otherwise text search ranks by relevance; otherwise `(createdAt, id)` ascending) as the real
@@ -308,7 +307,7 @@ becomes a bottleneck. Nothing about `QueryPort`'s shape is Postgres-specific, so
 implementation could sit behind the exact same interface without `sequeless-core` — or any use case
 calling `BusinessObjectService.browse` — ever knowing the difference:
 
-- **`query(scope, schema, query)`**: translate `query.criteria()` into a `bool` query's `filter`
+- **`browse(scope, schema, query)`**: translate `query.criteria()` into a `bool` query's `filter`
   clauses — `EQ`/`IN` as `term`/`terms`, `LT`/`LTE`/`GT`/`GTE` as `range`, `CONTAINS`/`STARTS_WITH`
   as `wildcard`/`match_phrase_prefix`, `IS_NULL`/`NOT_NULL` as `must_not exists`/`exists`. Translate
   `query.text()` into a `match` query over a tenant- and type-scoped set of the type's

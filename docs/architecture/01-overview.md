@@ -133,8 +133,19 @@ public interface ObjectStorePort {
     Optional<BusinessObject> find(Scope scope, TypeRef type, ObjectId id);
 }
 
+public interface ReadPort {
+    Optional<ObjectView> read(Scope scope, ReadRequest request);
+}
+
+public interface BrowsePort {
+    QueryResult browse(Scope scope, Schema schema, Query query);
+}
+
+public interface IndexPreparationPort {
+    boolean prepare(Scope scope, OntologyVersion version, Schema schema);
+}
+
 public interface QueryPort {
-    QueryResult query(Scope scope, Schema schema, Query query);
     AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 }
 
@@ -161,7 +172,7 @@ Startup fails with a clear message if a property names an adapter that is not on
 fails the build on a binary-incompatible change without a major bump.
 
 **Compliance.** `sequeless-spi-testkit` publishes one abstract contract test class per port (for
-example `ObjectStoreContract`, `QueryContract`, `OntologyContract`, `AutomationContract`). An
+example `ObjectStoreContract`, `BrowseContract`, `OntologyContract`, `AutomationContract`). An
 adapter test extends the class and supplies a factory. Contracts cover the reference domain,
 optimistic locking, atomicity of commit with outbox rows, facet counts, and idempotent dispatch.
 An adapter is compliant when it passes the kit.
