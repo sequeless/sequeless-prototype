@@ -116,3 +116,17 @@ Decision: TypeScript wire models are hand-written, not OpenAPI-generated, for tw
 `docs/specs/phase-3-core-api.md` (Wire models, lines 54-60): `PropertyResponse` is a sealed interface with a
 plain `kind` discriminator that springdoc flattens, so a generator loses the discriminated union; and the
 `filter[x][y]` family is inexpressible in OpenAPI (`docs/architecture/query-port.md:341-348`). Reversibility: moderate.
+
+### DR-21 Browse result order and id order
+Context: `BrowsePort` promised a `(createdAt, id)` order but not how ids compare. PostgreSQL orders
+`uuid` as unsigned bytes (checked on 18.6); `InMemoryBrowsePort` used the signed `UUID.compareTo`, so
+the two disagreed on half of random id pairs, unseen because no contract test had a tie. Decision: ids,
+and relationship values used as sort keys, compare in unsigned byte order of the 16-byte UUID
+(lowercase canonical-string order). Explicit sorts tie-break by `id`; text search by relevance, then
+`createdAt`, then `id`; the default is `createdAt`, then `id`. Missing values sort last ascending and
+first descending. `createdAt` compares as stored, at the adapter's precision. `BrowseContract` pins each
+tie-break with fixed ids. Alternatives: Java signed order (a non-native PostgreSQL `ORDER BY`); an
+unspecified id order (not total, so offset pages can overlap); an order per adapter (the double stops
+standing in for PostgreSQL). Consequences: PostgreSQL is unchanged; a keyword sort on the id string, as
+an OpenSearch store would use, agrees; no decision is recorded for OpenSearch; facet bucket order is not
+covered. Reversibility: easy.

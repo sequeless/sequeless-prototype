@@ -300,10 +300,13 @@ When `query.sorts()` is empty:
 Any explicit `Sort` in `query.sorts()` always wins over both defaults; `id` is still appended as a
 final, stable tiebreak after every explicit sort key.
 
+Ids compare in unsigned byte order of the 16-byte UUID, PostgreSQL's native `uuid` order (DR-21).
+Missing sort-key values sort last ascending and first descending.
+
 ## A non-SQL adapter sketch
 
-DR-13 names OpenSearch as the plausible alternative if Postgres facet/text-search performance ever
-becomes a bottleneck. Nothing about `QueryPort`'s shape is Postgres-specific, so an OpenSearch-backed
+DR-13 allows a separate search index adapter if facet queries prove too slow; the OpenSearch example
+below is a sketch, not a recorded decision. Nothing about `QueryPort`'s shape is Postgres-specific, so an OpenSearch-backed
 implementation could sit behind the exact same interface without `sequeless-core` — or any use case
 calling `BusinessObjectService.browse` — ever knowing the difference:
 
