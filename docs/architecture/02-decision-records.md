@@ -130,3 +130,14 @@ unspecified id order (the contract cannot pin ties, so the double and PostgreSQL
 standing in for PostgreSQL). Consequences: PostgreSQL is unchanged; a keyword sort on the id string, as
 an OpenSearch store would use, agrees; no decision is recorded for OpenSearch; facet bucket order is not
 covered. Reversibility: easy.
+
+### DR-22 Facet bucket order
+Context: DR-21 left facet bucket order uncovered. The scalar facet `ORDER BY` had no tie-break, the
+reference facet had no tie-break and no null-key filter, and the in-memory double sorted ties by Java
+String order. Decision: buckets sort by count descending, then by bucket value in Unicode code point
+order. PostgreSQL uses `COLLATE "C"` (UTF-8 byte order, which equals code point order). Null bucket keys
+are excluded in both facets. The in-memory double compares by code point. Alternatives: (a) the database
+collation, which orders mixed-case values differently from the double; (b) an id-based key, which does not
+apply to scalar buckets and matches neither the double nor the label. Consequences: a target with no label
+no longer makes browse throw; it adds no bucket. The scalar and reference facets agree; the double and
+PostgreSQL agree for all code points. Reversibility: easy (query and test-double change only).
