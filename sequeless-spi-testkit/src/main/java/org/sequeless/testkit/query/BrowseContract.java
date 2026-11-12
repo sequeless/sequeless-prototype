@@ -1,0 +1,592 @@
+package org.sequeless.testkit.query;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+import static org.sequeless.ontology.testfixtures.Fixtures.ASSIGNED_TO_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.BELONGS_TO_PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DESCRIPTION_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.DUE_DATE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PERSON_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PRIORITY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PROJECT_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.STATUS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.spi.object.Audit;
+import org.sequeless.spi.object.BusinessObject;
+import org.sequeless.spi.object.ChangeSet;
+import org.sequeless.spi.object.Create;
+import org.sequeless.spi.object.Delete;
+import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.object.Page;
+import org.sequeless.spi.object.PropertyRef;
+import org.sequeless.spi.object.TypeRef;
+import org.sequeless.spi.query.BrowsePort;
+import org.sequeless.spi.query.Criterion;
+import org.sequeless.spi.query.Direction;
+import org.sequeless.spi.query.FacetBucket;
+import org.sequeless.spi.query.Operator;
+import org.sequeless.spi.query.Query;
+import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.Sort;
+import org.sequeless.testkit.Fixtures;
+
+/**
+ * The mechanical form of the behavioural contract documented on {@link BrowsePort}'s
+ * interface-level javadoc. Every {@link BrowsePort} implementation — adapter or test double — is
+ * expected to satisfy every clause of that javadoc, and this class exercises each clause once,
+ * against whatever {@link Environment} {@link #freshEnvironment()} supplies. It holds every test
+ * of the query contract that predated the split into read, browse and index preparation ports,
+ * re-expressed against {@link BrowsePort#browse}.
+ *
+ * <p>To use this contract, extend it from a test class in your own module and implement {@link
+ * #freshEnvironment()} to return a brand-new, empty {@link ObjectStorePort} paired with a {@link
+ * BrowsePort} that queries the same underlying storage:
+ *
+ * <pre>{@code
+ * class MyAdapterContractTest extends BrowseContract {
+ *     protected Environment freshEnvironment() {
+ *         ObjectStorePort store = new MyAdapter();
+ *         return new Environment(store, MyBrowseAdapter.over(store));
+ *     }
+ * }
+ * }</pre>
+ *
+ * <p>Unlike {@link org.sequeless.testkit.object.ObjectStoreContract}, this contract is not
+ * ontology-agnostic: exercising real filters, sorts, and facets needs a real {@link
+ * Schema} built from real properties, so every test here seeds {@link
+ * org.sequeless.spi.object.BusinessObject}s of the reference-domain {@code Task}, {@code
+ * Project}, and {@code Person} types — via {@link Environment#store()}'s {@link
+ * ObjectStorePort#commit} — and browses them through {@link Environment#browsePort()} against
+ * {@link QueryFixtures#schema()}, a hand-built {@link Schema} mirroring {@code reference.ttl}.
+ *
+ * <p><b>What this contract deliberately does not check.</b> No assertion here depends on a
+ * particular storage or indexing technology. Every assertion is about the behaviour {@link
+ * BrowsePort}'s javadoc documents: null-safety, tenant scoping, soft-delete filtering, the union
+ * semantics of {@link Query#types()}, the {@code (createdAt, id)} ascending default sort order,
+ * page overrun, and the "conventional multi-select" facet-counting rule.
+ */
+public abstract class BrowseContract {
+
+    private static final TypeRef TASK = new TypeRef(TASK_IRI);
+    private static final TypeRef PROJECT = new TypeRef(PROJECT_IRI);
+    private static final TypeRef PERSON = new TypeRef(PERSON_IRI);
+
+    private static final PropertyRef TITLE = new PropertyRef(TITLE_IRI);
+    private static final PropertyRef STATUS = new PropertyRef(STATUS_IRI);
+    private static final PropertyRef DESCRIPTION = new PropertyRef(DESCRIPTION_IRI);
+    private static final PropertyRef PRIORITY = new PropertyRef(PRIORITY_IRI);
+    private static final PropertyRef DUE_DATE = new PropertyRef(DUE_DATE_IRI);
+    private static final PropertyRef ASSIGNED_TO = new PropertyRef(ASSIGNED_TO_IRI);
+    private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(BELONGS_TO_PROJECT_IRI);
+    private static final PropertyRef NAME = new PropertyRef(QueryFixtures.NAME_IRI);
+    private static final PropertyRef EMAIL = new PropertyRef(QueryFixtures.EMAIL_IRI);
+
+    /**
+     * An {@link ObjectStorePort} paired with the {@link BrowsePort} that queries the same
+     * underlying storage — a conforming {@link BrowsePort} implementation only makes sense against
+     * objects committed through a particular store, exactly as {@link
+     * org.sequeless.testkit.validation.ValidationContract.Fixture} pairs a {@link
+     * org.sequeless.spi.validation.ValidationPort} with the {@link Schema} it
+     * validates against.
+     *
+     * @param store the store to seed fixture data into via {@link ObjectStorePort#commit}; must
+     *     not be {@code null}
+     * @param browsePort the port under test, expected to answer queries over whatever {@code
+     *     store} holds; must not be {@code null}
+     */
+    public record Environment(ObjectStorePort store, BrowsePort browsePort) {
+
+        public Environment {
+            Objects.requireNonNull(store, "store must not be null");
+            Objects.requireNonNull(browsePort, "browsePort must not be null");
+        }
+    }
+
+    /**
+     * @return a fresh {@link Environment} pairing a brand-new, empty {@link ObjectStorePort} with
+     *     a {@link BrowsePort} that queries it; invoked fresh for every {@code @Test} method, so
+     *     implementors may return new instances each time or shared ones, whichever suits the
+     *     port under test — but the returned environment must not carry over state from a
+     *     previous test
+     */
+    protected abstract Environment freshEnvironment();
+
+    @Test
+    void browseRejectsNullArguments() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Schema schema = QueryFixtures.schema();
+        Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
+
+        assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(null, schema, query));
+        assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(scope, null, query));
+        assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(scope, schema, null));
+
+        Set<String> withNull = new HashSet<>();
+        withNull.add(null);
+        assertThatNullPointerException()
+                .isThrownBy(() ->
+                        new Query(withNull, List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false));
+    }
+
+    @Test
+    void equalityFilterMatchesOnlyExactValue() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId open1 = seedTask(env, scope, base, "Open task one", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        ObjectId open2 = seedTask(
+                env, scope, base.plusSeconds(1), "Open task two", "OPEN", 2, LocalDate.of(2026, 2, 2), null, null);
+        seedTask(env, scope, base.plusSeconds(2), "Closed task", "CLOSED", 3, LocalDate.of(2026, 2, 3), null, null);
+
+        Query query = queryOf(
+                Set.of(TASK_IRI),
+                List.of(new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))),
+                new Page(0, 20));
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(open1, open2);
+        assertThat(result.total()).isEqualTo(2);
+    }
+
+    @Test
+    void referenceFilterMatchesByTargetId() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId alice = seedPerson(env, scope, base, "Alice Smith", "alice@example.com");
+        ObjectId bob = seedPerson(env, scope, base.plusSeconds(1), "Bob Jones", "bob@example.com");
+
+        ObjectId taskForAlice = seedTask(
+                env, scope, base.plusSeconds(2), "Alice's task", "OPEN", 1, LocalDate.of(2026, 2, 1), alice, null);
+        seedTask(env, scope, base.plusSeconds(3), "Bob's task", "OPEN", 2, LocalDate.of(2026, 2, 2), bob, null);
+
+        Query query = queryOf(
+                Set.of(TASK_IRI),
+                List.of(new Criterion(ASSIGNED_TO_IRI, Operator.EQ, Optional.of(Value.ref(alice)))),
+                new Page(0, 20));
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(taskForAlice);
+        assertThat(result.total()).isEqualTo(1);
+    }
+
+    @Test
+    void dateRangeFilterUsesGteAndLte() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTask(env, scope, base, "Too early", "OPEN", 1, LocalDate.of(2026, 1, 1), null, null);
+        ObjectId inWindow = seedTask(
+                env, scope, base.plusSeconds(1), "In window", "OPEN", 2, LocalDate.of(2026, 2, 15), null, null);
+        seedTask(env, scope, base.plusSeconds(2), "Too late", "OPEN", 3, LocalDate.of(2026, 3, 1), null, null);
+
+        Query query = queryOf(
+                Set.of(TASK_IRI),
+                List.of(
+                        new Criterion(DUE_DATE_IRI, Operator.GTE, Optional.of(Value.date(LocalDate.of(2026, 2, 1)))),
+                        new Criterion(DUE_DATE_IRI, Operator.LTE, Optional.of(Value.date(LocalDate.of(2026, 2, 28))))),
+                new Page(0, 20));
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(inWindow);
+        assertThat(result.total()).isEqualTo(1);
+    }
+
+    @Test
+    void numericSortOrdersAscendingAndDescending() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId low = seedTask(env, scope, base, "Low priority", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        ObjectId mid = seedTask(
+                env, scope, base.plusSeconds(1), "Mid priority", "OPEN", 5, LocalDate.of(2026, 2, 2), null, null);
+        ObjectId high = seedTask(
+                env, scope, base.plusSeconds(2), "High priority", "OPEN", 9, LocalDate.of(2026, 2, 3), null, null);
+
+        Schema schema = QueryFixtures.schema();
+
+        Query ascending =
+                queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.ASC)), new Page(0, 20));
+        QueryResult ascResult = env.browsePort().browse(scope, schema, ascending);
+        assertThat(ascResult.items()).extracting(BusinessObject::id).containsExactly(low, mid, high);
+
+        Query descending =
+                queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.DESC)), new Page(0, 20));
+        QueryResult descResult = env.browsePort().browse(scope, schema, descending);
+        assertThat(descResult.items()).extracting(BusinessObject::id).containsExactly(high, mid, low);
+    }
+
+    @Test
+    void facetCountsGroupByScalarPropertyReflectMultiSelectExclusion() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId openLow = seedTask(env, scope, base, "Open low", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        seedTask(env, scope, base.plusSeconds(1), "Open high", "OPEN", 2, LocalDate.of(2026, 2, 2), null, null);
+        seedTask(env, scope, base.plusSeconds(2), "Closed low", "CLOSED", 1, LocalDate.of(2026, 2, 3), null, null);
+        seedTask(env, scope, base.plusSeconds(3), "Closed high", "CLOSED", 2, LocalDate.of(2026, 2, 4), null, null);
+
+        // Both a criterion on the facet property itself (status = OPEN) and an unrelated one
+        // (priority = 1) are applied. Per BrowsePort's "conventional multi-select" rule, the
+        // status facet's bucket counts must be computed against every criterion EXCEPT the one
+        // on status itself — so they should reflect both OPEN and CLOSED among the
+        // priority-filtered subset, not just the single OPEN value the result set is narrowed to.
+        Query query = new Query(
+                Set.of(TASK_IRI),
+                List.of(
+                        new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN"))),
+                        new Criterion(PRIORITY_IRI, Operator.EQ, Optional.of(Value.integer(1)))),
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of(STATUS_IRI),
+                false);
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(openLow);
+        assertThat(result.total()).isEqualTo(1);
+
+        List<FacetBucket> statusBuckets = result.facets().get(STATUS_IRI);
+        assertThat(statusBuckets).containsExactlyInAnyOrder(new FacetBucket("OPEN", 1), new FacetBucket("CLOSED", 1));
+    }
+
+    @Test
+    void facetCountsOnReferencePropertyResolveDisplayLabel() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId alice = seedPerson(env, scope, base, "Alice Smith", "alice@example.com");
+        ObjectId bob = seedPerson(env, scope, base.plusSeconds(1), "Bob Jones", "bob@example.com");
+
+        seedTask(env, scope, base.plusSeconds(2), "Alice task one", "OPEN", 1, LocalDate.of(2026, 2, 1), alice, null);
+        seedTask(env, scope, base.plusSeconds(3), "Alice task two", "OPEN", 2, LocalDate.of(2026, 2, 2), alice, null);
+        seedTask(env, scope, base.plusSeconds(4), "Bob task", "OPEN", 3, LocalDate.of(2026, 2, 3), bob, null);
+
+        Query query = queryOf(Set.of(TASK_IRI), List.of(), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI));
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        List<FacetBucket> assignedToBuckets = result.facets().get(ASSIGNED_TO_IRI);
+        assertThat(assignedToBuckets)
+                .extracting(FacetBucket::value)
+                .containsExactlyInAnyOrder("Alice Smith", "Bob Jones");
+        assertThat(assignedToBuckets)
+                .filteredOn(bucket -> bucket.value().equals("Alice Smith"))
+                .extracting(FacetBucket::count)
+                .containsExactly(2L);
+    }
+
+    @Test
+    void textSearchRanksBestMatchFirst() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId bestMatch = seedTaskWithDescription(
+                env,
+                scope,
+                base,
+                "Quarterly budget review",
+                "Review the quarterly budget numbers",
+                "OPEN",
+                1,
+                LocalDate.of(2026, 2, 1),
+                null,
+                null);
+        seedTaskWithDescription(
+                env,
+                scope,
+                base.plusSeconds(1),
+                "Unrelated task",
+                "Something else entirely",
+                "OPEN",
+                2,
+                LocalDate.of(2026, 2, 2),
+                null,
+                null);
+        seedTaskWithDescription(
+                env,
+                scope,
+                base.plusSeconds(2),
+                "Another task",
+                "Nothing to do with the topic",
+                "OPEN",
+                3,
+                LocalDate.of(2026, 2, 3),
+                null,
+                null);
+
+        Query query = new Query(
+                Set.of(TASK_IRI),
+                List.of(),
+                Optional.of("quarterly budget"),
+                List.of(),
+                new Page(0, 20),
+                List.of(),
+                false);
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).isNotEmpty();
+        assertThat(result.items().get(0).id()).isEqualTo(bestMatch);
+    }
+
+    @Test
+    void workItemQueryReturnsBothTaskAndProjectSubtypes() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId task = seedTask(env, scope, base, "A task", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        ObjectId project = seedProject(env, scope, base.plusSeconds(1), "A project", "ACTIVE");
+
+        Query query = queryOf(Set.of(TASK_IRI, PROJECT_IRI), List.of(), new Page(0, 20));
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(task, project);
+        assertThat(result.items())
+                .extracting(item -> item.type().iri())
+                .containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
+    }
+
+    @Test
+    void paginationRespectsPageAndSize() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        List<ObjectId> expectedOrder = List.of(
+                seedTask(env, scope, base, "Task 1", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null),
+                seedTask(env, scope, base.plusSeconds(1), "Task 2", "OPEN", 2, LocalDate.of(2026, 2, 2), null, null),
+                seedTask(env, scope, base.plusSeconds(2), "Task 3", "OPEN", 3, LocalDate.of(2026, 2, 3), null, null),
+                seedTask(env, scope, base.plusSeconds(3), "Task 4", "OPEN", 4, LocalDate.of(2026, 2, 4), null, null),
+                seedTask(env, scope, base.plusSeconds(4), "Task 5", "OPEN", 5, LocalDate.of(2026, 2, 5), null, null));
+
+        Schema schema = QueryFixtures.schema();
+
+        // No explicit sort: relies on BrowsePort's documented default order, ascending
+        // (createdAt, id), so page contents are deterministic.
+        QueryResult page0 =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 2)));
+        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
+        assertThat(page0.total()).isEqualTo(5);
+
+        QueryResult page1 =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(1, 2)));
+        assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(2, 4));
+        assertThat(page1.total()).isEqualTo(5);
+
+        QueryResult page2 =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(2, 2)));
+        assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
+        assertThat(page2.total()).isEqualTo(5);
+
+        QueryResult overrun =
+                env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(5, 2)));
+        assertThat(overrun.items()).isEmpty();
+        assertThat(overrun.total()).isEqualTo(5);
+    }
+
+    @Test
+    void includeDeletedDefaultsToExcluded() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId id = seedTask(env, scope, base, "Soon deleted", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        env.store().commit(scope, new ChangeSet(List.of(new Delete(id, 1, base.plusSeconds(1), "tester")), List.of()));
+
+        Query query =
+                new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false);
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).doesNotContain(id);
+    }
+
+    @Test
+    void paginationOverUnionOfTypesIsOrderedByCreatedAtThenId() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        List<ObjectId> expectedOrder = List.of(
+                seedTask(env, scope, base, "Task 1", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null),
+                seedProject(env, scope, base.plusSeconds(1), "Project 1", "ACTIVE"),
+                seedTask(env, scope, base.plusSeconds(2), "Task 2", "OPEN", 2, LocalDate.of(2026, 2, 2), null, null),
+                seedProject(env, scope, base.plusSeconds(3), "Project 2", "ACTIVE"),
+                seedTask(env, scope, base.plusSeconds(4), "Task 3", "OPEN", 3, LocalDate.of(2026, 2, 3), null, null));
+
+        Schema schema = QueryFixtures.schema();
+        Set<String> types = Set.of(TASK_IRI, PROJECT_IRI);
+
+        QueryResult page0 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(0, 2)));
+        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
+        assertThat(page0.total()).isEqualTo(5);
+
+        QueryResult page2 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(2, 2)));
+        assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
+        assertThat(page2.total()).isEqualTo(5);
+
+        QueryResult overrun = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(3, 2)));
+        assertThat(overrun.items()).isEmpty();
+        assertThat(overrun.total()).isEqualTo(5);
+    }
+
+    @Test
+    void includeDeletedWhenRequestedIncludesSoftDeleted() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId id = seedTask(env, scope, base, "Soon deleted", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+        env.store().commit(scope, new ChangeSet(List.of(new Delete(id, 1, base.plusSeconds(1), "tester")), List.of()));
+
+        Query query =
+                new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), true);
+
+        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+
+        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(id);
+        assertThat(result.total()).isEqualTo(1);
+    }
+
+    @Test
+    void browseIsTenantScoped() {
+        Environment env = freshEnvironment();
+        Scope alice = Fixtures.scope("alice");
+        Scope otherTenant = new Scope(new TenantId("other-tenant"), Principal.ANONYMOUS);
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTask(env, alice, base, "Alice's task", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
+
+        Schema schema = QueryFixtures.schema();
+        Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
+
+        QueryResult otherResult = env.browsePort().browse(otherTenant, schema, query);
+        assertThat(otherResult.items()).isEmpty();
+        assertThat(otherResult.total()).isZero();
+
+        QueryResult aliceResult = env.browsePort().browse(alice, schema, query);
+        assertThat(aliceResult.total()).isEqualTo(1);
+    }
+
+    // -- Fixture-seeding helpers -------------------------------------------------------------
+
+    private static Query queryOf(Set<String> types, List<Criterion> criteria, Page page) {
+        return queryOf(types, criteria, List.of(), page, List.of());
+    }
+
+    private static Query queryOf(Set<String> types, List<Criterion> criteria, List<Sort> sorts, Page page) {
+        return queryOf(types, criteria, sorts, page, List.of());
+    }
+
+    private static Query queryOf(Set<String> types, List<Criterion> criteria, Page page, List<String> facetProperties) {
+        return queryOf(types, criteria, List.of(), page, facetProperties);
+    }
+
+    private static Query queryOf(
+            Set<String> types, List<Criterion> criteria, List<Sort> sorts, Page page, List<String> facetProperties) {
+        return new Query(types, criteria, Optional.empty(), sorts, page, facetProperties, false);
+    }
+
+    private static ObjectId seedPerson(Environment env, Scope scope, Instant createdAt, String name, String email) {
+        Map<PropertyRef, Value> properties = Map.of(NAME, Value.text(name), EMAIL, Value.text(email));
+        return seed(env, scope, PERSON, createdAt, properties);
+    }
+
+    private static ObjectId seedProject(Environment env, Scope scope, Instant createdAt, String title, String status) {
+        Map<PropertyRef, Value> properties = Map.of(TITLE, Value.text(title), STATUS, Value.text(status));
+        return seed(env, scope, PROJECT, createdAt, properties);
+    }
+
+    private static ObjectId seedTask(
+            Environment env,
+            Scope scope,
+            Instant createdAt,
+            String title,
+            String status,
+            long priority,
+            LocalDate dueDate,
+            ObjectId assignedTo,
+            ObjectId belongsToProject) {
+        return seedTaskWithDescription(
+                env,
+                scope,
+                createdAt,
+                title,
+                "Description of " + title,
+                status,
+                priority,
+                dueDate,
+                assignedTo,
+                belongsToProject);
+    }
+
+    private static ObjectId seedTaskWithDescription(
+            Environment env,
+            Scope scope,
+            Instant createdAt,
+            String title,
+            String description,
+            String status,
+            long priority,
+            LocalDate dueDate,
+            ObjectId assignedTo,
+            ObjectId belongsToProject) {
+        Map<PropertyRef, Value> properties = new HashMap<>();
+        properties.put(TITLE, Value.text(title));
+        properties.put(DESCRIPTION, Value.text(description));
+        properties.put(STATUS, Value.text(status));
+        properties.put(PRIORITY, Value.integer(priority));
+        properties.put(DUE_DATE, Value.date(dueDate));
+        if (assignedTo != null) {
+            properties.put(ASSIGNED_TO, Value.ref(assignedTo));
+        }
+        if (belongsToProject != null) {
+            properties.put(BELONGS_TO_PROJECT, Value.ref(belongsToProject));
+        }
+        return seed(env, scope, TASK, createdAt, Map.copyOf(properties));
+    }
+
+    private static ObjectId seed(
+            Environment env, Scope scope, TypeRef type, Instant createdAt, Map<PropertyRef, Value> properties) {
+        ObjectId id = ObjectId.random();
+        String principalId = scope.principal().id();
+        Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
+        BusinessObject object =
+                new BusinessObject(id, type, scope.tenantId(), 1, Optional.empty(), properties, audit, false);
+        env.store().commit(scope, new ChangeSet(List.of(new Create(object)), List.of()));
+        return id;
+    }
+}

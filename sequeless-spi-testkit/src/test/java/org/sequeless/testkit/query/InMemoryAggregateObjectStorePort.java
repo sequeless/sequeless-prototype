@@ -111,6 +111,22 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
     }
 
     /**
+     * Lists every object of {@code scope.tenantId()}, soft-deleted ones included, for the browse
+     * and read doubles, which apply soft-delete filtering themselves.
+     *
+     * @param scope the tenant to read for; only objects with a matching {@link
+     *     org.sequeless.kernel.identity.TenantId} are returned
+     * @return every object of {@code scope.tenantId()} in insertion order, deleted or not
+     */
+    List<BusinessObject> everyObject(Scope scope) {
+        synchronized (lock) {
+            return objects.values().stream()
+                    .filter(object -> object.tenant().equals(scope.tenantId()))
+                    .toList();
+        }
+    }
+
+    /**
      * @param scope the tenant to read for; only objects with a matching {@link
      *     org.sequeless.kernel.identity.TenantId} are returned
      * @param typeIris the type IRIs to include, matched as a union exactly like {@link
