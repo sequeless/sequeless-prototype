@@ -27,11 +27,18 @@ import org.sequeless.ontology.schema.api.Schema;
  *   <li><b>{@code query.types()} is a union, not an intersection.</b> Matching objects are those
  *       whose type is any one of the IRIs in {@link Query#types()}, not objects matching every
  *       listed type at once.
- *   <li><b>Default sort order.</b> When {@code query.sorts()} is empty, results are ordered
- *       ascending by {@code createdAt} then by {@code id}: the same {@code (createdAt, id)}
- *       ascending order the object store uses for its own listings. This is a precise, testable
- *       contract: a {@code BrowseContract}'s pagination tests assert against exactly this
- *       tie-broken ordering.
+ *   <li><b>Result order.</b> Results are totally ordered, so pages over unchanged data never
+ *       overlap or skip. With a non-empty {@code query.sorts()}: each sort key in list order, then
+ *       {@code id} ascending, whatever the keys' directions. Otherwise, with {@code query.text()}
+ *       present: relevance, best first, then {@code createdAt} ascending, then {@code id}
+ *       ascending. Otherwise: {@code createdAt} ascending, then {@code id} ascending. An object
+ *       with no value for a sort key sorts last when the key is ascending and first when it is
+ *       descending. {@code createdAt} compares as stored, at the precision the adapter keeps (see
+ *       {@link org.sequeless.spi.object.ObjectStorePort}). Ids compare in unsigned byte order of
+ *       the 16-byte UUID, most significant byte first, which equals the order of the lowercase
+ *       canonical strings; this is not {@link java.util.UUID#compareTo}, which is signed. A sort
+ *       key on a relationship property orders by target id in the same order. {@code
+ *       BrowseContract} asserts each id tie-break with fixed ids.
  *   <li><b>Page overrun is empty, never a throw.</b> A {@link Query#page()} whose number is past the
  *       last page returns a {@link QueryResult} with empty {@link QueryResult#items()} and the
  *       correct {@link QueryResult#total()}.
