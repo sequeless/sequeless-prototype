@@ -42,12 +42,23 @@ public enum Operator { EQ, NE, IN, LT, LTE, GT, GTE, CONTAINS, STARTS_WITH, IS_N
 public record Sort(String property, Direction direction) {}
 public enum Direction { ASC, DESC }
 
-public record QueryResult(List<BusinessObject> items, long total, Map<String, List<FacetBucket>> facets) {}
+public record QueryResult(List<ObjectView> items, long total, Map<String, List<FacetBucket>> facets) {}
 public record FacetBucket(String value, long count) {}
 
+public interface ReadPort {
+    Optional<ObjectView> read(Scope scope, ReadRequest request);
+}
+
+public interface BrowsePort {
+    QueryResult browse(Scope scope, Schema schema, Query query);
+}
+
+public interface IndexPreparationPort {
+    boolean prepare(Scope scope, OntologyVersion version, Schema schema);
+}
+
 public interface QueryPort {
-    QueryResult query(Scope scope, Schema schema, Query query);
-    void ensureIndexes(Scope scope, Schema schema);
+    AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 }
 ```
 
@@ -228,9 +239,9 @@ backfill). When `query.sorts()` is empty and `query.text()` is present, results 
 as a stable tiebreak (`PostgresQueryStore.buildOrderBy`) — see "Default ordering" below for how this
 interacts with `QueryPort`'s own default-order contract.
 
-## `ensureIndexes` and the index registry
+## `prepare` and the index registry
 
-`ensureIndexes(scope, schema)` does two things, both idempotent, both driven by hint flags already
+`IndexPreparationPort.prepare(scope, version, schema)` does two things, both idempotent, both driven by hint flags already
 on the `Schema`'s properties:
 
 - For every property with `sq:indexed=true` not already present in `sq_index_registry`
@@ -243,24 +254,25 @@ on the `Schema`'s properties:
   `tenantId + "|" + propertyIri` — chosen to stay well under PostgreSQL's 63-byte identifier limit
   regardless of how long the property IRI is.
 - For every property with `sq:searchable=true` not already present in `sq_searchable_property`:
-  inserts it, and if any new searchable property was registered, backfills `search_vector` for every
-  existing row of the tenant (a statement kept textually in sync with the trigger's own logic — see
-  the comment on `PostgresQueryStore.backfillSearchVector`).
+  inserts it, and `prepare` returns `true` if any new searchable property was registered. The host
+  then runs the Command-side backfill of `search_vector` for every existing row of the tenant
+  (`SearchVectorBackfillPort`, implemented by `PostgresObjectStore`) in the same transaction, so the
+  backfill sees the newly registered properties. Its statement stays in sync with the trigger's logic.
 
 Both loops skip already-registered properties, so a repeat call with an unchanged `Schema` is a
 no-op beyond the registry lookups, and a `Schema` with no `sq:indexed`/`sq:searchable` properties at
 all does nothing.
 
-`ensureIndexes` is called from two places in `sequeless-app` (#24):
+The host use case `IndexPreparation.prepare` in `sequeless-app` is called from two places (#24):
 
 - `IndexPreparingOntologyAdministration`, right after a successful `importDocument` or `reload` call
   on the admin port (`POST /api/ontology`, `POST /api/types/reload`), using the `Schema` the delegate
   has just activated (`schemaSource.schema(scope.tenantId())`). `importDocument`'s contract is to
-  either return an accepted `ImportReport` or throw, so reaching the `ensureIndexes` call always
+  either return an accepted `ImportReport` or throw, so reaching the index preparation call always
   means the import succeeded.
 - `OntologyStartupValidator`, once at startup, for the ontology the application booted with (the
   stored active document, or the one seeded from `sequeless.ontology.source`). It reads
-  `schemaSource.schema(TenantId.DEFAULT)` and passes that `Schema` to `ensureIndexes`. An application
+  `schemaSource.schema(TenantId.DEFAULT)` and passes that `Schema` to index preparation. An application
   that never calls the import or reload endpoint therefore still gets its expression indexes and
   searchable-property registry. `QueryEndToEndTest`'s search and facet assertions depend on this call.
 
@@ -310,7 +322,7 @@ calling `BusinessObjectService.browse` — ever knowing the difference:
   for at query time the way a self-join can in Postgres — the practical answer is to denormalize the
   target's display-label value onto the referencing document at index time (updated whenever the
   target's label-bearing property changes), rather than resolving it per-query.
-- **`ensureIndexes(scope, schema)`**: rather than one Postgres expression index per `sq:indexed`
+- **`prepare(scope, version, schema)`**: rather than one Postgres expression index per `sq:indexed`
   property, create or update an OpenSearch index template/mapping keyed off the Schema's types and
   properties — mapping each `sq:indexed` property to an appropriately-typed, indexed field (`keyword`
   for exact-match/facet-friendly strings, `date`, numeric types, etc.), and concatenating every
@@ -336,7 +348,7 @@ shape was designed to satisfy, not just an aspiration.
   position. This may be revisited in a later phase (e.g. `CONTAINS`-style "any element matches"
   semantics over an array-valued extraction).
 - **Startup index preparation covers the default tenant only.** `OntologyStartupValidator` calls
-  `ensureIndexes` for `TenantId.DEFAULT` alone (see "`ensureIndexes` and the index registry" above).
+  index preparation for `TenantId.DEFAULT` alone (see "`prepare` and the index registry" above).
   Every REST controller uses that tenant today, so this matters only once a second tenant exists.
 - **OpenAPI schema quality for the bracket-map filter parameter is inherently degraded.** The
   `filter[<property>][<op>]=<value>` parameters are bound as a single raw `MultiValueMap<String,
