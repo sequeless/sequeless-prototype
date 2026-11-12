@@ -17,10 +17,12 @@ import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
 import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
+import org.sequeless.spi.query.ObjectView;
 
 /**
- * Resolves every {@link Transition} available from a {@link BusinessObject}'s current {@link
- * BusinessObject#state()}, evaluating each transition's optional {@link Transition#guard()}
+ * Resolves every {@link Transition} available from an object's current state, whether the object
+ * is given as a {@link BusinessObject} or as its {@link ObjectView}, evaluating each transition's
+ * optional {@link Transition#guard()}
  * through an {@link ExpressionPort}. This is the one place both {@code
  * org.sequeless.core.usecase.DefaultTransitionService} (the write path, which uses this to decide
  * whether a requested transition may fire) and a later REST read path ({@code GET
@@ -59,33 +61,62 @@ public final class StateMachineInterpreter {
      *     unavailable result
      */
     public List<TransitionAvailability> availableTransitions(Scope scope, Behaviour behaviour, BusinessObject object) {
+        Objects.requireNonNull(object, "object must not be null");
+        return availableTransitions(scope, behaviour, object.type().iri(), object.state(), object.properties());
+    }
+
+    /**
+     * The same computation as {@link #availableTransitions(Scope, Behaviour, BusinessObject)}, for the
+     * Query side's {@link ObjectView} of an object: the form a Read returns. Both overloads feed one
+     * private implementation, so they cannot disagree about which transitions are available.
+     *
+     * @param scope the tenant and principal a guard is evaluated on behalf of; must not be {@code
+     *     null}
+     * @param behaviour the behaviour whose state machine for {@code object}'s type is used; must not
+     *     be {@code null}
+     * @param object the view whose available transitions are computed; must not be {@code null}
+     * @return the same list {@link #availableTransitions(Scope, Behaviour, BusinessObject)} returns
+     *     for the object the view describes
+     * @throws NullPointerException if any argument is {@code null}
+     * @throws ExpressionException if evaluating a guard fails
+     */
+    public List<TransitionAvailability> availableTransitions(Scope scope, Behaviour behaviour, ObjectView object) {
+        Objects.requireNonNull(object, "object must not be null");
+        return availableTransitions(scope, behaviour, object.type().iri(), object.state(), object.properties());
+    }
+
+    private List<TransitionAvailability> availableTransitions(
+            Scope scope,
+            Behaviour behaviour,
+            String typeIri,
+            Optional<String> state,
+            Map<PropertyRef, Value> properties) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(behaviour, "behaviour must not be null");
-        Objects.requireNonNull(object, "object must not be null");
 
-        Optional<StateMachineDefinition> machineForType =
-                behaviour.stateMachine(object.type().iri());
-        if (machineForType.isEmpty() || object.state().isEmpty()) {
+        Optional<StateMachineDefinition> machineForType = behaviour.stateMachine(typeIri);
+        if (machineForType.isEmpty() || state.isEmpty()) {
             return List.of();
         }
         StateMachineDefinition machine = machineForType.get();
-        String currentState = object.state().get();
+        String currentState = state.get();
 
         List<TransitionAvailability> result = new ArrayList<>();
         for (Transition transition : machine.transitions()) {
             if (!Objects.equals(transition.fromStateIri(), currentState)) {
                 continue;
             }
-            result.add(evaluate(scope, object, transition));
+            result.add(evaluate(scope, state, properties, transition));
         }
         return result;
     }
 
-    private TransitionAvailability evaluate(Scope scope, BusinessObject object, Transition transition) {
+    private TransitionAvailability evaluate(
+            Scope scope, Optional<String> state, Map<PropertyRef, Value> properties, Transition transition) {
         if (transition.guard().isEmpty()) {
             return new TransitionAvailability(transition.name(), true, Optional.empty());
         }
-        ExpressionContext context = buildContext(scope, object);
+        ExpressionContext context = buildContext(scope, state, properties);
         Value result = expressionPort.evaluate(transition.guard().get(), context);
         boolean passed = result instanceof BoolValue bool && bool.value();
         if (passed) {
@@ -96,13 +127,12 @@ public final class StateMachineInterpreter {
         return new TransitionAvailability(transition.name(), false, Optional.of(reason));
     }
 
-    private ExpressionContext buildContext(Scope scope, BusinessObject object) {
+    private ExpressionContext buildContext(Scope scope, Optional<String> state, Map<PropertyRef, Value> properties) {
         Map<String, Value> selfProperties = new HashMap<>();
-        for (Map.Entry<PropertyRef, Value> entry : object.properties().entrySet()) {
+        for (Map.Entry<PropertyRef, Value> entry : properties.entrySet()) {
             selfProperties.put(shortName(entry.getKey().iri()), entry.getValue());
         }
-        return new ExpressionContext(
-                selfProperties, object.state(), scope.principal().id());
+        return new ExpressionContext(selfProperties, state, scope.principal().id());
     }
 
     /**

@@ -74,6 +74,7 @@ import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
@@ -289,7 +290,7 @@ class DefaultBusinessObjectServiceTest {
      * same objects the command side commits to it.
      */
     private static ReadPort readOver(FakeObjectStorePort store) {
-        return (scope, request) -> store.find(scope, request.id());
+        return (scope, request) -> store.find(scope, request.id()).map(ObjectViewMapper::toView);
     }
 
     private static ValidationPort noViolations() {
@@ -629,9 +630,9 @@ class DefaultBusinessObjectServiceTest {
     void browseComputesRollupsWithExactlyTwoAggregateCallsForFiftyProjects() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
-        List<BusinessObject> projects = new ArrayList<>();
+        List<ObjectView> projects = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
-            projects.add(new BusinessObject(
+            projects.add(new ObjectView(
                     ObjectId.random(),
                     new TypeRef(PROJECT_IRI),
                     ALICE.tenantId(),
@@ -679,9 +680,9 @@ class DefaultBusinessObjectServiceTest {
         BusinessObject task = seedTask(store, "alice", NOW, 1);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
-        BusinessObject result = service.read(ALICE, "Task", task.id());
+        ObjectView result = service.read(ALICE, "Task", task.id());
 
-        assertThat(result).isEqualTo(task);
+        assertThat(result).isEqualTo(ObjectViewMapper.toView(task));
     }
 
     @Test
@@ -690,9 +691,9 @@ class DefaultBusinessObjectServiceTest {
         BusinessObject task = seedTask(store, "alice", NOW, 1);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
-        BusinessObject result = service.read(ALICE, "WorkItem", task.id());
+        ObjectView result = service.read(ALICE, "WorkItem", task.id());
 
-        assertThat(result).isEqualTo(task);
+        assertThat(result).isEqualTo(ObjectViewMapper.toView(task));
     }
 
     @Test
@@ -733,7 +734,7 @@ class DefaultBusinessObjectServiceTest {
         store.seed(project);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
 
-        BusinessObject result = service.read(ALICE, "Project", project.id());
+        ObjectView result = service.read(ALICE, "Project", project.id());
 
         assertThat(queryPort.aggregateRequests).hasSize(2);
         assertThat(result.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI));

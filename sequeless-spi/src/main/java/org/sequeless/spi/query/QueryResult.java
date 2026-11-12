@@ -3,13 +3,12 @@ package org.sequeless.spi.query;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.sequeless.spi.object.BusinessObject;
 
 /**
  * The result of a single {@link BrowsePort#browse} call: the matching objects on the requested
  * page, the total number of matches across every page, and the computed facet buckets.
  *
- * @param items the objects on the requested page; must not be {@code null}; may be empty;
+ * @param items the object views on the requested page; must not be {@code null}; may be empty;
  *     returned as an unmodifiable copy so callers cannot mutate this result after construction
  * @param total the total number of matching objects across every page; must not be negative
  * @param facets the computed facet buckets, keyed by property IRI matching the IRIs in the
@@ -19,7 +18,7 @@ import org.sequeless.spi.object.BusinessObject;
  *     this record does not deep-copy nested lists, matching the rest of the SPI's shallow-copy
  *     convention for nested collections
  */
-public record QueryResult(List<BusinessObject> items, long total, Map<String, List<FacetBucket>> facets) {
+public record QueryResult(List<ObjectView> items, long total, Map<String, List<FacetBucket>> facets) {
 
     public QueryResult {
         Objects.requireNonNull(items, "items must not be null");

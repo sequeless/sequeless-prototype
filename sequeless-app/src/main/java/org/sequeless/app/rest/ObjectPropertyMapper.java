@@ -15,6 +15,7 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
+import org.sequeless.spi.query.ObjectView;
 
 /**
  * Maps sequeless-core's {@code org.sequeless.spi.object} types onto {@link ObjectsController}'s
@@ -36,18 +37,39 @@ final class ObjectPropertyMapper {
      * @return the {@link BusinessObjectResponse} rendering of {@code object}
      */
     static BusinessObjectResponse toResponse(BusinessObject object, TypeDefinition requestType) {
+        return toResponse(
+                new ObjectView(
+                        object.id(),
+                        object.type(),
+                        object.tenant(),
+                        object.version(),
+                        object.state(),
+                        object.properties(),
+                        object.audit(),
+                        object.deleted()),
+                requestType);
+    }
+
+    /**
+     * @param view the Query side's view of the object to render; must not be {@code null}
+     * @param requestType the resolved {@link TypeDefinition} for the current request's {@code
+     *     type} path variable, used to resolve the object's property IRIs to short names; must not
+     *     be {@code null}
+     * @return the {@link BusinessObjectResponse} rendering of {@code view}
+     */
+    static BusinessObjectResponse toResponse(ObjectView view, TypeDefinition requestType) {
         return new BusinessObjectResponse(
-                object.id().value(),
-                shortName(object.type().iri()),
-                object.type().iri(),
-                object.version(),
-                object.state().map(ObjectPropertyMapper::shortName).orElse(null),
-                toProperties(requestType, object.properties()),
+                view.id().value(),
+                shortName(view.type().iri()),
+                view.type().iri(),
+                view.version(),
+                view.state().map(ObjectPropertyMapper::shortName).orElse(null),
+                toProperties(requestType, view.properties()),
                 new BusinessObjectResponse.AuditResponse(
-                        object.audit().createdAt(),
-                        object.audit().createdBy(),
-                        object.audit().updatedAt(),
-                        object.audit().updatedBy()));
+                        view.audit().createdAt(),
+                        view.audit().createdBy(),
+                        view.audit().updatedAt(),
+                        view.audit().updatedBy()));
     }
 
     /**

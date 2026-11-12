@@ -5,7 +5,7 @@ import org.sequeless.ontology.schema.api.Schema;
 
 /**
  * The outbound port that runs filtered, sorted, paged, faceted, and free-text browse queries over
- * stored {@link org.sequeless.spi.object.BusinessObject}s. Exactly one implementation is wired into
+ * stored objects, returning each matching object as an {@link ObjectView}. Exactly one implementation is wired into
  * the running application at a time, selected by configuration property (see the app's {@code
  * PortRegistry}); use cases never choose between implementations themselves.
  *

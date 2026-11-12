@@ -42,6 +42,7 @@ import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryResult;
@@ -165,7 +166,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(open1, open2);
+        assertThat(result.items()).extracting(ObjectView::id).containsExactlyInAnyOrder(open1, open2);
         assertThat(result.total()).isEqualTo(2);
     }
 
@@ -189,7 +190,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(taskForAlice);
+        assertThat(result.items()).extracting(ObjectView::id).containsExactly(taskForAlice);
         assertThat(result.total()).isEqualTo(1);
     }
 
@@ -213,7 +214,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(inWindow);
+        assertThat(result.items()).extracting(ObjectView::id).containsExactly(inWindow);
         assertThat(result.total()).isEqualTo(1);
     }
 
@@ -234,12 +235,12 @@ public abstract class BrowseContract {
         Query ascending =
                 queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.ASC)), new Page(0, 20));
         QueryResult ascResult = env.browsePort().browse(scope, schema, ascending);
-        assertThat(ascResult.items()).extracting(BusinessObject::id).containsExactly(low, mid, high);
+        assertThat(ascResult.items()).extracting(ObjectView::id).containsExactly(low, mid, high);
 
         Query descending =
                 queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.DESC)), new Page(0, 20));
         QueryResult descResult = env.browsePort().browse(scope, schema, descending);
-        assertThat(descResult.items()).extracting(BusinessObject::id).containsExactly(high, mid, low);
+        assertThat(descResult.items()).extracting(ObjectView::id).containsExactly(high, mid, low);
     }
 
     @Test
@@ -271,7 +272,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(openLow);
+        assertThat(result.items()).extracting(ObjectView::id).containsExactly(openLow);
         assertThat(result.total()).isEqualTo(1);
 
         List<FacetBucket> statusBuckets = result.facets().get(STATUS_IRI);
@@ -373,7 +374,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).containsExactlyInAnyOrder(task, project);
+        assertThat(result.items()).extracting(ObjectView::id).containsExactlyInAnyOrder(task, project);
         assertThat(result.items())
                 .extracting(item -> item.type().iri())
                 .containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
@@ -398,17 +399,17 @@ public abstract class BrowseContract {
         // (createdAt, id), so page contents are deterministic.
         QueryResult page0 =
                 env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 2)));
-        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
+        assertThat(page0.items()).extracting(ObjectView::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
         assertThat(page0.total()).isEqualTo(5);
 
         QueryResult page1 =
                 env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(1, 2)));
-        assertThat(page1.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(2, 4));
+        assertThat(page1.items()).extracting(ObjectView::id).containsExactlyElementsOf(expectedOrder.subList(2, 4));
         assertThat(page1.total()).isEqualTo(5);
 
         QueryResult page2 =
                 env.browsePort().browse(scope, schema, queryOf(Set.of(TASK_IRI), List.of(), new Page(2, 2)));
-        assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
+        assertThat(page2.items()).extracting(ObjectView::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
         assertThat(page2.total()).isEqualTo(5);
 
         QueryResult overrun =
@@ -431,7 +432,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).doesNotContain(id);
+        assertThat(result.items()).extracting(ObjectView::id).doesNotContain(id);
     }
 
     @Test
@@ -451,11 +452,11 @@ public abstract class BrowseContract {
         Set<String> types = Set.of(TASK_IRI, PROJECT_IRI);
 
         QueryResult page0 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(0, 2)));
-        assertThat(page0.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
+        assertThat(page0.items()).extracting(ObjectView::id).containsExactlyElementsOf(expectedOrder.subList(0, 2));
         assertThat(page0.total()).isEqualTo(5);
 
         QueryResult page2 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(2, 2)));
-        assertThat(page2.items()).extracting(BusinessObject::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
+        assertThat(page2.items()).extracting(ObjectView::id).containsExactlyElementsOf(expectedOrder.subList(4, 5));
         assertThat(page2.total()).isEqualTo(5);
 
         QueryResult overrun = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(3, 2)));
@@ -477,7 +478,7 @@ public abstract class BrowseContract {
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
-        assertThat(result.items()).extracting(BusinessObject::id).containsExactly(id);
+        assertThat(result.items()).extracting(ObjectView::id).containsExactly(id);
         assertThat(result.total()).isEqualTo(1);
     }
 

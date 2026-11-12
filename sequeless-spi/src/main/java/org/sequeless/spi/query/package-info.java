@@ -8,8 +8,9 @@
  * org.sequeless.kernel.identity.Scope} from its parent package, {@link
  * org.sequeless.ontology.schema.api.Schema} and {@link org.sequeless.ontology.schema.api.AggregateFunction}
  * from {@code org.sequeless.ontology.schema.api}, and {@link org.sequeless.kernel.values.Value}, {@link
- * org.sequeless.spi.object.BusinessObject}, {@link org.sequeless.kernel.values.ObjectId}, and {@link
- * org.sequeless.spi.object.Page} from {@code org.sequeless.spi.object}. {@link
+ * org.sequeless.kernel.values.ObjectId}, and {@link org.sequeless.spi.object.Page} from {@code
+ * org.sequeless.spi.object}, plus the object-shape types {@link org.sequeless.spi.object.Audit}, {@link
+ * org.sequeless.spi.object.PropertyRef}, and {@link org.sequeless.spi.object.TypeRef}. {@link
  * org.sequeless.spi.query.ReadPort}, {@link org.sequeless.spi.query.BrowsePort},
  * {@link org.sequeless.spi.query.IndexPreparationPort}, and {@link org.sequeless.spi.query.QueryPort} are
  * the port interfaces. {@link org.sequeless.spi.query.Query},
