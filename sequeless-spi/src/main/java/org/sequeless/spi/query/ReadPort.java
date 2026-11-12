@@ -2,10 +2,9 @@ package org.sequeless.spi.query;
 
 import java.util.Optional;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.BusinessObject;
 
 /**
- * The outbound port that reads a single stored {@link BusinessObject} by id. Exactly one
+ * The outbound port that reads a single stored object by id, returned as an {@link ObjectView}. Exactly one
  * implementation is wired into the running application at a time, selected by configuration
  * property (see the app's {@code PortRegistry}); use cases never choose between implementations
  * themselves.
@@ -40,9 +39,9 @@ public interface ReadPort {
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
      * @param request the id of the object to read; must not be {@code null}
-     * @return the object, or {@link Optional#empty()} if it does not exist, has been soft-deleted,
-     *     or belongs to a different tenant than {@code scope.tenantId()}
+     * @return the object's view, or {@link Optional#empty()} if it does not exist, has been
+     *     soft-deleted, or belongs to a different tenant than {@code scope.tenantId()}
      * @throws NullPointerException if either argument is {@code null}
      */
-    Optional<BusinessObject> read(Scope scope, ReadRequest request);
+    Optional<ObjectView> read(Scope scope, ReadRequest request);
 }

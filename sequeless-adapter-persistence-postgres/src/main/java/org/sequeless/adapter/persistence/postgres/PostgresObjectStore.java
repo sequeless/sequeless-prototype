@@ -31,6 +31,7 @@ import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.query.ObjectView;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -281,6 +282,23 @@ public final class PostgresObjectStore implements ObjectStorePort {
     }
 
     static BusinessObject mapRow(ResultSet rs, int rowNum) throws SQLException {
+        ObjectView view = mapViewRow(rs, rowNum);
+        return new BusinessObject(
+                view.id(),
+                view.type(),
+                view.tenant(),
+                view.version(),
+                view.state(),
+                view.properties(),
+                view.audit(),
+                view.deleted());
+    }
+
+    /**
+     * The single row-to-object parser shared by the write side's {@link BusinessObject} and the
+     * query side's {@link ObjectView}, so both read the same columns the same way.
+     */
+    static ObjectView mapViewRow(ResultSet rs, int rowNum) throws SQLException {
         ObjectId id = new ObjectId((UUID) rs.getObject("id"));
         TenantId tenant = new TenantId(rs.getString("tenant_id"));
         TypeRef type = new TypeRef(rs.getString("type_iri"));
@@ -293,6 +311,6 @@ public final class PostgresObjectStore implements ObjectStorePort {
         String updatedBy = rs.getString("updated_by");
         boolean deleted = rs.getTimestamp("deleted_at") != null;
         Audit audit = new Audit(createdAt, createdBy, updatedAt, updatedBy);
-        return new BusinessObject(id, type, tenant, version, state, properties, audit, deleted);
+        return new ObjectView(id, type, tenant, version, state, properties, audit, deleted);
     }
 }

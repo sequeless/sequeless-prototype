@@ -37,7 +37,6 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.BrowsePort;
@@ -45,6 +44,7 @@ import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
 import org.sequeless.spi.query.IndexPreparationPort;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
@@ -86,7 +86,7 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
      * yields {@link Optional#empty()}.
      */
     @Override
-    public Optional<BusinessObject> read(Scope scope, ReadRequest request) {
+    public Optional<ObjectView> read(Scope scope, ReadRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(request, "request must not be null");
         return jdbcClient
@@ -95,7 +95,7 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
                         + "WHERE id = :id AND tenant_id = :tenantId AND deleted_at IS NULL")
                 .param("id", request.id().value())
                 .param("tenantId", scope.tenantId().value())
-                .query(PostgresObjectStore::mapRow)
+                .query(PostgresObjectStore::mapViewRow)
                 .optional();
     }
 
@@ -131,7 +131,7 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
         itemParams.put("limit", query.page().size());
         itemParams.put("offset", query.page().number() * query.page().size());
 
-        List<BusinessObject> items = jdbcClient
+        List<ObjectView> items = jdbcClient
                 .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
                         + "updated_at, updated_by, deleted_at FROM sq_object WHERE "
                         + mainWhere.sql()
@@ -139,7 +139,7 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
                         + orderBy.sql()
                         + " LIMIT :limit OFFSET :offset")
                 .params(itemParams)
-                .query(PostgresObjectStore::mapRow)
+                .query(PostgresObjectStore::mapViewRow)
                 .list();
 
         Map<String, List<FacetBucket>> facets = new LinkedHashMap<>();

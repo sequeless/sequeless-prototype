@@ -3,7 +3,7 @@ package org.sequeless.testkit.query;
 import java.util.Objects;
 import java.util.Optional;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.BusinessObject;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.query.ReadRequest;
 
@@ -22,11 +22,12 @@ final class InMemoryReadPort implements ReadPort {
     }
 
     @Override
-    public Optional<BusinessObject> read(Scope scope, ReadRequest request) {
+    public Optional<ObjectView> read(Scope scope, ReadRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(request, "request must not be null");
         return store.everyObject(scope).stream()
                 .filter(object -> object.id().equals(request.id()) && !object.deleted())
-                .findFirst();
+                .findFirst()
+                .map(ObjectViews::of);
     }
 }

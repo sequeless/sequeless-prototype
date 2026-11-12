@@ -25,6 +25,7 @@ import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.query.ReadRequest;
 import org.sequeless.testkit.Fixtures;
@@ -125,8 +126,8 @@ public abstract class ReadContract {
 
         env.store().commit(scope, new ChangeSet(List.of(new Create(stored)), List.of()));
 
-        Optional<BusinessObject> found = env.readPort().read(scope, new ReadRequest(id));
-        assertThat(found).contains(stored);
+        Optional<ObjectView> found = env.readPort().read(scope, new ReadRequest(id));
+        assertThat(found).contains(ObjectViews.of(stored));
         assertThat(found.orElseThrow().audit()).isEqualTo(stored.audit());
     }
 
@@ -161,7 +162,7 @@ public abstract class ReadContract {
                                         objectAt(scope, id, Map.of(TEXT_PROP, Value.text("v2")), at, 1, false), 1)),
                                 List.of()));
 
-        Optional<BusinessObject> found = env.readPort().read(scope, new ReadRequest(id));
+        Optional<ObjectView> found = env.readPort().read(scope, new ReadRequest(id));
         assertThat(found).isPresent();
         assertThat(found.orElseThrow().version()).isEqualTo(2);
         assertThat(found.orElseThrow().properties()).containsEntry(TEXT_PROP, Value.text("v2"));

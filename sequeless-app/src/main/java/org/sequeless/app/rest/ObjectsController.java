@@ -34,6 +34,7 @@ import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.Page;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -264,7 +265,7 @@ public class ObjectsController {
     @GetMapping("/objects/{type}/{id}")
     public ResponseEntity<BusinessObjectResponse> read(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
-        BusinessObject found = businessObjectService.read(scope, type, new ObjectId(id));
+        ObjectView found = businessObjectService.read(scope, type, new ObjectId(id));
         TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(found.version()))
@@ -398,7 +399,7 @@ public class ObjectsController {
     @GetMapping("/objects/{type}/{id}/transitions")
     public List<TransitionResponse> transitions(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
-        BusinessObject object = businessObjectService.read(scope, type, new ObjectId(id));
+        ObjectView object = businessObjectService.read(scope, type, new ObjectId(id));
         Behaviour behaviour = metaModelService.behaviour(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
         Set<String> userActionTransitionNames = userActionTransitionNames(behaviour, object);
@@ -411,12 +412,12 @@ public class ObjectsController {
     /**
      * @param behaviour the behaviour {@code object}'s type's state machine is read from; must not be
      *     {@code null}
-     * @param object the object whose type's state machine is consulted; must not be {@code null}
+     * @param object the object view whose type's state machine is consulted; must not be {@code null}
      * @return the names of every transition on {@code object}'s type's state machine whose {@link
      *     org.sequeless.ontology.behaviour.api.Transition#trigger()} is {@link TriggerKind#USER_ACTION};
      *     empty if the type has no state machine
      */
-    private static Set<String> userActionTransitionNames(Behaviour behaviour, BusinessObject object) {
+    private static Set<String> userActionTransitionNames(Behaviour behaviour, ObjectView object) {
         Optional<StateMachineDefinition> machine =
                 behaviour.stateMachine(object.type().iri());
         if (machine.isEmpty()) {

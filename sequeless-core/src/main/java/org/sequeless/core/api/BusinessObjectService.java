@@ -11,6 +11,7 @@ import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
 
 /**
@@ -59,7 +60,8 @@ public interface BusinessObjectService {
     QueryResult browse(Scope scope, String type, BrowseQuery query);
 
     /**
-     * Reads a single object of {@code type} (or a subtype of it) by id.
+     * Reads a single object of {@code type} (or a subtype of it) by id, returned as its {@link
+     * ObjectView} with the derived properties computed.
      *
      * <p>Authorizes {@link Operation#READ} against the resolved type's IRI. An id that does not
      * exist, is soft-deleted, or belongs to an unrelated type — one that is not {@code type} itself
@@ -70,14 +72,14 @@ public interface BusinessObjectService {
      *     null}
      * @param type the type's short name or full IRI; must not be {@code null}
      * @param id the object's id; must not be {@code null}
-     * @return the matching object
+     * @return the matching object's view
      * @throws NullPointerException if any argument is {@code null}
      * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
      *     subtype of it exists with {@code id}
      */
-    BusinessObject read(Scope scope, String type, ObjectId id);
+    ObjectView read(Scope scope, String type, ObjectId id);
 
     /**
      * Creates a new object of {@code type} with {@code properties}.

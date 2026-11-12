@@ -60,6 +60,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
@@ -217,12 +218,16 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
 
         Query spiQuery = new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
         QueryResult result = browsePort.browse(scope, schema, spiQuery);
-        List<BusinessObject> derived = derivationPlanner.apply(scope, schema, behaviour, resolved, result.items());
+        List<BusinessObject> stored =
+                result.items().stream().map(ObjectViewMapper::toBusinessObject).toList();
+        List<ObjectView> derived = derivationPlanner.apply(scope, schema, behaviour, resolved, stored).stream()
+                .map(ObjectViewMapper::toView)
+                .toList();
         return new QueryResult(derived, result.total(), result.facets());
     }
 
     @Override
-    public BusinessObject read(Scope scope, String type, ObjectId id) {
+    public ObjectView read(Scope scope, String type, ObjectId id) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
@@ -232,12 +237,12 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         TypeDefinition resolved = resolveType(schema, type);
         authorize(scope, Operation.READ, resolved.iri());
 
-        BusinessObject found =
-                readPort.read(scope, new ReadRequest(id)).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(schema, found, resolved, id);
-        return derivationPlanner
-                .apply(scope, schema, halves.behaviour(), resolved, List.of(found))
-                .get(0);
+        ObjectView found = readPort.read(scope, new ReadRequest(id)).orElseThrow(() -> new ObjectNotFoundException(id));
+        requireMatchingType(schema, found.type(), resolved, id);
+        BusinessObject stored = ObjectViewMapper.toBusinessObject(found);
+        return ObjectViewMapper.toView(derivationPlanner
+                .apply(scope, schema, halves.behaviour(), resolved, List.of(stored))
+                .get(0));
     }
 
     @Override
@@ -308,7 +313,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         authorize(scope, Operation.EDIT, resolved.iri());
 
         BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(schema, existing, resolved, id);
+        requireMatchingType(schema, existing.type(), resolved, id);
 
         Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, behaviour, properties);
         List<Violation> structural =
@@ -356,7 +361,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         authorize(scope, Operation.DELETE, resolved.iri());
 
         BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
-        requireMatchingType(schema, existing, resolved, id);
+        requireMatchingType(schema, existing.type(), resolved, id);
 
         long versionToDelete = expectedVersion.orElse(existing.version());
         Instant now = now();
@@ -650,8 +655,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         return slash >= 0 ? iri.substring(slash + 1) : iri;
     }
 
-    private void requireMatchingType(Schema schema, BusinessObject object, TypeDefinition resolved, ObjectId id) {
-        if (!TypeHierarchy.isSubtypeOf(schema, object.type().iri(), resolved.iri())) {
+    private void requireMatchingType(Schema schema, TypeRef storedType, TypeDefinition resolved, ObjectId id) {
+        if (!TypeHierarchy.isSubtypeOf(schema, storedType.iri(), resolved.iri())) {
             throw new ObjectNotFoundException(id);
         }
     }

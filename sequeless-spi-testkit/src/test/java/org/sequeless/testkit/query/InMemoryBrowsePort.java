@@ -37,6 +37,7 @@ import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.query.Sort;
@@ -89,7 +90,9 @@ final class InMemoryBrowsePort implements BrowsePort {
         for (String facetProperty : query.facetProperties()) {
             facets.put(facetProperty, facetBuckets(scope, schema, query, facetProperty));
         }
-        return new QueryResult(ordered.subList(start, end), matching.size(), facets);
+        List<ObjectView> items =
+                ordered.subList(start, end).stream().map(ObjectViews::of).toList();
+        return new QueryResult(items, matching.size(), facets);
     }
 
     /**
