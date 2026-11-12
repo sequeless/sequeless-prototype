@@ -152,40 +152,41 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
 
     /**
      * Registers every {@code sq:indexed} property's expression index in {@code sq_index_registry}
-     * (creating the index itself if not already present) and every {@code sq:searchable}
-     * property in {@code sq_searchable_property}, backfilling {@code search_vector} for the
-     * tenant's existing rows when a new searchable property is registered. Idempotent: a property
-     * already present in either registry table is left untouched, so calling this repeatedly for
-     * the same {@link Schema} is cheap. The {@code version} argument is not used: the work depends
-     * on {@code schema} alone.
+     * (creating the index itself if not already present) and every {@code sq:searchable} property
+     * in {@code sq_searchable_property}. Idempotent: a property already present in either registry
+     * table is left untouched, so calling this repeatedly for the same {@link Schema} is cheap. The
+     * {@code version} argument is not used: the work depends on {@code schema} alone.
      *
-     * <p>Runs inside {@link #transactionTemplate} so a concurrent {@code prepare} call for the
-     * same tenant cannot interleave a registry insert with another's backfill, matching {@link
-     * PostgresOntologyDocumentStore#activate}'s use of the same transactional-wrapping pattern for
-     * multi-statement atomicity.
+     * <p>Returns {@code true} iff this call inserted a {@code sq_searchable_property} row. This method
+     * never touches {@code sq_object}: the caller recomputes the existing objects' {@code
+     * search_vector} through {@link org.sequeless.spi.object.SearchVectorBackfillPort} when this
+     * returns {@code true}.
+     *
+     * <p>Runs inside {@link #transactionTemplate}, which is {@code REQUIRED}: when the host has
+     * already opened a transaction over the same {@link javax.sql.DataSource}, this method joins it,
+     * so the registry writes commit or roll back together with the backfill that follows them.
      */
     @Override
-    public void prepare(Scope scope, OntologyVersion version, Schema schema) {
+    public boolean prepare(Scope scope, OntologyVersion version, Schema schema) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(version, "version must not be null");
         Objects.requireNonNull(schema, "schema must not be null");
         String tenantId = scope.tenantId().value();
         Map<String, PropertyDefinition> allProperties = indexAllProperties(schema);
 
-        transactionTemplate.executeWithoutResult(status -> {
-            boolean backfillNeeded = false;
+        Boolean newlyRegistered = transactionTemplate.execute(status -> {
+            boolean registeredAny = false;
             for (PropertyDefinition property : allProperties.values()) {
                 if (property.indexed()) {
                     ensureIndex(tenantId, property);
                 }
                 if (property.searchable()) {
-                    backfillNeeded |= registerSearchable(tenantId, property);
+                    registeredAny |= registerSearchable(tenantId, property);
                 }
             }
-            if (backfillNeeded) {
-                backfillSearchVector(tenantId);
-            }
+            return registeredAny;
         });
+        return Boolean.TRUE.equals(newlyRegistered);
     }
 
     /**
@@ -376,30 +377,6 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
                 .param("propertyIri", property.iri())
                 .update();
         return true;
-    }
-
-    /**
-     * Recomputes {@code search_vector} for every existing row of {@code tenantId} from the
-     * tenant's current {@code sq_searchable_property} registry. Must stay textually consistent
-     * with {@code sq_object_update_search_vector()} in {@code
-     * V2__query_indexes_and_search.sql} — same {@code 'simple'} text search configuration, same
-     * {@code string_agg} pattern over each searchable property's {@code 'text'}-tagged value — so
-     * a newly backfilled row and a freshly trigger-computed row rank identically for the same
-     * content.
-     */
-    // Calls the same sq_extract_searchable_text(props, property_iri) SQL function the V2 migration's
-    // insert/update trigger uses, so a scalar-tagged ({"text": ...}) or list-tagged ({"list": [...]})
-    // searchable property is extracted identically here and on every future row insert/update --
-    // see V2__query_indexes_and_search.sql for why both shapes must be handled (sq:searchable
-    // carries no scalar-cardinality requirement, unlike sq:facet/sq:indexed).
-    private void backfillSearchVector(String tenantId) {
-        jdbcClient
-                .sql("UPDATE sq_object o SET search_vector = ("
-                        + "SELECT to_tsvector('simple', COALESCE(string_agg(sq_extract_searchable_text(o.props, sp.property_iri), ' '), '')) "
-                        + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
-                        + "WHERE o.tenant_id = :tenantId")
-                .param("tenantId", tenantId)
-                .update();
     }
 
     // -- Property resolution -----------------------------------------------------------------

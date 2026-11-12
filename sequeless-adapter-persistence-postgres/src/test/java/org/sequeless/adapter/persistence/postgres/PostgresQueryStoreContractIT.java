@@ -37,12 +37,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * every real caller uses: ontology activation always prepares indexes before any browse runs
  * (plan.md "PostgreSQL adapter design"). This matters for correctness, not just performance, for
  * this adapter: {@code browse}'s free-text search matches against the persisted {@code
- * search_vector} column, which {@code prepare} registers a property into {@code
- * sq_searchable_property} and backfills for. A property never becomes searchable, and {@code
- * search_vector} never gets populated by the insert trigger, until {@code prepare} has run at least
- * once for the tenant. Without this call, {@code BrowseContract}'s {@code
- * textSearchRanksBestMatchFirst} test fails: every row's {@code search_vector} stays an empty
- * {@code tsvector} and {@code plainto_tsquery} matches nothing.
+ * search_vector} column. {@code prepare} registers each searchable property into {@code
+ * sq_searchable_property}, and the Command trigger then fills {@code search_vector} for every row
+ * written after that registration. A property stays unsearchable for rows that are already stored
+ * until the host backfills them through {@code SearchVectorBackfillPort}, which this environment
+ * does not need: every fixture row is written after {@code prepare}. Without this call, {@code
+ * BrowseContract}'s {@code textSearchRanksBestMatchFirst} test fails: every row's {@code
+ * search_vector} stays an empty {@code tsvector} and {@code plainto_tsquery} matches nothing.
  *
  * <p>Unlike {@link PostgresObjectStoreContractIT}, {@link #truncateTables()} deliberately leaves
  * {@code sq_index_registry} and {@code sq_searchable_property} untouched between tests — only

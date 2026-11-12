@@ -27,6 +27,7 @@ import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
+import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
@@ -45,9 +46,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>Reads use {@link JdbcClient}; {@link #commit} and {@link
  * PostgresOntologyDocumentStore#activate} each run inside one {@link TransactionTemplate}
  * transaction, satisfying the all-or-nothing guarantees {@link ObjectStorePort#commit} and {@link
- * OntologyDocumentStore#activate} document.
+ * OntologyDocumentStore#activate} document. {@link #backfill} is the {@link
+ * SearchVectorBackfillPort} implementation, and joins the host's transaction the same way.
  */
-public final class PostgresObjectStore implements ObjectStorePort {
+public final class PostgresObjectStore implements ObjectStorePort, SearchVectorBackfillPort {
 
     private final JdbcClient jdbcClient;
     private final TransactionTemplate transactionTemplate;
@@ -139,6 +141,35 @@ public final class PostgresObjectStore implements ObjectStorePort {
     @Override
     public OntologyDocumentStore ontologyDocuments() {
         return ontologyDocuments;
+    }
+
+    /**
+     * Recomputes {@code search_vector} for every object of {@code scope}'s tenant from the tenant's
+     * current {@code sq_searchable_property} registry. Must stay textually consistent with {@code
+     * sq_object_update_search_vector()} in {@code V6__search_vector_command.sql}: same {@code 'simple'}
+     * text search configuration, same {@code string_agg} pattern over each searchable property's
+     * value, so a backfilled row and a trigger-computed row rank identically for the same content.
+     *
+     * <p>Runs inside {@link #transactionTemplate}, which is {@code REQUIRED}. When the host has
+     * opened a transaction over the same {@link javax.sql.DataSource}, this update sees that
+     * transaction's uncommitted registry rows and commits or rolls back with them.
+     */
+    // Calls the same sq_extract_searchable_text(props, property_iri) SQL function the V6 trigger uses,
+    // so a scalar-tagged ({"text": ...}) or list-tagged ({"list": [...]}) searchable property is
+    // extracted identically here and on every future row insert/update -- see
+    // V6__search_vector_command.sql for why both shapes must be handled (sq:searchable carries no
+    // scalar-cardinality requirement, unlike sq:facet/sq:indexed).
+    @Override
+    public void backfill(Scope scope) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        String tenantId = scope.tenantId().value();
+        transactionTemplate.executeWithoutResult(status -> jdbcClient
+                .sql("UPDATE sq_object o SET search_vector = ("
+                        + "SELECT to_tsvector('simple', COALESCE(string_agg(sq_extract_searchable_text(o.props, sp.property_iri), ' '), '')) "
+                        + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
+                        + "WHERE o.tenant_id = :tenantId")
+                .param("tenantId", tenantId)
+                .update());
     }
 
     /**

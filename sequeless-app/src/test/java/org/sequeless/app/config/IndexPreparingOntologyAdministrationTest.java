@@ -26,6 +26,7 @@ import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.testkit.query.QueryFixtures;
+import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Unit-tests {@link IndexPreparingOntologyAdministration} against hand-built doubles, with no Spring
@@ -109,8 +110,9 @@ class IndexPreparingOntologyAdministrationTest {
     private static IndexPreparingOntologyAdministration newAdministration(
             ActivatingAdministration delegate, RecordingIndexPreparationPort port) {
         SchemaSource schemaSource = delegate.schemaSource();
-        return new IndexPreparingOntologyAdministration(
-                delegate, schemaSource, new IndexPreparation(schemaSource, port));
+        IndexPreparation indexPreparation =
+                new IndexPreparation(schemaSource, port, scope -> {}, TransactionOperations.withoutTransaction());
+        return new IndexPreparingOntologyAdministration(delegate, schemaSource, indexPreparation);
     }
 
     private static OntologyReport inconsistentReport() {
@@ -176,8 +178,9 @@ class IndexPreparingOntologyAdministrationTest {
         private final List<PrepareCall> calls = new ArrayList<>();
 
         @Override
-        public void prepare(Scope scope, OntologyVersion version, Schema schema) {
+        public boolean prepare(Scope scope, OntologyVersion version, Schema schema) {
             calls.add(new PrepareCall(scope, version, schema));
+            return false;
         }
     }
 }

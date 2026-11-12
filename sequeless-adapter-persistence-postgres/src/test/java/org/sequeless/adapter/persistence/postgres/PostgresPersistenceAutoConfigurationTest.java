@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.spi.query.QueryPort;
@@ -40,6 +41,7 @@ class PostgresPersistenceAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ObjectStorePort.class);
+                    assertThat(context).hasSingleBean(SearchVectorBackfillPort.class);
                     assertThat(context).hasSingleBean(DataSource.class);
                 });
     }

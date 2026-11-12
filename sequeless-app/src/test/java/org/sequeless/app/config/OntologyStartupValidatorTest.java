@@ -20,6 +20,7 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.testkit.query.QueryFixtures;
 import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Unit-tests {@link OntologyStartupValidator#run} against hand-built doubles, with no Spring context
@@ -40,7 +41,7 @@ class OntologyStartupValidatorTest {
         };
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
 
-        new OntologyStartupValidator(source, new IndexPreparation(source, port)).run(new DefaultApplicationArguments());
+        new OntologyStartupValidator(source, indexPreparation(source, port)).run(new DefaultApplicationArguments());
 
         // The validator reads the Schema to learn its version, and the use case reads it again to pass
         // to the port: two reads of the same, unchanged Schema.
@@ -56,24 +57,30 @@ class OntologyStartupValidatorTest {
             throw failure;
         };
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
-        OntologyStartupValidator validator = new OntologyStartupValidator(source, new IndexPreparation(source, port));
+        OntologyStartupValidator validator = new OntologyStartupValidator(source, indexPreparation(source, port));
 
         assertThatThrownBy(() -> validator.run(new DefaultApplicationArguments()))
                 .isSameAs(failure);
         assertThat(port.calls).isEmpty();
     }
 
+    /** The host use case over {@code port}, with no backfill needed and no transaction. */
+    private static IndexPreparation indexPreparation(SchemaSource source, IndexPreparationPort port) {
+        return new IndexPreparation(source, port, scope -> {}, TransactionOperations.withoutTransaction());
+    }
+
     /** One {@link IndexPreparationPort#prepare} invocation: the scope, version and Schema it was given. */
     private record PrepareCall(Scope scope, OntologyVersion version, Schema schema) {}
 
-    /** An {@link IndexPreparationPort} that records each {@code prepare} call and nothing else. */
+    /** An {@link IndexPreparationPort} that records each {@code prepare} call and registers nothing new. */
     private static final class RecordingIndexPreparationPort implements IndexPreparationPort {
 
         private final List<PrepareCall> calls = new ArrayList<>();
 
         @Override
-        public void prepare(Scope scope, OntologyVersion version, Schema schema) {
+        public boolean prepare(Scope scope, OntologyVersion version, Schema schema) {
             calls.add(new PrepareCall(scope, version, schema));
+            return false;
         }
     }
 }
