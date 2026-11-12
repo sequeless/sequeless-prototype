@@ -172,8 +172,13 @@ final class InMemoryBrowsePort implements BrowsePort {
                 .map(entry -> new FacetBucket(entry.getKey(), entry.getValue()))
                 .sorted(Comparator.comparingLong((FacetBucket bucket) -> bucket.count())
                         .reversed()
-                        .thenComparing(FacetBucket::value))
+                        .thenComparing(FacetBucket::value, InMemoryBrowsePort::compareByCodePoint))
                 .toList();
+    }
+
+    /** Unicode code point order, which equals the UTF-8 byte order that PostgreSQL's COLLATE "C" uses. */
+    private static int compareByCodePoint(String a, String b) {
+        return Arrays.compare(a.codePoints().toArray(), b.codePoints().toArray());
     }
 
     private static Optional<String> referenceLabel(

@@ -633,12 +633,12 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
         String tag = tagFor(attribute.datatype());
         String valueExpr = "props -> :facetProp ->> '" + tag + "'";
 
-        String sql = "SELECT (" + valueExpr + ") AS bucket_value, COUNT(*) AS bucket_count "
+        String sql = "SELECT ((" + valueExpr + ") COLLATE \"C\") AS bucket_value, COUNT(*) AS bucket_count "
                 + "FROM sq_object WHERE "
                 + excluding.sql()
                 + " AND ("
                 + valueExpr
-                + ") IS NOT NULL GROUP BY 1 ORDER BY bucket_count DESC";
+                + ") IS NOT NULL GROUP BY 1 ORDER BY bucket_count DESC, bucket_value";
 
         Map<String, Object> params = new HashMap<>(excluding.params());
         params.put("facetProp", facetProperty);
@@ -673,15 +673,14 @@ public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPrep
                         + tagFor(labelProperty.get().datatype()) + "'"
                 : "target.id::text";
 
-        String sql = "SELECT ("
-                + valueExpr
-                + ") AS bucket_value, COUNT(*) AS bucket_count "
+        String sql = "SELECT ((" + valueExpr + ") COLLATE \"C\") AS bucket_value, COUNT(*) AS bucket_count "
                 + "FROM sq_object o "
                 + "JOIN sq_object target ON target.id = (o.props -> :facetProp ->> 'ref')::uuid "
                 + "AND target.tenant_id = :tenantId AND target.deleted_at IS NULL "
                 + "WHERE "
                 + excluding.sql()
-                + " GROUP BY 1 ORDER BY bucket_count DESC";
+                + " AND (" + valueExpr + ") IS NOT NULL "
+                + "GROUP BY 1 ORDER BY bucket_count DESC, bucket_value";
 
         Map<String, Object> params = new HashMap<>(excluding.params());
         params.put("facetProp", facetProperty);

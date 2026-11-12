@@ -49,6 +49,9 @@ import org.sequeless.ontology.schema.api.Schema;
  *       adding a matching {@link Criterion} for that property) does not zero out the counts of
  *       that facet's sibling buckets — only the counts of other facets are narrowed by the
  *       selection.
+ *   <li><b>Facet bucket order.</b> For each facet property, the buckets are sorted by count, descending,
+ *       then by bucket value in Unicode code point order. A bucket whose value is null is not returned.
+ *       {@code BrowseContract} asserts each part of this clause.
  * </ul>
  */
 public interface BrowsePort {

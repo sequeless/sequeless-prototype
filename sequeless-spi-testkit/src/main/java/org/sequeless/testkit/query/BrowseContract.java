@@ -321,6 +321,99 @@ public abstract class BrowseContract {
     }
 
     @Test
+    void facetTiesOrderByCodePoint() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTask(env, scope, base, "Lower case", "b", 1, LocalDate.of(2026, 2, 1), null, null);
+        seedTask(env, scope, base.plusSeconds(1), "Upper case", "B", 2, LocalDate.of(2026, 2, 2), null, null);
+
+        QueryResult result = env.browsePort()
+                .browse(
+                        scope,
+                        QueryFixtures.schema(),
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
+
+        // Equal counts: U+0042 (B) sorts before U+0062 (b) in code point order.
+        assertThat(result.facets().get(STATUS_IRI)).containsExactly(new FacetBucket("B", 1), new FacetBucket("b", 1));
+    }
+
+    @Test
+    void scalarFacetDropsNullKeyBucket() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTask(env, scope, base, "Lower case", "b", 1, LocalDate.of(2026, 2, 1), null, null);
+        seedTask(env, scope, base.plusSeconds(1), "Upper case", "B", 2, LocalDate.of(2026, 2, 2), null, null);
+        // No status: the facet value is absent, so this object's bucket key would be null.
+        seed(env, scope, TASK, base.plusSeconds(2), Map.of(TITLE, Value.text("No status"), PRIORITY, Value.integer(3)));
+
+        QueryResult result = env.browsePort()
+                .browse(
+                        scope,
+                        QueryFixtures.schema(),
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
+
+        assertThat(result.total()).isEqualTo(3);
+        assertThat(result.facets().get(STATUS_IRI)).containsExactly(new FacetBucket("B", 1), new FacetBucket("b", 1));
+    }
+
+    @Test
+    void facetOrdersSupplementaryAfterBmpWhenCountsTie() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        // Code point order: U+00E9 < U+FFFD < U+1F600 (the emoji, a surrogate pair in UTF-16).
+        // U+00E9 and U+1F600 alone sort the same in UTF-16 order, so U+FFFD is what pins the change:
+        // UTF-16 code units put the surrogate pair (0xD83D) before U+FFFD (0xFFFD).
+        // Seeded out of expected order, so the result cannot be the insertion order.
+        seedTask(env, scope, base, "Emoji", "😀", 3, LocalDate.of(2026, 2, 3), null, null);
+        seedTask(env, scope, base.plusSeconds(1), "Accented", "é", 1, LocalDate.of(2026, 2, 1), null, null);
+        seedTask(env, scope, base.plusSeconds(2), "Replacement", "�", 2, LocalDate.of(2026, 2, 2), null, null);
+
+        QueryResult result = env.browsePort()
+                .browse(
+                        scope,
+                        QueryFixtures.schema(),
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
+
+        assertThat(result.facets().get(STATUS_IRI))
+                .containsExactly(new FacetBucket("é", 1), new FacetBucket("�", 1), new FacetBucket("😀", 1));
+    }
+
+    @Test
+    void referenceFacetDropsNullLabelBucket() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        ObjectId alice = seedPerson(env, scope, base, "Alice Smith", "alice@example.com");
+        ObjectId bob = seedPerson(env, scope, base.plusSeconds(1), "Bob Jones", "bob@example.com");
+        // No name: the display label is absent, so this target's bucket key would be null.
+        ObjectId nameless =
+                seed(env, scope, PERSON, base.plusSeconds(2), Map.of(EMAIL, Value.text("nobody@example.com")));
+
+        seedTask(env, scope, base.plusSeconds(3), "Alice task", "OPEN", 1, LocalDate.of(2026, 2, 1), alice, null);
+        seedTask(env, scope, base.plusSeconds(4), "Bob task one", "OPEN", 2, LocalDate.of(2026, 2, 2), bob, null);
+        seedTask(env, scope, base.plusSeconds(5), "Bob task two", "OPEN", 3, LocalDate.of(2026, 2, 3), bob, null);
+        seedTask(env, scope, base.plusSeconds(6), "Nameless task", "OPEN", 4, LocalDate.of(2026, 2, 4), nameless, null);
+
+        QueryResult result = env.browsePort()
+                .browse(
+                        scope,
+                        QueryFixtures.schema(),
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI)));
+
+        // Bob Jones (2) sorts before Alice Smith (1) by count, although "Alice Smith" < "Bob Jones" by value.
+        assertThat(result.total()).isEqualTo(4);
+        assertThat(result.facets().get(ASSIGNED_TO_IRI))
+                .containsExactly(new FacetBucket("Bob Jones", 2), new FacetBucket("Alice Smith", 1));
+    }
+
+    @Test
     void textSearchRanksBestMatchFirst() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
