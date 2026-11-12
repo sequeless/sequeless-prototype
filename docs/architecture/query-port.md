@@ -284,28 +284,28 @@ only tenant the REST controllers use today.
 When `query.sorts()` is empty:
 
 - and `query.text()` is absent — ascending by `created_at`, then `id` (a stable tiebreak). This
-  matches the default order that `ObjectStorePort#browse` documented before P6a, and `BrowsePort`'s own
-  interface-level javadoc states it unconditionally as "the" default order.
+  matches the default order that `ObjectStorePort#browse` documented before P6a and the
+  "Result order" item in `BrowsePort`'s javadoc.
 - and `query.text()` is present — descending by `ts_rank(search_vector, plainto_tsquery('simple',
   :searchText))`, then ascending by `created_at`, then `id`. This is what `PostgresQueryStore`
   actually implements and what the `BrowseContract` test suite's `textSearchRanksBestMatchFirst`
-  exercises (it asserts the top-ranked item is the expected best match, though it does not pin down
-  full ordering beyond that). Note this is a narrower, more specific rule than `BrowsePort`'s
-  interface-level javadoc literally states — that javadoc's "ascending `(createdAt, id)`" default is
-  written without an explicit carve-out for active text search. Treat the rule above (explicit sort
-  wins; otherwise text search ranks by relevance; otherwise `(createdAt, id)` ascending) as the real
-  contract a conforming adapter should follow, since it is what the shipped adapter and its contract
-  tests actually establish.
+  exercises, and `textSearchBreaksRankTiesByCreatedAtThenUnsignedId` pins the
+  `created_at`, then `id` tie-break. `BrowsePort`'s javadoc ("Result order") states the same
+  precedence: explicit sort wins; otherwise relevance; otherwise `(createdAt, id)` ascending.
 
 Any explicit `Sort` in `query.sorts()` always wins over both defaults; `id` is still appended as a
 final, stable tiebreak after every explicit sort key.
 
+Ids compare in unsigned byte order of the 16-byte UUID, PostgreSQL's native `uuid` order (DR-21).
+Missing sort-key values sort last ascending and first descending.
+
 ## A non-SQL adapter sketch
 
-DR-13 names OpenSearch as the plausible alternative if Postgres facet/text-search performance ever
-becomes a bottleneck. Nothing about `QueryPort`'s shape is Postgres-specific, so an OpenSearch-backed
-implementation could sit behind the exact same interface without `sequeless-core` — or any use case
-calling `BusinessObjectService.browse` — ever knowing the difference:
+DR-13 allows a separate search index adapter if facet queries prove too slow; the OpenSearch example
+below is a sketch, not a recorded decision. Nothing about `QueryPort`'s shape is Postgres-specific,
+so an OpenSearch-backed implementation could sit behind the exact same interface without
+`sequeless-core` — or any use case calling `BusinessObjectService.browse` — ever knowing the
+difference:
 
 - **`browse(scope, schema, query)`**: translate `query.criteria()` into a `bool` query's `filter`
   clauses — `EQ`/`IN` as `term`/`terms`, `LT`/`LTE`/`GT`/`GTE` as `range`, `CONTAINS`/`STARTS_WITH`

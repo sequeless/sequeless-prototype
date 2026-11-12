@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -54,6 +55,9 @@ import org.sequeless.spi.query.Sort;
  * occurrences, best first, tie-broken by {@code (createdAt, id)}. Reference facet buckets are
  * labelled by the target's display-label property, and a target that is missing, soft-deleted, or
  * of another tenant contributes no bucket, matching the Postgres adapter's inner join.
+ *
+ * <p>Ids, and reference values used as sort keys, compare in {@link BrowsePort}'s unsigned order
+ * (see {@code compareIds}), never by the signed {@link UUID#compareTo}.
  */
 final class InMemoryBrowsePort implements BrowsePort {
 
@@ -61,10 +65,10 @@ final class InMemoryBrowsePort implements BrowsePort {
 
     private static final Comparator<BusinessObject> CREATED_AT_THEN_ID = Comparator.comparing(
                     (BusinessObject object) -> object.audit().createdAt())
-            .thenComparing(object -> object.id().value());
+            .thenComparing(object -> object.id().value(), InMemoryBrowsePort::compareIds);
 
     private static final Comparator<BusinessObject> ID =
-            Comparator.comparing(object -> object.id().value());
+            Comparator.comparing(object -> object.id().value(), InMemoryBrowsePort::compareIds);
 
     private final InMemoryAggregateObjectStorePort store;
 
@@ -316,9 +320,15 @@ final class InMemoryBrowsePort implements BrowsePort {
             return Boolean.compare(leftBool.value(), rightBool.value());
         }
         if (left instanceof ReferenceValue leftRef && right instanceof ReferenceValue rightRef) {
-            return leftRef.target().value().compareTo(rightRef.target().value());
+            return compareIds(leftRef.target().value(), rightRef.target().value());
         }
         throw new IllegalArgumentException("Cannot order " + left + " against " + right);
+    }
+
+    /** BrowsePort's id order: unsigned, most significant half first. */
+    private static int compareIds(UUID left, UUID right) {
+        int high = Long.compareUnsigned(left.getMostSignificantBits(), right.getMostSignificantBits());
+        return high != 0 ? high : Long.compareUnsigned(left.getLeastSignificantBits(), right.getLeastSignificantBits());
     }
 
     private static boolean isNumeric(Value value) {
