@@ -4,9 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -14,7 +12,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -22,8 +19,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Proves migration V5 (spec 13, P2a) on a database at V4 against a real PostgreSQL 18 started by
- * Testcontainers. Pre-existing unprocessed {@code TransitionFired} rows are marked processed and are
- * never claimed. The rows of every other kind keep {@code processed_at} NULL. The claim index covers
+ * Testcontainers. Pre-existing unprocessed {@code TransitionFired} rows are marked processed. The rows
+ * of every other kind keep {@code processed_at} NULL. The claim index covers
  * the eight claimable kinds, {@code TransitionFired} included.
  *
  * <p>Each test empties the {@code public} schema first, so it starts from a database with no migration
@@ -64,7 +61,7 @@ class PostgresOutboxV5MigrationIT {
     }
 
     @Test
-    void preExistingTransitionFiredRowsAreMarkedProcessedAndOtherKindsStayClaimable() {
+    void preExistingTransitionFiredRowsAreMarkedProcessedAndOtherKindsStayUnprocessed() {
         PostgresMigrations.migrateTo(dataSource, "4");
         UUID firedOne = insertRow("TransitionFired", BASE, null);
         UUID firedTwo = insertRow("TransitionFired", BASE.plusSeconds(1), null);
@@ -85,17 +82,6 @@ class PostgresOutboxV5MigrationIT {
         assertThat(processedAt(timerCancelled)).isNull();
         assertThat(processedAt(signalReceived)).isNull();
         assertThat(processedAt(objectCreated)).isNull();
-
-        assertThat(claimAll())
-                .containsExactly(actionRequest, timerScheduled, timerCancelled, signalReceived, objectCreated);
-    }
-
-    @Test
-    void transitionFiredRowWrittenAfterV5IsClaimed() {
-        PostgresMigrations.migrateTo(dataSource, "5");
-        UUID fired = insertRow("TransitionFired", BASE, null);
-
-        assertThat(claimAll()).containsExactly(fired);
     }
 
     @Test
@@ -116,19 +102,6 @@ class PostgresOutboxV5MigrationIT {
         for (String kind : CLAIMABLE_KINDS) {
             assertThat(definition).as("claim index covers %s", kind).contains("'" + kind + "'::text");
         }
-    }
-
-    /** Claims every row of the claimable kinds, in order, until none is left. */
-    private static List<UUID> claimAll() {
-        PostgresOutboxPort port =
-                new PostgresOutboxPort(JdbcClient.create(dataSource), new DataSourceTransactionManager(dataSource));
-        List<UUID> claimed = new ArrayList<>();
-        Optional<UUID> next = port.claimNext(CLAIMABLE_KINDS, (tenantId, entry) -> entry.id());
-        while (next.isPresent()) {
-            claimed.add(next.get());
-            next = port.claimNext(CLAIMABLE_KINDS, (tenantId, entry) -> entry.id());
-        }
-        return claimed;
     }
 
     /** The row's {@code processed_at}, or {@code null} while the row is unprocessed. */

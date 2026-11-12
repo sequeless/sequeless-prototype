@@ -26,8 +26,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * <p>The three starting states are: a fresh database; a database that ran the cut-over (the frozen
  * Command V1 to V4 set, with V2 recorded, copied from commit {@code 3328993}); and a database that ran
  * P2a's set (the frozen Command V1 to V5 set, copied from commit {@code fbb82c5}). The two frozen cases
- * migrate to the live set as it stands at P7. After P2 they will migrate to the live set as it then
- * stands, not to the frozen post-P7 set.
+ * migrate to the live set as it now stands. The frozen post-P7 set is the set as it stood at P7; later
+ * migrations, starting with V7, may follow it, so the live set can be ahead of the frozen post-P7 set.
  */
 @Testcontainers
 class PostgresMigrationsSettlingIT {
@@ -42,7 +42,7 @@ class PostgresMigrationsSettlingIT {
 
     /** The Command history of the final set, with no entry for V2, which the final set no longer has. */
     private static final List<String> FINAL_COMMAND_HISTORY =
-            List.of("1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS");
+            List.of("1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS");
 
     private static DataSource dataSource;
 
@@ -92,7 +92,14 @@ class PostgresMigrationsSettlingIT {
 
         assertOnlyVersionTwoIsMissing();
         assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
-                .containsExactly("1 SUCCESS", "2 MISSING_SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS");
+                .containsExactly(
+                        "1 SUCCESS",
+                        "2 MISSING_SUCCESS",
+                        "3 SUCCESS",
+                        "4 SUCCESS",
+                        "5 SUCCESS",
+                        "6 SUCCESS",
+                        "7 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
@@ -114,7 +121,14 @@ class PostgresMigrationsSettlingIT {
 
         assertOnlyVersionTwoIsMissing();
         assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
-                .containsExactly("1 SUCCESS", "2 MISSING_SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS");
+                .containsExactly(
+                        "1 SUCCESS",
+                        "2 MISSING_SUCCESS",
+                        "3 SUCCESS",
+                        "4 SUCCESS",
+                        "5 SUCCESS",
+                        "6 SUCCESS",
+                        "7 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);

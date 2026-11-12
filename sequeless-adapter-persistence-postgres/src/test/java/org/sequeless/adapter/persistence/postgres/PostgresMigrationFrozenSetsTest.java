@@ -13,9 +13,11 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Proves the frozen post-P7 migration set in test resources is the live set: the same file names,
- * each byte-identical to its live file. P2's PR copies its own migration pair from this set, so a
- * silent drift between the two would corrupt that copy.
+ * Proves the frozen post-P7 migration sets in test resources still match the live sets. The frozen
+ * command set is a subset of the live command set: later migrations may be added to the live set
+ * after the freeze, as V7 was. The frozen query set has the same file names as its live set. Every
+ * frozen file is byte-identical to its live file. P2's PR copies its own migration pair from this set,
+ * so a silent drift between the two would corrupt that copy.
  */
 class PostgresMigrationFrozenSetsTest {
 
@@ -25,8 +27,8 @@ class PostgresMigrationFrozenSetsTest {
     private static final String FROZEN_QUERY = "frozen-migrations/post-p7/query";
 
     @Test
-    void frozenCommandSetHasTheSameFileNamesAsTheLiveCommandSet() {
-        assertThat(sqlFileNames(FROZEN_COMMAND)).isEqualTo(sqlFileNames(LIVE_COMMAND));
+    void frozenCommandSetIsASubsetOfTheLiveCommandSet() {
+        assertThat(sqlFileNames(LIVE_COMMAND)).containsAll(sqlFileNames(FROZEN_COMMAND));
     }
 
     @Test

@@ -109,13 +109,11 @@ public class OutboxRelay {
      * relying on the next {@code @Scheduled} tick to retry naturally rather than busy-looping
      * against the same failure.
      *
-     * <p><b>Known, accepted limitation.</b> {@link OutboxPort#claimNext} always claims the oldest
-     * unprocessed row (among {@link #DISPATCHABLE_KINDS}) first, and there is no dead-letter or
-     * skip-ahead mechanism yet
-     * ({@code sq_outbox.attempts} exists but is write-only per an earlier phase's finding). A single
-     * "poison pill" row whose payload always makes the recompute or {@link AutomationPort#dispatch}
-     * throw will therefore block every row behind it indefinitely, at one-tick granularity. This is an
-     * accepted limitation for this phase, not something this task solves.
+     * <p><b>A persistently failing row is dead-lettered.</b> {@link OutboxPort#claimNext} claims the
+     * oldest unprocessed row (among {@link #DISPATCHABLE_KINDS}) first. A row whose recompute or {@link
+     * AutomationPort#dispatch} keeps throwing is retried on later polls until it has failed three times,
+     * and then it is dead-lettered (see DR-23). The adapter then skips it, and the queue continues with
+     * the rows behind it on later polls.
      */
     @Scheduled(fixedDelayString = "${sequeless.automation.relay.poll-interval-ms:1000}")
     public void pollOnce() {
