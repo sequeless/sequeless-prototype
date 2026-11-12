@@ -126,7 +126,7 @@ and relationship values used as sort keys, compare in unsigned byte order of the
 `createdAt`, then `id`; the default is `createdAt`, then `id`. Missing values sort last ascending and
 first descending. `createdAt` compares as stored, at the adapter's precision. `BrowseContract` pins each
 tie-break with fixed ids. Alternatives: Java signed order (a non-native PostgreSQL `ORDER BY`); an
-unspecified id order (not total, so offset pages can overlap); an order per adapter (the double stops
+unspecified id order (the contract cannot pin ties, so the double and PostgreSQL can disagree); an order per adapter (the double stops
 standing in for PostgreSQL). Consequences: PostgreSQL is unchanged; a keyword sort on the id string, as
 an OpenSearch store would use, agrees; no decision is recorded for OpenSearch; facet bucket order is not
 covered. Reversibility: easy.
