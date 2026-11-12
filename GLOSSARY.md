@@ -45,7 +45,7 @@ One value of a Facet and the number of matching objects that have it.
 _Avoid_: facet value, count
 
 **Object view**:
-What a Browse or a Read returns for one object: its identity, type, property values and version, as the Query side presents them.
+What a Browse or a Read returns for one object: its identity, type, tenant, property values, version, state, audit, and whether it is deleted, as the Query side presents them.
 _Avoid_: business object (when meaning what a Read returns), record, row
 
 **Store**:

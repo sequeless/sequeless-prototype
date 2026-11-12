@@ -220,7 +220,7 @@ REST paths and the `/api` prefix do not change (`ApiPathPrefixConfiguration`, de
 | `GET /api/objects/{type}/{id}` (264) | `BusinessObjectResponse`, with `ETag` from `version` | P6 (read path) | unchanged |
 | `POST /api/objects/{type}` (290), `PUT` (332), `POST .../transitions/{name}` (458) | `BusinessObjectResponse` | none (still mapped from `BusinessObject`) | unchanged |
 | `POST /api/objects/{type}/{id}/signals/{name}` (501) | no body; 202 Accepted | P4 | 202 kept (O-5). A rejected signal now returns 409 (C7) |
-| `GET /api/objects/{type}/{id}/transitions` (398) | `TransitionResponse[]` | none | unchanged |
+| `GET /api/objects/{type}/{id}/transitions` (398) | `TransitionResponse[]` | ObjectView overload for the interpreter input (T1); response unchanged | unchanged |
 
 ### 7.2 Fields of `BusinessObjectResponse`
 
@@ -235,7 +235,7 @@ Source: `sequeless-app/src/main/java/org/sequeless/app/rest/BusinessObjectRespon
 | `state` (string or null) | `state: string \| null` (127) | `state` | yes, only if the Object view keeps `state` (O-8) |
 | `properties` (by short name) | `Record<string, unknown>` (128) | values mapped by `ObjectPropertyMapper` | yes |
 | `audit` (4 fields) | `AuditResponse` (115–120, 129) | `audit` | yes, only if the Object view keeps `audit` (O-8) |
-| not in JSON: `tenant`, `deleted` on `BusinessObject` | none | not in the Object view | n/a. Reads already exclude deleted objects, and the tenant comes from `Scope` |
+| not in JSON: `tenant`, `deleted` on `BusinessObject` | none | both in the Object view (D3, so the derivation rebuild is lossless); not rendered in JSON | n/a. Reads already exclude deleted objects, and the tenant comes from `Scope` |
 
 GLOSSARY lines 47 to 48 define Object view as "its identity, type, property values and version", and #16 point 9 lists the same fields plus a display label. Neither lists `state` or `audit`. Following that text literally would drop two JSON fields that the SPA's model requires. The display label is not rendered in JSON today, so adding it to the Object view is not a JSON change. O-8 records the choice. The table above is written for option (a), keep.
 
