@@ -304,6 +304,10 @@ public abstract class BrowseContract {
                 .filteredOn(bucket -> bucket.value().equals("Alice Smith"))
                 .extracting(FacetBucket::count)
                 .containsExactly(2L);
+        assertThat(assignedToBuckets)
+                .filteredOn(bucket -> bucket.value().equals("Bob Jones"))
+                .extracting(FacetBucket::count)
+                .containsExactly(1L);
     }
 
     @Test
@@ -433,6 +437,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).doesNotContain(id);
+        assertThat(result.total()).isZero();
     }
 
     @Test
@@ -497,6 +502,13 @@ public abstract class BrowseContract {
         QueryResult otherResult = env.browsePort().browse(otherTenant, schema, query);
         assertThat(otherResult.items()).isEmpty();
         assertThat(otherResult.total()).isZero();
+
+        QueryResult otherFacets = env.browsePort()
+                .browse(
+                        otherTenant,
+                        schema,
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
+        assertThat(otherFacets.facets().get(STATUS_IRI)).isEmpty();
 
         QueryResult aliceResult = env.browsePort().browse(alice, schema, query);
         assertThat(aliceResult.total()).isEqualTo(1);
