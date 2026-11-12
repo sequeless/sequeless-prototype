@@ -27,7 +27,9 @@ import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.QueryPort;
+import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -166,7 +168,10 @@ public class CoreConfiguration {
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @param queryPort the lazily-resolved query port adapter
+     * @param readPort the lazily-resolved read port adapter, which {@code read} resolves one object
+     *     through
+     * @param browsePort the lazily-resolved browse port adapter, which {@code browse} runs its query
+     *     through
      * @param derivationPlanner the {@link DerivationPlanner} bean built above, shared with {@link
      *     #derivationRecomputer}
      * @return a {@link DefaultBusinessObjectService} consulting all of its ports on every call, with
@@ -179,7 +184,8 @@ public class CoreConfiguration {
             @Lazy ObjectStorePort objectStorePort,
             @Lazy ValidationPort validationPort,
             @Lazy AuthorizationPort authorizationPort,
-            @Lazy QueryPort queryPort,
+            @Lazy ReadPort readPort,
+            @Lazy BrowsePort browsePort,
             DerivationPlanner derivationPlanner) {
         return new DefaultBusinessObjectService(
                 schemaSource,
@@ -187,7 +193,8 @@ public class CoreConfiguration {
                 objectStorePort,
                 validationPort,
                 authorizationPort,
-                queryPort,
+                readPort,
+                browsePort,
                 Clock.systemUTC(),
                 derivationPlanner);
     }
