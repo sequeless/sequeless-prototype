@@ -1,12 +1,9 @@
 package org.sequeless.app.config;
 
 import java.util.Objects;
-import org.sequeless.kernel.identity.Principal;
-import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.query.QueryPort;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Lazy;
@@ -39,29 +36,30 @@ import org.springframework.stereotype.Component;
 public class OntologyStartupValidator implements ApplicationRunner {
 
     private final SchemaSource schemaSource;
-    private final QueryPort queryPort;
+    private final IndexPreparation indexPreparation;
 
     /**
      * @param schemaSource the lazily-resolved schema source; must not be {@code null}
-     * @param queryPort the lazily-resolved query port adapter; must not be {@code null}
+     * @param indexPreparation the host use case that prepares the seed ontology's indexes; must not
+     *     be {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
-    public OntologyStartupValidator(@Lazy SchemaSource schemaSource, @Lazy QueryPort queryPort) {
+    public OntologyStartupValidator(@Lazy SchemaSource schemaSource, IndexPreparation indexPreparation) {
         this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
-        this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
+        this.indexPreparation = Objects.requireNonNull(indexPreparation, "indexPreparation must not be null");
     }
 
     /**
-     * Reads the Schema of the default tenant once, then prepares query indexes for it. If the
-     * ontology is inconsistent, the {@link org.sequeless.ontology.api.OntologyException} the read
-     * throws propagates out of {@code SpringApplication.run}, failing startup.
+     * Reads the Schema of the default tenant once, then prepares query indexes for the version of
+     * that Schema. If the ontology is inconsistent, the {@link org.sequeless.ontology.api.OntologyException}
+     * the read throws propagates out of {@code SpringApplication.run}, failing startup.
      *
      * @param args the application's startup arguments; unused
      */
     @Override
     public void run(ApplicationArguments args) {
-        Scope scope = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
-        Schema schema = schemaSource.schema(scope.tenantId());
-        queryPort.ensureIndexes(scope, schema);
+        TenantId tenant = TenantId.DEFAULT;
+        Schema schema = schemaSource.schema(tenant);
+        indexPreparation.prepare(tenant, schema.ontologyVersion());
     }
 }

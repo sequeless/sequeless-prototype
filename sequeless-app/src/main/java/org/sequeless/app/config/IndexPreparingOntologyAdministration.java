@@ -8,17 +8,17 @@ import org.sequeless.ontology.api.OntologyAdministration;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.query.QueryPort;
 
 /**
  * Prepares query indexes after every ontology activation the host performs through the admin port,
  * so that index preparation stays out of the use case (#24).
  *
- * <p>After {@link #importDocument} or {@link #reload} returns normally, this calls {@link
- * QueryPort#ensureIndexes} with the scope and the Schema the delegate has just activated, then
- * returns the delegate's result. If the delegate throws, nothing is prepared. {@link #export} only
- * delegates.
+ * <p>After {@link #importDocument} or {@link #reload} returns normally, this reads the Schema the
+ * delegate has just activated and calls {@link IndexPreparation#prepare} with its tenant and its
+ * version, then returns the delegate's result. If the delegate throws, nothing is prepared. {@link
+ * #export} only delegates.
  *
  * <p>This class is deliberately not a Spring bean: a second {@link OntologyAdministration} bean
  * would break {@link org.sequeless.app.port.PortRegistry}'s one-bean check. {@link
@@ -28,20 +28,21 @@ public final class IndexPreparingOntologyAdministration implements OntologyAdmin
 
     private final OntologyAdministration delegate;
     private final SchemaSource schemaSource;
-    private final QueryPort queryPort;
+    private final IndexPreparation indexPreparation;
 
     /**
      * @param delegate the admin port every call goes through; must not be {@code null}
      * @param schemaSource the port the Schema of the new activation is read from; must not be {@code
      *     null}
-     * @param queryPort the port whose indexes are prepared; must not be {@code null}
+     * @param indexPreparation the host use case that prepares indexes for the new activation; must
+     *     not be {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
     public IndexPreparingOntologyAdministration(
-            OntologyAdministration delegate, SchemaSource schemaSource, QueryPort queryPort) {
+            OntologyAdministration delegate, SchemaSource schemaSource, IndexPreparation indexPreparation) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
         this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
-        this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
+        this.indexPreparation = Objects.requireNonNull(indexPreparation, "indexPreparation must not be null");
     }
 
     /**
@@ -79,6 +80,7 @@ public final class IndexPreparingOntologyAdministration implements OntologyAdmin
     }
 
     private void prepareIndexes(Scope scope) {
-        queryPort.ensureIndexes(scope, schemaSource.schema(scope.tenantId()));
+        Schema schema = schemaSource.schema(scope.tenantId());
+        indexPreparation.prepare(scope.tenantId(), schema.ontologyVersion());
     }
 }

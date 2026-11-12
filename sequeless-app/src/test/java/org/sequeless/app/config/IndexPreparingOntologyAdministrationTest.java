@@ -24,11 +24,7 @@ import org.sequeless.ontology.api.Severity;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
-import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.testkit.query.QueryFixtures;
 
 /**
@@ -45,72 +41,76 @@ class IndexPreparingOntologyAdministrationTest {
             new OntologyVersion(2), "https://sequeless.dev/ns/activated", Optional.empty(), Map.of(), List.of());
 
     @Test
-    void importPreparesIndexesOnceWithTheSchemaActivatedByTheImport() {
+    void importPreparesIndexesOnceForTheVersionOfTheSchemaActivatedByTheImport() {
         ActivatingAdministration delegate = new ActivatingAdministration();
-        RecordingQueryPort queryPort = new RecordingQueryPort();
-        IndexPreparingOntologyAdministration port = newPort(delegate, queryPort);
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
+        IndexPreparingOntologyAdministration admin = newAdministration(delegate, port);
         OntologyDocument document = new OntologyDocument("ignored", OntologyFormat.TURTLE);
 
-        ImportReport report = port.importDocument(SCOPE, document, ImportMode.REPLACE);
+        ImportReport report = admin.importDocument(SCOPE, document, ImportMode.REPLACE);
 
         assertThat(report).isSameAs(delegate.importReport);
         assertThat(delegate.importCalls).isEqualTo(1);
-        assertThat(queryPort.calls).containsExactly(new EnsureIndexesCall(SCOPE, ACTIVATED_SCHEMA));
+        assertThat(port.calls)
+                .containsExactly(new PrepareCall(SCOPE, ACTIVATED_SCHEMA.ontologyVersion(), ACTIVATED_SCHEMA));
     }
 
     @Test
-    void reloadPreparesIndexesOnceWithTheSchemaActivatedByTheReload() {
+    void reloadPreparesIndexesOnceForTheVersionOfTheSchemaActivatedByTheReload() {
         ActivatingAdministration delegate = new ActivatingAdministration();
-        RecordingQueryPort queryPort = new RecordingQueryPort();
-        IndexPreparingOntologyAdministration port = newPort(delegate, queryPort);
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
+        IndexPreparingOntologyAdministration admin = newAdministration(delegate, port);
 
-        OntologyReport report = port.reload(SCOPE);
+        OntologyReport report = admin.reload(SCOPE);
 
         assertThat(report).isSameAs(delegate.reloadReport);
         assertThat(delegate.reloadCalls).isEqualTo(1);
-        assertThat(queryPort.calls).containsExactly(new EnsureIndexesCall(SCOPE, ACTIVATED_SCHEMA));
+        assertThat(port.calls)
+                .containsExactly(new PrepareCall(SCOPE, ACTIVATED_SCHEMA.ontologyVersion(), ACTIVATED_SCHEMA));
     }
 
     @Test
     void exportReturnsTheDelegateDocumentAndDoesNotPrepareIndexes() {
         ActivatingAdministration delegate = new ActivatingAdministration();
-        RecordingQueryPort queryPort = new RecordingQueryPort();
-        IndexPreparingOntologyAdministration port = newPort(delegate, queryPort);
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
+        IndexPreparingOntologyAdministration admin = newAdministration(delegate, port);
 
-        OntologyDocument exported = port.export(SCOPE, OntologyFormat.TURTLE);
+        OntologyDocument exported = admin.export(SCOPE, OntologyFormat.TURTLE);
 
         assertThat(exported).isSameAs(delegate.exportDocument);
         assertThat(delegate.exportCalls).isEqualTo(1);
-        assertThat(queryPort.calls).isEmpty();
+        assertThat(port.calls).isEmpty();
     }
 
     @Test
     void failedImportPropagatesAndDoesNotPrepareIndexes() {
         ActivatingAdministration delegate = new ActivatingAdministration();
         delegate.failImportsWith = new OntologyException(inconsistentReport());
-        RecordingQueryPort queryPort = new RecordingQueryPort();
-        IndexPreparingOntologyAdministration port = newPort(delegate, queryPort);
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
+        IndexPreparingOntologyAdministration admin = newAdministration(delegate, port);
 
-        assertThatThrownBy(() -> port.importDocument(
+        assertThatThrownBy(() -> admin.importDocument(
                         SCOPE, new OntologyDocument("ignored", OntologyFormat.TURTLE), ImportMode.REPLACE))
                 .isSameAs(delegate.failImportsWith);
-        assertThat(queryPort.calls).isEmpty();
+        assertThat(port.calls).isEmpty();
     }
 
     @Test
     void failedReloadPropagatesAndDoesNotPrepareIndexes() {
         ActivatingAdministration delegate = new ActivatingAdministration();
         delegate.failReloadsWith = new OntologyException(inconsistentReport());
-        RecordingQueryPort queryPort = new RecordingQueryPort();
-        IndexPreparingOntologyAdministration port = newPort(delegate, queryPort);
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
+        IndexPreparingOntologyAdministration admin = newAdministration(delegate, port);
 
-        assertThatThrownBy(() -> port.reload(SCOPE)).isSameAs(delegate.failReloadsWith);
-        assertThat(queryPort.calls).isEmpty();
+        assertThatThrownBy(() -> admin.reload(SCOPE)).isSameAs(delegate.failReloadsWith);
+        assertThat(port.calls).isEmpty();
     }
 
-    private static IndexPreparingOntologyAdministration newPort(
-            ActivatingAdministration delegate, RecordingQueryPort queryPort) {
-        return new IndexPreparingOntologyAdministration(delegate, delegate.schemaSource(), queryPort);
+    private static IndexPreparingOntologyAdministration newAdministration(
+            ActivatingAdministration delegate, RecordingIndexPreparationPort port) {
+        SchemaSource schemaSource = delegate.schemaSource();
+        return new IndexPreparingOntologyAdministration(
+                delegate, schemaSource, new IndexPreparation(schemaSource, port));
     }
 
     private static OntologyReport inconsistentReport() {
@@ -118,8 +118,8 @@ class IndexPreparingOntologyAdministrationTest {
         return new OntologyReport(false, List.of(error));
     }
 
-    /** One {@link QueryPort#ensureIndexes} invocation: the scope and the Schema it was given. */
-    private record EnsureIndexesCall(Scope scope, Schema schema) {}
+    /** One {@link IndexPreparationPort#prepare} invocation: the scope, version and Schema it was given. */
+    private record PrepareCall(Scope scope, OntologyVersion version, Schema schema) {}
 
     /**
      * A delegate whose successful import and reload first make {@link #ACTIVATED_SCHEMA} the Schema
@@ -170,24 +170,14 @@ class IndexPreparingOntologyAdministrationTest {
         }
     }
 
-    /** A {@link QueryPort} that records each {@code ensureIndexes} call and nothing else. */
-    private static final class RecordingQueryPort implements QueryPort {
+    /** An {@link IndexPreparationPort} that records each {@code prepare} call and nothing else. */
+    private static final class RecordingIndexPreparationPort implements IndexPreparationPort {
 
-        private final List<EnsureIndexesCall> calls = new ArrayList<>();
-
-        @Override
-        public void ensureIndexes(Scope scope, Schema schema) {
-            calls.add(new EnsureIndexesCall(scope, schema));
-        }
+        private final List<PrepareCall> calls = new ArrayList<>();
 
         @Override
-        public QueryResult query(Scope scope, Schema schema, Query query) {
-            throw new UnsupportedOperationException("not needed by this test");
-        }
-
-        @Override
-        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
-            throw new UnsupportedOperationException("not needed by this test");
+        public void prepare(Scope scope, OntologyVersion version, Schema schema) {
+            calls.add(new PrepareCall(scope, version, schema));
         }
     }
 }

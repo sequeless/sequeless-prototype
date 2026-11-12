@@ -14,13 +14,10 @@ import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.ontology.api.OntologyIssue;
 import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.ontology.api.Severity;
+import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
-import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.testkit.query.QueryFixtures;
 import org.springframework.boot.DefaultApplicationArguments;
 
@@ -34,19 +31,21 @@ class OntologyStartupValidatorTest {
     private static final Scope STARTUP_SCOPE = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
 
     @Test
-    void startupReadsTheDefaultTenantSchemaAndPreparesItsIndexesOnce() {
+    void startupReadsTheDefaultTenantSchemaTwiceAndPreparesIndexesForItsVersionOnce() {
         Schema schema = QueryFixtures.schema();
         List<TenantId> readTenants = new ArrayList<>();
         SchemaSource source = tenant -> {
             readTenants.add(tenant);
             return schema;
         };
-        RecordingQueryPort queryPort = new RecordingQueryPort();
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
 
-        new OntologyStartupValidator(source, queryPort).run(new DefaultApplicationArguments());
+        new OntologyStartupValidator(source, new IndexPreparation(source, port)).run(new DefaultApplicationArguments());
 
-        assertThat(readTenants).containsExactly(TenantId.DEFAULT);
-        assertThat(queryPort.calls).containsExactly(new EnsureIndexesCall(STARTUP_SCOPE, schema));
+        // The validator reads the Schema to learn its version, and the use case reads it again to pass
+        // to the port: two reads of the same, unchanged Schema.
+        assertThat(readTenants).containsExactly(TenantId.DEFAULT, TenantId.DEFAULT);
+        assertThat(port.calls).containsExactly(new PrepareCall(STARTUP_SCOPE, schema.ontologyVersion(), schema));
     }
 
     @Test
@@ -56,35 +55,25 @@ class OntologyStartupValidatorTest {
         SchemaSource source = tenant -> {
             throw failure;
         };
-        RecordingQueryPort queryPort = new RecordingQueryPort();
-        OntologyStartupValidator validator = new OntologyStartupValidator(source, queryPort);
+        RecordingIndexPreparationPort port = new RecordingIndexPreparationPort();
+        OntologyStartupValidator validator = new OntologyStartupValidator(source, new IndexPreparation(source, port));
 
         assertThatThrownBy(() -> validator.run(new DefaultApplicationArguments()))
                 .isSameAs(failure);
-        assertThat(queryPort.calls).isEmpty();
+        assertThat(port.calls).isEmpty();
     }
 
-    /** One {@link QueryPort#ensureIndexes} invocation: the scope and the Schema it was given. */
-    private record EnsureIndexesCall(Scope scope, Schema schema) {}
+    /** One {@link IndexPreparationPort#prepare} invocation: the scope, version and Schema it was given. */
+    private record PrepareCall(Scope scope, OntologyVersion version, Schema schema) {}
 
-    /** A {@link QueryPort} that records each {@code ensureIndexes} call and nothing else. */
-    private static final class RecordingQueryPort implements QueryPort {
+    /** An {@link IndexPreparationPort} that records each {@code prepare} call and nothing else. */
+    private static final class RecordingIndexPreparationPort implements IndexPreparationPort {
 
-        private final List<EnsureIndexesCall> calls = new ArrayList<>();
-
-        @Override
-        public void ensureIndexes(Scope scope, Schema schema) {
-            calls.add(new EnsureIndexesCall(scope, schema));
-        }
+        private final List<PrepareCall> calls = new ArrayList<>();
 
         @Override
-        public QueryResult query(Scope scope, Schema schema, Query query) {
-            throw new UnsupportedOperationException("not needed by this test");
-        }
-
-        @Override
-        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
-            throw new UnsupportedOperationException("not needed by this test");
+        public void prepare(Scope scope, OntologyVersion version, Schema schema) {
+            calls.add(new PrepareCall(scope, version, schema));
         }
     }
 }
