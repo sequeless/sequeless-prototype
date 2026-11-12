@@ -27,9 +27,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * the eight claimable kinds, {@code TransitionFired} included.
  *
  * <p>Each test empties the {@code public} schema first, so it starts from a database with no migration
- * history. The pre-existing-rows test calls {@code migrateTo("4")}, which stops at V4 so the seeded rows
- * can be written first, and then {@code migrateTo("5")}, which applies V5 and nothing later. The other
- * tests call {@code migrate}, which applies every migration, V5 and any later one included.
+ * history. Every test migrates to exactly V5 with {@code migrateTo("5")}, so no migration after V5 is
+ * applied. The pre-existing-rows test first calls {@code migrateTo("4")}, which stops at V4 so the seeded
+ * rows can be written before V5 runs.
  */
 @Testcontainers
 class PostgresOutboxV5MigrationIT {
@@ -92,7 +92,7 @@ class PostgresOutboxV5MigrationIT {
 
     @Test
     void transitionFiredRowWrittenAfterV5IsClaimed() {
-        PostgresMigrations.migrate(dataSource);
+        PostgresMigrations.migrateTo(dataSource, "5");
         UUID fired = insertRow("TransitionFired", BASE, null);
 
         assertThat(claimAll()).containsExactly(fired);
@@ -100,7 +100,7 @@ class PostgresOutboxV5MigrationIT {
 
     @Test
     void claimIndexCoversTheEightClaimableKindsIncludingTransitionFired() {
-        PostgresMigrations.migrate(dataSource);
+        PostgresMigrations.migrateTo(dataSource, "5");
 
         List<String> outboxIndexes = JdbcClient.create(dataSource)
                 .sql("SELECT indexname FROM pg_indexes WHERE tablename = 'sq_outbox'"
