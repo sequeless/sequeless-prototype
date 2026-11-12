@@ -304,6 +304,10 @@ public abstract class BrowseContract {
                 .filteredOn(bucket -> bucket.value().equals("Alice Smith"))
                 .extracting(FacetBucket::count)
                 .containsExactly(2L);
+        assertThat(assignedToBuckets)
+                .filteredOn(bucket -> bucket.value().equals("Bob Jones"))
+                .extracting(FacetBucket::count)
+                .containsExactly(1L);
     }
 
     @Test
