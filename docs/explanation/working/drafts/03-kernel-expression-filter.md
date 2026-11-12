@@ -1,0 +1,32 @@
+# Draft 03: sequeless-kernel, -expression, -filter (explorer: Haiku). Condensed by orchestrator; claims kept. K=/Users/bbartolome/workspace/sequeless-kernel E=.../sequeless-expression F=.../sequeless-filter B=.../sequeless-build P=.../sequeless-prototype
+
+## Big picture
+Prototype is an app using three sibling repos as libraries [P/pom.xml:60-67]. kernel = shared types (caller identity, property values) [K/README.md:3-6]. expression = runs short JEXL expressions, returns kernel values [E/README.md:3-7]. filter = turns query text into a tree [F/README.md:3-7].
+Terms: artifact (packaged library), module (sub-project with own pom), port (Java interface), adapter (implements port), sealed interface, record, AST, BOM (version list a host imports), SNAPSHOT, release-please (reads commit messages to pick version, writes changelog), GitHub Packages (where libs are published).
+
+## sequeless-kernel
+Purpose: identity and value types shared by modules; depends only on the Java platform [README:3-4,19].
+Modules: kernel-identity (caller types), kernel-values (property values, object IDs). A BoundaryRulesTest enforces JDK-only for kernel-values.
+Types: Scope(TenantId, Principal); Principal(String id, Set<String> roles), Principal.ANONYMOUS; TenantId(String value), TenantId.DEFAULT; Value = sealed interface, eight variants (text, integer, decimal, boolean, date-time, date, reference, list) with factories like Value.text(...); ObjectId(UUID); ObjectNotFoundException (runtime, missing or deleted object).
+Prototype use: declares both modules without version (BOM sets it) [P/sequeless-core/pom.xml:26-33]; AuthorizationPort decides with a Scope; ObjectStorePort finds by Scope and ObjectId; StateMachineInterpreter builds expression context from caller ID. Prototype Java has 61 imports of ObjectId and 48 of Value (grep). Prototype deleted its own copies in cut-over [spec-07:24].
+Release: each module releases alone; tags <module>-vX.Y.Z. Tags: kernel-identity-v0.1.0, kernel-values-v0.1.0. Manifest 0.1.0 both. Module POMs 0.1.1-SNAPSHOT. Push to main runs release workflow calling shared workflow tag workflows-v0.1.2 (release-please, then builds released modules and upstream with -am).
+
+## sequeless-expression
+Purpose: evaluates short JEXL expressions (Apache Commons expression language) in a sandbox; transition guards, values for some actions, renders ${...} templates; blocks reflection, static methods, classes [README:3-18; JexlExpressionPort.java:85-100].
+Modules: expression-api (port and types); expression-testkit (ExpressionContract abstract JUnit class); expression-jexl-adapter (JexlExpressionPort); expression-spring-boot-autoconfig (registers JEXL port when sequeless.expression.adapter=jexl).
+Types: ExpressionPort: evaluate returns one Value; renderTemplate returns String. ExpressionContext(Map<String,Value> selfProperties, Optional<String> selfState, String principalId). ExpressionException unchecked. Expressions see self.<name>, self.state, principal.
+Prototype use: core depends on expression-api; app on expression-spring-boot-autoconfig and expression-api (no versions); app yaml selects jexl; StateMachineInterpreter calls evaluate per guard; DefaultActionExecutor calls evaluate for values and renderTemplate for webhook URLs, bodies, log messages; prototype deleted own port and JEXL adapter [remaining-work.md:141].
+Release: four modules release alone; always-bump-patch, skip-snapshot; manifest 0.1.1 all four; tags 0.1.0 and 0.1.1 each; expression-api changelog 0.1.1 dated 2026-11-06. Build needs JDK 25; consumers Java 21 at runtime. Autoconfig targets Spring Boot 4.1.1 only. expression-api pom pins kernel-values 0.1.0 directly.
+
+## sequeless-filter
+Purpose: text query language (filter DSL), e.g. `status is in ['open','pending']`; parse to tree, serialize back, validate, suggest completions; no database dependency [README:3-14].
+Modules: filter-core (language, tree, parser, serializer, validator, completion); filter-sql-adapter (tree to parameterized SQL via QueryBuilder port); filter-sql-postgres-adapter (PostgresQueryBuilder; LIKE rendered as ILIKE); filter-sql-testkit (QueryBuilderContract).
+Types in filter-core: FilterNode sealed (FieldFilter(path, op, JsonNode value), AnyFilter(op, value), AndFilter, OrFilter). FilterParser.parse; parsePartial never throws (complete or partial). FilterSerializer.serialize. FilterValidator.validate returns violations. CompletionEngine. FieldRegistry (strict registry rejects unknown paths), OperatorRegistry. SPI: FieldContributor, OperatorContributor. FilterQueryTranslator -> SqlFragment(String sql, List<Object> parameters).
+Prototype use: core depends on filter-core (BOM version). Main code reads only tree types: FilterNodeToCriterion turns AND-only tree into Criterion list; rejects OrFilter and AnyFilter. Testkit fixture builds a FieldFilter. No prototype code calls parser, serializer, validator, completion, or any filter-sql-* module. Prototype does not parse query text; a loader in another repo writes the tree.
+Release: README says all modules release together; release config and manifest version each module separately; always-bump-patch, skip-snapshot; every release is a patch bump incl. breaking changes [CONTRIBUTING:26-28]; ADR 0002 accepts QueryBuilder breaking change as patch (pre-1.0). Tags up to filter-core-v0.1.4, filter-sql-adapter-v0.1.5. Java 21.
+
+## Version pinning
+Prototype root pom imports sequeless-bom 0.1.3 (repo sequeless-build). 0.1.3 BOM lists kernel-identity 0.1.0, kernel-values 0.1.0, filter-core 0.1.3, four expression modules 0.1.1. BOM lists released versions only; libraries do not import it. BOM tags v0.1.0..v0.1.4. Renovate treats Sequeless bumps as `fix` commits; no auto-merge. Prototype itself unpublished, 0.1.0-SNAPSHOT.
+
+## Uncertain
+1 Filter numbers disagree: manifest filter-core 0.1.3 / sql-adapter 0.1.4; tags 0.1.4 / 0.1.5; BOM 0.1.4 lists filter-core 0.1.4. 2 Filter README "release together" vs config. 3 Filter README example shows 0.0.0-SNAPSHOT. 4 Kernel release config lacks versioning/skip-snapshot keys; default unchecked. 5 No kernel 0.1.1 tag despite SNAPSHOT. 6 sequeless-build checked out on bom/filter-0.1.4; read tags not working tree. 7 spec-07 outdated re filter. 8 Prototype README stale (lists adapter-expression-jexl). 9 Expression 0.1.0 deploy failure claim unverified. 10 Two kernel-values pins could diverge. 11 Filter-tree loader unread. 12 JDK numbers from READMEs only.
