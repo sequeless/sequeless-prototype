@@ -83,6 +83,10 @@ import org.sequeless.testkit.Fixtures;
  * BrowsePort}'s javadoc documents: null-safety, tenant scoping, soft-delete filtering, the union
  * semantics of {@link Query#types()}, the {@code (createdAt, id)} ascending default sort order,
  * page overrun, and the "conventional multi-select" facet-counting rule.
+ *
+ * <p><b>Timestamp precision.</b> Every seeded {@code createdAt} is a whole microsecond, because
+ * {@link ObjectStorePort} lets adapters store {@link java.time.Instant}s at microsecond precision,
+ * and {@link BrowsePort} orders by {@code createdAt} as stored.
  */
 public abstract class BrowseContract {
 
@@ -99,6 +103,12 @@ public abstract class BrowseContract {
     private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(BELONGS_TO_PROJECT_IRI);
     private static final PropertyRef NAME = new PropertyRef(QueryFixtures.NAME_IRI);
     private static final PropertyRef EMAIL = new PropertyRef(QueryFixtures.EMAIL_IRI);
+
+    // Unsigned order: ID_A < ID_B < ID_C < ID_D. The signed UUID.compareTo order would be D, B, A, C.
+    private static final ObjectId ID_A = ObjectId.parse("00000000-0000-4000-7fff-ffffffffffff");
+    private static final ObjectId ID_B = ObjectId.parse("00000000-0000-4000-8000-000000000000");
+    private static final ObjectId ID_C = ObjectId.parse("7fffffff-ffff-4fff-bfff-ffffffffffff");
+    private static final ObjectId ID_D = ObjectId.parse("80000000-0000-4000-8000-000000000000");
 
     /**
      * An {@link ObjectStorePort} paired with the {@link BrowsePort} that queries the same
@@ -514,6 +524,78 @@ public abstract class BrowseContract {
         assertThat(aliceResult.total()).isEqualTo(1);
     }
 
+    @Test
+    void defaultOrderBreaksCreatedAtTiesByUnsignedId() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTaskWithId(env, scope, ID_D, base, "Tied task", 1);
+        seedTaskWithId(env, scope, ID_C, base, "Tied task", 1);
+        seedTaskWithId(env, scope, ID_B, base, "Tied task", 1);
+        seedTaskWithId(env, scope, ID_A, base, "Tied task", 1);
+
+        assertThat(browseIds(env, scope, queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 4))))
+                .isEqualTo(List.of(ID_A, ID_B, ID_C, ID_D));
+        assertThat(browseIds(env, scope, queryOf(Set.of(TASK_IRI), List.of(), new Page(1, 2))))
+                .isEqualTo(List.of(ID_C, ID_D));
+    }
+
+    @Test
+    void explicitSortBreaksTiesByUnsignedIdInEitherDirection() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTaskWithId(env, scope, ID_D, base, "Tied task", 5);
+        seedTaskWithId(env, scope, ID_C, base.plusSeconds(1), "Tied task", 5);
+
+        for (Direction direction : Direction.values()) {
+            Query query =
+                    queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, direction)), new Page(0, 20));
+            assertThat(browseIds(env, scope, query)).isEqualTo(List.of(ID_C, ID_D));
+        }
+    }
+
+    @Test
+    void textSearchBreaksRankTiesByCreatedAtThenUnsignedId() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seedTaskWithId(env, scope, ID_A, base.plusSeconds(1), "Tied task", 1);
+        seedTaskWithId(env, scope, ID_D, base, "Tied task", 1);
+        seedTaskWithId(env, scope, ID_C, base, "Tied task", 1);
+
+        Query query = new Query(
+                Set.of(TASK_IRI), List.of(), Optional.of("tied"), List.of(), new Page(0, 20), List.of(), false);
+
+        assertThat(browseIds(env, scope, query)).isEqualTo(List.of(ID_C, ID_D, ID_A));
+    }
+
+    @Test
+    void referenceSortOrdersByUnsignedTargetId() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        seed(env, scope, ID_C, PERSON, base, Map.of(NAME, Value.text("Person C"), EMAIL, Value.text("c@example.com")));
+        seed(env, scope, ID_D, PERSON, base, Map.of(NAME, Value.text("Person D"), EMAIL, Value.text("d@example.com")));
+
+        ObjectId forD =
+                seedTask(env, scope, base.plusSeconds(1), "For D", "OPEN", 1, LocalDate.of(2026, 2, 1), ID_D, null);
+        ObjectId forC =
+                seedTask(env, scope, base.plusSeconds(2), "For C", "OPEN", 2, LocalDate.of(2026, 2, 2), ID_C, null);
+
+        Query ascending = queryOf(
+                Set.of(TASK_IRI), List.of(), List.of(new Sort(ASSIGNED_TO_IRI, Direction.ASC)), new Page(0, 20));
+        assertThat(browseIds(env, scope, ascending)).isEqualTo(List.of(forC, forD));
+
+        Query descending = queryOf(
+                Set.of(TASK_IRI), List.of(), List.of(new Sort(ASSIGNED_TO_IRI, Direction.DESC)), new Page(0, 20));
+        assertThat(browseIds(env, scope, descending)).isEqualTo(List.of(forD, forC));
+    }
+
     // -- Fixture-seeding helpers -------------------------------------------------------------
 
     private static Query queryOf(Set<String> types, List<Criterion> criteria, Page page) {
@@ -592,9 +674,40 @@ public abstract class BrowseContract {
         return seed(env, scope, TASK, createdAt, Map.copyOf(properties));
     }
 
+    private static ObjectId seedTaskWithId(
+            Environment env, Scope scope, ObjectId id, Instant createdAt, String title, long priority) {
+        return seed(
+                env,
+                scope,
+                id,
+                TASK,
+                createdAt,
+                Map.of(
+                        TITLE, Value.text(title),
+                        DESCRIPTION, Value.text("Description of " + title),
+                        STATUS, Value.text("OPEN"),
+                        PRIORITY, Value.integer(priority),
+                        DUE_DATE, Value.date(LocalDate.of(2026, 2, 1))));
+    }
+
+    private static List<ObjectId> browseIds(Environment env, Scope scope, Query query) {
+        return env.browsePort().browse(scope, QueryFixtures.schema(), query).items().stream()
+                .map(ObjectView::id)
+                .toList();
+    }
+
     private static ObjectId seed(
             Environment env, Scope scope, TypeRef type, Instant createdAt, Map<PropertyRef, Value> properties) {
-        ObjectId id = ObjectId.random();
+        return seed(env, scope, ObjectId.random(), type, createdAt, properties);
+    }
+
+    private static ObjectId seed(
+            Environment env,
+            Scope scope,
+            ObjectId id,
+            TypeRef type,
+            Instant createdAt,
+            Map<PropertyRef, Value> properties) {
         String principalId = scope.principal().id();
         Audit audit = new Audit(createdAt, principalId, createdAt, principalId);
         BusinessObject object =
