@@ -32,7 +32,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * take the same row (thanks to {@code SKIP LOCKED}), leaves a row unprocessed when the handler
  * throws, and dead-letters a row after its third failed dispatch (DR-23) — against a real
  * PostgreSQL 18 instance started by Testcontainers, mirroring
- * {@link PostgresObjectStoreContractIT}'s own container/migration/truncation pattern.
+ * {@link PostgresObjectStoreContractIT}'s own container/migration/truncation pattern. It also
+ * covers three DR-23 edge cases: a failure that cannot be recorded is attached to the handler's
+ * exception as suppressed, a {@code VirtualMachineError} is not counted, and a failure with a null
+ * message is recorded with its exception's class name.
  *
  * <p>{@code sq_outbox} rows are inserted directly via SQL in these tests rather than through
  * {@link org.sequeless.spi.object.ObjectStorePort#commit}, since the point here is {@link
@@ -270,6 +273,11 @@ class PostgresOutboxPortIT {
         assertThat(isDeadLettered(rowId)).isFalse();
         assertThat(errorOf(rowId)).isNull();
         assertThat(isProcessed(rowId)).isFalse();
+
+        // The row must still be claimable: the refused count rolled back, so it stays unprocessed.
+        Optional<UUID> retried =
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+        assertThat(retried).contains(rowId);
     }
 
     @Test
@@ -346,7 +354,7 @@ class PostgresOutboxPortIT {
         });
     }
 
-    /** Makes every write to fail_count throw, as a database that rejects the failure count would. */
+    /** Makes every UPDATE of fail_count throw, as a database that rejects the failure count would. */
     private static void refuseFailCountWrites() {
         JdbcClient.create(dataSource)
                 .sql("CREATE OR REPLACE FUNCTION refuse_fail_count() RETURNS trigger LANGUAGE plpgsql AS $$ "
