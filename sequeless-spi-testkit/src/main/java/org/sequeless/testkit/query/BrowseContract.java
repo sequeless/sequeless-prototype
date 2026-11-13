@@ -82,8 +82,12 @@ import org.sequeless.testkit.Fixtures;
  * particular storage or indexing technology. Every assertion is about the behaviour {@link
  * BrowsePort}'s javadoc documents: null-safety, tenant scoping, soft-delete filtering, the union
  * semantics of {@link Query#types()}, the {@code (createdAt, id)} ascending default sort order,
- * page overrun, the "conventional multi-select" facet-counting rule, and the facet bucket order
- * (count descending, then Unicode code point order) with null-keyed buckets excluded.
+ * page overrun, and the "conventional multi-select" facet-counting rule.
+ *
+ * <p><b>Facet bucket order.</b> The contract checks only these parts of the facet bucket order
+ * that {@link BrowsePort} documents: null-keyed buckets are excluded from both the scalar facet
+ * and the reference facet; the reference facet's buckets are checked for count-descending order;
+ * and the scalar facet's buckets are checked for Unicode code point order when counts tie.
  *
  * <p><b>Timestamp precision.</b> Every seeded {@code createdAt} is a whole microsecond, because
  * {@link ObjectStorePort} lets adapters store {@link java.time.Instant}s at microsecond precision,
