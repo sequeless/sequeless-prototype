@@ -73,8 +73,9 @@ public final class PostgresOutboxPort implements OutboxPort {
         }
         Objects.requireNonNull(handler, "handler must not be null");
 
-        // Holds the id of the row being dispatched, set inside the claim transaction before the handler
-        // runs. If the transaction then fails, the id tells the failure path which row to count.
+        // Holds the id of the row being dispatched. It is set as soon as the row is read, before its payload
+        // is decoded, so a row whose payload fails to decode is still counted. The id is set inside the claim
+        // transaction. If the transaction then fails, the id tells the failure path which row to count.
         AtomicReference<UUID> dispatchingId = new AtomicReference<>();
         try {
             return transactionTemplate.execute(status -> {
@@ -83,7 +84,10 @@ public final class PostgresOutboxPort implements OutboxPort {
                                 + "WHERE kind IN (:kinds) AND processed_at IS NULL AND dead_lettered_at IS NULL "
                                 + "ORDER BY occurred_at LIMIT 1 FOR UPDATE SKIP LOCKED")
                         .param("kinds", kinds)
-                        .query(PostgresOutboxPort::mapRow)
+                        .query((rs, rowNum) -> {
+                            dispatchingId.set((UUID) rs.getObject("id"));
+                            return mapRow(rs, rowNum);
+                        })
                         .optional();
 
                 if (claimed.isEmpty()) {
