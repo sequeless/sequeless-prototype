@@ -17,7 +17,7 @@ all committed atomically with the state change, so there is no window where the 
 but the record of what should happen next has not been durably written (or vice versa). `sq_outbox`
 is the same transactional-outbox table `ObjectCreated`/`ObjectUpdated`/`ObjectDeleted` events have
 used since DR-12; Phase 5 adds two new `kind` values to it and a `processed_at` marker column.
-Phase 6 (DR-11) adds three more `kind` values (§2), for a total of eight. The relay claims all eight
+Phase 6 (DR-12) adds three more `kind` values (§2), for a total of eight. The relay claims all eight
 for dispatch (§2's "dispatchable set"); `TransitionFired` is claimed too, and both automation
 adapters accept it as a no-op.
 
@@ -29,7 +29,7 @@ retried, the production default per DR-09). Both adapters call back into the sam
 implementation (`DefaultActionExecutor` in `sequeless-core`) to actually apply an `ActionRequest`;
 the other dispatchable kinds route to `TriggerEvaluator`/`DerivationRecomputer` instead — see §9.
 
-Phase 6 (DR-11) widens this considerably: what was originally a single `ActionRequest`-only queue
+Phase 6 (DR-12) widens this considerably: what was originally a single `ActionRequest`-only queue
 is now an 8-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
 `kind()`, not a single hard-coded call.
 
@@ -48,7 +48,7 @@ adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depen
   transition's action list, carrying a payload that is fully self-contained and frozen at
   transition-fire time.
 
-Phase 6 (DR-11) adds three more constants, all documented directly on `OutboxEntry` itself (the
+Phase 6 (DR-12) adds three more constants, all documented directly on `OutboxEntry` itself (the
 authoritative list — this document doesn't repeat their payload shapes beyond what's useful here;
 see the javadoc for the exact field list of each):
 
@@ -130,7 +130,7 @@ plain `@Component` with one `@Scheduled(fixedDelayString =
 **Claim → dispatch → mark processed, in one short transaction.** `OutboxRelay` doesn't touch SQL
 itself; it calls `OutboxPort#claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T>
 handler)` (`sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxPort.java`) — Phase 6
-(DR-11) widened this from the original `claimNextActionRequest()` (no `kinds` parameter, hardcoded
+(DR-12) widened this from the original `claimNextActionRequest()` (no `kinds` parameter, hardcoded
 to `ActionRequest` alone) to take an explicit, caller-chosen kind set, because a single relay now
 fans its one polling loop out to several inbound ports (`ActionExecutor`, `TriggerEvaluator`,
 `DerivationRecomputer`), not just `ActionExecutor`. `OutboxRelay` builds the set it passes,
@@ -290,8 +290,12 @@ gap doesn't matter.
   this way. A dead-lettered row keeps
   `processed_at` NULL and stays in `sq_outbox`. Nothing retries it; recovery is manual (reset
   `dead_lettered_at`, `fail_count` and `error`). During a systemic outage, for example Temporal down,
-  healthy rows can be dead-lettered too. A payload that fails to decode counts as a failed
-  dispatch and is dead-lettered at the third failure, like any other failure.
+  healthy rows can be dead-lettered too. Any `RuntimeException` or `Error`, other than a
+  `VirtualMachineError`, thrown inside the claim transaction after the row id is read counts as a
+  failed dispatch and is dead-lettered at the third failure: a payload that fails to decode, an
+  `OutboxEntry` validation failure, a handler exception, or a failed `processed_at` update or
+  commit. A failure before the id is read (the query or the connection) names no row and is not
+  counted.
 - **No secondary sort key beyond `occurred_at`.** When a single transition fires multiple actions
   (e.g. `activate`'s `CreateObject` then `Webhook`), every row that transition produces shares the
   exact same commit timestamp. Their relative dispatch order relative to each other is therefore
@@ -408,7 +412,7 @@ The full acceptance picture is green under `mvn verify` for both adapters: `Tran
 Kickoff Task titles render bracketed identically under both adapters (see §6) — not an
 adapter-specific quirk.
 
-## 9. Trigger semantics (Phase 6 / DR-11)
+## 9. Trigger semantics (Phase 6 / DR-09)
 
 Through Phase 5, `sq:trigger` accepted exactly one legal value (`sq:UserAction`) and a transition
 could only ever fire from `POST /api/objects/{type}/{id}/transitions/{name}`. Phase 6 widens this to a
@@ -520,7 +524,7 @@ adapter's `dispatch` switches on `kind()` to route them. `TransitionFired` rows 
 alongside every fired transition, and the relay claims them like any other kind. Both adapters
 accept them as a no-op.
 
-## 11. Materialised derivations (Phase 6 / DR-11)
+## 11. Materialised derivations (Phase 6 / DR-08)
 
 A derived property (`sq-vocabulary.md`'s `sq:derivedBy`, Phase 4/DR-08) is, through Phase 5, always
 computed fresh on every read and never stored — so it can never appear in a `filter[...]`/`sort=`
