@@ -52,9 +52,11 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     public static final String KIND_OBJECT_DELETED = "ObjectDeleted";
 
     /**
-     * The event kind recorded, as an audit trail, alongside every {@link #KIND_ACTION_REQUEST} row
-     * a state-machine transition produces. A relay or consumer that dispatches actions filters
-     * strictly on {@link #KIND_ACTION_REQUEST} and ignores rows of this kind.
+     * The event kind recorded once, as an audit trail, for each fired state-machine transition,
+     * alongside any {@link #KIND_ACTION_REQUEST} rows it produces. The outbox relay claims these
+     * rows and dispatches them
+     * to the automation port, whose adapters accept them as a no-op until they carry actions and
+     * timers.
      */
     public static final String KIND_TRANSITION_FIRED = "TransitionFired";
 
