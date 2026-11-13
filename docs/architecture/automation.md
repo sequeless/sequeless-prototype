@@ -273,16 +273,21 @@ gap doesn't matter.
 
 - **`sq_outbox.attempts` is write-only.** The column exists from the original (Phase 2) outbox
   migration — every insert sets it to `0` — but nothing reads or increments it. There is no
-  backoff or retry-count logic keyed off it; `OutboxRelay` retries a failed row purely by leaving
-  it unclaimed for the next scheduled tick.
-- **No dead-letter mechanism.** `OutboxPort#claimNext` always claims the oldest unprocessed row
-  among the dispatchable kind set first (`ORDER BY occurred_at`), and there is no skip-ahead or
-  quarantine path. Since Phase 6 (DR-11) widened that set from `ActionRequest` alone to the full
-  dispatchable set (§2), a single "poison pill" row of **any** dispatchable kind — an
-  `ActionRequest`, but equally a `TimerScheduled`, `SignalReceived`, or object-lifecycle row whose
-  payload always makes `dispatch()` throw, or, for an object-lifecycle row, whose recompute always
-  throws — now blocks every row behind it indefinitely, at one-scheduled-tick granularity, not just
-  a malformed action.
+  backoff or retry-count logic keyed off it. `OutboxRelay` retries a failed row by leaving it
+  unclaimed for the next scheduled tick; the failure is counted in `fail_count` (V7, DR-23), not in
+  `attempts`, and the third failure dead-letters the row (see the next item).
+- **Dead-letter after three failed dispatches, with manual recovery (DR-23).** `OutboxPort#claimNext`
+  claims the oldest unprocessed row among the dispatchable kind set first (`ORDER BY occurred_at`),
+  and skips a dead-lettered row. A row whose `dispatch()` throws, or, for an object-lifecycle row,
+  whose recompute throws, has `fail_count` incremented in its own transaction after each failed
+  dispatch. At the third failure that transaction also stamps `dead_lettered_at` and `error`, and
+  the rows behind it keep flowing. Since Phase 6 (DR-11) that set has covered every dispatchable
+  kind (§2), so a row of any of those kinds can be dead-lettered this way. A dead-lettered row keeps
+  `processed_at` NULL and stays in `sq_outbox`. Nothing retries it; recovery is manual (reset
+  `dead_lettered_at`, `fail_count` and `error`). During a systemic outage, for example Temporal down,
+  healthy rows can be dead-lettered too. **Open, not fixed:** a row whose payload fails to decode in
+  `PostgresOutboxPort#mapRow` is not counted, so it still blocks every row behind it. This gap is an
+  open item tracked in `docs/extraction/remaining-work.md`.
 - **No secondary sort key beyond `occurred_at`.** When a single transition fires multiple actions
   (e.g. `activate`'s `CreateObject` then `Webhook`), every row that transition produces shares the
   exact same commit timestamp. Their relative dispatch order relative to each other is therefore
@@ -560,7 +565,8 @@ by:
 If every attempt is exhausted, the exception propagates uncaught out of `recompute()`. The relay
 calls `recompute()` inside its claim handler, so the claim rolls back: the row stays unprocessed,
 and the next poll tick retries it. That is the recovery for both adapters, because the relay runs
-the recompute before dispatch for both. A row that never succeeds blocks the rows behind it (§6).
+the recompute before dispatch for both. A row whose recompute keeps failing is dead-lettered after
+three failed dispatches, so it no longer blocks the rows behind it (§6, DR-23).
 `recompute` itself does not retry a second time. The Temporal `ChangeEventWorkflow` still has its
 own recompute activity, which Temporal retries, until its workflow step is removed.
 
