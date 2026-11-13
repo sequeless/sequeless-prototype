@@ -183,14 +183,19 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
                 .is2xxSuccessful();
     }
 
+    /**
+     * The stored value, or {@code null} while the materialised key is not yet written. The async
+     * recompute writes it later, so a NULL is a normal state for the poller to wait out.
+     */
     private Long storedOpenTaskCount(UUID projectId) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
-        return jdbcClient
+        List<Long> values = jdbcClient
                 .sql("SELECT (props -> :iri ->> 'integer')::bigint FROM sq_object WHERE id = :id")
                 .param("iri", OPEN_TASK_COUNT_IRI)
                 .param("id", projectId)
                 .query(Long.class)
-                .single();
+                .list();
+        return values.isEmpty() ? null : values.get(0);
     }
 
     private void awaitOpenTaskCount(RestTestClient client, UUID projectId, int expected, Duration timeout) {
