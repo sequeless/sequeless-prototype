@@ -84,6 +84,11 @@ import org.sequeless.testkit.Fixtures;
  * semantics of {@link Query#types()}, the {@code (createdAt, id)} ascending default sort order,
  * page overrun, and the "conventional multi-select" facet-counting rule.
  *
+ * <p><b>Facet bucket order.</b> The contract checks only these parts of the facet bucket order
+ * that {@link BrowsePort} documents: null-keyed buckets are excluded from both the scalar facet
+ * and the reference facet; the reference facet's buckets are checked for count-descending order;
+ * and the scalar facet's buckets are checked for Unicode code point order when counts tie.
+ *
  * <p><b>Timestamp precision.</b> Every seeded {@code createdAt} is a whole microsecond, because
  * {@link ObjectStorePort} lets adapters store {@link java.time.Instant}s at microsecond precision,
  * and {@link BrowsePort} orders by {@code createdAt} as stored.

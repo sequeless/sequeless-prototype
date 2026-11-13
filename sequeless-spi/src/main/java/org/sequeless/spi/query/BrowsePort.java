@@ -51,7 +51,6 @@ import org.sequeless.ontology.schema.api.Schema;
  *       selection.
  *   <li><b>Facet bucket order.</b> For each facet property, the buckets are sorted by count, descending,
  *       then by bucket value in Unicode code point order. A bucket whose value is null is not returned.
- *       {@code BrowseContract} asserts each part of this clause.
  * </ul>
  */
 public interface BrowsePort {
