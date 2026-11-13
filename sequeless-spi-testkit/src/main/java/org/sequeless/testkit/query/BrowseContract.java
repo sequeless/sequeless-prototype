@@ -84,10 +84,11 @@ import org.sequeless.testkit.Fixtures;
  * semantics of {@link Query#types()}, the {@code (createdAt, id)} ascending default sort order,
  * page overrun, and the "conventional multi-select" facet-counting rule.
  *
- * <p><b>Facet bucket order.</b> The contract checks only these parts of the facet bucket order
- * that {@link BrowsePort} documents: null-keyed buckets are excluded from both the scalar facet
- * and the reference facet; the reference facet's buckets are checked for count-descending order;
- * and the scalar facet's buckets are checked for Unicode code point order when counts tie.
+ * <p><b>Facet bucket order.</b> The contract checks every facet bucket rule that {@link BrowsePort}
+ * documents, for both the scalar facet and the reference facet: buckets are sorted by count
+ * descending, then by bucket value in Unicode code point order, and null-keyed buckets are
+ * excluded. Each order rule has a fixture whose result it alone decides. The case where code point
+ * order and UTF-16 order differ is checked on the scalar facet only.
  *
  * <p><b>Timestamp precision.</b> Every seeded {@code createdAt} is a whole microsecond, because
  * {@link ObjectStorePort} lets adapters store {@link java.time.Instant}s at microsecond precision,
@@ -345,6 +346,27 @@ public abstract class BrowseContract {
     }
 
     @Test
+    void scalarFacetOrdersByCountDescendingBeforeCodePoint() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        // Code point, case-insensitive and insertion order all put "A" first, so only count order
+        // gives [B:2, A:1].
+        seedTask(env, scope, base, "Upper case A", "A", 1, LocalDate.of(2026, 2, 1), null, null);
+        seedTask(env, scope, base.plusSeconds(1), "Upper case B one", "B", 2, LocalDate.of(2026, 2, 2), null, null);
+        seedTask(env, scope, base.plusSeconds(2), "Upper case B two", "B", 3, LocalDate.of(2026, 2, 3), null, null);
+
+        QueryResult result = env.browsePort()
+                .browse(
+                        scope,
+                        QueryFixtures.schema(),
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
+
+        assertThat(result.facets().get(STATUS_IRI)).containsExactly(new FacetBucket("B", 2), new FacetBucket("A", 1));
+    }
+
+    @Test
     void scalarFacetDropsNullKeyBucket() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
@@ -395,8 +417,21 @@ public abstract class BrowseContract {
         Scope scope = Fixtures.defaultScope();
         Instant base = Instant.parse("2026-01-01T00:00:00Z");
 
-        ObjectId alice = seedPerson(env, scope, base, "Alice Smith", "alice@example.com");
-        ObjectId bob = seedPerson(env, scope, base.plusSeconds(1), "Bob Jones", "bob@example.com");
+        // Fixed ids with Alice lower in both signed and unsigned order, seeded first.
+        ObjectId alice = seed(
+                env,
+                scope,
+                ID_A,
+                PERSON,
+                base,
+                Map.of(NAME, Value.text("Alice Smith"), EMAIL, Value.text("alice@example.com")));
+        ObjectId bob = seed(
+                env,
+                scope,
+                ID_C,
+                PERSON,
+                base.plusSeconds(1),
+                Map.of(NAME, Value.text("Bob Jones"), EMAIL, Value.text("bob@example.com")));
         // No name: the display label is absent, so this target's bucket key would be null.
         ObjectId nameless =
                 seed(env, scope, PERSON, base.plusSeconds(2), Map.of(EMAIL, Value.text("nobody@example.com")));
@@ -412,10 +447,48 @@ public abstract class BrowseContract {
                         QueryFixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI)));
 
-        // Bob Jones (2) sorts before Alice Smith (1) by count, although "Alice Smith" < "Bob Jones" by value.
+        // Id, insertion and code point order all put Alice Smith first, so only count order decides
+        // the result: Bob Jones (2) sorts before Alice Smith (1).
         assertThat(result.total()).isEqualTo(4);
         assertThat(result.facets().get(ASSIGNED_TO_IRI))
                 .containsExactly(new FacetBucket("Bob Jones", 2), new FacetBucket("Alice Smith", 1));
+    }
+
+    @Test
+    void referenceFacetTiesOrderByCodePoint() {
+        Environment env = freshEnvironment();
+        Scope scope = Fixtures.defaultScope();
+        Instant base = Instant.parse("2026-01-01T00:00:00Z");
+
+        // Seeded lowercase first and with the lower id, so the result cannot be insertion or id order.
+        ObjectId alice = seed(
+                env,
+                scope,
+                ID_A,
+                PERSON,
+                base,
+                Map.of(NAME, Value.text("alice"), EMAIL, Value.text("alice@example.com")));
+        ObjectId bob = seed(
+                env,
+                scope,
+                ID_C,
+                PERSON,
+                base.plusSeconds(1),
+                Map.of(NAME, Value.text("Bob"), EMAIL, Value.text("bob@example.com")));
+
+        seedTask(env, scope, base.plusSeconds(2), "Alice task", "OPEN", 1, LocalDate.of(2026, 2, 1), alice, null);
+        seedTask(env, scope, base.plusSeconds(3), "Bob task", "OPEN", 2, LocalDate.of(2026, 2, 2), bob, null);
+
+        QueryResult result = env.browsePort()
+                .browse(
+                        scope,
+                        QueryFixtures.schema(),
+                        queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI)));
+
+        // Equal counts: "Bob" (U+0042) sorts before "alice" (U+0061) in code point order. Case-insensitive
+        // and locale order would put "alice" first.
+        assertThat(result.facets().get(ASSIGNED_TO_IRI))
+                .containsExactly(new FacetBucket("Bob", 1), new FacetBucket("alice", 1));
     }
 
     @Test
