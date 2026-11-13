@@ -149,7 +149,7 @@ accepted limitation with no dead-letter. `sq_outbox.attempts` is write-only, so 
 Decision: B2 route 1 changes from "fail and retry" to "three failed dispatches, then dead-letter". Three V7
 columns (`fail_count`, `dead_lettered_at` and `error`) are added to `sq_outbox`. A failed dispatch rolls back its claim, then increments
 `fail_count` in its own transaction; the third failure stamps `dead_lettered_at` and `error` in that
-transaction. The claim query skips dead-lettered rows, so the queue continues. A dead-lettered row keeps
+transaction. A payload that fails to decode counts as a failed dispatch, with the same threshold. The claim query skips dead-lettered rows, so the queue continues. A dead-lettered row keeps
 `processed_at` NULL. Alternatives: skip-ahead, where the claim moves past a failing row (the row is silently
 lost); a separate dead-letter table (the row leaves `sq_outbox`, so O-3's count no longer sees it); set
 `processed_at` on failure (silently removes the row from the O-3 count).
