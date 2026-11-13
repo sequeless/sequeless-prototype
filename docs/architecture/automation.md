@@ -290,9 +290,8 @@ gap doesn't matter.
   this way. A dead-lettered row keeps
   `processed_at` NULL and stays in `sq_outbox`. Nothing retries it; recovery is manual (reset
   `dead_lettered_at`, `fail_count` and `error`). During a systemic outage, for example Temporal down,
-  healthy rows can be dead-lettered too. **Open, not fixed:** a row whose payload fails to decode in
-  `PostgresOutboxPort#mapRow` is not counted, so it still blocks every row behind it. This gap is an
-  open item tracked in `docs/extraction/remaining-work.md`.
+  healthy rows can be dead-lettered too. A payload that fails to decode counts as a failed
+  dispatch and is dead-lettered at the third failure, like any other failure.
 - **No secondary sort key beyond `occurred_at`.** When a single transition fires multiple actions
   (e.g. `activate`'s `CreateObject` then `Webhook`), every row that transition produces shares the
   exact same commit timestamp. Their relative dispatch order relative to each other is therefore
