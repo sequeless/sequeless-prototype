@@ -136,11 +136,13 @@ fans its one polling loop out to several inbound ports (`ActionExecutor`, `Trigg
 `DerivationRecomputer`), not just `ActionExecutor`. `OutboxRelay` builds the set it passes,
 `DISPATCHABLE_KINDS`, once as a `static final Set<String>` field (not reconstructed per poll) —
 see §2 for the eight kinds it contains. The sole implementation (the postgres adapter)
-runs `SELECT ... FROM sq_outbox WHERE kind = ANY(?) AND processed_at IS NULL ORDER BY occurred_at
-LIMIT 1 FOR UPDATE SKIP LOCKED` against that set, calls `handler` once with the claimed row's raw
-`tenantId` string and the reconstructed `OutboxEntry`, then stamps `processed_at = now()` — all
-inside one short transaction. If `handler` throws, the transaction rolls back (the row stays
-unprocessed, its lock released) and the exception propagates to `OutboxRelay`. `OutboxPort` is
+runs `SELECT ... FROM sq_outbox WHERE kind IN (:kinds) AND processed_at IS NULL AND
+dead_lettered_at IS NULL ORDER BY occurred_at LIMIT 1 FOR UPDATE SKIP LOCKED` against that set
+(`:kinds` bound as a named IN list), calls `handler` once with the claimed row's raw `tenantId`
+string and the reconstructed `OutboxEntry`, then stamps `processed_at = now()` — all inside one
+short transaction. If `handler` throws, the transaction rolls back (the row stays unprocessed, its
+lock released) and the exception propagates to `OutboxRelay`. A failed dispatch is counted in
+`fail_count`, and the row is dead-lettered at the third failure (§6). `OutboxPort` is
 deliberately a sibling port to `ObjectStorePort`, not a method added to it: several
 `ObjectStorePort` implementers (in-memory test doubles) have no use for an outbox-claiming method,
 the same reasoning that already keeps `QueryPort` a sibling rather than an `ObjectStorePort`
@@ -276,13 +278,16 @@ gap doesn't matter.
   backoff or retry-count logic keyed off it. `OutboxRelay` retries a failed row by leaving it
   unclaimed for the next scheduled tick; the failure is counted in `fail_count` (V7, DR-23), not in
   `attempts`, and the third failure dead-letters the row (see the next item).
-- **Dead-letter after three failed dispatches, with manual recovery (DR-23).** `OutboxPort#claimNext`
-  claims the oldest unprocessed row among the dispatchable kind set first (`ORDER BY occurred_at`),
-  and skips a dead-lettered row. A row whose `dispatch()` throws, or, for an object-lifecycle row,
-  whose recompute throws, has `fail_count` incremented in its own transaction after each failed
-  dispatch. At the third failure that transaction also stamps `dead_lettered_at` and `error`, and
-  the rows behind it keep flowing. Since Phase 6 (DR-11) that set has covered every dispatchable
-  kind (§2), so a row of any of those kinds can be dead-lettered this way. A dead-lettered row keeps
+- **Dead-letter after three failed dispatches, with manual recovery (DR-23).**
+  `PostgresOutboxPort`'s claim (behind `OutboxPort#claimNext`) orders by `occurred_at` and skips a
+  dead-lettered row. A row whose `dispatch()` throws, or, for an object-lifecycle row, whose
+  recompute throws, has `fail_count` incremented in its own transaction after the failed dispatch
+  rolls back; that increment is skipped if another relay has processed the row since the rollback,
+  if the increment itself fails (the error is then only attached to the handler's exception as
+  suppressed), and for a `VirtualMachineError`. At the third failure that transaction also stamps
+  `dead_lettered_at` and `error`, and the rows behind it keep flowing. The claim set holds all of
+  the outbox kinds (§2), `TransitionFired` included, so a row of any of them can be dead-lettered
+  this way. A dead-lettered row keeps
   `processed_at` NULL and stays in `sq_outbox`. Nothing retries it; recovery is manual (reset
   `dead_lettered_at`, `fail_count` and `error`). During a systemic outage, for example Temporal down,
   healthy rows can be dead-lettered too. **Open, not fixed:** a row whose payload fails to decode in
