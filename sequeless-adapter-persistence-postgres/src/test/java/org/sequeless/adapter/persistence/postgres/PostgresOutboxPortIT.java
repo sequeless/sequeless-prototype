@@ -2,6 +2,7 @@ package org.sequeless.adapter.persistence.postgres;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -30,7 +32,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * take the same row (thanks to {@code SKIP LOCKED}), leaves a row unprocessed when the handler
  * throws, and dead-letters a row after its third failed dispatch (DR-23) — against a real
  * PostgreSQL 18 instance started by Testcontainers, mirroring
- * {@link PostgresObjectStoreContractIT}'s own container/migration/truncation pattern.
+ * {@link PostgresObjectStoreContractIT}'s own container/migration/truncation pattern. It also
+ * covers three DR-23 edge cases: a failure that cannot be recorded is attached to the handler's
+ * exception as suppressed, a {@code VirtualMachineError} is not counted, and a failure with a null
+ * message is recorded with its exception's class name.
  *
  * <p>{@code sq_outbox} rows are inserted directly via SQL in these tests rather than through
  * {@link org.sequeless.spi.object.ObjectStorePort#commit}, since the point here is {@link
@@ -246,10 +251,129 @@ class PostgresOutboxPortIT {
         assertThat(isProcessed(rowId)).isTrue();
     }
 
+    @Test
+    void failureToCountADispatchIsSuppressedAndTheHandlerExceptionStillPropagates() {
+        UUID rowId = UUID.randomUUID();
+        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+
+        refuseFailCountWrites();
+        Throwable thrown;
+        try {
+            thrown = catchThrowable(PostgresOutboxPortIT::claimThatThrows);
+        } finally {
+            allowFailCountWrites();
+        }
+
+        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("boom");
+        assertThat(thrown.getSuppressed()).hasSize(1);
+        assertThat(thrown.getSuppressed()[0])
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("fail_count update refused");
+        assertThat(failCountOf(rowId)).isZero();
+        assertThat(isDeadLettered(rowId)).isFalse();
+        assertThat(errorOf(rowId)).isNull();
+        assertThat(isProcessed(rowId)).isFalse();
+
+        // The row must still be claimable: the claim and the refused count both rolled back,
+        // so the row is neither processed nor counted.
+        Optional<UUID> retried =
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+        assertThat(retried).contains(rowId);
+    }
+
+    @Test
+    void nonVirtualMachineErrorIsCountedLikeARuntimeExceptionAndDeadLettersTheRow() {
+        UUID rowId = UUID.randomUUID();
+        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+
+        for (int failure = 0; failure < 3; failure++) {
+            assertThatThrownBy(() -> claimThatThrowsError(new LinkageError("boom")))
+                    .isInstanceOf(LinkageError.class)
+                    .hasMessage("boom");
+        }
+
+        assertThat(failCountOf(rowId)).isEqualTo(3);
+        assertThat(isDeadLettered(rowId)).isTrue();
+        assertThat(errorOf(rowId)).isEqualTo("boom");
+        assertThat(isProcessed(rowId)).isFalse();
+    }
+
+    @Test
+    void virtualMachineErrorIsNotCountedSoTheRowStaysClaimable() {
+        UUID rowId = UUID.randomUUID();
+        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+
+        for (int failure = 0; failure < 3; failure++) {
+            assertThatThrownBy(() -> claimThatThrowsError(new OutOfMemoryError("boom")))
+                    .isInstanceOf(OutOfMemoryError.class)
+                    .hasMessage("boom");
+        }
+
+        assertThat(failCountOf(rowId)).isZero();
+        assertThat(isDeadLettered(rowId)).isFalse();
+        assertThat(errorOf(rowId)).isNull();
+        assertThat(isProcessed(rowId)).isFalse();
+
+        Optional<UUID> retried =
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+        assertThat(retried).contains(rowId);
+    }
+
+    @Test
+    void failureWithNoMessageIsDeadLetteredWithItsClassNameAsTheError() {
+        UUID rowId = UUID.randomUUID();
+        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+
+        for (int failure = 0; failure < 3; failure++) {
+            assertThatThrownBy(PostgresOutboxPortIT::claimThatThrowsWithoutMessage)
+                    .isInstanceOf(IllegalStateException.class)
+                    .extracting(Throwable::getMessage)
+                    .isNull();
+        }
+
+        assertThat(failCountOf(rowId)).isEqualTo(3);
+        assertThat(isDeadLettered(rowId)).isTrue();
+        assertThat(errorOf(rowId)).isEqualTo("java.lang.IllegalStateException");
+        assertThat(isProcessed(rowId)).isFalse();
+    }
+
     private static void claimThatThrows() {
         freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
             throw new RuntimeException("boom");
         });
+    }
+
+    private static void claimThatThrowsError(Error error) {
+        freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+            throw error;
+        });
+    }
+
+    private static void claimThatThrowsWithoutMessage() {
+        freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+            throw new IllegalStateException();
+        });
+    }
+
+    /** Makes every UPDATE of fail_count throw, as a database that rejects the failure count would. */
+    private static void refuseFailCountWrites() {
+        JdbcClient.create(dataSource)
+                .sql("CREATE OR REPLACE FUNCTION refuse_fail_count() RETURNS trigger LANGUAGE plpgsql AS $$ "
+                        + "BEGIN RAISE EXCEPTION 'fail_count update refused'; END; $$")
+                .update();
+        JdbcClient.create(dataSource)
+                .sql("CREATE TRIGGER refuse_fail_count BEFORE UPDATE OF fail_count ON sq_outbox "
+                        + "FOR EACH ROW EXECUTE FUNCTION refuse_fail_count()")
+                .update();
+    }
+
+    private static void allowFailCountWrites() {
+        JdbcClient.create(dataSource)
+                .sql("DROP TRIGGER IF EXISTS refuse_fail_count ON sq_outbox")
+                .update();
+        JdbcClient.create(dataSource)
+                .sql("DROP FUNCTION IF EXISTS refuse_fail_count()")
+                .update();
     }
 
     private static Boolean isProcessed(UUID id) {
@@ -269,11 +393,13 @@ class PostgresOutboxPortIT {
     }
 
     private static <V> V outboxColumn(String expression, UUID id, Class<V> type) {
+        // list() rather than single(): single() rejects a null value, and error is legitimately null.
         return JdbcClient.create(dataSource)
                 .sql("SELECT " + expression + " FROM sq_outbox WHERE id = :id")
                 .param("id", id)
                 .query(type)
-                .single();
+                .list()
+                .getFirst();
     }
 
     private static void await(CountDownLatch latch) {
