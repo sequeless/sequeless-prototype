@@ -268,13 +268,14 @@ class PostgresOutboxPortIT {
         assertThat(thrown.getSuppressed()).hasSize(1);
         assertThat(thrown.getSuppressed()[0])
                 .isInstanceOf(DataAccessException.class)
-                .hasMessageContaining("fail_count write refused");
+                .hasMessageContaining("fail_count update refused");
         assertThat(failCountOf(rowId)).isZero();
         assertThat(isDeadLettered(rowId)).isFalse();
         assertThat(errorOf(rowId)).isNull();
         assertThat(isProcessed(rowId)).isFalse();
 
-        // The row must still be claimable: the refused count rolled back, so it stays unprocessed.
+        // The row must still be claimable: the claim and the refused count both rolled back,
+        // so the row is neither processed nor counted.
         Optional<UUID> retried =
                 freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
         assertThat(retried).contains(rowId);
@@ -358,7 +359,7 @@ class PostgresOutboxPortIT {
     private static void refuseFailCountWrites() {
         JdbcClient.create(dataSource)
                 .sql("CREATE OR REPLACE FUNCTION refuse_fail_count() RETURNS trigger LANGUAGE plpgsql AS $$ "
-                        + "BEGIN RAISE EXCEPTION 'fail_count write refused'; END; $$")
+                        + "BEGIN RAISE EXCEPTION 'fail_count update refused'; END; $$")
                 .update();
         JdbcClient.create(dataSource)
                 .sql("CREATE TRIGGER refuse_fail_count BEFORE UPDATE OF fail_count ON sq_outbox "
