@@ -210,3 +210,17 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 - **5-ontology-q4**: the fix is merged as sequeless-ontology #15 (`10f5a57`). Still open: release PR #16 (blocked on owner CI approval), then the sequeless-build BOM update to ontology 0.1.1 and its release, the bom-contracts import, and the prototype BOM bump with the JDK 25 gate. The owner decision is (viii) in remaining-work.md.
 - **6-tracker-final**: this commit.
 - Held: P2, P3, P4 and P5b on O-3 and O-4 (owner checks, unanswered). Specs 14 to 19 wait on spec 13.
+
+## 14. Progress after #140 to #143 (recorded 2026-11-13)
+
+- Merged on sequeless-prototype `main` since section 13, with squash SHAs: #140 `74b11d3` (docs/architecture/automation.md, the stale dead-letter text corrected, DR-23); #141 `2a52ff1` (BrowseContract javadoc records the facet bucket order; the BrowsePort coverage claim removed); #142 `9d37327` (the relay row mapper records the row id before the payload is decoded, so an undecodable payload counts as a failed dispatch and is dead-lettered at the third failure; new PostgresOutboxDecodeFailureIT); #143 `7d678da` (dead-letter failure-path tests in PostgresOutboxPortIT). origin/main is `7d678da`.
+- Spec 13 steps: 1 to 4 are done. Step 4 is #138 (`8639410`, with the docs in #135); its gaps are closed by #142 and #143. Step 5 is blocked on owner decision (viii): sequeless-ontology release PR #16, read on 2026-11-13 with `gh pr view` at head `c58c2038b96aa03b4419ea649d95819fc69cad24`, state OPEN, mergeStateStatus BLOCKED, with its CI and CodeQL runs awaiting approval. Step 6 is the tracker update in this commit.
+- P0, P1, P2a, P5a, P6a, P6b and P7 are merged. P2, P3, P4 and P5b are held on O-3 and O-4, and no code step is unblocked. The owner checks are unchanged:
+  - O-3: `SELECT kind, count(*) FROM sq_outbox WHERE processed_at IS NULL GROUP BY kind;` on every non-dev database.
+  - O-4: a check for running Temporal workflows of the types ActionWorkflow, TimerWorkflow, SignalEventWorkflow and ChangeEventWorkflow.
+- Decode fix decision: option A (Navigator, 2026-11-13, session `08e650684ebf42cd99de1f1fe99a026f`). The merged fix is #142.
+- Partial index decision: option B, defer (same Navigator session). `sq_outbox_unprocessed_dispatchable_idx` is kind-only (V5). Defer until O-3 has run on the non-dev databases, then decide whether to narrow on `processed_at` and `dead_lettered_at` together. #140 to #143 do not change it, and it is not a V8 now.
+- Navigator sessions of the earlier plans have ended and must not be resumed (sections 7, 12 and 13 name them). Navigator session `08e650684ebf42cd99de1f1fe99a026f` was alive when this section was written.
+- New open items, recorded in remaining-work.md on 2026-11-13: the DR-11 misattribution (automation.md, derived-properties.md, sq-vocabulary.md); the `KIND_TRANSITION_FIRED` javadoc in `OutboxEntry.java`; the BrowseContract coverage gaps; the decode-failure scope wording; and the Q4 release chain. Each is docs-only or needs its own PR.
+- Next session starts by asking the owner for three things: the O-3 result on each non-dev database, the O-4 result, and owner decision (viii) on sequeless-ontology #16 CI. Nothing else is unblocked.
+- Do not approve any CI run. Do not merge sequeless-kernel #12. Do not touch PR #106 (draft, do not merge).
