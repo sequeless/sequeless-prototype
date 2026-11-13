@@ -200,3 +200,13 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
   - P2 to P4 drain the dead-lettered rows.
   - The B2 route 1 wording is updated: "fail and retry" becomes "retry, then dead-letter".
   - The dead-letter mark is written in a separate transaction.
+
+### Status on 2026-11-13
+
+- **1-tracker-refresh**: done, #134 (`e456538`).
+- **2-docs-adr-path**: done, #133 (`057b07f`).
+- **3-facet-tiebreak**: done, #136 (`c1e8ad4`), DR-22.
+- **4-relay-deadletter**: done, #138 (`8639410`), DR-23. The docs were in #135 (`6a15d3e`).
+- **5-ontology-q4**: the fix is merged as sequeless-ontology #15 (`10f5a57`). Still open: release PR #16 (blocked on owner CI approval), then the sequeless-build BOM update to ontology 0.1.1 and its release, the bom-contracts import, and the prototype BOM bump with the JDK 25 gate. The owner decision is (viii) in remaining-work.md.
+- **6-tracker-final**: this commit.
+- Held: P2, P3, P4 and P5b on O-3 and O-4 (owner checks, unanswered). Specs 14 to 19 wait on spec 13.
