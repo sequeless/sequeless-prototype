@@ -24,7 +24,7 @@ writing a derived property is a 400 naming it; an unknown plug-in name fails at 
 including application startup.
 
 Out of scope (unchanged from the plan): filtering or sorting on non-materialised derived values, state
-machines, events. Materialised derived values are shipped in phase 6 (DR-11) for `RollupRule` only
+machines, events. Materialised derived values are shipped in phase 6 (DR-08) for `RollupRule` only
 (`sq:materialised true`); a `sq:Plugin` cannot be materialised. See "Known limitations" below and
 `automation.md` §11.
 
@@ -308,7 +308,7 @@ coercion always short-circuits first.
 
 ## Known limitations
 
-- **Materialised rollups exist (Phase 6 / DR-11), but only for `RollupRule`.** A rollup marked
+- **Materialised rollups exist (Phase 6 / DR-08), but only for `RollupRule`.** A rollup marked
   `sq:materialised true` is kept correct in `sq_object.props` from domain events — see
   `automation.md` §11 for the full recompute design — but `sq:materialised true` on a `sq:Plugin`
   node is a mapping *error*: a `PluginRule` has no `sourceTypeIri`/`viaIri` a recomputer could use
