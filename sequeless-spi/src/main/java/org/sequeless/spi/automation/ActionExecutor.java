@@ -2,6 +2,7 @@ package org.sequeless.spi.automation;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
@@ -164,8 +165,35 @@ public interface ActionExecutor {
      *     from; must not be {@code null}
      * @param action the pre-built sealed action to apply; must not be {@code null}
      * @param actionIndex the action's 0-based position in the list the automation returns
+     * @throws IllegalArgumentException if action is a WebhookAction; deliver it through resolveWebhookAction instead
      */
     default void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
         throw new UnsupportedOperationException("applyAction is not implemented by this ActionExecutor");
+    }
+
+    /**
+     * Resolves one webhook action that an adapter has already built from the automation of the
+     * {@code TransitionFired} row's ontology version, into a fully-rendered {@link
+     * ResolvedWebhookRequest}. The {@code url}, {@code method} and {@code body} are rendered against
+     * the row's {@code self}, {@code toState} and {@code principalId}, exactly as {@link
+     * #resolveWebhook} renders an {@code ActionRequest} row. This method performs no HTTP I/O: the
+     * calling adapter delivers the returned request.
+     *
+     * <p>{@code transitionFired} and {@code actionIndex} are as described for {@link #applyAction}.
+     *
+     * <p>The default implementation throws {@link UnsupportedOperationException} until an
+     * implementation overrides this method.
+     *
+     * @param scope the tenant and principal to render the templates on behalf of; must not be {@code
+     *     null}
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates
+     *     from; must not be {@code null}
+     * @param action the pre-built webhook action to resolve; must not be {@code null}
+     * @param actionIndex the action's 0-based position in the list the automation returns
+     * @return the fully-rendered request, ready for the caller to issue over HTTP
+     */
+    default ResolvedWebhookRequest resolveWebhookAction(
+            Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
+        throw new UnsupportedOperationException("resolveWebhookAction is not implemented by this ActionExecutor");
     }
 }

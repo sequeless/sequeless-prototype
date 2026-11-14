@@ -10,12 +10,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.expression.api.ExpressionContext;
 import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.CreateObjectAction;
+import org.sequeless.ontology.automation.api.LogAction;
+import org.sequeless.ontology.automation.api.PropertyAssignment;
+import org.sequeless.ontology.automation.api.SetPropertyAction;
+import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.object.Audit;
@@ -48,6 +55,11 @@ import org.slf4j.LoggerFactory;
  * #resolveWebhook} nor {@link #applyLog} touches {@link ObjectStorePort} at all — they only
  * render templated text through {@link ExpressionPort}, leaving any I/O (an HTTP call, a log
  * sink) to the caller.
+ *
+ * <p>The {@code ActionRequest} methods above and the single-action methods ({@link #applyAction}
+ * and {@link #resolveWebhookAction}) share their write and render logic through private helpers,
+ * so the two entry points cannot drift apart. The single-action methods take the typed {@link
+ * Action} and read the row's context from a {@code TransitionFired} row.
  */
 public final class DefaultActionExecutor implements ActionExecutor {
 
@@ -80,7 +92,100 @@ public final class DefaultActionExecutor implements ActionExecutor {
         Map<String, Object> payload = entry.payload();
         ObjectId objectId = ObjectId.parse((String) payload.get("objectId"));
         String property = (String) payload.get("property");
+        commitSetProperty(
+                scope, objectId, property, entry, () -> resolveTargetValue(payload, buildContext(payload, "state")));
+    }
 
+    @Override
+    public void applyCreateObject(Scope scope, OutboxEntry entry) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(entry, "entry must not be null");
+
+        Map<String, Object> payload = entry.payload();
+        int actionIndex = ((Number) payload.get("actionIndex")).intValue();
+        commitCreateObject(
+                scope,
+                entry,
+                actionIndex,
+                (String) payload.get("createType"),
+                () -> resolvePayloadAssignments(payload, buildContext(payload, "state")));
+    }
+
+    @Override
+    public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(entry, "entry must not be null");
+
+        Map<String, Object> payload = entry.payload();
+        return renderWebhook(
+                buildContext(payload, "state"),
+                (String) payload.get("url"),
+                (String) payload.get("method"),
+                Optional.ofNullable((String) payload.get("body")));
+    }
+
+    @Override
+    public void applyLog(Scope scope, OutboxEntry entry) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(entry, "entry must not be null");
+
+        Map<String, Object> payload = entry.payload();
+        logMessage(buildContext(payload, "state"), (String) payload.get("message"));
+    }
+
+    @Override
+    public void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(transitionFired, "transitionFired must not be null");
+        Objects.requireNonNull(action, "action must not be null");
+
+        Map<String, Object> row = transitionFired.payload();
+        switch (action) {
+            case SetPropertyAction setProperty -> {
+                ObjectId objectId = ObjectId.parse((String) row.get("objectId"));
+                commitSetProperty(
+                        scope,
+                        objectId,
+                        setProperty.propertyIri(),
+                        transitionFired,
+                        () -> resolveTarget(
+                                setProperty.value().orElse(null),
+                                setProperty.expression().orElse(null),
+                                buildContext(row, "toState")));
+            }
+            case CreateObjectAction createObject ->
+                commitCreateObject(
+                        scope,
+                        transitionFired,
+                        actionIndex,
+                        createObject.typeIri(),
+                        () -> resolveAssignments(createObject.properties(), buildContext(row, "toState")));
+            case LogAction log -> logMessage(buildContext(row, "toState"), log.message());
+            case WebhookAction webhook ->
+                throw new IllegalArgumentException(
+                        "A webhook action is resolved through resolveWebhookAction, not applyAction");
+        }
+    }
+
+    @Override
+    public ResolvedWebhookRequest resolveWebhookAction(
+            Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(transitionFired, "transitionFired must not be null");
+        Objects.requireNonNull(action, "action must not be null");
+
+        return renderWebhook(
+                buildContext(transitionFired.payload(), "toState"), action.url(), action.method(), action.body());
+    }
+
+    /**
+     * The one SetProperty write both {@link #applySetProperty} and {@link #applyAction} make. Does
+     * nothing if the target object no longer exists. Otherwise resolves {@code target} (only now,
+     * once the object is known to exist) and commits an update only if the value differs from the
+     * property's current value.
+     */
+    private void commitSetProperty(
+            Scope scope, ObjectId objectId, String propertyIri, OutboxEntry sourceRow, Supplier<Value> target) {
         Optional<BusinessObject> found = objectStorePort.find(scope, objectId);
         if (found.isEmpty()) {
             // The object may have been deleted since the transition fired; this is a safe,
@@ -89,14 +194,14 @@ public final class DefaultActionExecutor implements ActionExecutor {
         }
         BusinessObject current = found.get();
 
-        Value target = resolveTargetValue(payload, buildContext(payload));
-        PropertyRef propertyRef = new PropertyRef(property);
-        if (Objects.equals(current.properties().get(propertyRef), target)) {
+        Value value = target.get();
+        PropertyRef propertyRef = new PropertyRef(propertyIri);
+        if (Objects.equals(current.properties().get(propertyRef), value)) {
             return;
         }
 
         Map<PropertyRef, Value> properties = new HashMap<>(current.properties());
-        properties.put(propertyRef, target);
+        properties.put(propertyRef, value);
 
         Instant now = now();
         String by = scope.principal().id();
@@ -114,40 +219,33 @@ public final class DefaultActionExecutor implements ActionExecutor {
         OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
-                outboxPayload(objectId, current.version() + 1, current.type().iri(), entry),
+                outboxPayload(objectId, current.version() + 1, current.type().iri(), sourceRow),
                 now);
         ChangeSet changeSet =
                 new ChangeSet(List.<Mutation>of(new Update(candidate, current.version())), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
 
-    @Override
-    public void applyCreateObject(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-
-        Map<String, Object> payload = entry.payload();
-        int actionIndex = ((Number) payload.get("actionIndex")).intValue();
-        ObjectId newId = derivedCreateId(entry.id(), actionIndex);
+    /**
+     * The one CreateObject write both {@link #applyCreateObject} and {@link #applyAction} make.
+     * Derives the new object's id from {@code sourceRow}'s id and {@code actionIndex}, and does
+     * nothing if an object already exists at that id. Otherwise resolves {@code properties} (only
+     * now, once that check has passed) and creates the object.
+     */
+    private void commitCreateObject(
+            Scope scope,
+            OutboxEntry sourceRow,
+            int actionIndex,
+            String createType,
+            Supplier<Map<PropertyRef, Value>> properties) {
+        ObjectId newId = derivedCreateId(sourceRow.id(), actionIndex);
 
         if (objectStorePort.find(scope, newId).isPresent()) {
             // Idempotent no-op: a retried activity must never create a second object.
             return;
         }
 
-        String createType = (String) payload.get("createType");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> createProperties = (Map<String, Object>) payload.get("createProperties");
-
-        ExpressionContext context = buildContext(payload);
-        Map<PropertyRef, Value> properties = new HashMap<>();
-        for (Map.Entry<String, Object> entry2 : createProperties.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> valueOrExpression = (Map<String, Object>) entry2.getValue();
-            Value value = resolveTargetValue(valueOrExpression, context);
-            properties.put(new PropertyRef(entry2.getKey()), value);
-        }
-
+        Map<PropertyRef, Value> resolved = properties.get();
         Instant now = now();
         String by = scope.principal().id();
         BusinessObject candidate = new BusinessObject(
@@ -156,82 +254,110 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 scope.tenantId(),
                 1,
                 Optional.empty(),
-                properties,
+                resolved,
                 new Audit(now, by, now, by),
                 false);
 
         OutboxEntry outboxEntry = new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, outboxPayload(newId, 1L, createType, entry), now);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_CREATED,
+                outboxPayload(newId, 1L, createType, sourceRow),
+                now);
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
 
-    @Override
-    public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
+    /** Resolves a {@code CreateObject} action's property assignments against {@code context}. */
+    private Map<PropertyRef, Value> resolveAssignments(
+            List<PropertyAssignment> assignments, ExpressionContext context) {
+        Map<PropertyRef, Value> properties = new HashMap<>();
+        for (PropertyAssignment assignment : assignments) {
+            Value value = resolveTarget(
+                    assignment.value().orElse(null), assignment.expression().orElse(null), context);
+            properties.put(new PropertyRef(assignment.propertyIri()), value);
+        }
+        return properties;
+    }
 
-        Map<String, Object> payload = entry.payload();
-        ExpressionContext context = buildContext(payload);
-        String url = expressionPort.renderTemplate((String) payload.get("url"), context);
-        String method = (String) payload.get("method");
-        Optional<String> body = payload.containsKey("body")
-                ? Optional.of(expressionPort.renderTemplate((String) payload.get("body"), context))
-                : Optional.empty();
+    /**
+     * The {@code ActionRequest}-payload form of {@link #resolveAssignments}: {@code createProperties}
+     * is keyed by property IRI, and each value is a {@code value}-or-{@code expression} map.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<PropertyRef, Value> resolvePayloadAssignments(Map<String, Object> payload, ExpressionContext context) {
+        Map<String, Object> createProperties = (Map<String, Object>) payload.get("createProperties");
+        Map<PropertyRef, Value> properties = new HashMap<>();
+        for (Map.Entry<String, Object> entry : createProperties.entrySet()) {
+            Map<String, Object> valueOrExpression = (Map<String, Object>) entry.getValue();
+            properties.put(new PropertyRef(entry.getKey()), resolveTargetValue(valueOrExpression, context));
+        }
+        return properties;
+    }
+
+    /**
+     * Renders a webhook's url, and its body if one is present, against {@code context}. {@code
+     * method} is used verbatim. Shared by {@link #resolveWebhook} and {@link #resolveWebhookAction}.
+     */
+    private ResolvedWebhookRequest renderWebhook(
+            ExpressionContext context, String urlTemplate, String method, Optional<String> bodyTemplate) {
+        String url = expressionPort.renderTemplate(urlTemplate, context);
+        Optional<String> body = bodyTemplate.map(template -> expressionPort.renderTemplate(template, context));
         return new ResolvedWebhookRequest(url, method, body);
     }
 
-    @Override
-    public void applyLog(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-
-        Map<String, Object> payload = entry.payload();
-        ExpressionContext context = buildContext(payload);
-        String message = expressionPort.renderTemplate((String) payload.get("message"), context);
+    /**
+     * Renders a {@code Log} action's message against {@code context} and logs it. Shared by {@link
+     * #applyLog} and {@link #applyAction}.
+     */
+    private void logMessage(ExpressionContext context, String messageTemplate) {
+        String message = expressionPort.renderTemplate(messageTemplate, context);
         LOG.info(message);
     }
 
     /**
      * Resolves the {@code value}/{@code expression} pair a {@code SetProperty} action or a single
-     * {@code createProperties} entry carries: a literal {@code value} (tagged map, decoded via
-     * {@link PayloadValueCodec#fromPayload}) if present, else an {@code expression} evaluated
-     * through {@link ExpressionPort#evaluate} against {@code context}.
+     * {@code CreateObject} property assignment carries: a literal {@code value} if present, else an
+     * {@code expression} evaluated through {@link ExpressionPort#evaluate} against {@code context}.
      */
-    private Value resolveTargetValue(Map<String, Object> valueOrExpression, ExpressionContext context) {
-        Object value = valueOrExpression.get("value");
-        if (value != null) {
-            return PayloadValueCodec.fromPayload(value);
-        }
-        String expression = (String) valueOrExpression.get("expression");
-        return expressionPort.evaluate(expression, context);
+    private Value resolveTarget(Value value, String expression, ExpressionContext context) {
+        return value != null ? value : expressionPort.evaluate(expression, context);
     }
 
     /**
-     * Builds the {@link ExpressionContext} every {@code value}/{@code expression}/template field in
-     * an {@code ActionRequest} payload is resolved against: {@code self} decodes directly into
-     * {@link ExpressionContext#selfProperties()} with zero re-keying, since both are keyed by
-     * property short name.
+     * The {@code ActionRequest}-payload form of {@link #resolveTarget}: a tagged {@code value} is
+     * decoded via {@link PayloadValueCodec#fromPayload} before it is used.
      */
-    private ExpressionContext buildContext(Map<String, Object> payload) {
+    private Value resolveTargetValue(Map<String, Object> valueOrExpression, ExpressionContext context) {
+        Object value = valueOrExpression.get("value");
+        Value decoded = value != null ? PayloadValueCodec.fromPayload(value) : null;
+        return resolveTarget(decoded, (String) valueOrExpression.get("expression"), context);
+    }
+
+    /**
+     * Builds the {@link ExpressionContext} every {@code value}/{@code expression}/template field is
+     * resolved against: {@code self} decodes directly into {@link ExpressionContext#selfProperties()}
+     * with zero re-keying, since both are keyed by property short name. {@code stateKey} names the
+     * row's state: {@code "state"} on an {@code ActionRequest} row, {@code "toState"} on a {@code
+     * TransitionFired} row.
+     */
+    private ExpressionContext buildContext(Map<String, Object> row, String stateKey) {
         @SuppressWarnings("unchecked")
-        Map<String, Object> self = (Map<String, Object>) payload.get("self");
+        Map<String, Object> self = (Map<String, Object>) row.get("self");
         Map<String, Value> selfProperties = new HashMap<>();
         self.forEach((name, taggedValue) -> selfProperties.put(name, PayloadValueCodec.fromPayload(taggedValue)));
-        Optional<String> selfState = Optional.of((String) payload.get("state"));
-        String principalId = (String) payload.get("principalId");
+        Optional<String> selfState = Optional.of((String) row.get(stateKey));
+        String principalId = (String) row.get("principalId");
         return new ExpressionContext(selfProperties, selfState, principalId);
     }
 
     /**
-     * Derives a {@code CreateObject} action's new object id deterministically from the {@code
-     * ActionRequest} outbox entry's own id and its {@code actionIndex}, so a retried call resolves
-     * to the exact same id every time and {@link #applyCreateObject}'s {@code find}-first check can
-     * detect a duplicate.
+     * Derives a {@code CreateObject} action's new object id deterministically from the outbox
+     * row's own id and its {@code actionIndex}, so a retried call resolves to the exact same id
+     * every time and {@link #commitCreateObject}'s {@code find}-first check can detect a duplicate.
      */
-    private static ObjectId derivedCreateId(UUID entryId, int actionIndex) {
+    private static ObjectId derivedCreateId(UUID rowId, int actionIndex) {
         return new ObjectId(
-                UUID.nameUUIDFromBytes((entryId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
+                UUID.nameUUIDFromBytes((rowId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
     }
 
     /**
@@ -244,18 +370,17 @@ public final class DefaultActionExecutor implements ActionExecutor {
      * from these payloads exactly as much as from those. Without it, a write made by an action
      * (a {@code SetProperty} or {@code CreateObject}) would silently fail to retrigger automation.
      *
-     * <p>The {@code ontologyVersion} is copied from {@code actionRequest}, the {@code ActionRequest} row
-     * this action was applied from, which carries the version its transition fired under. This
-     * executor reads no ontology snapshot of its own. A row written before the stamp existed has no
-     * version, so the key is left out for it.
+     * <p>The {@code ontologyVersion} is copied from {@code sourceRow}, the row this action was
+     * applied from (an {@code ActionRequest} or a {@code TransitionFired} row), which carries the
+     * version its transition fired under. This executor reads no ontology snapshot of its own. A
+     * row written before the stamp existed has no version, so the key is left out for it.
      */
-    private static Map<String, Object> outboxPayload(
-            ObjectId id, long version, String typeIri, OutboxEntry actionRequest) {
+    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri, OutboxEntry sourceRow) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
         payload.put("typeIri", typeIri);
-        Object ontologyVersion = actionRequest.payload().get("ontologyVersion");
+        Object ontologyVersion = sourceRow.payload().get("ontologyVersion");
         if (ontologyVersion != null) {
             payload.put("ontologyVersion", ontologyVersion);
         }

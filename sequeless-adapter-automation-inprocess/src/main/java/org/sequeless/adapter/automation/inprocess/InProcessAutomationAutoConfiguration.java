@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.TriggerEvaluator;
@@ -107,6 +108,8 @@ public class InProcessAutomationAutoConfiguration {
      *     signal entry is routed to
      * @param timerScheduler the scheduler {@code TimerScheduled}/{@code TimerCancelled} entries are
      *     routed to
+     * @param automationSource the {@link AutomationSource} bean (provided by the Jena ontology
+     *     autoconfiguration) a {@code TransitionFired} row's actions are read from
      * @return a new {@link InProcessAutomationPort} over all of the above
      */
     @Bean
@@ -114,7 +117,9 @@ public class InProcessAutomationAutoConfiguration {
             ActionExecutor actionExecutor,
             InProcessAutomationProperties properties,
             TriggerEvaluator triggerEvaluator,
-            InProcessTimerScheduler timerScheduler) {
-        return new InProcessAutomationPort(actionExecutor, properties, triggerEvaluator, timerScheduler);
+            InProcessTimerScheduler timerScheduler,
+            AutomationSource automationSource) {
+        return new InProcessAutomationPort(
+                actionExecutor, properties, triggerEvaluator, timerScheduler, automationSource);
     }
 }
