@@ -1,6 +1,7 @@
 package org.sequeless.spi.automation;
 
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
@@ -142,4 +143,29 @@ public interface ActionExecutor {
      *     be {@code null}
      */
     void applyLog(Scope scope, OutboxEntry entry);
+
+    /**
+     * Applies one action that an adapter has already built from the automation of the {@code
+     * TransitionFired} row's ontology version. The adapter passes the sealed {@link Action} itself
+     * rather than an {@code ActionRequest}-kind entry for this method to decode.
+     *
+     * <p>{@code transitionFired} is the {@code TransitionFired}-kind {@link OutboxEntry}, which
+     * carries {@code objectId}, {@code tenantId}, {@code principalId}, {@code transitionName},
+     * {@code fromState}, {@code toState}, {@code ontologyVersion}, {@code self}, {@code typeIri} and
+     * {@code machineIri}. {@code action} is the pre-built sealed {@link Action}. {@code actionIndex}
+     * is the action's 0-based position in the list the automation returns.
+     *
+     * <p>The default implementation throws {@link UnsupportedOperationException} until an
+     * implementation overrides this method.
+     *
+     * @param scope the tenant and principal to apply the action on behalf of; must not be {@code
+     *     null}
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates
+     *     from; must not be {@code null}
+     * @param action the pre-built sealed action to apply; must not be {@code null}
+     * @param actionIndex the action's 0-based position in the list the automation returns
+     */
+    default void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
+        throw new UnsupportedOperationException("applyAction is not implemented by this ActionExecutor");
+    }
 }
