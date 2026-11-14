@@ -267,3 +267,52 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 - Next steps: (1) the Navigator approves the P2 plan, from the file list in the spec rows; (2) a read-only reviewer checks that plan; (3) an implementation subagent works on a branch `p2-actions-leave-outbox` from origin/main, in its own worktree, and does not push; (4) a read-only reviewer checks the diff; (5) the gate runs on JDK 25; (6) PR, CI and a squash merge, then an update on #41; (7) P3, P4 and P5b follow in that order, each the same way.
 - Guardrails carried forward: `--admin` only for the update rule, with each use recorded, and never to pass a red check. Maven needs `source ~/.bashrc.ext` in the same command. PR #106 is a draft marked do-not-merge: do not touch it. PR #137 was closed by the owner: do not reopen it without the owner's say-so. sequeless-kernel #12 is merged, and before any kernel release PR, check that its label is `autorelease: pending`.
 - Worktrees: `/Users/bbartolome/workspace/sequeless-extraction` (branch `ci-pins-workflows-v0.1.3`, merged as #156, safe to remove) and `/Users/bbartolome/workspace/sequeless-handoff` (this PR). Create the P2 worktree from origin/main, not from either of them.
+
+## 17. Progress after #158, #159 and #160 (recorded 2026-11-14)
+
+- `origin/main` is `82e9deb` (after #160). P2 is in progress; P2 stays open until step 2d and the V8 migration land.
+- Merged in P2:
+  - p2-1, TransitionFired carries `self`, `typeIri` and `machineIri`: #158, squash `e213eda`. Additive; ActionRequest rows are still written.
+  - 2a, default `applyAction(Scope, OutboxEntry, Action, int)` on `ActionExecutor`, and the automation-contract dependency on `sequeless-spi`: #159, squash `fcb85a4`. Additive.
+  - 2b, the in-process per-action path, dormant: #160, squash `82e9deb`. `ActionExecutor.resolveWebhookAction` (default), typed paths in `DefaultActionExecutor` (applyAction for SetProperty, CreateObject and Log; resolveWebhookAction for webhooks), and `InProcessAutomationPort.dispatchTransitionFired`, package-private and not reached from `dispatch`. The TransitionFired early return in `dispatch` is still there.
+- Each PR had a read-only Opus review, a full gate on JDK 25, and a squash merge pinned to the reviewed head. The 2b review returned REWORK first (two POM declarations and four items), then APPROVE on the re-review.
+- Navigator session `61e9b987256f46f4a099ebcccfd7b076` (2026-11-14) set the P2 plan and decided: the commit order (2a, 2b, 2c, 2d, 2e) with TransitionFired kept a no-op until 2d; each adapter builds the action list through `AutomationSource` (B2 route 1: fail on a version mismatch or a missing stamp); webhook option A (`applyAction` stays void, `resolveWebhookAction` is added); the single flip at 2d. Do not resume that session; the decisions are recorded here.
+
+### Corrections the next session must know
+
+- Navigator claim, wrong: "2d would double-execute old undrained ActionRequest rows." After 2d the ActionRequest kind is no longer claimed, so such rows are lost, not run twice. The drain gate (section 3, steps 1 to 5, and O-3) prevents the loss. The drain stays a merge precondition for 2d.
+- Navigator claim, wrong: "leave KIND_TRANSITION_FIRED out of DISPATCHABLE_KINDS until 2d." It is already in the set (`OutboxRelay` line 60), and both adapters treat it as a no-op. Once the TransitionFired case routes actions, the ActionRequest siblings would run each action twice. That is why 2b and 2c stay dormant and the writer stops at 2d.
+- Spec line 127 numbers P2 as V7. V7 is `outbox_dead_letter` on main. The P2 migration is V8 (section 16).
+- The in-process bean is created in `InProcessAutomationAutoConfiguration` (line 118), not in `CoreConfiguration`. The AutomationSource bean comes from the Jena ontology autoconfiguration.
+- The released `AutomationSource` reads the active version only. Route 1 compares its `ontologyVersion()` with the row's stamp and fails on a mismatch. Route 3 (version-keyed reads) needs a contract release and is not taken.
+
+### Next: 2c (Temporal, dormant)
+
+- Keep `TemporalAutomationPort`'s `KIND_TRANSITION_FIRED` case as `{}` (line 82). Keep the ActionRequest case (line 75) and its workflow unchanged.
+- Add the per-action path behind activities, not inside workflow code: a resolve-actions activity reads the automation through `AutomationSource` and checks the stamp (route 1), and an execute-action activity applies one action by index. Webhooks go through a resolve activity that returns `ResolvedWebhookRequest`, then a deliver activity.
+- Open design question for the 2c plan. Temporal serialises activity inputs and results (Jackson). The `Action` records from automation-contract may not round-trip. The safer design passes only (row id, index, stamp) and lets each activity re-read the automation, so no `Action` value crosses an activity boundary. The 2c plan must settle this with the navigator before code.
+- The workflow key moves to (entry id, action index) (C6). This is gated on O-4, which is answered (section 16).
+
+### Deferred to step 2e (non-blocking review items)
+
+1. `InProcessAutomationPortTransitionFiredTest`, the "nothing applied" assertion (about line 151): the automation is empty, so the assertion is vacuous. Use an automation that holds a LogAction for the row's transition.
+2. Add a case for a present but non-Number stamp (for example the string "1"), asserting IllegalStateException naming the row id.
+3. `DefaultActionExecutorTest` (about lines 635 to 643): the resolveWebhookAction test checks only the exception type, and its `commitCalls` check cannot fail. Add a message assertion.
+4. `ActionExecutor.applyAction` @throws line (about line 168): use `{@code action}` and `{@link WebhookAction}` style.
+5. `sequeless-spi/pom.xml` `<description>` (lines 15 to 19) still lists only ontology-core and schema-contract. Add automation-contract.
+6. `ActionExecutor` class javadoc (lines 15 to 22) still describes ActionRequest-kind entries. Rewrite it in 2d.
+7. `docs/architecture/automation.md` TransitionFired key list (about line 75) lacks `ontologyVersion`, `self`, `typeIri` and `machineIri`.
+8. Core tests for the derived create id under the TransitionFired id: the review said the id differs from the ActionRequest id, which is safe only because of the drain gate. Record it in the 2d PR body.
+
+### Remaining after P2
+
+- P3 (timers), P4 (signals) and P5b (the Store-event ingress), in that order (section 15). Each has its own plan, its own review and its own PR.
+- Specs 14 to 19 wait on spec 13 (see the table in remaining-work.md).
+- The user's standing instruction asks for an Opus review of each plan before implementation. For P2 the navigator set the plan, and the Opus reviews covered the code only. Do the plan review for P3 before any code.
+
+### Gotchas
+
+- The gate is `mvn -B -Prelease verify`. A test-only run misses the dependency analysis (`failOnWarning`), which failed twice in step 2b.
+- A squash merge makes the local branch differ from `origin/main`. After a merge, reset the worktree to `origin/main`, then push with `--force-with-lease` pinned to the old remote SHA.
+- The local backup branch `backup-2b-24fd0ff` can be deleted.
+- Opus reviews caught real problems in 2b (two undeclared dependencies, a bare NPE) and a navigator claim that was wrong. Check navigator claims against the code before acting on them.
