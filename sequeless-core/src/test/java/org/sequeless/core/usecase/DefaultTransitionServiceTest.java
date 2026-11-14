@@ -395,6 +395,28 @@ class DefaultTransitionServiceTest {
     }
 
     @Test
+    void fireTransitionFiredCarriesSelfTypeIriAndMachineIriLikeTheActionRequests() {
+        ObjectId id = ObjectId.random();
+        Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(project(id, 5, DRAFT_IRI, properties));
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.fire(ALICE, "Project", id, "activate", 5);
+
+        List<OutboxEntry> outbox = store.commits.get(0).outbox();
+        OutboxEntry transitionFired = outbox.get(0);
+        OutboxEntry actionRequest = outbox.get(1);
+        assertThat(transitionFired.kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+        assertThat(transitionFired.payload())
+                .containsEntry("typeIri", PROJECT_IRI)
+                .containsEntry("machineIri", PROJECT_LIFECYCLE.iri());
+        assertThat(transitionFired.payload().get("self"))
+                .isEqualTo(Map.of("owner", Map.of("text", "alice")))
+                .isEqualTo(actionRequest.payload().get("self"));
+    }
+
+    @Test
     void fireActionRequestOmitsAbsentOptionalFieldsRatherThanNull() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = project(id, 1, CLOSED_IRI, Map.of());
