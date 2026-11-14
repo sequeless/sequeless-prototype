@@ -346,7 +346,7 @@ public final class DefaultTransitionService implements TransitionService {
 
         int ontologyVersion = halves.schema().ontologyVersion().value();
         List<OutboxEntry> outbox = new ArrayList<>();
-        outbox.add(transitionFiredEntry(scope, existing, transition, ontologyVersion, now));
+        outbox.add(transitionFiredEntry(scope, existing, resolved, machine, transition, ontologyVersion, now));
         List<Action> actions =
                 automation.actions(new TransitionRef(machine.iri(), transition.fromStateIri(), transition.name()));
         for (int i = 0; i < actions.size(); i++) {
@@ -452,7 +452,13 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     private OutboxEntry transitionFiredEntry(
-            Scope scope, BusinessObject existing, Transition transition, int ontologyVersion, Instant now) {
+            Scope scope,
+            BusinessObject existing,
+            TypeDefinition resolved,
+            StateMachineDefinition machine,
+            Transition transition,
+            int ontologyVersion,
+            Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
@@ -461,6 +467,9 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("fromState", transition.fromStateIri());
         payload.put("toState", transition.toStateIri());
         payload.put("ontologyVersion", ontologyVersion);
+        payload.put("self", selfPayload(existing));
+        payload.put("typeIri", resolved.iri());
+        payload.put("machineIri", machine.iri());
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, now);
     }
 
