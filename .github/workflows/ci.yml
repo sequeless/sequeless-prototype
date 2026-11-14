@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    uses: sequeless/sequeless-build/.github/workflows/maven-ci.yml@workflows-v0.1.0
+    uses: sequeless/sequeless-build/.github/workflows/maven-ci.yml@workflows-v0.1.3
     secrets: inherit
 
   ui:
