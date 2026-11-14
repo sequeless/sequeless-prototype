@@ -13,20 +13,18 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.adapter.authz.permitall.PermitAllAuthorizationAutoConfiguration;
 import org.sequeless.adapter.ontology.jena.JenaOntologyAutoConfiguration;
 import org.sequeless.app.config.PortRegistryConfiguration;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.ontology.spi.StoredOntologyDocument;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
-import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -42,13 +40,12 @@ import org.springframework.context.annotation.Configuration;
  */
 class PortRegistryContextRunnerTest {
 
-    private final ApplicationContextRunner runnerWithPermitAllAdapter =
-        new ApplicationContextRunner()
+    private final ApplicationContextRunner runnerWithPermitAllAdapter = new ApplicationContextRunner()
             .withUserConfiguration(PortRegistryConfiguration.class)
             .withConfiguration(AutoConfigurations.of(PermitAllAuthorizationAutoConfiguration.class));
 
     private final ApplicationContextRunner runnerWithoutAnyAdapter =
-        new ApplicationContextRunner().withUserConfiguration(PortRegistryConfiguration.class);
+            new ApplicationContextRunner().withUserConfiguration(PortRegistryConfiguration.class);
 
     @Test
     void absentPropertyFailsFast() {
@@ -57,22 +54,22 @@ class PortRegistryContextRunnerTest {
             PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
             assertThat(cause).isNotNull();
             assertThat(cause.getMessage())
-                .contains("sequeless.authz.adapter")
-                .contains("is not set")
-                .contains("permit-all");
+                    .contains("sequeless.authz.adapter")
+                    .contains("is not set")
+                    .contains("permit-all");
         });
     }
 
     @Test
     void unknownAdapterNameFailsFast() {
         runnerWithPermitAllAdapter
-            .withPropertyValues("sequeless.authz.adapter=totally-unknown")
-            .run(context -> {
-                assertThat(context).hasFailed();
-                PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
-                assertThat(cause).isNotNull();
-                assertThat(cause.getMessage()).contains("totally-unknown").contains("permit-all");
-            });
+                .withPropertyValues("sequeless.authz.adapter=totally-unknown")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage()).contains("totally-unknown").contains("permit-all");
+                });
     }
 
     @Test
@@ -82,31 +79,31 @@ class PortRegistryContextRunnerTest {
         // imported), so checks 1-3 pass and check 4 (bean cardinality) is what actually fails.
         // This isolates "valid name, absent bean" from "absent property".
         runnerWithoutAnyAdapter
-            .withPropertyValues("sequeless.authz.adapter=permit-all")
-            .run(context -> {
-                assertThat(context).hasFailed();
-                PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
-                assertThat(cause).isNotNull();
-                assertThat(cause.getMessage())
-                    .contains("permit-all")
-                    .contains("no AuthorizationPort bean was found");
-            });
+                .withPropertyValues("sequeless.authz.adapter=permit-all")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage())
+                            .contains("permit-all")
+                            .contains("no AuthorizationPort bean was found");
+                });
     }
 
     @Test
     void twoBeansFailsFast() {
         runnerWithPermitAllAdapter
-            .withUserConfiguration(ExtraAuthorizationPortConfiguration.class)
-            .withPropertyValues("sequeless.authz.adapter=permit-all")
-            .run(context -> {
-                assertThat(context).hasFailed();
-                PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
-                assertThat(cause).isNotNull();
-                assertThat(cause.getMessage())
-                    .contains("2 AuthorizationPort beans")
-                    .contains("authorizationPort")
-                    .contains("other");
-            });
+                .withUserConfiguration(ExtraAuthorizationPortConfiguration.class)
+                .withPropertyValues("sequeless.authz.adapter=permit-all")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    PortBindingException cause = findCause(context.getStartupFailure(), PortBindingException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage())
+                            .contains("2 AuthorizationPort beans")
+                            .contains("authorizationPort")
+                            .contains("other");
+                });
     }
 
     /**
@@ -133,15 +130,15 @@ class PortRegistryContextRunnerTest {
     @Test
     void happyPathSucceeds() {
         runnerWithPermitAllAdapter
-            .withConfiguration(AutoConfigurations.of(JenaOntologyAutoConfiguration.class))
-            .withUserConfiguration(StubPersistenceAndValidationConfiguration.class)
-            .withPropertyValues(
-                "sequeless.authz.adapter=permit-all",
-                "sequeless.ontology.adapter=jena",
-                "sequeless.ontology.source=classpath:ontology/reference.ttl",
-                "sequeless.persistence.adapter=postgres",
-                "sequeless.validation.adapter=shacl")
-            .run(context -> assertThat(context).hasNotFailed());
+                .withConfiguration(AutoConfigurations.of(JenaOntologyAutoConfiguration.class))
+                .withUserConfiguration(StubPersistenceAndValidationConfiguration.class)
+                .withPropertyValues(
+                        "sequeless.authz.adapter=permit-all",
+                        "sequeless.ontology.adapter=jena",
+                        "sequeless.ontology.source=classpath:ontology/reference.ttl",
+                        "sequeless.persistence.adapter=postgres",
+                        "sequeless.validation.adapter=shacl")
+                .run(context -> assertThat(context).hasNotFailed());
     }
 
     private static <T extends Throwable> T findCause(Throwable root, Class<T> type) {
@@ -180,7 +177,7 @@ class PortRegistryContextRunnerTest {
 
         @Bean
         ValidationPort validationPort() {
-            return (scope, snapshot, object) -> List.of();
+            return (scope, schema, object) -> List.of();
         }
     }
 
@@ -196,11 +193,6 @@ class PortRegistryContextRunnerTest {
 
         @Override
         public Optional<BusinessObject> find(Scope scope, ObjectId id) {
-            throw new UnsupportedOperationException("not needed by this test");
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
             throw new UnsupportedOperationException("not needed by this test");
         }
 
@@ -222,7 +214,7 @@ class PortRegistryContextRunnerTest {
 
     /**
      * A single-tenant, single-version in-memory {@link OntologyDocumentStore}: enough for {@link
-     * org.sequeless.adapter.ontology.jena.JenaOntologyPort#fromStore} to seed itself from {@code
+     * org.sequeless.ontology.jena.JenaOntologyPort#fromStore} to seed itself from {@code
      * sequeless.ontology.source} on the first {@link #active(Scope)} call (which finds nothing) and
      * activate what it built.
      */
@@ -237,8 +229,7 @@ class PortRegistryContextRunnerTest {
 
         @Override
         public StoredOntologyDocument activate(Scope scope, OntologyDocument document) {
-            StoredOntologyDocument next =
-                new StoredOntologyDocument(UUID.randomUUID(), 1, document, Instant.now());
+            StoredOntologyDocument next = new StoredOntologyDocument(UUID.randomUUID(), 1, document, Instant.now());
             stored.set(next);
             return next;
         }

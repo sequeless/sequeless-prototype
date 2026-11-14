@@ -9,7 +9,7 @@
  *
  * <p>This package has exactly one cross-package dependency within {@code sequeless-core} itself:
  * {@link org.sequeless.core.statemachine.PayloadValueCodec}, the {@link
- * org.sequeless.spi.object.Value}-to-outbox-payload codec {@code DefaultTransitionService} uses to
+ * org.sequeless.kernel.values.Value}-to-outbox-payload codec {@code DefaultTransitionService} uses to
  * encode each {@code ActionRequest} payload's {@code self}/{@code value}/{@code createProperties}
  * fields. {@link org.sequeless.core.automation.DefaultActionExecutor} is the symmetric decode
  * side, calling {@link org.sequeless.core.statemachine.PayloadValueCodec#fromPayload} rather than
@@ -19,7 +19,7 @@
  * org.sequeless.spi.object.ObjectStorePort} (every mutation {@link
  * org.sequeless.core.automation.DefaultActionExecutor} performs — a property update, a new
  * object's creation — goes through it, exactly like {@code DefaultBusinessObjectService}) and
- * {@link org.sequeless.spi.expression.ExpressionPort} (every {@code value}/{@code expression}/
+ * {@link org.sequeless.expression.api.ExpressionPort} (every {@code value}/{@code expression}/
  * template field an {@code ActionRequest} payload carries is resolved through it, never evaluated
  * by hand here).
  */

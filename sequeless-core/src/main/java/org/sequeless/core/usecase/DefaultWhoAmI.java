@@ -4,7 +4,7 @@ import java.util.Objects;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.WhoAmI;
 import org.sequeless.core.api.WhoAmIResult;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
@@ -27,15 +27,13 @@ public final class DefaultWhoAmI implements WhoAmI {
      * @throws NullPointerException if {@code authorizationPort} is {@code null}
      */
     public DefaultWhoAmI(AuthorizationPort authorizationPort) {
-        this.authorizationPort =
-            Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
     }
 
     @Override
     public WhoAmIResult whoAmI(Scope scope) {
         Objects.requireNonNull(scope, "scope must not be null");
-        AccessDecision decision =
-            authorizationPort.decide(scope, Operation.READ, AuthorizationPort.EVERYTHING);
+        AccessDecision decision = authorizationPort.decide(scope, Operation.READ, AuthorizationPort.EVERYTHING);
         if (!decision.allowed()) {
             throw new AuthorizationException(decision);
         }

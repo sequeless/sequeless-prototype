@@ -18,17 +18,31 @@ public enum Operator {
     /** Membership in a set of candidate values. Applies to every datatype, including references. */
     IN,
 
-    /** Strictly less than. Typically applies to numeric, date, and date-time properties. */
+    /**
+     * Strictly less than. In a query, applies to numeric, date and date-time properties. In an
+     * ontology sq:filter criterion, applies only to integer, long, decimal and double properties;
+     * any other property is an ERROR at activation.
+     */
     LT,
 
-    /** Less than or equal to. Typically applies to numeric, date, and date-time properties. */
+    /**
+     * Less than or equal to. In a query, applies to numeric, date and date-time properties. In an
+     * ontology sq:filter criterion, applies only to integer, long, decimal and double properties;
+     * any other property is an ERROR at activation.
+     */
     LTE,
 
-    /** Strictly greater than. Typically applies to numeric, date, and date-time properties. */
+    /**
+     * Strictly greater than. In a query, applies to numeric, date and date-time properties. In an
+     * ontology sq:filter criterion, applies only to integer, long, decimal and double properties;
+     * any other property is an ERROR at activation.
+     */
     GT,
 
     /**
-     * Greater than or equal to. Typically applies to numeric, date, and date-time properties.
+     * Greater than or equal to. In a query, applies to numeric, date and date-time properties. In
+     * an ontology sq:filter criterion, applies only to integer, long, decimal and double
+     * properties; any other property is an ERROR at activation.
      */
     GTE,
 

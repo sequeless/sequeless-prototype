@@ -1,10 +1,10 @@
 package org.sequeless.adapter.automation.temporal;
 
 import java.util.Objects;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link TriggerActivities} implementation: four pure pass-throughs to the injected
@@ -29,7 +29,7 @@ public final class TriggerActivitiesImpl implements TriggerActivities {
     public TriggerActivitiesImpl(TriggerEvaluator triggerEvaluator, DerivationRecomputer derivationRecomputer) {
         this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
         this.derivationRecomputer =
-            Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
+                Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
     }
 
     @Override

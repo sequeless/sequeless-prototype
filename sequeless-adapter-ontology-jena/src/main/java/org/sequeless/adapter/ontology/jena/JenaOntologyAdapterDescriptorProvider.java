@@ -1,8 +1,9 @@
 package org.sequeless.adapter.ontology.jena;
 
+import org.sequeless.ontology.api.OntologyAdministration;
+import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.spi.AdapterDescriptor;
 import org.sequeless.spi.AdapterDescriptorProvider;
-import org.sequeless.spi.ontology.OntologyPort;
 
 /**
  * Publishes this module's {@link AdapterDescriptor} for discovery via {@link
@@ -19,6 +20,6 @@ public final class JenaOntologyAdapterDescriptorProvider implements AdapterDescr
 
     @Override
     public AdapterDescriptor descriptor() {
-        return new AdapterDescriptor("jena", OntologyPort.class, "sequeless.ontology.adapter", ">=0.1.0");
+        return new AdapterDescriptor("jena", OntologyAdministration.class, "sequeless.ontology.adapter", ">=0.1.0");
     }
 }

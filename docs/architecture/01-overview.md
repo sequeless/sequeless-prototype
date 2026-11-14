@@ -9,10 +9,10 @@ validation shapes, display hints, facets, indexing hints, state machines and der
 Concepts OWL lacks are expressed with a small custom annotation vocabulary (`sq:`) inside the same
 ontology.
 
-The domain core never sees Jena. It defines an immutable **meta-model snapshot** and asks the
-ontology port for it. The Jena adapter parses the ontology, runs Jena's built-in OWL reasoner over
-the type level, resolves imports and the `sq:` vocabulary, and returns the snapshot. Business object
-instances live in PostgreSQL in one generic JSONB table. Every type gets Browse (with facets), Read,
+The domain core never sees Jena. It defines immutable **schema, behaviour and automation** records
+and reads them through read ports. The Jena adapter parses the ontology, runs Jena's built-in OWL
+reasoner over the type level, resolves imports and the `sq:` vocabulary, and returns those records.
+Business object instances live in PostgreSQL in one generic JSONB table. Every type gets Browse (with facets), Read,
 Edit, Add and Delete through a generic REST API. Any type may declare derived properties and a state
 machine. Transitions are interpreted in the core, guarded by JEXL expressions behind an expression
 port, and their actions are recorded in a transactional outbox and executed durably by Temporal.
@@ -34,7 +34,7 @@ flowchart LR
     DV[Derivation planner]
   end
   subgraph spi[sequeless-spi: ports + value types]
-    P1[OntologyPort]
+    P1[OntologyAdministration, SchemaSource,<br/>BehaviourSource, AutomationSource]
     P2[ValidationPort]
     P3[ObjectStorePort]
     P4[QueryPort]
@@ -70,11 +70,11 @@ compile-time dependencies.
 
 | Module | Responsibility | May depend on |
 |---|---|---|
-| `sequeless-parent` | Root POM: versions, plugin management, module list, ArchUnit/japicmp config | none |
-| `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | nothing outside the JDK |
-| `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus the reference-domain ontology fixture | `sequeless-spi`, JUnit 5, AssertJ |
-| `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `sequeless-spi` |
-| `sequeless-adapter-ontology-jena` | `OntologyPort` and `ValidationPort` via Jena 6 ontapi, built-in OWL reasoner, jena-shacl; Turtle import/export | `sequeless-spi`, Jena, Spring Boot autoconfigure (optional scope), Lombok |
+| `sequeless-prototype` | Root POM: parent `sequeless-build-parent`, versions, convergence pins, module list, japicmp config | none |
+| `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | `kernel-identity`, `kernel-values`, `ontology-core`, `schema-contract` (JUnit 5 and AssertJ at test scope) |
+| `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus general test fixtures (the reference ontology fixture is in sequeless-ontology's `ontology-testfixtures`) | `kernel-identity`, `kernel-values`, `sequeless-spi`, `schema-contract`, `behaviour-contract`, `ontology-core`, `ontology-testfixtures`, `filter-core`, `jackson-databind`, `junit-jupiter-api`, `assertj-core` |
+| `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `kernel-identity`, `kernel-values`, `sequeless-spi`, `ontology-core`, `schema-contract`, `behaviour-contract`, `automation-contract`, `expression-api`, `filter-core`, `jackson-databind`, `slf4j-api` (JUnit 5 and AssertJ at test scope) |
+| `sequeless-adapter-ontology-jena` | Prototype wiring around the released `ontology-jena-adapter`: `JenaOntologyAutoConfiguration`, `JenaOntologyProperties`, `JenaOntologyAdapterDescriptorProvider` and `ShaclValidationAdapterDescriptorProvider` (ServiceLoader descriptors), `ShaclValidationAutoConfiguration`, `ShaclValidationPort` (the SHACL validation adapter) and `ValidationSchemaAdapter`. The Jena 6 ontapi, built-in OWL reasoner, jena-shacl and Turtle import/export are in the released adapter | `kernel-identity`, `kernel-values`, `sequeless-spi`, `ontology-jena-adapter`, `ontology-core`, `schema-contract`, `spring-boot-autoconfigure` (optional), `spring-context`, `spring-beans`, `spring-boot` |
 | `sequeless-adapter-persistence-postgres` | `ObjectStorePort` and `QueryPort` on PostgreSQL 18 JSONB; Flyway migrations; outbox table; hint-driven indexes | `sequeless-spi`, JDBC/Spring JDBC, Flyway, Lombok |
 | `sequeless-adapter-expression-jexl` | `ExpressionPort` via Commons JEXL 3 in a sandboxed, side-effect-free configuration | `sequeless-spi`, JEXL |
 | `sequeless-adapter-automation-temporal` | `AutomationPort` via Temporal Java SDK: outbox relay, action workflows, timers, signals | `sequeless-spi`, Temporal SDK, Spring Boot starter |
@@ -84,8 +84,8 @@ compile-time dependencies.
 
 Rules enforced by ArchUnit in `sequeless-app` and by Maven scopes:
 
-- `sequeless-spi` imports nothing outside `java.*`.
-- `sequeless-core` imports only `java.*` and `sequeless-spi`.
+- `sequeless-spi` imports only `java.*`, the kernel (`org.sequeless.kernel`), and two released ontology packages: `org.sequeless.ontology.schema.api` and `org.sequeless.ontology.spi`.
+- `sequeless-core` imports only `java.*`, `sequeless-spi`, the kernel, the released ontology (`org.sequeless.ontology.*`), the expression and filter `api` packages, `jackson-databind` and `slf4j-api`.
 - No adapter imports another adapter or `sequeless-core`.
 - Only `sequeless-app` may reference Spring MVC, and only the REST package may reference core use cases.
 - Lombok is banned from `sequeless-spi` and `sequeless-core` (compiler plugin not configured there).
@@ -97,10 +97,10 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 
 | Port | Purpose | Default adapter | Plausible alternatives | Property |
 |---|---|---|---|---|
-| `OntologyPort` | Parse, reason, resolve and snapshot the ontology; import/export Turtle | `jena` | `rdf4j`, external DL reasoner, static YAML for tests | `sequeless.ontology.adapter=jena` |
+| `OntologyAdministration`, `SchemaSource`, `BehaviourSource`, `AutomationSource` | Parse, reason, resolve and activate the ontology; import/export Turtle; read the Schema, Behaviour and Automation halves of the active version. One adapter bean implements all four | `jena` | `rdf4j`, external DL reasoner, static YAML for tests | `sequeless.ontology.adapter=jena` |
 | `ValidationPort` | Validate a business object against shapes | `shacl` (Jena module) | `noop`, JSON Schema | `sequeless.validation.adapter=shacl` |
 | `ObjectStorePort` | Atomic commit of object mutations plus outbox rows; read by id; ontology document storage | `postgres` | `inmemory`, MongoDB, Neo4j | `sequeless.persistence.adapter=postgres` |
-| `QueryPort` | Filtered, sorted, paged browse; facet counts; text search; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
+| `ReadPort`, `BrowsePort`, `IndexPreparationPort`, `QueryPort` | Read one object by id; filtered, sorted, paged browse with facet counts and text search; prepare query indexes after an ontology activation; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
 | `ExpressionPort` | Evaluate guard expressions against an object context | `jexl` | SpEL, GraalJS | `sequeless.expression.adapter=jexl` |
 | `AutomationPort` | Durably execute transition actions, timers and external signals from the outbox | `temporal` | `inprocess` | `sequeless.automation.adapter=temporal` |
 | `AuthorizationPort` | Decide whether a principal may perform an operation on a type, object or field | `permit-all` | Spring Security + OIDC | `sequeless.authz.adapter=permit-all` |
@@ -110,8 +110,20 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 Illustrative signatures (final shape is decided in the phase that introduces the port):
 
 ```java
-public interface OntologyPort {
-    MetaModelSnapshot snapshot(Scope scope);                 // reasoned, imports resolved
+public interface SchemaSource {
+    Schema schema(TenantId tenant);                          // reasoned, imports resolved
+}
+
+public interface BehaviourSource {
+    Behaviour behaviour(TenantId tenant);                    // state machines and derivations
+}
+
+public interface AutomationSource {
+    Automation automation(TenantId tenant);                  // transition actions
+}
+
+public interface OntologyAdministration {
+    OntologyReport reload(Scope scope);                      // rebuilds from the source
     OntologyDocument export(Scope scope, OntologyFormat format);
     ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode);
 }
@@ -121,9 +133,20 @@ public interface ObjectStorePort {
     Optional<BusinessObject> find(Scope scope, TypeRef type, ObjectId id);
 }
 
+public interface ReadPort {
+    Optional<ObjectView> read(Scope scope, ReadRequest request);
+}
+
+public interface BrowsePort {
+    QueryResult browse(Scope scope, Schema schema, Query query);
+}
+
+public interface IndexPreparationPort {
+    boolean prepare(Scope scope, OntologyVersion version, Schema schema);
+}
+
 public interface QueryPort {
-    QueryResult query(Scope scope, MetaModelSnapshot model, Query query);
-    AggregateResult aggregate(Scope scope, MetaModelSnapshot model, AggregateRequest request);
+    AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 }
 
 public interface AutomationPort {
@@ -149,7 +172,7 @@ Startup fails with a clear message if a property names an adapter that is not on
 fails the build on a binary-incompatible change without a major bump.
 
 **Compliance.** `sequeless-spi-testkit` publishes one abstract contract test class per port (for
-example `ObjectStoreContract`, `QueryContract`, `OntologyContract`, `AutomationContract`). An
+example `ObjectStoreContract`, `BrowseContract`, `OntologyContract`, `AutomationContract`). An
 adapter test extends the class and supplies a factory. Contracts cover the reference domain,
 optimistic locking, atomicity of commit with outbox rows, facet counts, and idempotent dispatch.
 An adapter is compliant when it passes the kit.

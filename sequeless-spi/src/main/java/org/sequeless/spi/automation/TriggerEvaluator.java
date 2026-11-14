@@ -1,7 +1,7 @@
 package org.sequeless.spi.automation;
 
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The inbound port an automation adapter calls back into to evaluate the state machine against a
@@ -31,7 +31,7 @@ public interface TriggerEvaluator {
      * by {@code changeEvent}'s {@code objectId} having just been created, updated, or deleted.
      * Candidates are resolved two ways: the changed object itself, if its own type declares an
      * {@code OnChange} transition departing its current state; and, for every {@code OnChange}
-     * transition in the snapshot whose {@code sq:watch} names a property declared on the changed
+     * transition in the Behaviour whose {@code sq:watch} names a property declared on the changed
      * object's type, every id that property currently holds on the changed object — exactly how
      * closing the last {@code ex:Task} on a {@code ex:Project} resolves that {@code ex:Project} as
      * a candidate via {@code ex:belongsToProject}. A soft-deleted object is still readable for this
@@ -52,7 +52,7 @@ public interface TriggerEvaluator {
      * the object left that state and a corresponding {@code TimerCancelled} either raced this call
      * or was missed entirely. That staleness check, not cancellation, is the real safety net
      * against a timer firing twice or against the wrong state; cancellation (see {@link
-     * org.sequeless.spi.object.OutboxEntry#KIND_TIMER_CANCELLED}) is purely the optimisation that
+     * org.sequeless.spi.outbox.OutboxEntry#KIND_TIMER_CANCELLED}) is purely the optimisation that
      * avoids waking a durable timer workflow that both sides already know is moot.
      *
      * <p>Kind-specific payload fields, beyond {@code objectId}/{@code tenantId}/{@code

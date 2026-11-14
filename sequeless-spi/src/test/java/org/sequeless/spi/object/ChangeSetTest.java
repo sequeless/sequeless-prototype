@@ -10,7 +10,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 class ChangeSetTest {
 
@@ -18,8 +20,14 @@ class ChangeSetTest {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         Audit audit = new Audit(now, "alice", now, "alice");
         BusinessObject object = new BusinessObject(
-            ObjectId.random(), new TypeRef("https://example.org/ns#Task"), TenantId.DEFAULT, 1,
-            Optional.empty(), Map.of(), audit, false);
+                ObjectId.random(),
+                new TypeRef("https://example.org/ns#Task"),
+                TenantId.DEFAULT,
+                1,
+                Optional.empty(),
+                Map.of(),
+                audit,
+                false);
         return new Create(object);
     }
 
@@ -27,8 +35,10 @@ class ChangeSetTest {
     void carriesMutationsAndOutbox() {
         Mutation mutation = createMutation();
         OutboxEntry outboxEntry = new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, Map.of("objectId", "x"),
-            Instant.parse("2026-09-16T10:00:00Z"));
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_CREATED,
+                Map.of("objectId", "x"),
+                Instant.parse("2026-09-16T10:00:00Z"));
 
         ChangeSet changeSet = new ChangeSet(List.of(mutation), List.of(outboxEntry));
 
@@ -44,8 +54,10 @@ class ChangeSetTest {
     @Test
     void allowsEmptyMutationsWithNonEmptyOutbox() {
         OutboxEntry outboxEntry = new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, Map.of("objectId", "x"),
-            Instant.parse("2026-09-16T10:00:00Z"));
+                UUID.randomUUID(),
+                OutboxEntry.KIND_SIGNAL_RECEIVED,
+                Map.of("objectId", "x"),
+                Instant.parse("2026-09-16T10:00:00Z"));
 
         ChangeSet changeSet = new ChangeSet(List.of(), List.of(outboxEntry));
 

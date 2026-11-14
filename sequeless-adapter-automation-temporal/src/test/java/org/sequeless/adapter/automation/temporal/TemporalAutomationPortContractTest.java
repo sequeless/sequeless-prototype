@@ -1,5 +1,7 @@
 package org.sequeless.adapter.automation.temporal;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.sun.net.httpserver.HttpServer;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowNotFoundException;
@@ -18,13 +20,14 @@ import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.sequeless.spi.Scope;
+import org.junit.jupiter.api.Test;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.AutomationContract;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
@@ -96,13 +99,11 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     @BeforeAll
     static void startEnvironment() throws IOException {
         webhookServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        webhookServer.createContext(
-            "/hook",
-            exchange -> {
-                exchange.getRequestBody().readAllBytes();
-                exchange.sendResponseHeaders(200, -1);
-                exchange.close();
-            });
+        webhookServer.createContext("/hook", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
         webhookServer.start();
         webhookUrl = "http://localhost:" + webhookServer.getAddress().getPort() + "/hook";
 
@@ -112,8 +113,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
 
         // Published before env.start(), mirroring TemporalAutomationAutoConfiguration's own
         // ordering requirement (see ActionWorkflowImpl's javadoc for why this must happen first).
-        ActionWorkflowImpl.ACTIVITY_OPTIONS =
-            ActivityOptions.newBuilder()
+        ActionWorkflowImpl.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofSeconds(10))
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build();
@@ -121,13 +121,13 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         env = TestWorkflowEnvironment.newInstance();
         Worker worker = env.newWorker(TASK_QUEUE);
         worker.registerWorkflowImplementationTypes(
-            ActionWorkflowImpl.class,
-            ChangeEventWorkflowImpl.class,
-            TimerWorkflowImpl.class,
-            SignalEventWorkflowImpl.class);
+                ActionWorkflowImpl.class,
+                ChangeEventWorkflowImpl.class,
+                TimerWorkflowImpl.class,
+                SignalEventWorkflowImpl.class);
         worker.registerActivitiesImplementations(
-            new ActionActivitiesImpl(executorHolder),
-            new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
+                new ActionActivitiesImpl(executorHolder),
+                new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
         env.start();
 
         port = new TemporalAutomationPort(env.getWorkflowClient(), TASK_QUEUE);
@@ -155,20 +155,21 @@ class TemporalAutomationPortContractTest extends AutomationContract {
             port.dispatch(scope, entry);
             switch (entry.kind()) {
                 case OutboxEntry.KIND_ACTION_REQUEST,
-                    OutboxEntry.KIND_OBJECT_CREATED,
-                    OutboxEntry.KIND_OBJECT_UPDATED,
-                    OutboxEntry.KIND_OBJECT_DELETED,
-                    OutboxEntry.KIND_SIGNAL_RECEIVED -> awaitWorkflowResult(entry.id().toString());
+                        OutboxEntry.KIND_OBJECT_CREATED,
+                        OutboxEntry.KIND_OBJECT_UPDATED,
+                        OutboxEntry.KIND_OBJECT_DELETED,
+                        OutboxEntry.KIND_SIGNAL_RECEIVED ->
+                    awaitWorkflowResult(entry.id().toString());
                 case OutboxEntry.KIND_TIMER_SCHEDULED -> {
                     String timerKey = (String) entry.payload().get("timerKey");
                     awaitTimerWorkflowParked(timerKey);
                     dispatchedTimerKeys.add(timerKey);
                 }
-                case OutboxEntry.KIND_TIMER_CANCELLED -> awaitCancellationTakesEffect(
-                    (String) entry.payload().get("timerKey"));
+                case OutboxEntry.KIND_TIMER_CANCELLED ->
+                    awaitCancellationTakesEffect((String) entry.payload().get("timerKey"));
                 default -> {
-                    // TransitionFired (and anything else): dispatch() itself already threw
-                    // synchronously, nothing further to wait for.
+                    // TransitionFired: dispatch() accepted it as a no-op, so there is no
+                    // workflow to wait for.
                 }
             }
         };
@@ -282,6 +283,51 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     @Override
     protected RecordingDerivationRecomputer recordingDerivationRecomputer() {
         return recomputerRecorder;
+    }
+
+    /**
+     * Since P5a the relay runs the recompute before it dispatches an object-lifecycle row, but this
+     * adapter still runs its own recompute, in {@link ChangeEventWorkflowImpl}, before {@code
+     * onChange}. Until that workflow activity is removed (P5b), this test keeps the
+     * recompute-before-onChange order checked for the Temporal adapter, which {@link
+     * AutomationContract} no longer asserts.
+     */
+    @Test
+    void dispatchRunsRecomputeBeforeOnChangeForObjectUpdated() {
+        port().dispatch(SCOPE, objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED));
+
+        assertThat(recomputerRecorder.calls()).hasSize(1);
+        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
+                .isEqualTo(1);
+        assertRecomputeRanBeforeOnChange();
+    }
+
+    /** The {@code ObjectDeleted} counterpart of {@link #dispatchRunsRecomputeBeforeOnChangeForObjectUpdated()}. */
+    @Test
+    void dispatchRunsRecomputeBeforeOnChangeForObjectDeleted() {
+        port().dispatch(SCOPE, objectDeletedEntry());
+
+        assertThat(recomputerRecorder.calls()).hasSize(1);
+        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
+                .isEqualTo(1);
+        assertRecomputeRanBeforeOnChange();
+    }
+
+    /**
+     * Asserts that the one recompute call recorded for the change event most recently dispatched
+     * happened strictly before the first {@link RecordingTriggerEvaluator#METHOD_ON_CHANGE} call, by
+     * comparing each recorded call's {@code sequenceNanos()}. See {@link RecordingTriggerEvaluator}'s
+     * javadoc for why that field, rather than any state shared between the two doubles, makes this
+     * comparison possible.
+     */
+    private void assertRecomputeRanBeforeOnChange() {
+        long recomputeAt = recomputerRecorder.calls().get(0).sequenceNanos();
+        long onChangeAt = triggerRecorder.calls().stream()
+                .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
+                .findFirst()
+                .orElseThrow()
+                .sequenceNanos();
+        assertThat(recomputeAt).isLessThan(onChangeAt);
     }
 
     /**

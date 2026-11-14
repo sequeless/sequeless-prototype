@@ -3,9 +3,9 @@
  * object, beyond the structural checks the core performs itself.
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
- * the JDK ({@code java.*}) except {@link org.sequeless.spi.Scope} from its parent package and
- * {@link org.sequeless.spi.meta.MetaModelSnapshot} and {@link org.sequeless.spi.object.BusinessObject}
- * from its sibling {@code org.sequeless.spi.meta} and {@code org.sequeless.spi.object} packages.
+ * the JDK ({@code java.*}) except {@link org.sequeless.kernel.identity.Scope} from its parent package and
+ * {@link org.sequeless.ontology.schema.api.Schema} and {@link org.sequeless.spi.object.BusinessObject}
+ * from its sibling {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.spi.object} packages.
  * {@link org.sequeless.spi.validation.ValidationPort} is the port interface; {@link
  * org.sequeless.spi.validation.Violation} is its result vocabulary — one instance per failed
  * constraint, carrying the property IRI it applies to (or {@code ""} for an object-level violation)

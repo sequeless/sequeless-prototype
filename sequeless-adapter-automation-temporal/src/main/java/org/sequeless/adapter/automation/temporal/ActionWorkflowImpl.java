@@ -4,10 +4,10 @@ import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Workflow;
 import java.util.Map;
 import java.util.Set;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link ActionWorkflow} implementation. Temporal instantiates this class itself,
@@ -45,8 +45,7 @@ public final class ActionWorkflowImpl implements ActionWorkflow {
     public void execute(OutboxEntry entry) {
         ActivityOptions activityOptions = ACTIVITY_OPTIONS;
         if (activityOptions == null) {
-            throw new IllegalStateException(
-                "ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
+            throw new IllegalStateException("ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         ActionActivities activities = Workflow.newActivityStub(ActionActivities.class, activityOptions);
@@ -58,21 +57,20 @@ public final class ActionWorkflowImpl implements ActionWorkflow {
             case ACTION_KIND_CREATE_OBJECT -> activities.applyCreateObject(scope, entry);
             case ACTION_KIND_LOG -> activities.applyLog(scope, entry);
             case ACTION_KIND_WEBHOOK -> activities.executeWebhook(scope, entry);
-            default -> throw new IllegalArgumentException(
-                "Unrecognized ActionRequest payload actionKind: " + actionKind);
+            default ->
+                throw new IllegalArgumentException("Unrecognized ActionRequest payload actionKind: " + actionKind);
         }
     }
 
     /**
      * Reconstructs a {@link Scope} from {@code entry.payload()}'s own {@code tenantId}/{@code
      * principalId} fields, following the same convention {@code org.sequeless.testkit.Fixtures#scope}
-     * uses: the principal's {@code displayName} is not carried in the payload, so the id is reused
-     * for both.
+     * uses: the principal is rebuilt from its id alone.
      */
     private static Scope scopeFrom(OutboxEntry entry) {
         Map<String, Object> payload = entry.payload();
         String tenantId = (String) payload.get("tenantId");
         String principalId = (String) payload.get("principalId");
-        return new Scope(new TenantId(tenantId), new Principal(principalId, principalId, Set.of()));
+        return new Scope(new TenantId(tenantId), new Principal(principalId, Set.of()));
     }
 }

@@ -6,9 +6,9 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The in-process substitute for a durable timer engine (a future Temporal adapter's {@code
@@ -42,8 +42,7 @@ final class InProcessTimerScheduler {
      */
     InProcessTimerScheduler(Clock clock, TriggerEvaluator triggerEvaluator) {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
-        this.triggerEvaluator =
-            Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
+        this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
     }
 
     /**
@@ -87,16 +86,13 @@ final class InProcessTimerScheduler {
      */
     void sweep() {
         Instant now = clock.instant();
-        pending
-            .entrySet()
-            .removeIf(
-                e -> {
-                    ScheduledTimer timer = e.getValue();
-                    if (!timer.dueAt().isAfter(now)) {
-                        triggerEvaluator.onTimerElapsed(timer.scope(), timer.entry());
-                        return true;
-                    }
-                    return false;
-                });
+        pending.entrySet().removeIf(e -> {
+            ScheduledTimer timer = e.getValue();
+            if (!timer.dueAt().isAfter(now)) {
+                triggerEvaluator.onTimerElapsed(timer.scope(), timer.entry());
+                return true;
+            }
+            return false;
+        });
     }
 }

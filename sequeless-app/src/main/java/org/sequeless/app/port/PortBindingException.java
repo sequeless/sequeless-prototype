@@ -39,11 +39,9 @@ public final class PortBindingException extends RuntimeException {
      *     PortDefinition#portType()}
      * @return an exception reporting that {@link PortDefinition#property()} is unset
      */
-    public static PortBindingException propertyNotSet(
-            PortDefinition definition, List<AdapterDescriptor> available) {
+    public static PortBindingException propertyNotSet(PortDefinition definition, List<AdapterDescriptor> available) {
         String names = joinNames(available);
-        String message =
-            "Property '%s' is not set; it must select one of the available %s adapters: [%s]"
+        String message = "Property '%s' is not set; it must select one of the available %s adapters: [%s]"
                 .formatted(definition.property(), portTypeName(definition), names);
         return new PortBindingException(message, setPropertyAction(definition, names));
     }
@@ -58,8 +56,7 @@ public final class PortBindingException extends RuntimeException {
     public static PortBindingException unknownAdapter(
             String configuredValue, PortDefinition definition, List<AdapterDescriptor> available) {
         String names = joinNames(available);
-        String message =
-            "Property '%s' is set to '%s', which is not a known %s adapter. Available adapters: [%s]"
+        String message = "Property '%s' is set to '%s', which is not a known %s adapter. Available adapters: [%s]"
                 .formatted(definition.property(), configuredValue, portTypeName(definition), names);
         return new PortBindingException(message, setPropertyAction(definition, names));
     }
@@ -70,15 +67,10 @@ public final class PortBindingException extends RuntimeException {
      * @param definition the port the adapter was selected for
      * @return an exception reporting the SPI version mismatch
      */
-    public static PortBindingException incompatibleVersion(
-            AdapterDescriptor descriptor, PortDefinition definition) {
-        String message =
-            "Adapter '%s' for property '%s' requires SPI '%s', but this application runs SPI %s"
-                .formatted(
-                    descriptor.name(), definition.property(), descriptor.spiVersionRange(),
-                    SpiVersion.VERSION);
-        String action =
-            "Upgrade sequeless-spi or use a build of '%s' compatible with SPI %s"
+    public static PortBindingException incompatibleVersion(AdapterDescriptor descriptor, PortDefinition definition) {
+        String message = "Adapter '%s' for property '%s' requires SPI '%s', but this application runs SPI %s"
+                .formatted(descriptor.name(), definition.property(), descriptor.spiVersionRange(), SpiVersion.VERSION);
+        String action = "Upgrade sequeless-spi or use a build of '%s' compatible with SPI %s"
                 .formatted(descriptor.name(), SpiVersion.VERSION);
         return new PortBindingException(message, action);
     }
@@ -89,11 +81,9 @@ public final class PortBindingException extends RuntimeException {
      * @return an exception reporting the missing bean
      */
     public static PortBindingException noBeanFound(AdapterDescriptor descriptor, PortDefinition definition) {
-        String message =
-            "Property '%s' selects adapter '%s', but no %s bean was found in the application context"
+        String message = "Property '%s' selects adapter '%s', but no %s bean was found in the application context"
                 .formatted(definition.property(), descriptor.name(), portTypeName(definition));
-        String action =
-            "Ensure the adapter's auto-configuration is on the classpath and its "
+        String action = "Ensure the adapter's auto-configuration is on the classpath and its "
                 + "@ConditionalOnProperty condition matches";
         return new PortBindingException(message, action);
     }
@@ -106,13 +96,15 @@ public final class PortBindingException extends RuntimeException {
      */
     public static PortBindingException multipleBeansFound(
             AdapterDescriptor descriptor, PortDefinition definition, String[] beanNames) {
-        String message =
-            "Property '%s' selects adapter '%s', but %d %s beans were found: [%s]"
+        String message = "Property '%s' selects adapter '%s', but %d %s beans were found: [%s]"
                 .formatted(
-                    definition.property(), descriptor.name(), beanNames.length,
-                    portTypeName(definition), String.join(", ", beanNames));
+                        definition.property(),
+                        descriptor.name(),
+                        beanNames.length,
+                        portTypeName(definition),
+                        String.join(", ", beanNames));
         String action =
-            "Remove the extra %s bean(s) so exactly one adapter is wired".formatted(portTypeName(definition));
+                "Remove the extra %s bean(s) so exactly one adapter is wired".formatted(portTypeName(definition));
         return new PortBindingException(message, action);
     }
 

@@ -9,5 +9,4 @@ package org.sequeless.spi.object;
  * lives in its own file, not nested inside this one; implicit permits only works for subtypes
  * nested in the sealed type's own file.
  */
-public sealed interface Mutation permits Create, Update, Delete {
-}
+public sealed interface Mutation permits Create, Update, Delete {}

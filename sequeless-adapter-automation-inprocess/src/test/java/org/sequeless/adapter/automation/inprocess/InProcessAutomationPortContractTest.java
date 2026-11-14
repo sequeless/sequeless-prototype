@@ -1,5 +1,7 @@
 package org.sequeless.adapter.automation.inprocess;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,8 +10,10 @@ import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.AutomationContract;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
@@ -38,13 +42,11 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     @BeforeAll
     static void startServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        server.createContext(
-            "/hook",
-            exchange -> {
-                exchange.getRequestBody().readAllBytes();
-                exchange.sendResponseHeaders(200, -1);
-                exchange.close();
-            });
+        server.createContext("/hook", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
         server.start();
         webhookUrl = "http://localhost:" + server.getAddress().getPort() + "/hook";
     }
@@ -55,23 +57,29 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     }
 
     private final RecordingActionExecutor recorder =
-        new RecordingActionExecutor(new ResolvedWebhookRequest(webhookUrl, "POST", Optional.empty()));
+            new RecordingActionExecutor(new ResolvedWebhookRequest(webhookUrl, "POST", Optional.empty()));
     private final RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
     private final RecordingDerivationRecomputer derivationRecomputer = new RecordingDerivationRecomputer();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
     private final InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
-    private final AutomationPort port =
-        new InProcessAutomationPort(
-            recorder,
-            new InProcessAutomationProperties(),
-            triggerEvaluator,
-            derivationRecomputer,
-            InProcessRecomputeProperties.Mode.RETRY_ONLY,
-            timerScheduler);
+    private final AutomationPort port = new InProcessAutomationPort(
+            recorder, new InProcessAutomationProperties(), triggerEvaluator, timerScheduler);
 
     @Override
     protected AutomationPort port() {
         return port;
+    }
+
+    /**
+     * Documentation only. Since P5a this port takes no {@code DerivationRecomputer}, so {@link
+     * #derivationRecomputer} is not wired to anything and this assertion holds by construction. The
+     * constructor change above is the real guarantee; this test records the intent.
+     */
+    @Test
+    void dispatchMakesNoRecomputeCallForAnObjectLifecycleEntry() {
+        port.dispatch(SCOPE, objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED));
+
+        assertThat(derivationRecomputer.calls()).isEmpty();
     }
 
     @Override

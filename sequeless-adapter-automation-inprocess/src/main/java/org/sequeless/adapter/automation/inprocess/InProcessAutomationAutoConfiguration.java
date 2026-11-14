@@ -6,7 +6,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -18,7 +17,7 @@ import org.springframework.context.annotation.Bean;
 /**
  * Wires {@link InProcessAutomationPort} into the Spring context when {@code
  * sequeless.automation.adapter} is set to {@code inprocess}, mirroring {@code
- * sequeless-adapter-expression-jexl}'s {@code JexlExpressionAutoConfiguration} pattern exactly (no
+ * expression-spring-boot-autoconfig}'s {@code JexlExpressionAutoConfiguration} pattern exactly (no
  * {@code matchIfMissing}, no {@code @ConditionalOnMissingBean} — the application's port registry,
  * not Spring, is what detects an absent or ambiguous port configuration).
  *
@@ -33,7 +32,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration
 @ConditionalOnProperty(name = "sequeless.automation.adapter", havingValue = "inprocess")
-@EnableConfigurationProperties({InProcessAutomationProperties.class, InProcessRecomputeProperties.class})
+@EnableConfigurationProperties(InProcessAutomationProperties.class)
 public class InProcessAutomationAutoConfiguration {
 
     /**
@@ -63,12 +62,11 @@ public class InProcessAutomationAutoConfiguration {
 
     @Bean(destroyMethod = "shutdownNow")
     public ScheduledExecutorService timerTickExecutor() {
-        return Executors.newSingleThreadScheduledExecutor(
-            runnable -> {
-                Thread thread = new Thread(runnable, "inprocess-timer-tick");
-                thread.setDaemon(true);
-                return thread;
-            });
+        return Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "inprocess-timer-tick");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /**
@@ -78,7 +76,7 @@ public class InProcessAutomationAutoConfiguration {
      *     {@link ActionExecutor} parameter)
      * @param timerTickExecutor the executor the periodic sweep is scheduled on
      * @param tickMillis the {@code sequeless.automation.inprocess.timer-tick-ms} sweep interval,
-     *     bound as a raw {@code long} rather than a {@link Duration}-typed {@code @Value} — see
+     *     bound as a raw {@code long} rather than a {@code Duration}-typed {@code @Value} — see
      *     {@code CoreConfiguration}'s own precedent (T7's finding) for why a {@code @Value}-bound
      *     temporal type is unsafe under a bare {@code ApplicationContextRunner}; defaults to 100ms,
      *     short enough that a test relying on the real production tick (rather than {@code
@@ -96,8 +94,7 @@ public class InProcessAutomationAutoConfiguration {
             @Value("${sequeless.automation.inprocess.timer-tick-ms:100}") long tickMillis,
             Clock clock) {
         InProcessTimerScheduler scheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
-        timerTickExecutor.scheduleWithFixedDelay(
-            scheduler::sweep, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
+        timerTickExecutor.scheduleWithFixedDelay(scheduler::sweep, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
         return scheduler;
     }
 
@@ -107,11 +104,7 @@ public class InProcessAutomationAutoConfiguration {
      * @param properties the bound {@code sequeless.automation.inprocess.*} webhook retry
      *     configuration
      * @param triggerEvaluator the {@link TriggerEvaluator} bean an object-lifecycle, timer, or
-     *     signal entry is routed to after any recompute
-     * @param derivationRecomputer the {@link DerivationRecomputer} bean an object-lifecycle entry's
-     *     recompute is routed to, under {@code recomputeProperties}'s configured mode
-     * @param recomputeProperties the bound {@code sequeless.automation.recompute.*} concurrency
-     *     mode configuration
+     *     signal entry is routed to
      * @param timerScheduler the scheduler {@code TimerScheduled}/{@code TimerCancelled} entries are
      *     routed to
      * @return a new {@link InProcessAutomationPort} over all of the above
@@ -121,15 +114,7 @@ public class InProcessAutomationAutoConfiguration {
             ActionExecutor actionExecutor,
             InProcessAutomationProperties properties,
             TriggerEvaluator triggerEvaluator,
-            DerivationRecomputer derivationRecomputer,
-            InProcessRecomputeProperties recomputeProperties,
             InProcessTimerScheduler timerScheduler) {
-        return new InProcessAutomationPort(
-            actionExecutor,
-            properties,
-            triggerEvaluator,
-            derivationRecomputer,
-            recomputeProperties.getMode(),
-            timerScheduler);
+        return new InProcessAutomationPort(actionExecutor, properties, triggerEvaluator, timerScheduler);
     }
 }

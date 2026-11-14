@@ -17,50 +17,43 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.statemachine.PayloadValueCodec;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.IntegerValue;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
 
 /**
  * Unit tests for {@link DefaultDerivationRecomputer}, built against a hand-written {@code Project}
@@ -84,84 +77,120 @@ class DefaultDerivationRecomputerTest {
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope ALICE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
-    private static final RelationshipDefinition BELONGS_TO_PROJECT =
-        new RelationshipDefinition(
-            BELONGS_TO_PROJECT_IRI, "belongsToProject", Cardinality.optional(), false, false,
-            false, false, false, DisplayHints.none(), Optional.empty(), PROJECT_IRI,
-            Optional.empty(), false);
+    private static final RelationshipDefinition BELONGS_TO_PROJECT = new RelationshipDefinition(
+            BELONGS_TO_PROJECT_IRI,
+            "belongsToProject",
+            Cardinality.optional(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            PROJECT_IRI,
+            Optional.empty(),
+            false);
 
     private static RollupRule openTaskCountRule(boolean materialised) {
         return new RollupRule(
-            TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(), List.of(),
-            materialised);
+                TASK_IRI,
+                BELONGS_TO_PROJECT_IRI,
+                AggregateFunction.COUNT,
+                Optional.empty(),
+                Optional.empty(),
+                materialised);
     }
 
-    private static AttributeDefinition openTaskCountAttribute(boolean materialised) {
+    private static AttributeDefinition openTaskCountAttribute() {
         return new AttributeDefinition(
-            OPEN_TASK_COUNT_IRI, "openTaskCount", Cardinality.required(), false, false, false, true,
-            false, DisplayHints.none(), Optional.of(openTaskCountRule(materialised)),
-            Datatype.INTEGER);
+                OPEN_TASK_COUNT_IRI,
+                "openTaskCount",
+                Cardinality.required(),
+                false,
+                false,
+                false,
+                true,
+                false,
+                DisplayHints.none(),
+                Datatype.INTEGER);
     }
 
-    private static TypeDefinition projectType(boolean materialised) {
+    private static TypeDefinition projectType() {
         return new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(), List.of(openTaskCountAttribute(materialised)),
-            DisplayHints.none(), false, Optional.empty());
+                PROJECT_IRI, "Project", List.of(), List.of(openTaskCountAttribute()), DisplayHints.none(), false);
     }
 
     private static final TypeDefinition TASK =
-        new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false,
-            Optional.empty());
+            new TypeDefinition(TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false);
 
-    private static MetaModelSnapshot buildSnapshot(boolean materialised) {
-        return new MetaModelSnapshot(
-            NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(),
-            List.of(projectType(materialised), TASK), new OntologyReport(true, List.of()));
+    private static Schema buildSchema() {
+        return new Schema(
+                new OntologyVersion(1),
+                NS.substring(0, NS.length() - 1),
+                Optional.empty(),
+                Map.of(),
+                List.of(projectType(), TASK));
+    }
+
+    /** The behaviour: the one derivation rule on {@code openTaskCount}, materialised or not. */
+    private static Behaviour behaviourWith(boolean materialised) {
+        return new Behaviour(
+                new OntologyVersion(1), Map.of(), Map.of(OPEN_TASK_COUNT_IRI, openTaskCountRule(materialised)));
     }
 
     private static BusinessObject project(ObjectId id, long version, Integer openTaskCount) {
-        Map<PropertyRef, Value> properties =
-            openTaskCount == null
+        Map<PropertyRef, Value> properties = openTaskCount == null
                 ? Map.of()
                 : Map.of(new PropertyRef(OPEN_TASK_COUNT_IRI), new IntegerValue(openTaskCount));
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.empty(),
-            properties, new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.empty(),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static BusinessObject task(ObjectId id, ObjectId belongsToProjectId) {
         return new BusinessObject(
-            id, new TypeRef(TASK_IRI), new TenantId("acme"), 1, Optional.empty(),
-            Map.of(new PropertyRef(BELONGS_TO_PROJECT_IRI), Value.ref(belongsToProjectId)),
-            new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(TASK_IRI),
+                new TenantId("acme"),
+                1,
+                Optional.empty(),
+                Map.of(new PropertyRef(BELONGS_TO_PROJECT_IRI), Value.ref(belongsToProjectId)),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static OutboxEntry objectUpdatedEvent(ObjectId taskId) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI), NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI),
+                NOW);
     }
 
     private static OutboxEntry objectDeletedEvent(ObjectId taskId, ObjectId belongsToProjectId) {
         Map<String, Object> properties =
-            Map.of(
-                BELONGS_TO_PROJECT_IRI,
-                PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
+                Map.of(BELONGS_TO_PROJECT_IRI, PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
-            NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_DELETED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
+                NOW);
     }
 
     private static DefaultDerivationRecomputer recomputer(
-        FakeObjectStorePort store, FakeQueryPort queryPort, boolean materialised, int maxAttempts) {
+            FakeObjectStorePort store, FakeQueryPort queryPort, boolean materialised, int maxAttempts) {
         DerivationPlanner planner = new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
+        FakeOntology ontology = new FakeOntology(materialised);
         return new DefaultDerivationRecomputer(
-            new FakeOntologyPort(materialised), store, planner, maxAttempts, Duration.ofMillis(1), CLOCK);
+                ontology, ontology, store, planner, maxAttempts, Duration.ofMillis(1), CLOCK);
     }
 
     @Test
@@ -178,10 +207,12 @@ class DefaultDerivationRecomputerTest {
 
         BusinessObject updated = store.store.get(projectId);
         assertThat(updated.properties().get(new PropertyRef(OPEN_TASK_COUNT_IRI)))
-            .isEqualTo(new IntegerValue(2));
+                .isEqualTo(new IntegerValue(2));
         assertThat(updated.version()).isEqualTo(4);
         assertThat(store.commitCalls).isEqualTo(1);
         assertThat(store.lastOutboxKind).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
+        // The recompute read the schema at version 1, so its ObjectUpdated event carries that version.
+        assertThat(store.lastOutboxPayload).containsEntry("ontologyVersion", 1);
     }
 
     @Test
@@ -215,7 +246,7 @@ class DefaultDerivationRecomputerTest {
 
         BusinessObject updated = store.store.get(projectId);
         assertThat(updated.properties().get(new PropertyRef(OPEN_TASK_COUNT_IRI)))
-            .isEqualTo(new IntegerValue(0));
+                .isEqualTo(new IntegerValue(0));
         assertThat(store.commitCalls).isEqualTo(1);
     }
 
@@ -234,7 +265,7 @@ class DefaultDerivationRecomputerTest {
 
         BusinessObject updated = store.store.get(projectId);
         assertThat(updated.properties().get(new PropertyRef(OPEN_TASK_COUNT_IRI)))
-            .isEqualTo(new IntegerValue(1));
+                .isEqualTo(new IntegerValue(1));
         // 2 injected stale failures + 1 succeeding commit attempt.
         assertThat(store.commitCalls).isEqualTo(3);
     }
@@ -251,7 +282,7 @@ class DefaultDerivationRecomputerTest {
         DefaultDerivationRecomputer recomputer = recomputer(store, queryPort, true, 3);
 
         assertThatThrownBy(() -> recomputer.recompute(ALICE, objectUpdatedEvent(taskId)))
-            .isInstanceOf(StaleObjectException.class);
+                .isInstanceOf(StaleObjectException.class);
         assertThat(store.commitCalls).isEqualTo(3);
     }
 
@@ -273,33 +304,24 @@ class DefaultDerivationRecomputerTest {
 
     // --- fakes ---
 
-    private static final class FakeOntologyPort implements OntologyPort {
+    private static final class FakeOntology implements SchemaSource, BehaviourSource {
 
         private final boolean materialised;
 
-        FakeOntologyPort(boolean materialised) {
+        FakeOntology(boolean materialised) {
             this.materialised = materialised;
         }
 
         @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return buildSnapshot(materialised);
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return buildSchema();
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviourWith(materialised);
         }
     }
 
@@ -319,19 +341,9 @@ class DefaultDerivationRecomputerTest {
         }
 
         @Override
-        public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(request, "request must not be null");
             aggregateRequests.add(request);
             Map<ObjectId, Value> values = new HashMap<>();
@@ -348,6 +360,7 @@ class DefaultDerivationRecomputerTest {
         private final Map<ObjectId, Integer> staleFailuresRemaining = new HashMap<>();
         private int commitCalls;
         private String lastOutboxKind;
+        private Map<String, Object> lastOutboxPayload;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
@@ -366,11 +379,6 @@ class DefaultDerivationRecomputerTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override
@@ -398,11 +406,16 @@ class DefaultDerivationRecomputerTest {
                         // this recompute attempt's read and its commit.
                         BusinessObject current = store.get(id);
                         store.put(
-                            id,
-                            new BusinessObject(
-                                current.id(), current.type(), current.tenant(),
-                                current.version() + 1, current.state(), current.properties(),
-                                current.audit(), current.deleted()));
+                                id,
+                                new BusinessObject(
+                                        current.id(),
+                                        current.type(),
+                                        current.tenant(),
+                                        current.version() + 1,
+                                        current.state(),
+                                        current.properties(),
+                                        current.audit(),
+                                        current.deleted()));
                         throw new StaleObjectException(id, update.expectedVersion());
                     }
                     BusinessObject current = store.get(id);
@@ -422,6 +435,7 @@ class DefaultDerivationRecomputerTest {
             List<UUID> outboxIds = new ArrayList<>();
             for (OutboxEntry entry : changeSet.outbox()) {
                 lastOutboxKind = entry.kind();
+                lastOutboxPayload = entry.payload();
                 outboxIds.add(UUID.randomUUID());
             }
             return new CommitResult(resultObjects, outboxIds);

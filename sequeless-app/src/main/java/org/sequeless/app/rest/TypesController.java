@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Objects;
 import org.sequeless.app.config.TomcatEncodedSlashConfiguration;
 import org.sequeless.core.api.MetaModelService;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.core.api.TypeDescription;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.schema.api.Schema;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,17 +36,16 @@ public class TypesController {
      * @throws NullPointerException if {@code metaModelService} is {@code null}
      */
     public TypesController(MetaModelService metaModelService) {
-        this.metaModelService =
-                Objects.requireNonNull(metaModelService, "metaModelService must not be null");
+        this.metaModelService = Objects.requireNonNull(metaModelService, "metaModelService must not be null");
     }
 
     /**
-     * @return every type in the current snapshot, summarised
+     * @return every type in the current schema, summarised
      */
     @GetMapping("/types")
     public List<TypeSummaryResponse> listTypes() {
-        MetaModelSnapshot snapshot = metaModelService.snapshot(currentScope());
-        return TypeResponseMapper.toSummaries(snapshot);
+        Schema schema = metaModelService.schema(currentScope());
+        return TypeResponseMapper.toSummaries(schema);
     }
 
     /**
@@ -61,19 +60,18 @@ public class TypesController {
      */
     @GetMapping("/types/{nameOrIri:.+}")
     public TypeDetailResponse describeType(@PathVariable("nameOrIri") String nameOrIri) {
-        TypeDefinition type = metaModelService.describeType(currentScope(), nameOrIri);
-        return TypeResponseMapper.toDetail(type);
+        TypeDescription description = metaModelService.describeType(currentScope(), nameOrIri);
+        return TypeResponseMapper.toDetail(description, description.schema());
     }
 
     /**
-     * @return the snapshot report of the freshly reloaded ontology, rendered the same way {@code
+     * @return the report of the freshly reloaded ontology, rendered the same way {@code
      *     ApiExceptionAdvice} renders one on failure — one shape for a client to handle either
      *     outcome
      */
     @PostMapping("/types/reload")
     public OntologyReportResponse reload() {
-        MetaModelSnapshot snapshot = metaModelService.reload(currentScope());
-        return OntologyReportResponse.from(snapshot.report());
+        return OntologyReportResponse.from(metaModelService.reload(currentScope()));
     }
 
     private static Scope currentScope() {

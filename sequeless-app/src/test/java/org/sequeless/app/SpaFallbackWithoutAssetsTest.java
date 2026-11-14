@@ -65,25 +65,23 @@ import org.springframework.test.web.servlet.client.RestTestClient;
         })
 class SpaFallbackWithoutAssetsTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
     void rootIsNotFoundWhenNoUiHasBeenBuilt() {
         // No index.html anywhere: there is nothing to serve at "/", and the fallback must not
         // invent a response.
-        restTestClient
-                .get()
-                .uri("/")
-                .exchange()
-                .expectStatus()
-                .isNotFound();
+        restTestClient.get().uri("/").exchange().expectStatus().isNotFound();
     }
 
     @Test
@@ -101,16 +99,15 @@ class SpaFallbackWithoutAssetsTest extends PostgresTestcontainersSupport {
 
     @Test
     void apiIsStillServedWhenNoUiHasBeenBuilt() throws Exception {
-        String json =
-                restTestClient
-                        .get()
-                        .uri("/api/whoami")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String json = restTestClient
+                .get()
+                .uri("/api/whoami")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         // Same single-tenant contract ApiPathPrefixTest.whoAmiIsServedUnderTheApiPrefix asserts:
         // registering a /** resource handler must not shadow the annotated controllers.
@@ -123,21 +120,11 @@ class SpaFallbackWithoutAssetsTest extends PostgresTestcontainersSupport {
 
     @Test
     void actuatorHealthIsStillServedWhenNoUiHasBeenBuilt() {
-        restTestClient
-                .get()
-                .uri("/actuator/health")
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient.get().uri("/actuator/health").exchange().expectStatus().isOk();
     }
 
     @Test
     void openApiDocumentIsStillServedWhenNoUiHasBeenBuilt() {
-        restTestClient
-                .get()
-                .uri("/v3/api-docs")
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient.get().uri("/v3/api-docs").exchange().expectStatus().isOk();
     }
 }

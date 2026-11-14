@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
-import org.sequeless.spi.ontology.OntologyException;
+import org.sequeless.ontology.api.OntologyException;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 
@@ -15,10 +15,9 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * where the inconsistency would only surface on the first {@code GET /types} request.
  *
  * <p>{@link org.sequeless.app.config.OntologyStartupValidator} is what makes this observable at
- * all: {@code CoreConfiguration#metaModelService} injects {@code OntologyPort} lazily (see its own
- * javadoc), so without that validator nothing would call {@code OntologyPort#snapshot} until a real
- * request arrived. See its javadoc for why an {@code ApplicationRunner} is the right place for that
- * first eager call.
+ * all: {@code CoreConfiguration#metaModelService} injects its ports lazily (see its own javadoc), so
+ * without that validator nothing would call {@code SchemaSource#schema} until a real request arrived.
+ * See its javadoc for why an {@code ApplicationRunner} is the right place for that first eager read.
  *
  * <p>Follows {@link PortBindingStartupFailureTest}'s pattern exactly, for the same reasons that
  * class's javadoc documents in detail:
@@ -53,22 +52,19 @@ class InconsistentOntologyStartupTest extends PostgresTestcontainersSupport {
 
     @Test
     void inconsistentOntologySourceFailsStartupNamingTheCulprit() {
-        assertThatThrownBy(
-                        () ->
-                                new SpringApplicationBuilder(SequelessApplication.class)
-                                        .web(WebApplicationType.NONE)
-                                        .run(
-                                                "--sequeless.ontology.source=classpath:ontology/inconsistent.ttl",
-                                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
-                .satisfies(
-                        thrown -> {
-                            OntologyException cause = findCause(thrown, OntologyException.class);
-                            assertThat(cause).isNotNull();
-                            assertThat(cause.getMessage()).contains("Cyborg");
-                            assertThat(cause.report().consistent()).isFalse();
-                        });
+        assertThatThrownBy(() -> new SpringApplicationBuilder(SequelessApplication.class)
+                        .web(WebApplicationType.NONE)
+                        .run(
+                                "--sequeless.ontology.source=classpath:ontology/inconsistent.ttl",
+                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
+                .satisfies(thrown -> {
+                    OntologyException cause = findCause(thrown, OntologyException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage()).contains("Cyborg");
+                    assertThat(cause.report().consistent()).isFalse();
+                });
     }
 
     private static <T extends Throwable> T findCause(Throwable root, Class<T> type) {

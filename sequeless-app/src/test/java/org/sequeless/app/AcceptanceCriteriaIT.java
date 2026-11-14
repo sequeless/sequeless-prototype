@@ -40,13 +40,14 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * per {@code ObjectsEndToEndTest}'s javadoc explaining why a distinguishing property is required to
  * avoid Spring's test-context cache reusing another class's now-stopped Testcontainers container.
  */
-@SpringBootTest(
-        webEnvironment = RANDOM_PORT,
-        properties = "sequeless.ontology.adapter=jena")
+@SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.ontology.adapter=jena")
 class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
-    @Autowired private DataSource sequelessPersistenceDataSource;
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private DataSource sequelessPersistenceDataSource;
 
     private RestTestClient restTestClient;
     private JdbcClient jdbcClient;
@@ -54,7 +55,9 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
         jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
     }
 
@@ -90,9 +93,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         // Project-level rollup can sum it in SQL), so it is now scalar-expecting like name
         // (F27's comment below): send a bare 5000, not a list.
         Map<String, Object> body =
-                Map.of(
-                        "properties",
-                        Map.of("title", List.of("Overbudget task"), "estimatedHours", 5000));
+                Map.of("properties", Map.of("title", List.of("Overbudget task"), "estimatedHours", 5000));
 
         restTestClient
                 .post()
@@ -118,10 +119,13 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         // send a bare string, not a list.
         BusinessObjectResponse person = createPerson(Map.of("name", "Grace Hopper"));
 
-        Map<String, Object> body =
+        Map<String, Object> body = Map.of(
+                "properties",
                 Map.of(
-                        "properties",
-                        Map.of("title", List.of("Misfiled task"), "belongsToProject", person.id().toString()));
+                        "title",
+                        List.of("Misfiled task"),
+                        "belongsToProject",
+                        person.id().toString()));
 
         restTestClient
                 .post()
@@ -188,24 +192,22 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
                 .expectStatus()
                 .isNotFound();
 
-        var page =
-                restTestClient
-                        .get()
-                        .uri("/api/objects/Task?page=0&size=200")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        var page = restTestClient
+                .get()
+                .uri("/api/objects/Task?page=0&size=200")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         assertThat(new String(page)).doesNotContain(created.id().toString());
 
-        var deletedAt =
-                jdbcClient
-                        .sql("SELECT deleted_at FROM sq_object WHERE id = ?")
-                        .param(created.id())
-                        .query(java.sql.Timestamp.class)
-                        .optional();
+        var deletedAt = jdbcClient
+                .sql("SELECT deleted_at FROM sq_object WHERE id = ?")
+                .param(created.id())
+                .query(java.sql.Timestamp.class)
+                .optional();
         assertThat(deletedAt).isPresent();
         assertThat(deletedAt.get()).isNotNull();
     }
@@ -255,24 +257,19 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         // openTaskCount counts Tasks with status != "done": two of the three below qualify.
         // totalEstimatedHours sums estimatedHours over every Task regardless of status: 3+5+2=10.
-        createTask(
-                Map.of(
-                        "title", List.of("Done task"),
-                        "status", "done",
-                        "estimatedHours", 3,
-                        "belongsToProject", projectId));
-        createTask(
-                Map.of(
-                        "title", List.of("Open task"),
-                        "status", "open",
-                        "estimatedHours", 5,
-                        "belongsToProject", projectId));
-        createTask(
-                Map.of(
-                        "title", List.of("In-progress task"),
-                        "status", "in-progress",
-                        "estimatedHours", 2,
-                        "belongsToProject", projectId));
+        createTask(Map.of(
+                "title", List.of("Done task"), "status", "done", "estimatedHours", 3, "belongsToProject", projectId));
+        createTask(Map.of(
+                "title", List.of("Open task"), "status", "open", "estimatedHours", 5, "belongsToProject", projectId));
+        createTask(Map.of(
+                "title",
+                List.of("In-progress task"),
+                "status",
+                "in-progress",
+                "estimatedHours",
+                2,
+                "belongsToProject",
+                projectId));
 
         JsonNode read = fetchAsJson("/api/objects/Project/" + projectId);
         assertThat(read.get("properties").get("openTaskCount").asInt()).isEqualTo(2);
@@ -293,12 +290,11 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         // Prove nothing is stored: the derived properties' local names must not appear anywhere in
         // the row's raw JSONB, since they are computed on read rather than written by ValueCoercer.
-        String propsJson =
-                jdbcClient
-                        .sql("SELECT props::text FROM sq_object WHERE id = ?")
-                        .param(UUID.fromString(projectId))
-                        .query(String.class)
-                        .single();
+        String propsJson = jdbcClient
+                .sql("SELECT props::text FROM sq_object WHERE id = ?")
+                .param(UUID.fromString(projectId))
+                .query(String.class)
+                .single();
         assertThat(propsJson).doesNotContain("openTaskCount").doesNotContain("totalEstimatedHours");
     }
 
@@ -307,26 +303,21 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         BusinessObjectResponse project = create("Project", Map.of("title", List.of("Immutable rollup")));
 
         Map<String, Object> updateBody =
-                Map.of(
-                        "version",
-                        1,
-                        "properties",
-                        Map.of("title", List.of("Immutable rollup"), "openTaskCount", 5));
+                Map.of("version", 1, "properties", Map.of("title", List.of("Immutable rollup"), "openTaskCount", 5));
 
-        byte[] responseBody =
-                restTestClient
-                        .put()
-                        .uri("/api/objects/Project/" + project.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(updateBody)
-                        .exchange()
-                        .expectStatus()
-                        .isBadRequest()
-                        .expectHeader()
-                        .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .put()
+                .uri("/api/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(updateBody)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
 
         JsonNode body = readJson(responseBody);
         assertThat(body.get("source").asText()).isEqualTo("structural");
@@ -338,23 +329,20 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
             }
         }
         assertThat(violation).as("violation naming openTaskCount").isNotNull();
-        assertThat(violation.get("propertyIri").asText())
-                .isEqualTo("https://sequeless.dev/ns/ref#openTaskCount");
-        assertThat(violation.get("message").asText())
-                .contains("is a derived property and cannot be set directly");
+        assertThat(violation.get("propertyIri").asText()).isEqualTo("https://sequeless.dev/ns/ref#openTaskCount");
+        assertThat(violation.get("message").asText()).contains("is a derived property and cannot be set directly");
     }
 
     private JsonNode fetchAsJson(String uri) {
-        return readJson(
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody());
+        return readJson(restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody());
     }
 
     private JsonNode readJson(byte[] responseBody) {
@@ -366,7 +354,10 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
     }
 
     private long outboxCount() {
-        return jdbcClient.sql("SELECT COUNT(*) FROM sq_outbox").query(Long.class).single();
+        return jdbcClient
+                .sql("SELECT COUNT(*) FROM sq_outbox")
+                .query(Long.class)
+                .single();
     }
 
     private BusinessObjectResponse createTask(Map<String, Object> properties) {

@@ -47,14 +47,10 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * scheduler before advancing the clock at all — see {@link #awaitOutboxProcessed} and the timer
  * tests' own javadoc for why the naive "fire, then immediately advance" ordering races the relay.
  *
- * <p>The {@code properties} array below is deliberately not byte-identical to any other {@code
- * @SpringBootTest} class in this module (see {@code TransitionsEndToEndTest}'s own javadoc on this
- * point, and {@code automation.md} §8) — {@code sequeless.automation.recompute.mode=retry-only} is
- * the one extra key that both guarantees this class gets its own Spring test context (rather than
- * reusing another class's already-stopped Testcontainers Postgres container) and gives the
- * on-change test the tighter same-dispatch recompute-then-onChange ordering documented on {@code
- * InProcessRecomputeProperties.Mode#RETRY_ONLY} (the production default, {@code COALESCE}, still
- * converges, just possibly one extra outbox hop later).
+ * <p>The relay recomputes each object-lifecycle row before it dispatches that row, so the on-change
+ * test gets the same-dispatch recompute-then-onChange ordering the {@code autoClose} guard needs.
+ * This class keeps its own Spring test context because of its nested {@link ClockTestConfiguration},
+ * which is part of the context key (see {@code automation.md} §8).
  */
 @SpringBootTest(
         webEnvironment = RANDOM_PORT,
@@ -62,8 +58,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
             "sequeless.persistence.adapter=postgres",
             "sequeless.automation.adapter=inprocess",
             "sequeless.expression.adapter=jexl",
-            "sequeless.automation.relay.poll-interval-ms=100",
-            "sequeless.automation.recompute.mode=retry-only"
+            "sequeless.automation.relay.poll-interval-ms=100"
         })
 class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 
@@ -126,9 +121,11 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         }
     }
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
-    @Autowired private DataSource sequelessPersistenceDataSource;
+    @Autowired
+    private DataSource sequelessPersistenceDataSource;
 
     private RestTestClient restTestClient() {
         return RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
@@ -149,26 +146,28 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         // it counts) -- autoClose's guard ("self.openTaskCount == 0") cannot pass yet. Marking the
         // Task "done" via a full PUT (replacing every property, per UpdateObjectRequest's shape) is
         // the ObjectUpdated event that recomputes openTaskCount back to 0 and re-evaluates onChange.
-        BusinessObjectResponse doneTask =
-                client.put()
-                        .uri("/api/objects/Task/" + task.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(
-                                Map.of(
-                                        "version",
-                                        1,
-                                        "properties",
-                                        Map.of(
-                                                "title", List.of("Only task"),
-                                                "belongsToProject", project.id().toString(),
-                                                "status", "done",
-                                                "estimatedHours", 1)))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse doneTask = client.put()
+                .uri("/api/objects/Task/" + task.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of(
+                                "title",
+                                List.of("Only task"),
+                                "belongsToProject",
+                                project.id().toString(),
+                                "status",
+                                "done",
+                                "estimatedHours",
+                                1)))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(doneTask).isNotNull();
 
         awaitState(client, project.id(), "Closed", Duration.ofSeconds(6));
@@ -213,22 +212,19 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         while (Instant.now().isBefore(deadline)) {
-            long processedCount =
-                    jdbcClient
-                            .sql(
-                                    "SELECT count(*) FROM sq_outbox WHERE object_id = :objectId AND"
-                                            + " kind = :kind AND processed_at IS NOT NULL")
-                            .param("objectId", objectId)
-                            .param("kind", kind)
-                            .query(Long.class)
-                            .single();
+            long processedCount = jdbcClient
+                    .sql("SELECT count(*) FROM sq_outbox WHERE object_id = :objectId AND"
+                            + " kind = :kind AND processed_at IS NOT NULL")
+                    .param("objectId", objectId)
+                    .param("kind", kind)
+                    .query(Long.class)
+                    .single();
             if (processedCount > 0) {
                 return;
             }
             sleep(Duration.ofMillis(50));
         }
-        throw new AssertionError(
-                "outbox row of kind '" + kind + "' for object " + objectId + " was never processed");
+        throw new AssertionError("outbox row of kind '" + kind + "' for object " + objectId + " was never processed");
     }
 
     @Test
@@ -280,21 +276,17 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private BusinessObjectResponse setOwnerAndActivate(
-            RestTestClient client,
-            BusinessObjectResponse project,
-            String title,
-            BusinessObjectResponse owner) {
+            RestTestClient client, BusinessObjectResponse project, String title, BusinessObjectResponse owner) {
         client.put()
                 .uri("/api/objects/Project/" + project.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
                         Map.of(
-                                "version",
-                                1,
-                                "properties",
-                                Map.of(
-                                        "title", List.of(title),
-                                        "owner", owner.id().toString())))
+                                "title", List.of(title),
+                                "owner", owner.id().toString())))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -347,22 +339,25 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         return client.post()
                 .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "properties",
                         Map.of(
-                                "properties",
-                                Map.of(
-                                        "title", List.of(title),
-                                        "belongsToProject", belongsToProjectId,
-                                        "status", status,
-                                        // Every Task in this ontology feeds ex:totalEstimatedHours
-                                        // too (a sq:sum Rollup over ex:estimatedHours). Postgres's
-                                        // SUM() of an all-NULL group returns SQL NULL, and
-                                        // DecimalValue's constructor rejects a null value -- so a
-                                        // Task with no estimatedHours crashes the Project's own
-                                        // GET (a pre-existing latent bug, not something T12 owns).
-                                        // Every other passing test in this module always sets this
-                                        // property for exactly this reason; do the same here.
-                                        "estimatedHours", 1)))
+                                "title",
+                                List.of(title),
+                                "belongsToProject",
+                                belongsToProjectId,
+                                "status",
+                                status,
+                                // Every Task in this ontology feeds ex:totalEstimatedHours
+                                // too (a sq:sum Rollup over ex:estimatedHours). Postgres's
+                                // SUM() of an all-NULL group returns SQL NULL, and
+                                // DecimalValue's constructor rejects a null value -- so a
+                                // Task with no estimatedHours crashes the Project's own
+                                // GET (a pre-existing latent bug, not something T12 owns).
+                                // Every other passing test in this module always sets this
+                                // property for exactly this reason; do the same here.
+                                "estimatedHours",
+                                1)))
                 .exchange()
                 .expectStatus()
                 .isCreated()
@@ -371,8 +366,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .getResponseBody();
     }
 
-    private void awaitState(
-            RestTestClient client, UUID objectId, String expectedState, Duration timeout) {
+    private void awaitState(RestTestClient client, UUID objectId, String expectedState, Duration timeout) {
         Instant deadline = Instant.now().plus(timeout);
         String lastSeen = null;
         while (Instant.now().isBefore(deadline)) {
@@ -387,8 +381,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .isEqualTo(expectedState);
     }
 
-    private void assertStaysAtState(
-            RestTestClient client, UUID objectId, String expectedState, Duration window) {
+    private void assertStaysAtState(RestTestClient client, UUID objectId, String expectedState, Duration window) {
         Instant deadline = Instant.now().plus(window);
         while (Instant.now().isBefore(deadline)) {
             String actual = currentState(client, objectId);
@@ -400,36 +393,31 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private String currentState(RestTestClient client, UUID objectId) {
-        BusinessObjectResponse response =
-                client.get()
-                        .uri("/api/objects/Project/" + objectId)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse response = client.get()
+                .uri("/api/objects/Project/" + objectId)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(response).isNotNull();
         return response.state();
     }
 
     private void assertTransitionFiredRow(UUID objectId, String transitionName) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
-        long count =
-                jdbcClient
-                        .sql(
-                                "SELECT count(*) FROM sq_outbox WHERE kind = :kind AND object_id ="
-                                        + " :objectId AND payload ->> 'transitionName' ="
-                                        + " :transitionName")
-                        .param("kind", "TransitionFired")
-                        .param("objectId", objectId)
-                        .param("transitionName", transitionName)
-                        .query(Long.class)
-                        .single();
+        long count = jdbcClient
+                .sql("SELECT count(*) FROM sq_outbox WHERE kind = :kind AND object_id ="
+                        + " :objectId AND payload ->> 'transitionName' ="
+                        + " :transitionName")
+                .param("kind", "TransitionFired")
+                .param("objectId", objectId)
+                .param("transitionName", transitionName)
+                .query(Long.class)
+                .single();
         assertThat(count)
-                .as(
-                        "a TransitionFired outbox row exists for object %s and transition '%s'",
-                        objectId, transitionName)
+                .as("a TransitionFired outbox row exists for object %s and transition '%s'", objectId, transitionName)
                 .isGreaterThanOrEqualTo(1L);
     }
 

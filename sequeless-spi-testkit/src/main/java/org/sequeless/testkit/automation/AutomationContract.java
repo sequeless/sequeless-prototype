@@ -1,7 +1,6 @@
 package org.sequeless.testkit.automation;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.time.Duration;
@@ -11,13 +10,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The mechanical form of the behavioural contract documented on {@link AutomationPort}'s
@@ -52,8 +51,8 @@ import org.sequeless.spi.object.OutboxEntry;
  */
 public abstract class AutomationContract {
 
-    private static final Scope SCOPE =
-        new Scope(new TenantId("tenant-1"), new Principal("user-1", "User One", Set.of()));
+    /** The scope every test in this contract dispatches under; also reused by subclasses' own tests. */
+    protected static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
 
     /**
      * @return the {@link AutomationPort} implementation under test, wired with {@link
@@ -78,8 +77,9 @@ public abstract class AutomationContract {
 
     /**
      * @return the same {@link RecordingDerivationRecomputer} spy {@link #port()}'s implementation
-     *     was constructed with, so this contract can observe whether {@code dispatch} routed an
-     *     object-lifecycle entry to {@link DerivationRecomputer#recompute}
+     *     was constructed with, so this contract can observe whether {@code dispatch} called {@link
+     *     DerivationRecomputer#recompute}. An adapter whose {@code dispatch} does not recompute may
+     *     return a spy that nothing is wired to; the contract then sees no calls
      */
     protected abstract RecordingDerivationRecomputer recordingDerivationRecomputer();
 
@@ -102,40 +102,35 @@ public abstract class AutomationContract {
 
     @Test
     void dispatchRoutesSetPropertyToApplySetProperty() {
-        OutboxEntry entry =
-            actionRequestEntry(
-                "SetProperty",
-                Map.of("property", "http://example.org/owner", "expression", "'user-2'"));
+        OutboxEntry entry = actionRequestEntry(
+                "SetProperty", Map.of("property", "http://example.org/owner", "expression", "'user-2'"));
 
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_SET_PROPERTY))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
     void dispatchRoutesCreateObjectToApplyCreateObject() {
-        OutboxEntry entry =
-            actionRequestEntry(
-                "CreateObject",
-                Map.of("createType", "http://example.org/Task", "createProperties", Map.of()));
+        OutboxEntry entry = actionRequestEntry(
+                "CreateObject", Map.of("createType", "http://example.org/Task", "createProperties", Map.of()));
 
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_CREATE_OBJECT))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
     void dispatchRoutesWebhookToResolveWebhook() {
         OutboxEntry entry =
-            actionRequestEntry(
-                "Webhook", Map.of("url", "http://example.invalid/hook", "method", "POST"));
+                actionRequestEntry("Webhook", Map.of("url", "http://example.invalid/hook", "method", "POST"));
 
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_RESOLVE_WEBHOOK))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -145,7 +140,7 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_LOG))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -156,7 +151,7 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_LOG))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -171,7 +166,7 @@ public abstract class AutomationContract {
     }
 
     @Test
-    void dispatchStillRejectsTransitionFiredKind() {
+    void dispatchAcceptsTransitionFiredAsANoOp() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
@@ -180,33 +175,33 @@ public abstract class AutomationContract {
         payload.put("fromState", "Draft");
         payload.put("toState", "Active");
         OutboxEntry entry =
-            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
-        assertThatIllegalArgumentException().isThrownBy(() -> port().dispatch(SCOPE, entry));
+        port().dispatch(SCOPE, entry);
+
+        assertThat(recordingExecutor().calls()).isEmpty();
+        assertThat(recordingTriggerEvaluator().calls()).isEmpty();
+        assertThat(recordingDerivationRecomputer().calls()).isEmpty();
     }
 
     @Test
-    void dispatchRoutesObjectLifecycleEventToRecomputeThenOnChange() {
+    void dispatchRoutesObjectLifecycleEventToOnChange() {
         OutboxEntry entry = objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED);
 
         port().dispatch(SCOPE, entry);
 
-        assertThat(recordingDerivationRecomputer().calls()).hasSize(1);
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-            .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
+                .isEqualTo(1);
     }
 
     @Test
-    void dispatchRoutesObjectDeletedToRecomputeThenOnChangeToo() {
+    void dispatchRoutesObjectDeletedToOnChangeToo() {
         OutboxEntry entry = objectDeletedEntry();
 
         port().dispatch(SCOPE, entry);
 
-        assertThat(recordingDerivationRecomputer().calls()).hasSize(1);
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-            .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
+                .isEqualTo(1);
     }
 
     @Test
@@ -214,19 +209,17 @@ public abstract class AutomationContract {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
         OutboxEntry entry =
-            timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
+                timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
 
         port().dispatch(SCOPE, entry);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(0);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(0);
 
         advanceTime(after);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(1);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
     }
 
     @Test
@@ -241,9 +234,8 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, cancelled);
         advanceTime(after);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(0);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(0);
     }
 
     @Test
@@ -253,7 +245,7 @@ public abstract class AutomationContract {
         port().dispatch(SCOPE, entry);
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_SIGNAL))
-            .isEqualTo(1);
+                .isEqualTo(1);
     }
 
     @Test
@@ -261,34 +253,14 @@ public abstract class AutomationContract {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
         OutboxEntry entry =
-            timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
+                timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
 
         port().dispatch(SCOPE, entry);
         port().dispatch(SCOPE, entry);
         advanceTime(after);
 
-        assertThat(
-                recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-            .isEqualTo(1);
-    }
-
-    /**
-     * Asserts that, for the single change event most recently dispatched, {@link
-     * #recordingDerivationRecomputer()}'s one recorded call happened strictly before {@link
-     * #recordingTriggerEvaluator()}'s first recorded {@link RecordingTriggerEvaluator#METHOD_ON_CHANGE}
-     * call, by comparing each {@code Call}'s {@code sequenceNanos()} — see {@link
-     * RecordingTriggerEvaluator}'s javadoc for why that field, rather than any state shared between
-     * the two doubles, is what makes this comparison possible.
-     */
-    private void assertRecomputeRanBeforeOnChange() {
-        long recomputeAt = recordingDerivationRecomputer().calls().get(0).sequenceNanos();
-        long onChangeAt =
-            recordingTriggerEvaluator().calls().stream()
-                .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .findFirst()
-                .orElseThrow()
-                .sequenceNanos();
-        assertThat(recomputeAt).isLessThan(onChangeAt);
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
     }
 
     /**
@@ -297,7 +269,7 @@ public abstract class AutomationContract {
      * shared {@code outboxPayload} helper produces: {@code objectId}, {@code version}, {@code
      * typeIri} — no {@code tenantId}/{@code principalId}, unlike the automation-specific kinds.
      */
-    private static OutboxEntry objectChangeEntry(String kind) {
+    protected static OutboxEntry objectChangeEntry(String kind) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("version", 1);
@@ -314,7 +286,7 @@ public abstract class AutomationContract {
      * TriggerEvaluator} implementation would need real, IRI-keyed, {@code PayloadValueCodec}-encoded
      * entries, but this contract only proves routing, not decoding.
      */
-    private static OutboxEntry objectDeletedEntry() {
+    protected static OutboxEntry objectDeletedEntry() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("version", 1);
@@ -330,7 +302,7 @@ public abstract class AutomationContract {
      * (ISO-8601), and {@code timerKey}.
      */
     private static OutboxEntry timerScheduledEntry(
-        UUID objectId, String timerKey, String state, String transitionName, Duration after) {
+            UUID objectId, String timerKey, String state, String transitionName, Duration after) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", objectId.toString());
         payload.put("tenantId", SCOPE.tenantId().value());

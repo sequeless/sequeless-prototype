@@ -18,67 +18,67 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.usecase.DefaultTransitionService;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.expression.api.ExpressionContext;
+import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.CreateObjectAction;
+import org.sequeless.ontology.automation.api.LogAction;
+import org.sequeless.ontology.automation.api.PropertyAssignment;
+import org.sequeless.ontology.automation.api.SetPropertyAction;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.State;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.api.UserActionTrigger;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.expression.ExpressionContext;
-import org.sequeless.spi.expression.ExpressionPort;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.CreateObjectAction;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.LogAction;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyAssignment;
-import org.sequeless.spi.meta.SetPropertyAction;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
-import org.sequeless.spi.meta.WebhookAction;
 import org.sequeless.spi.object.Audit;
-import org.sequeless.spi.object.BoolValue;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.Create;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.TextValue;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Unit tests for {@link DefaultActionExecutor}, built with the same hand-written-fixture idiom as
  * {@code DefaultTransitionServiceTest}/{@code DefaultBusinessObjectServiceTest} — no Mockito, just
  * small lambdas ({@link AuthorizationPort}) and hand-rolled fakes ({@link FakeObjectStorePort},
- * {@link FakeExpressionPort}, {@link FakeOntologyPort}).
+ * {@link FakeExpressionPort}, {@link FakeOntology}).
  *
  * <p>{@link #applyingEveryActionKindProducedByARealFireCallAppliesThemCorrectly()} is the single
  * most important test here: rather than hand-building {@code ActionRequest} payloads and hoping
@@ -106,10 +106,17 @@ class DefaultActionExecutorTest {
 
     private static final String OWNER_GUARD = "self.owner != null";
 
-    private static final AttributeDefinition OWNER =
-        new AttributeDefinition(
-            OWNER_IRI, "owner", Cardinality.atMost(1), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    private static final AttributeDefinition OWNER = new AttributeDefinition(
+            OWNER_IRI,
+            "owner",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Datatype.STRING);
 
     private static final State DRAFT = new State(DRAFT_IRI, "Draft", 0);
     private static final State ACTIVE = new State(ACTIVE_IRI, "Active", 1);
@@ -118,18 +125,22 @@ class DefaultActionExecutorTest {
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope ALICE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");
     }
 
-    private static BusinessObject project(
-        ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
+    private static BusinessObject project(ObjectId id, long version, String state, Map<PropertyRef, Value> properties) {
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.of(state),
-            properties, new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.of(state),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     // --- the genuine cross-check: real DefaultTransitionService output fed into DefaultActionExecutor ---
@@ -140,45 +151,44 @@ class DefaultActionExecutorTest {
         // action kind, and both the "value" and "expression" payload variants for SetProperty and
         // CreateObject.
         SetPropertyAction setPropertyValue =
-            new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
+                new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
         SetPropertyAction setPropertyExpression =
-            new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner"));
-        CreateObjectAction createObjectValue =
-            new CreateObjectAction(
+                new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner"));
+        CreateObjectAction createObjectValue = new CreateObjectAction(
                 TASK_IRI,
                 List.of(new PropertyAssignment(TITLE_IRI, Optional.of(Value.text("Kickoff")), Optional.empty())));
-        CreateObjectAction createObjectExpression =
-            new CreateObjectAction(
-                TASK_IRI,
-                List.of(new PropertyAssignment(TITLE_IRI, Optional.empty(), Optional.of("self.owner"))));
+        CreateObjectAction createObjectExpression = new CreateObjectAction(
+                TASK_IRI, List.of(new PropertyAssignment(TITLE_IRI, Optional.empty(), Optional.of("self.owner"))));
         WebhookAction webhookWithBody =
-            new WebhookAction(
-                "https://example.com/hook?owner=${self.owner}", "POST", Optional.of("${self.owner}"));
+                new WebhookAction("https://example.com/hook?owner=${self.owner}", "POST", Optional.of("${self.owner}"));
         WebhookAction webhookNoBody = new WebhookAction("https://example.com/reopen", "GET", Optional.empty());
         LogAction logAction = new LogAction("Activated by ${self.owner}");
 
-        Transition activate =
-            new Transition(
-                "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD),
-                Optional.empty(),
-                List.of(
-                    setPropertyValue,
-                    setPropertyExpression,
-                    createObjectValue,
-                    createObjectExpression,
-                    webhookWithBody,
-                    webhookNoBody,
-                    logAction));
+        Transition activate = new Transition(
+                "activate", DRAFT_IRI, ACTIVE_IRI, new UserActionTrigger(), Optional.of(OWNER_GUARD), Optional.empty());
         StateMachineDefinition lifecycle =
-            new StateMachineDefinition(NS + "ProjectLifecycle", List.of(DRAFT, ACTIVE), DRAFT, List.of(activate));
+                new StateMachineDefinition(NS + "ProjectLifecycle", List.of(DRAFT, ACTIVE), DRAFT, List.of(activate));
         TypeDefinition projectType =
-            new TypeDefinition(
-                PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false,
-                Optional.of(lifecycle));
-        MetaModelSnapshot snapshot =
-            new MetaModelSnapshot(
-                NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(),
-                List.of(projectType), new OntologyReport(true, List.of()));
+                new TypeDefinition(PROJECT_IRI, "Project", List.of(), List.of(OWNER), DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(1),
+                NS.substring(0, NS.length() - 1),
+                Optional.empty(),
+                Map.of(),
+                List.of(projectType));
+        Behaviour behaviour = new Behaviour(new OntologyVersion(1), Map.of(PROJECT_IRI, lifecycle), Map.of());
+        Automation automation = new Automation(
+                new OntologyVersion(1),
+                Map.of(
+                        new TransitionRef(lifecycle.iri(), DRAFT_IRI, "activate"),
+                        List.<Action>of(
+                                setPropertyValue,
+                                setPropertyExpression,
+                                createObjectValue,
+                                createObjectExpression,
+                                webhookWithBody,
+                                webhookNoBody,
+                                logAction)));
 
         ObjectId projectId = ObjectId.random();
         Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
@@ -187,9 +197,9 @@ class DefaultActionExecutorTest {
         store.seed(existing);
         FakeExpressionPort expressionPort = new FakeExpressionPort();
 
+        FakeOntology ontology = new FakeOntology(schema, behaviour, automation);
         DefaultTransitionService transitionService =
-            new DefaultTransitionService(
-                new FakeOntologyPort(snapshot), store, permitAll(), expressionPort, CLOCK);
+                new DefaultTransitionService(ontology, ontology, ontology, store, permitAll(), expressionPort, CLOCK);
         transitionService.fire(ALICE, "Project", projectId, "activate", 5);
 
         // The real payload DefaultTransitionService produced — not hand-built.
@@ -204,6 +214,8 @@ class DefaultActionExecutorTest {
         executor.applySetProperty(ALICE, actionRequests.get(0));
         BusinessObject afterFirstSet = store.store.get(projectId);
         assertThat(afterFirstSet.properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("kicked-off"));
+        // The ObjectUpdated event carries the version its ActionRequest row was stamped with.
+        assertThat(store.commits.get(1).outbox().get(0).payload()).containsEntry("ontologyVersion", 1);
 
         // actionIndex 1: SetProperty, expression variant ("self.owner") — self is frozen at
         // transition-fire time, so it still resolves to "alice" even though status is now
@@ -215,8 +227,8 @@ class DefaultActionExecutorTest {
         // actionIndex 2: CreateObject, value variant.
         executor.applyCreateObject(ALICE, actionRequests.get(2));
         UUID entryId2 = actionRequests.get(2).id();
-        ObjectId derivedId2 =
-            new ObjectId(UUID.nameUUIDFromBytes((entryId2 + ":2").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        ObjectId derivedId2 = new ObjectId(
+                UUID.nameUUIDFromBytes((entryId2 + ":2").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject task1 = store.store.get(derivedId2);
         assertThat(task1).isNotNull();
         assertThat(task1.type()).isEqualTo(new TypeRef(TASK_IRI));
@@ -232,8 +244,8 @@ class DefaultActionExecutorTest {
         // actionIndex 3: CreateObject, expression variant ("self.owner").
         executor.applyCreateObject(ALICE, actionRequests.get(3));
         UUID entryId3 = actionRequests.get(3).id();
-        ObjectId derivedId3 =
-            new ObjectId(UUID.nameUUIDFromBytes((entryId3 + ":3").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        ObjectId derivedId3 = new ObjectId(
+                UUID.nameUUIDFromBytes((entryId3 + ":3").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject task2 = store.store.get(derivedId3);
         assertThat(task2).isNotNull();
         assertThat(task2.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("alice"));
@@ -260,7 +272,7 @@ class DefaultActionExecutorTest {
         assertThat(expressionPort.renderTemplateCalls).hasSize(1);
         assertThat(expressionPort.renderTemplateCalls.get(0).template()).isEqualTo("Activated by ${self.owner}");
         assertThat(expressionPort.renderTemplateCalls.get(0).context().selfProperties())
-            .containsEntry("owner", Value.text("alice"));
+                .containsEntry("owner", Value.text("alice"));
     }
 
     // --- applySetProperty ---
@@ -269,13 +281,12 @@ class DefaultActionExecutorTest {
     void applySetPropertyIsANoOpWhenValueAlreadyMatchesValueVariant() {
         ObjectId id = ObjectId.random();
         BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("kicked-off")));
+                project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("kicked-off")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "kicked-off-transition", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "kicked-off-transition", 0, Map.of("owner", tag(Value.text("alice"))))
                 .valueVariant(Value.text("kicked-off"))
                 .build();
 
@@ -287,14 +298,12 @@ class DefaultActionExecutorTest {
     @Test
     void applySetPropertyCommitsExactlyOneUpdateWithObjectUpdatedOutboxWhenValueDiffersValueVariant() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .valueVariant(Value.text("new"))
                 .build();
 
@@ -305,26 +314,44 @@ class DefaultActionExecutorTest {
         assertThat(changeSet.mutations()).hasSize(1);
         Update update = (Update) changeSet.mutations().get(0);
         assertThat(update.expectedVersion()).isEqualTo(3);
-        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("new"));
+        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI)))
+                .isEqualTo(Value.text("new"));
         assertThat(changeSet.outbox()).hasSize(1);
         assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_OBJECT_UPDATED);
         assertThat(changeSet.outbox().get(0).payload())
-            .containsEntry("objectId", id.value().toString())
-            .containsEntry("version", 4L)
-            .containsEntry("typeIri", PROJECT_IRI);
+                .containsEntry("objectId", id.value().toString())
+                .containsEntry("version", 4L)
+                .containsEntry("typeIri", PROJECT_IRI);
+    }
+
+    @Test
+    void objectUpdatedFromAnActionRowWrittenBeforeTheStampLeavesTheVersionOut() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+
+        // This builder sets no ontologyVersion, which is how a row written before the stamp looks.
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+                .valueVariant(Value.text("new"))
+                .build();
+
+        executor.applySetProperty(ALICE, entry);
+
+        assertThat(store.commitCalls).isEqualTo(1);
+        assertThat(store.commits.get(0).outbox().get(0).payload()).doesNotContainKey("ontologyVersion");
     }
 
     @Test
     void applySetPropertyIsANoOpWhenValueAlreadyMatchesExpressionVariant() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("alice")));
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("alice")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .expressionVariant("self.owner")
                 .build();
 
@@ -336,14 +363,12 @@ class DefaultActionExecutorTest {
     @Test
     void applySetPropertyCommitsWhenValueDiffersExpressionVariant() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing =
-            project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
+        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .expressionVariant("self.owner")
                 .build();
 
@@ -351,7 +376,8 @@ class DefaultActionExecutorTest {
 
         assertThat(store.commitCalls).isEqualTo(1);
         Update update = (Update) store.commits.get(0).mutations().get(0);
-        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("alice"));
+        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI)))
+                .isEqualTo(Value.text("alice"));
     }
 
     @Test
@@ -360,8 +386,7 @@ class DefaultActionExecutorTest {
         FakeObjectStorePort store = new FakeObjectStorePort(); // nothing seeded
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
 
-        OutboxEntry entry =
-            setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
+        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
                 .valueVariant(Value.text("new"))
                 .build();
 
@@ -395,10 +420,8 @@ class DefaultActionExecutorTest {
 
         executor.applyCreateObject(ALICE, entry);
 
-        ObjectId expectedId =
-            new ObjectId(
-                UUID.nameUUIDFromBytes(
-                    (entryId + ":" + actionIndex).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        ObjectId expectedId = new ObjectId(UUID.nameUUIDFromBytes(
+                (entryId + ":" + actionIndex).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertThat(store.commitCalls).isEqualTo(1);
         BusinessObject created = store.store.get(expectedId);
         assertThat(created).isNotNull();
@@ -436,8 +459,7 @@ class DefaultActionExecutorTest {
 
         executor.applyCreateObject(ALICE, entry);
 
-        ObjectId expectedId =
-            new ObjectId(
+        ObjectId expectedId = new ObjectId(
                 UUID.nameUUIDFromBytes((entryId + ":0").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject created = store.store.get(expectedId);
         assertThat(created.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("alice"));
@@ -526,9 +548,11 @@ class DefaultActionExecutorTest {
         assertThat(expressionPort.renderTemplateCalls).hasSize(1);
         assertThat(expressionPort.renderTemplateCalls.get(0).template()).isEqualTo("Activated by ${self.owner}");
         assertThat(expressionPort.renderTemplateCalls.get(0).context().selfProperties())
-            .containsEntry("owner", Value.text("alice"));
-        assertThat(expressionPort.renderTemplateCalls.get(0).context().selfState()).contains(ACTIVE_IRI);
-        assertThat(expressionPort.renderTemplateCalls.get(0).context().principalId()).isEqualTo("alice");
+                .containsEntry("owner", Value.text("alice"));
+        assertThat(expressionPort.renderTemplateCalls.get(0).context().selfState())
+                .contains(ACTIVE_IRI);
+        assertThat(expressionPort.renderTemplateCalls.get(0).context().principalId())
+                .isEqualTo("alice");
     }
 
     // --- payload-building helpers, mirroring DefaultTransitionService's own map-building style ---
@@ -538,7 +562,7 @@ class DefaultActionExecutorTest {
     }
 
     private static SetPropertyEntryBuilder setPropertyEntry(
-        ObjectId objectId, String transitionName, int actionIndex, Map<String, Object> self) {
+            ObjectId objectId, String transitionName, int actionIndex, Map<String, Object> self) {
         return new SetPropertyEntryBuilder(objectId, transitionName, actionIndex, self);
     }
 
@@ -612,8 +636,7 @@ class DefaultActionExecutorTest {
             if ("principal".equals(expression)) {
                 return Value.text(context.principalId());
             }
-            throw new UnsupportedOperationException(
-                "Unrecognized expression in test fixture: " + expression);
+            throw new UnsupportedOperationException("Unrecognized expression in test fixture: " + expression);
         }
 
         @Override
@@ -647,32 +670,34 @@ class DefaultActionExecutorTest {
         }
     }
 
-    private static final class FakeOntologyPort implements OntologyPort {
-        private final MetaModelSnapshot snapshot;
+    /** Hand-written stand-in for the three read ports, each serving one fixed half. */
+    private static final class FakeOntology implements SchemaSource, BehaviourSource, AutomationSource {
+        private final Schema schema;
+        private final Behaviour behaviour;
+        private final Automation automation;
 
-        FakeOntologyPort(MetaModelSnapshot snapshot) {
-            this.snapshot = snapshot;
+        FakeOntology(Schema schema, Behaviour behaviour, Automation automation) {
+            this.schema = schema;
+            this.behaviour = behaviour;
+            this.automation = automation;
         }
 
         @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return snapshot;
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return schema;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviour;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Automation automation(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return automation;
         }
     }
 
@@ -697,11 +722,6 @@ class DefaultActionExecutorTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override

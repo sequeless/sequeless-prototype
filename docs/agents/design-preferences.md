@@ -29,7 +29,7 @@ This project uses **hexagonal (ports-and-adapters) architecture** as its core de
 **Contract tests:** The `sequeless-spi-testkit` module provides abstract JUnit 5 contract tests per port, ensuring any new adapter meets the same guarantees as the default.
 
 **Example:** Want to swap Jena for RDF4J as the ontology reasoner?
-- Write `sequeless-adapter-ontology-rdf4j` implementing `OntologyPort`
+- Write `sequeless-adapter-ontology-rdf4j` implementing `OntologyAdministration`, `SchemaSource`, `BehaviourSource` and `AutomationSource`
 - Set `sequeless.ontology.adapter=rdf4j` in configuration
 - No code changes in core or other adapters
 
@@ -46,5 +46,5 @@ When grilling or recommending architecture:
 ## Reference
 
 - **Architecture overview**: `docs/architecture/01-overview.md`
-- **Decision records**: `docs/adr/` — consult these when revisiting design choices (why Jena? Why JSONB? Why Temporal?)
+- **Decision records**: `docs/architecture/02-decision-records.md` — consult these when revisiting design choices (why Jena? Why JSONB? Why Temporal?)
 - **Module layout rules**: Enforced by ArchUnit in `sequeless-app` and Maven dependency scopes

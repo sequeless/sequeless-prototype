@@ -36,7 +36,7 @@ public record AdapterDescriptor(String name, Class<?> port, String property, Str
         }
         if (!SpiVersion.isValidRange(spiVersionRange)) {
             throw new IllegalArgumentException(
-                "Malformed SPI version range (expected '>=MAJOR.MINOR.PATCH'): " + spiVersionRange);
+                    "Malformed SPI version range (expected '>=MAJOR.MINOR.PATCH'): " + spiVersionRange);
         }
     }
 }

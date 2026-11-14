@@ -3,6 +3,12 @@ package org.sequeless.testkit.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.sequeless.ontology.testfixtures.Fixtures.ESTIMATED_HOURS_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.PERSON_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.REFERENCE_ONTOLOGY_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.referenceOntology;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,16 +17,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.OntologyDocument;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
 import org.sequeless.testkit.Fixtures;
@@ -33,15 +39,15 @@ import org.sequeless.testkit.Fixtures;
  * document.
  *
  * <p>Unlike {@code ObjectStoreContract}, this contract cannot be ontology-agnostic: exercising a
- * real shape violation needs a real {@link MetaModelSnapshot} built from an ontology document, and
- * this testkit deliberately carries no OWL/RDF library capable of building one. Building the
- * snapshot is delegated entirely to whichever adapter's contract test extends this class:
+ * real shape violation needs a real {@link Schema} built from an ontology document, and this
+ * testkit deliberately carries no OWL/RDF library capable of building one. Building the Schema is
+ * delegated entirely to whichever adapter's contract test extends this class:
  *
  * <pre>{@code
  * class MyAdapterContractTest extends ValidationContract {
  *     protected Fixture fixtureFor(OntologyDocument document) {
- *         MetaModelSnapshot snapshot = MyOntologyAdapter.snapshotOf(document);
- *         return new Fixture(MyAdapter.forSnapshot(snapshot), snapshot);
+ *         Schema schema = MyOntologyAdapter.schemaOf(document);
+ *         return new Fixture(MyAdapter.forSchema(schema), schema);
  *     }
  * }
  * }</pre>
@@ -57,153 +63,138 @@ import org.sequeless.testkit.Fixtures;
  */
 public abstract class ValidationContract {
 
+    /** {@code ex:name}, declared here rather than in the released {@code Fixtures} (no such member). */
+    private static final String NAME_IRI = REFERENCE_ONTOLOGY_IRI + "#name";
+
+    /** {@code ex:email}, declared here rather than in the released {@code Fixtures} (no such member). */
+    private static final String EMAIL_IRI = REFERENCE_ONTOLOGY_IRI + "#email";
+
     /**
-     * A {@link ValidationPort} paired with the {@link MetaModelSnapshot} it was built to validate
-     * against, since a conforming {@link ValidationPort} implementation is typically tied to the
-     * ontology its shapes were read from.
+     * A {@link ValidationPort} paired with the {@link Schema} it was built to validate against,
+     * since a conforming {@link ValidationPort} implementation is typically tied to the ontology its
+     * shapes were read from.
      *
      * @param port the validation port under test; must not be {@code null}
-     * @param snapshot the type system {@code port} validates objects against; must not be {@code
-     *     null}
+     * @param schema the type system {@code port} validates objects against; must not be {@code null}
      */
-    public record Fixture(ValidationPort port, MetaModelSnapshot snapshot) {
+    public record Fixture(ValidationPort port, Schema schema) {
 
         public Fixture {
             Objects.requireNonNull(port, "port must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
         }
     }
 
     /**
      * @param document the ontology document to build a {@link ValidationPort} and matching {@link
-     *     MetaModelSnapshot} from; must not be {@code null}
-     * @return a fresh {@link Fixture} pairing an implementation under test with the snapshot it
+     *     Schema} from; must not be {@code null}
+     * @return a fresh {@link Fixture} pairing an implementation under test with the schema it
      *     validates against; invoked fresh for every {@code @Test} method
      */
     protected abstract Fixture fixtureFor(OntologyDocument document);
 
     @Test
     void validateRejectsNullScope() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task = task(Map.of(new PropertyRef(Fixtures.TITLE_IRI), Value.text("x")));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(new PropertyRef(TITLE_IRI), Value.text("x")));
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> fixture.port().validate(null, fixture.snapshot(), task));
+        assertThatNullPointerException().isThrownBy(() -> fixture.port().validate(null, fixture.schema(), task));
     }
 
     @Test
-    void validateRejectsNullSnapshot() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task = task(Map.of(new PropertyRef(Fixtures.TITLE_IRI), Value.text("x")));
+    void validateRejectsNullSchema() {
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(new PropertyRef(TITLE_IRI), Value.text("x")));
 
-        assertThatNullPointerException()
-            .isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), null, task));
+        assertThatNullPointerException().isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), null, task));
     }
 
     @Test
     void validateRejectsNullObject() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
 
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), null));
+                .isThrownBy(() -> fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), null));
     }
 
     @Test
     void validReferenceTaskProducesNoViolations() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Write plan"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("40"))));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(
+                new PropertyRef(TITLE_IRI), Value.text("Write plan"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("40"))));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), task);
 
         assertThat(violations).isEmpty();
     }
 
     @Test
     void outOfRangeEstimatedHoursProducesViolationOnItsPath() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Too big"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI),
-                        Value.decimal(new BigDecimal("5000"))));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(
+                new PropertyRef(TITLE_IRI), Value.text("Too big"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), task);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations).extracting(Violation::path).contains(Fixtures.ESTIMATED_HOURS_IRI);
+        assertThat(violations).extracting(Violation::path).contains(ESTIMATED_HOURS_IRI);
     }
 
     @Test
     void invalidPersonEmailProducesViolationOnItsPath() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject person =
-            person(
-                Map.of(
-                    new PropertyRef(Fixtures.NAME_IRI), Value.text("Alice"),
-                    new PropertyRef(Fixtures.EMAIL_IRI), Value.text("not-an-email")));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject person = person(Map.of(
+                new PropertyRef(NAME_IRI), Value.text("Alice"),
+                new PropertyRef(EMAIL_IRI), Value.text("not-an-email")));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), person);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), person);
 
         assertThat(violations).isNotEmpty();
-        assertThat(violations).extracting(Violation::path).contains(Fixtures.EMAIL_IRI);
+        assertThat(violations).extracting(Violation::path).contains(EMAIL_IRI);
     }
 
     @Test
     void validateIsDeterministic() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
+        Fixture fixture = fixtureFor(referenceOntology());
         Scope scope = Fixtures.defaultScope();
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Determinism check"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI),
-                        Value.decimal(new BigDecimal("5000"))));
+        BusinessObject task = task(Map.of(
+                new PropertyRef(TITLE_IRI), Value.text("Determinism check"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
-        List<Violation> first = fixture.port().validate(scope, fixture.snapshot(), task);
-        List<Violation> second = fixture.port().validate(scope, fixture.snapshot(), task);
+        List<Violation> first = fixture.port().validate(scope, fixture.schema(), task);
+        List<Violation> second = fixture.port().validate(scope, fixture.schema(), task);
 
         assertThat(second).containsExactlyInAnyOrderElementsOf(first);
     }
 
     @Test
     void violationsListIsUnmodifiable() {
-        Fixture fixture = fixtureFor(Fixtures.referenceOntology());
-        BusinessObject task =
-            task(
-                Map.of(
-                    new PropertyRef(Fixtures.TITLE_IRI), Value.text("Immutable check"),
-                    new PropertyRef(Fixtures.ESTIMATED_HOURS_IRI),
-                        Value.decimal(new BigDecimal("5000"))));
+        Fixture fixture = fixtureFor(referenceOntology());
+        BusinessObject task = task(Map.of(
+                new PropertyRef(TITLE_IRI), Value.text("Immutable check"),
+                new PropertyRef(ESTIMATED_HOURS_IRI), Value.decimal(new BigDecimal("5000"))));
 
-        List<Violation> violations =
-            fixture.port().validate(Fixtures.defaultScope(), fixture.snapshot(), task);
+        List<Violation> violations = fixture.port().validate(Fixtures.defaultScope(), fixture.schema(), task);
 
         assertThat(violations).isNotEmpty();
         assertThatThrownBy(() -> violations.add(new Violation("", "extra")))
-            .isInstanceOf(UnsupportedOperationException.class);
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     private static BusinessObject task(Map<PropertyRef, Value> properties) {
-        return businessObject(new TypeRef(Fixtures.TASK_IRI), properties);
+        return businessObject(new TypeRef(TASK_IRI), properties);
     }
 
     private static BusinessObject person(Map<PropertyRef, Value> properties) {
-        return businessObject(new TypeRef(Fixtures.PERSON_IRI), properties);
+        return businessObject(new TypeRef(PERSON_IRI), properties);
     }
 
     private static BusinessObject businessObject(TypeRef type, Map<PropertyRef, Value> properties) {
         Instant at = Instant.parse("2026-01-01T00:00:00Z");
         Audit audit = new Audit(at, "tester", at, "tester");
         return new BusinessObject(
-            ObjectId.random(), type, TenantId.DEFAULT, 1, Optional.empty(), properties, audit, false);
+                ObjectId.random(), type, TenantId.DEFAULT, 1, Optional.empty(), properties, audit, false);
     }
 }

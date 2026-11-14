@@ -6,8 +6,8 @@
  * org.sequeless.spi.automation.AutomationPort}, that composes with all three.
  *
  * <p>Every other {@code sequeless-spi} port ({@link org.sequeless.spi.object.ObjectStorePort},
- * {@link org.sequeless.spi.expression.ExpressionPort}, {@code AuthorizationPort},
- * {@code ValidationPort}, {@code QueryPort}, {@code OntologyPort}, ...) is <em>outbound</em>:
+ * {@code org.sequeless.expression.api.ExpressionPort}, {@code AuthorizationPort},
+ * {@code ValidationPort}, {@code QueryPort}, {@code OntologyAdministration}, ...) is <em>outbound</em>:
  * {@code sequeless-core} calls it, and an adapter module implements it, so {@code sequeless-core}
  * never depends on adapter-specific libraries. The three inbound ports in this package are
  * deliberately the opposite shape: {@code sequeless-core} implements each one ({@code
@@ -26,11 +26,11 @@
  *
  * <p>Like every package beneath {@code org.sequeless.spi}, this package imports nothing outside
  * the JDK ({@code java.*}) except sibling {@code org.sequeless.spi.*} types: {@link
- * org.sequeless.spi.Scope} and {@link org.sequeless.spi.object.OutboxEntry} are the only
+ * org.sequeless.kernel.identity.Scope} and {@link org.sequeless.spi.outbox.OutboxEntry} are the only
  * cross-package references this package makes. Every method on all three inbound ports takes the
- * same two arguments — a {@link org.sequeless.spi.Scope} reconstructed from the {@code
+ * same two arguments — a {@link org.sequeless.kernel.identity.Scope} reconstructed from the {@code
  * OutboxEntry} payload's own {@code tenantId}/{@code principalId} fields, and the {@link
- * org.sequeless.spi.object.OutboxEntry} itself, whose {@code payload()} is the sole source of
+ * org.sequeless.spi.outbox.OutboxEntry} itself, whose {@code payload()} is the sole source of
  * every field the method needs — because every outbox payload is frozen, self-contained, and
  * JSON-compatible at write time, so a retried Temporal activity (or an in-process relay retry)
  * never needs to re-read mutable object state to reproduce the same result. See {@link
@@ -47,7 +47,7 @@
  * org.sequeless.spi.automation.AutomationPort#dispatch}, and an automation adapter implements it,
  * itself switching on {@code entry.kind()} and calling back into whichever of the three inbound
  * ports actually applies that kind. The ports compose in opposite directions around the same
- * {@link org.sequeless.spi.object.OutboxEntry} row: {@code dispatch} is how the work gets durably
+ * {@link org.sequeless.spi.outbox.OutboxEntry} row: {@code dispatch} is how the work gets durably
  * started, the inbound ports' methods are how it actually gets applied.
  */
 package org.sequeless.spi.automation;

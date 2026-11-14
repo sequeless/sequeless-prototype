@@ -13,36 +13,36 @@ import org.sequeless.app.automation.OutboxRelay;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.automation.DefaultActionExecutor;
 import org.sequeless.core.usecase.DefaultTransitionService;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.expression.api.ExpressionContext;
+import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyAdministration;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.expression.ExpressionContext;
-import org.sequeless.spi.expression.ExpressionPort;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.OutboxPort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxPort;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -69,15 +69,14 @@ class CoreConfigurationContextRunnerTest {
     @Test
     void actionExecutorAndTransitionServiceRegisterWithoutAnyPortBeans() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CoreConfiguration.class)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ActionExecutor.class);
-                assertThat(context).hasSingleBean(TransitionService.class);
-                assertThat(context.getBean(ActionExecutor.class)).isInstanceOf(DefaultActionExecutor.class);
-                assertThat(context.getBean(TransitionService.class))
-                    .isInstanceOf(DefaultTransitionService.class);
-            });
+                .withUserConfiguration(CoreConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ActionExecutor.class);
+                    assertThat(context).hasSingleBean(TransitionService.class);
+                    assertThat(context.getBean(ActionExecutor.class)).isInstanceOf(DefaultActionExecutor.class);
+                    assertThat(context.getBean(TransitionService.class)).isInstanceOf(DefaultTransitionService.class);
+                });
     }
 
     /**
@@ -92,12 +91,12 @@ class CoreConfigurationContextRunnerTest {
     @Test
     void actionExecutorAndTransitionServiceRegisterWithStubPortBeans() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ActionExecutor.class);
-                assertThat(context).hasSingleBean(TransitionService.class);
-            });
+                .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ActionExecutor.class);
+                    assertThat(context).hasSingleBean(TransitionService.class);
+                });
     }
 
     /**
@@ -112,8 +111,7 @@ class CoreConfigurationContextRunnerTest {
         Scheduled scheduled = pollOnce.getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
-        assertThat(scheduled.fixedDelayString())
-            .isEqualTo("${sequeless.automation.relay.poll-interval-ms:1000}");
+        assertThat(scheduled.fixedDelayString()).isEqualTo("${sequeless.automation.relay.poll-interval-ms:1000}");
     }
 
     /**
@@ -127,25 +125,22 @@ class CoreConfigurationContextRunnerTest {
     void schedulingConfigurationRegistersScheduledAnnotationProcessor() {
         // OutboxPort#claimNext is itself generic, so a lambda cannot implement it (javac cannot
         // infer a per-call T for a lambda body); an anonymous class is required.
-        OutboxPort neverClaimsOutboxPort =
-            new OutboxPort() {
-                @Override
-                public <T> Optional<T> claimNext(
-                    Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
-                    return Optional.empty();
-                }
-            };
+        OutboxPort neverClaimsOutboxPort = new OutboxPort() {
+            @Override
+            public <T> Optional<T> claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
+                return Optional.empty();
+            }
+        };
 
         new ApplicationContextRunner()
-            .withUserConfiguration(SchedulingConfiguration.class, OutboxRelayConfiguration.class)
-            .withBean(OutboxPort.class, () -> neverClaimsOutboxPort)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(
-                    context.containsBean(
-                        "org.springframework.scheduling.config.internalScheduledAnnotationProcessor"))
-                    .isTrue();
-            });
+                .withUserConfiguration(SchedulingConfiguration.class, OutboxRelayConfiguration.class)
+                .withBean(OutboxPort.class, () -> neverClaimsOutboxPort)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.containsBean(
+                                    "org.springframework.scheduling.config.internalScheduledAnnotationProcessor"))
+                            .isTrue();
+                });
     }
 
     /**
@@ -161,13 +156,16 @@ class CoreConfigurationContextRunnerTest {
         @Bean
         OutboxRelay outboxRelay(OutboxPort outboxPort) {
             return new OutboxRelay(
-                outboxPort,
-                new ObjectProvider<>() {
-                    @Override
-                    public AutomationPort getIfAvailable() {
-                        return null;
-                    }
-                });
+                    outboxPort,
+                    new ObjectProvider<>() {
+                        @Override
+                        public AutomationPort getIfAvailable() {
+                            return null;
+                        }
+                    },
+                    (scope, changeEvent) -> {
+                        throw new UnsupportedOperationException("not needed by this test");
+                    });
         }
     }
 
@@ -183,15 +181,31 @@ class CoreConfigurationContextRunnerTest {
     static class StubPortsConfiguration {
 
         @Bean
-        OntologyPort ontologyPort() {
-            return new OntologyPort() {
-                @Override
-                public MetaModelSnapshot snapshot(Scope scope) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
+        SchemaSource schemaSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
 
+        @Bean
+        BehaviourSource behaviourSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
+
+        @Bean
+        AutomationSource automationSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
+
+        @Bean
+        OntologyAdministration ontologyAdministrationPort() {
+            return new OntologyAdministration() {
                 @Override
-                public MetaModelSnapshot reload(Scope scope) {
+                public OntologyReport reload(Scope scope) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
@@ -212,11 +226,6 @@ class CoreConfigurationContextRunnerTest {
             return new ObjectStorePort() {
                 @Override
                 public Optional<BusinessObject> find(Scope scope, ObjectId id) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
@@ -246,18 +255,7 @@ class CoreConfigurationContextRunnerTest {
         QueryPort queryPort() {
             return new QueryPort() {
                 @Override
-                public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public AggregateResult aggregate(
-                    Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+                public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
             };
@@ -265,7 +263,7 @@ class CoreConfigurationContextRunnerTest {
 
         @Bean
         ValidationPort validationPort() {
-            return (scope, snapshot, object) -> List.of();
+            return (scope, schema, object) -> List.of();
         }
 
         @Bean

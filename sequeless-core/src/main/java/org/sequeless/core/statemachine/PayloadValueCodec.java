@@ -6,17 +6,17 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.sequeless.spi.object.BoolValue;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Converts a {@link Value} to and from the tagged, JSON-compatible shape an {@link
@@ -81,7 +81,9 @@ public final class PayloadValueCodec {
             case DateValue date -> tag(TAG_DATE, date.value().toString());
             case ReferenceValue ref -> tag(TAG_REF, ref.target().value().toString());
             case ListValue list ->
-                tag(TAG_LIST, list.values().stream().map(PayloadValueCodec::toPayload).toList());
+                tag(
+                        TAG_LIST,
+                        list.values().stream().map(PayloadValueCodec::toPayload).toList());
         };
     }
 
@@ -96,8 +98,7 @@ public final class PayloadValueCodec {
     public static Value fromPayload(Object payload) {
         Objects.requireNonNull(payload, "payload must not be null");
         if (!(payload instanceof Map<?, ?> map) || map.size() != 1) {
-            throw new IllegalArgumentException(
-                "Expected a single-key tagged value map, got: " + payload);
+            throw new IllegalArgumentException("Expected a single-key tagged value map, got: " + payload);
         }
         Map.Entry<?, ?> entry = map.entrySet().iterator().next();
         Object rawTag = entry.getKey();
@@ -115,7 +116,8 @@ public final class PayloadValueCodec {
             case TAG_DATE -> Value.date(LocalDate.parse((String) raw));
             case TAG_REF -> Value.ref(ObjectId.parse((String) raw));
             case TAG_LIST ->
-                Value.list(((List<?>) raw).stream().map(PayloadValueCodec::fromPayload).toList());
+                Value.list(((List<?>) raw)
+                        .stream().map(PayloadValueCodec::fromPayload).toList());
             default -> throw new IllegalArgumentException("Unrecognized tagged value key: " + tag);
         };
     }

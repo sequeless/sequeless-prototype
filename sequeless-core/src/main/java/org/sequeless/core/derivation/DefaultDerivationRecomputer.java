@@ -14,27 +14,31 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import org.sequeless.core.ontology.SchemaAndBehaviour;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.TypeHierarchy;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.automation.DerivationRecomputer;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Reference implementation of {@link DerivationRecomputer}. See that interface's javadoc for the
@@ -51,7 +55,8 @@ import org.sequeless.spi.ontology.OntologyPort;
  */
 public final class DefaultDerivationRecomputer implements DerivationRecomputer {
 
-    private final OntologyPort ontologyPort;
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
     private final ObjectStorePort objectStorePort;
     private final DerivationPlanner derivationPlanner;
     private final int maxAttempts;
@@ -59,7 +64,8 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
     private final Clock clock;
 
     /**
-     * @param ontologyPort the port consulted for the type system; must not be {@code null}
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
      * @param objectStorePort the port every candidate/target read and every commit goes through;
      *     must not be {@code null}
      * @param derivationPlanner the planner whose {@link DerivationPlanner#computeRule} this class
@@ -75,17 +81,17 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      *     negative
      */
     public DefaultDerivationRecomputer(
-        OntologyPort ontologyPort,
-        ObjectStorePort objectStorePort,
-        DerivationPlanner derivationPlanner,
-        int maxAttempts,
-        Duration baseDelay,
-        Clock clock) {
-        this.ontologyPort = Objects.requireNonNull(ontologyPort, "ontologyPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
-        this.derivationPlanner =
-            Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
+            ObjectStorePort objectStorePort,
+            DerivationPlanner derivationPlanner,
+            int maxAttempts,
+            Duration baseDelay,
+            Clock clock) {
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+        this.derivationPlanner = Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
         if (maxAttempts < 1) {
             throw new IllegalArgumentException("maxAttempts must be at least 1");
         }
@@ -107,8 +113,10 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
         ObjectId changedId = ObjectId.parse((String) payload.get("objectId"));
         String changedTypeIri = (String) payload.get("typeIri");
 
-        MetaModelSnapshot snapshot = ontologyPort.snapshot(scope);
-        Optional<TypeDefinition> maybeChangedType = snapshot.type(changedTypeIri);
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        Optional<TypeDefinition> maybeChangedType = schema.type(changedTypeIri);
         if (maybeChangedType.isEmpty()) {
             return;
         }
@@ -133,9 +141,10 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
         record TargetProperty(ObjectId targetId, String propertyIri) {}
         Map<TargetProperty, RollupRule> work = new LinkedHashMap<>();
 
-        for (TypeDefinition type : snapshot.types()) {
+        for (TypeDefinition type : schema.types()) {
             for (PropertyDefinition property : type.properties()) {
-                if (property.derivation().isEmpty()) {
+                Optional<DerivationRule> derivation = behaviour.derivation(property.iri());
+                if (derivation.isEmpty()) {
                     continue;
                 }
                 // A materialised PluginRule cannot occur here at all: the Jena mapper now rejects
@@ -143,10 +152,10 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
                 // PluginRule carries no sourceTypeIri/viaIri and so offers no generic way to
                 // discover which targets a changed object affects. The instanceof guard below is
                 // defensive - it should be unreachable - rather than the primary safeguard.
-                if (!(property.derivation().get() instanceof RollupRule rollup) || !rollup.materialised()) {
+                if (!(derivation.get() instanceof RollupRule rollup) || !rollup.materialised()) {
                     continue;
                 }
-                if (!TypeHierarchy.isSubtypeOf(snapshot, changedType.iri(), rollup.sourceTypeIri())) {
+                if (!TypeHierarchy.isSubtypeOf(schema, changedType.iri(), rollup.sourceTypeIri())) {
                     continue;
                 }
                 Value viaValue = changedProperties.get(new PropertyRef(rollup.viaIri()));
@@ -161,7 +170,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
 
         for (Map.Entry<TargetProperty, RollupRule> entry : work.entrySet()) {
             recomputeOne(
-                scope, snapshot, entry.getKey().targetId(), entry.getKey().propertyIri(), entry.getValue());
+                    scope, schema, entry.getKey().targetId(), entry.getKey().propertyIri(), entry.getValue());
         }
     }
 
@@ -178,8 +187,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      * path is driven by independent async events, one changed object and its affected targets at a
      * time, so there is no page to batch across.
      */
-    private void recomputeOne(
-        Scope scope, MetaModelSnapshot snapshot, ObjectId targetId, String propertyIri, RollupRule rule) {
+    private void recomputeOne(Scope scope, Schema schema, ObjectId targetId, String propertyIri, RollupRule rule) {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             Optional<BusinessObject> found = objectStorePort.find(scope, targetId);
             if (found.isEmpty()) {
@@ -189,7 +197,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
             BusinessObject target = found.get();
 
             Map<ObjectId, Value> computed =
-                derivationPlanner.computeRule(scope, snapshot, rule, Set.of(targetId), List.of(target));
+                    derivationPlanner.computeRule(scope, schema, rule, Set.of(targetId), List.of(target));
             Value newValue = computed.get(targetId);
             PropertyRef propertyRef = new PropertyRef(propertyIri);
             Value currentValue = target.properties().get(propertyRef);
@@ -209,8 +217,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
             }
 
             Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
-            BusinessObject candidate =
-                new BusinessObject(
+            BusinessObject candidate = new BusinessObject(
                     target.id(),
                     target.type(),
                     target.tenant(),
@@ -218,16 +225,20 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
                     target.state(),
                     newProperties,
                     new Audit(
-                        target.audit().createdAt(),
-                        target.audit().createdBy(),
-                        now,
-                        scope.principal().id()),
+                            target.audit().createdAt(),
+                            target.audit().createdBy(),
+                            now,
+                            scope.principal().id()),
                     target.deleted());
 
-            ChangeSet changeSet =
-                new ChangeSet(
+            ChangeSet changeSet = new ChangeSet(
                     List.of(new Update(candidate, target.version())),
-                    List.of(objectUpdatedEntry(targetId, target.version() + 1, target.type().iri(), now)));
+                    List.of(objectUpdatedEntry(
+                            targetId,
+                            target.version() + 1,
+                            target.type().iri(),
+                            schema.ontologyVersion().value(),
+                            now)));
 
             try {
                 objectStorePort.commit(scope, changeSet);
@@ -261,14 +272,16 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
      * Builds an {@code ObjectUpdated} outbox entry whose payload matches the shape {@code
      * DefaultBusinessObjectService.outboxPayload} produces — duplicated here rather than shared,
      * exactly as {@code DefaultActionExecutor} already keeps its own copy of the same small
-     * map-builder, since that method is private to a different class.
+     * map-builder, since that method is private to a different class. {@code ontologyVersion} is the
+     * version of the schema this recompute read.
      */
     private static OutboxEntry objectUpdatedEntry(
-        ObjectId id, long version, String typeIri, Instant occurredAt) {
+            ObjectId id, long version, String typeIri, int ontologyVersion, Instant occurredAt) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
         payload.put("typeIri", typeIri);
+        payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED, payload, occurredAt);
     }
 
@@ -301,8 +314,7 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
     private static Map<PropertyRef, Value> decodePropertiesSnapshot(Map<String, Object> payload) {
         Map<String, Object> raw = (Map<String, Object>) payload.get("properties");
         Map<PropertyRef, Value> result = new HashMap<>();
-        raw.forEach(
-            (iri, tagged) -> result.put(new PropertyRef(iri), PayloadValueCodec.fromPayload(tagged)));
+        raw.forEach((iri, tagged) -> result.put(new PropertyRef(iri), PayloadValueCodec.fromPayload(tagged)));
         return result;
     }
 }

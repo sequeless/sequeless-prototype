@@ -11,23 +11,23 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.sequeless.core.statemachine.PayloadValueCodec;
-import org.sequeless.spi.Scope;
+import org.sequeless.expression.api.ExpressionContext;
+import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.expression.ExpressionContext;
-import org.sequeless.spi.expression.ExpressionPort;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.object.Value;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,12 +66,9 @@ public final class DefaultActionExecutor implements ActionExecutor {
      *     {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
-    public DefaultActionExecutor(
-        ExpressionPort expressionPort, ObjectStorePort objectStorePort, Clock clock) {
-        this.expressionPort =
-            Objects.requireNonNull(expressionPort, "expressionPort must not be null");
-        this.objectStorePort =
-            Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+    public DefaultActionExecutor(ExpressionPort expressionPort, ObjectStorePort objectStorePort, Clock clock) {
+        this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -103,10 +100,8 @@ public final class DefaultActionExecutor implements ActionExecutor {
 
         Instant now = now();
         String by = scope.principal().id();
-        Audit audit =
-            new Audit(current.audit().createdAt(), current.audit().createdBy(), now, by);
-        BusinessObject candidate =
-            new BusinessObject(
+        Audit audit = new Audit(current.audit().createdAt(), current.audit().createdBy(), now, by);
+        BusinessObject candidate = new BusinessObject(
                 objectId,
                 current.type(),
                 current.tenant(),
@@ -116,15 +111,13 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 audit,
                 false);
 
-        OutboxEntry outboxEntry =
-            new OutboxEntry(
+        OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
                 OutboxEntry.KIND_OBJECT_UPDATED,
-                outboxPayload(objectId, current.version() + 1, current.type().iri()),
+                outboxPayload(objectId, current.version() + 1, current.type().iri(), entry),
                 now);
         ChangeSet changeSet =
-            new ChangeSet(
-                List.<Mutation>of(new Update(candidate, current.version())), List.of(outboxEntry));
+                new ChangeSet(List.<Mutation>of(new Update(candidate, current.version())), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
 
@@ -157,8 +150,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
 
         Instant now = now();
         String by = scope.principal().id();
-        BusinessObject candidate =
-            new BusinessObject(
+        BusinessObject candidate = new BusinessObject(
                 newId,
                 new TypeRef(createType),
                 scope.tenantId(),
@@ -168,14 +160,9 @@ public final class DefaultActionExecutor implements ActionExecutor {
                 new Audit(now, by, now, by),
                 false);
 
-        OutboxEntry outboxEntry =
-            new OutboxEntry(
-                UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_CREATED,
-                outboxPayload(newId, 1L, createType),
-                now);
-        ChangeSet changeSet =
-            new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
+        OutboxEntry outboxEntry = new OutboxEntry(
+                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, outboxPayload(newId, 1L, createType, entry), now);
+        ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
         objectStorePort.commit(scope, changeSet);
     }
 
@@ -188,8 +175,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
         ExpressionContext context = buildContext(payload);
         String url = expressionPort.renderTemplate((String) payload.get("url"), context);
         String method = (String) payload.get("method");
-        Optional<String> body =
-            payload.containsKey("body")
+        Optional<String> body = payload.containsKey("body")
                 ? Optional.of(expressionPort.renderTemplate((String) payload.get("body"), context))
                 : Optional.empty();
         return new ResolvedWebhookRequest(url, method, body);
@@ -245,8 +231,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
      */
     private static ObjectId derivedCreateId(UUID entryId, int actionIndex) {
         return new ObjectId(
-            UUID.nameUUIDFromBytes(
-                (entryId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
+                UUID.nameUUIDFromBytes((entryId.toString() + ":" + actionIndex).getBytes(StandardCharsets.UTF_8)));
     }
 
     /**
@@ -258,12 +243,22 @@ public final class DefaultActionExecutor implements ActionExecutor {
      * DefaultTriggerEvaluator}/{@code DefaultDerivationRecomputer} need the changed object's type
      * from these payloads exactly as much as from those. Without it, a write made by an action
      * (a {@code SetProperty} or {@code CreateObject}) would silently fail to retrigger automation.
+     *
+     * <p>The {@code ontologyVersion} is copied from {@code actionRequest}, the {@code ActionRequest} row
+     * this action was applied from, which carries the version its transition fired under. This
+     * executor reads no ontology snapshot of its own. A row written before the stamp existed has no
+     * version, so the key is left out for it.
      */
-    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri) {
+    private static Map<String, Object> outboxPayload(
+            ObjectId id, long version, String typeIri, OutboxEntry actionRequest) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", id.value().toString());
         payload.put("version", version);
         payload.put("typeIri", typeIri);
+        Object ontologyVersion = actionRequest.payload().get("ontologyVersion");
+        if (ontologyVersion != null) {
+            payload.put("ontologyVersion", ontologyVersion);
+        }
         return payload;
     }
 

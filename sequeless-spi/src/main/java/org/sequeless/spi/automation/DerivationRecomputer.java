@@ -1,7 +1,7 @@
 package org.sequeless.spi.automation;
 
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The inbound port an automation adapter calls back into to keep every materialised derived

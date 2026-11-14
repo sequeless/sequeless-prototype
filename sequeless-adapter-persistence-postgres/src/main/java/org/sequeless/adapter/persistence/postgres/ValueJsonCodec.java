@@ -1,23 +1,22 @@
 package org.sequeless.adapter.persistence.postgres;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.sequeless.spi.object.BoolValue;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -51,8 +50,9 @@ final class ValueJsonCodec {
     // 12.50 is parsed into a DoubleNode and JsonNode#decimalValue() derives a BigDecimal from the
     // double, which silently drops scale (12.50 -> 12.5). With this enabled, decimal(s) parse
     // directly from their JSON literal into a scale-preserving BigDecimalNode.
-    private static final JsonMapper MAPPER =
-        JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
+    private static final JsonMapper MAPPER = JsonMapper.builder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
 
     private ValueJsonCodec() {}
 
@@ -76,8 +76,7 @@ final class ValueJsonCodec {
         Objects.requireNonNull(json, "json must not be null");
         JsonNode root = MAPPER.readTree(json);
         Map<PropertyRef, Value> result = new LinkedHashMap<>();
-        root.properties()
-            .forEach(entry -> result.put(new PropertyRef(entry.getKey()), decode(entry.getValue())));
+        root.properties().forEach(entry -> result.put(new PropertyRef(entry.getKey()), decode(entry.getValue())));
         return result;
     }
 
@@ -88,7 +87,8 @@ final class ValueJsonCodec {
             case IntegerValue integer -> node.put(TAG_INTEGER, integer.value());
             case DecimalValue decimal -> node.put(TAG_DECIMAL, decimal.value());
             case BoolValue bool -> node.put(TAG_BOOL, bool.value());
-            case DateTimeValue dateTime -> node.put(TAG_DATE_TIME, dateTime.value().toString());
+            case DateTimeValue dateTime ->
+                node.put(TAG_DATE_TIME, dateTime.value().toString());
             case DateValue date -> node.put(TAG_DATE, date.value().toString());
             case ReferenceValue ref -> node.put(TAG_REF, ref.target().value().toString());
             case ListValue list -> {

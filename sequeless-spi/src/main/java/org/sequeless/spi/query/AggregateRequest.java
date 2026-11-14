@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.object.ObjectId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.ontology.schema.api.AggregateFunction;
 
 /**
  * A single request to {@link QueryPort#aggregate}: compute one {@link AggregateFunction} over the
@@ -29,18 +29,18 @@ import org.sequeless.spi.object.ObjectId;
  * @param ofPropertyIri the IRI of the source-side property to aggregate, required for every {@link
  *     AggregateFunction} other than {@link AggregateFunction#COUNT}; must not be {@code null} (the
  *     {@link Optional} wrapper itself, not just its contents) — this record does not itself enforce
- *     that coherence, mirroring {@link org.sequeless.spi.meta.RollupRule}'s own disclaimer
+ *     that coherence, mirroring {@code org.sequeless.ontology.behaviour.api.RollupRule}'s own disclaimer
  * @param criteria the filter clauses narrowing which source objects are aggregated, combined with
  *     AND; must not be {@code null}; may be empty; returned as an unmodifiable copy so callers
  *     cannot mutate this request after construction
  */
 public record AggregateRequest(
-    Set<String> sourceTypes,
-    String viaIri,
-    Set<ObjectId> targetIds,
-    AggregateFunction function,
-    Optional<String> ofPropertyIri,
-    List<Criterion> criteria) {
+        Set<String> sourceTypes,
+        String viaIri,
+        Set<ObjectId> targetIds,
+        AggregateFunction function,
+        Optional<String> ofPropertyIri,
+        List<Criterion> criteria) {
 
     public AggregateRequest {
         Objects.requireNonNull(sourceTypes, "sourceTypes must not be null");

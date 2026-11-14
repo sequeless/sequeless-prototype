@@ -1,5 +1,8 @@
 package org.sequeless.adapter.ontology.jena;
 
+import org.sequeless.ontology.jena.JenaOntologyPort;
+import org.sequeless.ontology.jena.JenaOntologySettings;
+import org.sequeless.ontology.jena.ReasonerSetting;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -8,17 +11,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * JenaOntologyAutoConfiguration}'s {@code @ConditionalOnProperty}, not by this class itself), which
  * reasoning level to build the model under ({@link #getReasoner()}), and where the ontology document
  * lives ({@link #getSource()}, passed straight through to {@link
- * JenaOntologyPort#fromSource(String, String, ReasonerSetting)}).
+ * JenaOntologyPort#fromSource(String, String, ReasonerSetting, java.util.function.Supplier)}).
  *
  * <h2>Why {@link ReasonerSetting#OWL} is the default</h2>
  *
  * <p>{@link #reasoner} defaults to {@link ReasonerSetting#OWL} because it is empirically the
  * <em>only</em> one of the three settings that detects the project's inconsistency fixture (see
- * {@code sequeless-spi-testkit}'s {@code inconsistent.ttl} and the adapter's {@code
- * ConsistencyCheckerTest}): {@link ReasonerSetting#RDFS}-only inference has no notion of {@code
- * owl:disjointWith} at all, so the very inconsistency the fixture is built to exercise is invisible
- * to it and it reports the document as valid; {@link ReasonerSetting#NONE} has no reasoner attached
- * to the model whatsoever, so there is nothing to run {@code validate()} against in the first place.
+ * {@code inconsistent.ttl} in {@code ontology-testfixtures} and the {@code ConsistencyCheckerTest}
+ * in sequeless-ontology's {@code ontology-jena-adapter}): {@link ReasonerSetting#RDFS}-only
+ * inference has no notion of {@code owl:disjointWith} at all, so the very inconsistency the fixture
+ * is built to exercise is invisible to it and it reports the document as valid; {@link
+ * ReasonerSetting#NONE} has no reasoner attached to the model whatsoever, so there is nothing to run
+ * {@code validate()} against in the first place.
  * Shipping either of those as the default would mean a freshly started application silently accepts
  * an ontology it should have rejected at startup — defaulting to {@code owl} is what makes "detect
  * an inconsistent ontology" an actual guarantee rather than something that only holds if an operator
@@ -28,7 +32,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class JenaOntologyProperties {
 
     /**
-     * Which {@code OntologyPort} adapter to activate; must equal {@code "jena"} for {@link
+     * Which {@code OntologyAdministration} adapter to activate; must equal {@code "jena"} for {@link
      * JenaOntologyAutoConfiguration} to wire this adapter's bean in at all. Read only by that
      * auto-configuration's {@code @ConditionalOnProperty}, never by this class.
      */
@@ -42,19 +46,20 @@ public class JenaOntologyProperties {
 
     /**
      * The {@code classpath:} or {@code file:} location of the ontology document to load, passed
-     * straight through to {@link JenaOntologyPort#fromSource(String, String, ReasonerSetting)}.
+     * straight through to {@link JenaOntologyPort#fromSource(String, String, ReasonerSetting,
+     * java.util.function.Supplier)}.
      */
     private String source;
 
     /**
-     * @return which {@code OntologyPort} adapter to activate
+     * @return which {@code OntologyAdministration} adapter to activate
      */
     public String getAdapter() {
         return adapter;
     }
 
     /**
-     * @param adapter which {@code OntologyPort} adapter to activate
+     * @param adapter which {@code OntologyAdministration} adapter to activate
      */
     public void setAdapter(String adapter) {
         this.adapter = adapter;
@@ -87,5 +92,16 @@ public class JenaOntologyProperties {
      */
     public void setSource(String source) {
         this.source = source;
+    }
+
+    /**
+     * The reasoner and source this binding holds, as a plain {@link JenaOntologySettings} value. Named
+     * without a {@code get}/{@code is} prefix on purpose, so Spring's binder does not treat it as a
+     * property.
+     *
+     * @return a new settings record holding the current {@link #getReasoner()} and {@link #getSource()}
+     */
+    public JenaOntologySettings settings() {
+        return new JenaOntologySettings(reasoner, source);
     }
 }

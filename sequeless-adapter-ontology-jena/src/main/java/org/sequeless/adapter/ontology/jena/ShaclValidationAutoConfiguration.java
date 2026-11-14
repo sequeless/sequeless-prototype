@@ -1,6 +1,7 @@
 package org.sequeless.adapter.ontology.jena;
 
-import org.sequeless.spi.ontology.OntologyPort;
+import org.sequeless.ontology.api.OntologyAdministration;
+import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -13,19 +14,19 @@ import org.springframework.context.annotation.Bean;
  * @ConditionalOnMissingBean} — see that class's javadoc for why: the application's port registry,
  * not Spring, is what detects an absent or ambiguous port configuration).
  *
- * <p>Requires the Jena {@code OntologyPort} adapter to be active: this adapter's shapes are read
- * from whichever ontology {@link JenaOntologyPort} currently serves (see {@link
- * ShaclValidationPort}'s javadoc), so {@code sequeless.validation.adapter=shacl} without {@code
- * sequeless.ontology.adapter=jena} is a configuration error the {@link #validationPort(OntologyPort)}
- * bean method deliberately fails fast on, rather than silently doing nothing.
+ * <p>Requires the Jena ontology adapter to be active: this adapter's shapes are read from whichever
+ * ontology {@link JenaOntologyPort} currently serves (see {@link ShaclValidationPort}'s javadoc), so
+ * {@code sequeless.validation.adapter=shacl} without {@code sequeless.ontology.adapter=jena} is a
+ * configuration error the {@link #validationPort(OntologyAdministration)} bean method deliberately
+ * fails fast on, rather than silently doing nothing.
  */
 @AutoConfiguration
 @ConditionalOnProperty(name = "sequeless.validation.adapter", havingValue = "shacl")
 public class ShaclValidationAutoConfiguration {
 
     /**
-     * @param ontologyPort the configured {@code OntologyPort} bean, resolved by interface type so
-     *     Spring wires whichever adapter is active; narrowed to the concrete {@link
+     * @param ontologyPort the configured {@code OntologyAdministration} bean, resolved by interface
+     *     type so Spring wires whichever adapter is active; narrowed to the concrete {@link
      *     JenaOntologyPort} inside this method body only, never in this method's public signature —
      *     see {@link ShaclValidationPort}'s javadoc for why that narrowing is necessary
      * @return a {@link ShaclValidationPort} sharing {@code ontologyPort}'s live ontology
@@ -33,10 +34,9 @@ public class ShaclValidationAutoConfiguration {
      *     i.e. {@code sequeless.ontology.adapter} is not {@code jena}
      */
     @Bean
-    public ValidationPort validationPort(OntologyPort ontologyPort) {
+    public ValidationPort validationPort(OntologyAdministration ontologyPort) {
         if (!(ontologyPort instanceof JenaOntologyPort jenaPort)) {
-            throw new IllegalStateException(
-                "sequeless.validation.adapter=shacl requires the Jena OntologyPort adapter "
+            throw new IllegalStateException("sequeless.validation.adapter=shacl requires the Jena ontology adapter "
                     + "(sequeless.ontology.adapter=jena) to be active, sharing its ontology; got "
                     + ontologyPort.getClass());
         }

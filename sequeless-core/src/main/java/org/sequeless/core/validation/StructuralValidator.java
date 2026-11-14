@@ -9,18 +9,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Set;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.validation.Violation;
 
 /**
@@ -36,9 +37,9 @@ import org.sequeless.spi.validation.Violation;
  * impossible to forget at a call site, unlike a boolean flag that could be passed wrong.
  *
  * <p>Stateless utility class (final, private constructor, static methods): it needs an {@link
- * ObjectStorePort} and a {@link Scope}/{@link MetaModelSnapshot} per call but no state across
- * calls, so a static method taking everything as a parameter is simpler than an instantiated class
- * a caller would have to construct and hold purely to call one method on it.
+ * ObjectStorePort} and a {@link Scope}, a {@link Schema} and a {@link Behaviour} per call but no
+ * state across calls, so a static method taking everything as a parameter is simpler than an
+ * instantiated class a caller would have to construct and hold purely to call one method on it.
  */
 public final class StructuralValidator {
 
@@ -51,8 +52,10 @@ public final class StructuralValidator {
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the current meta-model, used to walk relationship target subtypes; must not
-     *     be {@code null}
+     * @param schema the current schema, used to walk relationship target subtypes; must not be
+     *     {@code null}
+     * @param behaviour the current behaviour, used to tell derived properties apart; must not be
+     *     {@code null}
      * @param type the type {@code properties} is being validated against; must not be {@code null}
      * @param properties the coerced properties to validate, keyed by full IRI; must not be {@code
      *     null}
@@ -62,23 +65,23 @@ public final class StructuralValidator {
      * @throws NullPointerException if any argument is {@code null}
      */
     public static List<Violation> validateForCreate(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        TypeDefinition type,
-        Map<PropertyRef, Value> properties,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            Schema schema,
+            Behaviour behaviour,
+            TypeDefinition type,
+            Map<PropertyRef, Value> properties,
+            ObjectStorePort objectStorePort) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
+        Objects.requireNonNull(behaviour, "behaviour must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(properties, "properties must not be null");
         Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
 
         if (type.isAbstract()) {
-            return List.of(
-                new Violation(
-                    "", "Type '" + type.iri() + "' is abstract and cannot be instantiated"));
+            return List.of(new Violation("", "Type '" + type.iri() + "' is abstract and cannot be instantiated"));
         }
-        return validateCommon(scope, snapshot, type, properties, objectStorePort);
+        return validateCommon(scope, schema, behaviour, type, properties, objectStorePort);
     }
 
     /**
@@ -87,8 +90,10 @@ public final class StructuralValidator {
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
-     * @param snapshot the current meta-model, used to walk relationship target subtypes; must not
-     *     be {@code null}
+     * @param schema the current schema, used to walk relationship target subtypes; must not be
+     *     {@code null}
+     * @param behaviour the current behaviour, used to tell derived properties apart; must not be
+     *     {@code null}
      * @param type the type {@code properties} is being validated against; must not be {@code null}
      * @param properties the coerced properties to validate, keyed by full IRI; must not be {@code
      *     null}
@@ -98,45 +103,48 @@ public final class StructuralValidator {
      * @throws NullPointerException if any argument is {@code null}
      */
     public static List<Violation> validateForUpdate(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        TypeDefinition type,
-        Map<PropertyRef, Value> properties,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            Schema schema,
+            Behaviour behaviour,
+            TypeDefinition type,
+            Map<PropertyRef, Value> properties,
+            ObjectStorePort objectStorePort) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
+        Objects.requireNonNull(behaviour, "behaviour must not be null");
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(properties, "properties must not be null");
         Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
 
-        return validateCommon(scope, snapshot, type, properties, objectStorePort);
+        return validateCommon(scope, schema, behaviour, type, properties, objectStorePort);
     }
 
     private static List<Violation> validateCommon(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        TypeDefinition type,
-        Map<PropertyRef, Value> properties,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            Schema schema,
+            Behaviour behaviour,
+            TypeDefinition type,
+            Map<PropertyRef, Value> properties,
+            ObjectStorePort objectStorePort) {
         Map<String, PropertyDefinition> byIri = new HashMap<>();
         for (PropertyDefinition property : type.properties()) {
             byIri.put(property.iri(), property);
         }
 
-        assertNoDerivedPropertyPresent(type, properties, byIri);
+        assertNoDerivedPropertyPresent(type, behaviour, properties, byIri);
 
         List<Violation> violations = new ArrayList<>();
         violations.addAll(validateRequired(type, properties));
         violations.addAll(validateMaxCardinality(properties, byIri));
-        violations.addAll(validateReferences(scope, snapshot, properties, byIri, objectStorePort));
+        violations.addAll(validateReferences(scope, schema, properties, byIri, objectStorePort));
         return violations;
     }
 
     /**
      * Defensive canary, not the primary enforcement mechanism: asserts that no key in the
-     * already-coerced {@code properties} map corresponds to a {@code derivation()}-present property
-     * on {@code type}. {@link ValueCoercer#coerce} already rejects a caller-supplied derived
-     * property outright — coercion is all-or-nothing, so a derived-property violation empties
+     * already-coerced {@code properties} map corresponds to a property on {@code type} that
+     * {@code behaviour} derives. {@link ValueCoercer#coerce} already rejects a caller-supplied
+     * derived property outright — coercion is all-or-nothing, so a derived-property violation empties
      * {@code CoercionResult.properties()} and short-circuits {@code
      * DefaultBusinessObjectService.coerceOrThrow} before this method is ever reached, on both the
      * add and edit paths. This should therefore be unreachable in normal operation; it exists only
@@ -147,35 +155,34 @@ public final class StructuralValidator {
      *     it
      */
     private static void assertNoDerivedPropertyPresent(
-        TypeDefinition type, Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
+            TypeDefinition type,
+            Behaviour behaviour,
+            Map<PropertyRef, Value> properties,
+            Map<String, PropertyDefinition> byIri) {
         for (PropertyRef ref : properties.keySet()) {
             PropertyDefinition property = byIri.get(ref.iri());
-            if (property != null && property.derivation().isPresent()) {
+            if (property != null && behaviour.derivation(property.iri()).isPresent()) {
                 throw new IllegalStateException(
-                    "Derived property '" + property.iri() + "' reached StructuralValidator for type '"
-                        + type.iri() + "' — this should be unreachable; ValueCoercer must reject it "
-                        + "before this point");
+                        "Derived property '" + property.iri() + "' reached StructuralValidator for type '"
+                                + type.iri() + "' — this should be unreachable; ValueCoercer must reject it "
+                                + "before this point");
             }
         }
     }
 
-    private static List<Violation> validateRequired(
-        TypeDefinition type, Map<PropertyRef, Value> properties) {
+    private static List<Violation> validateRequired(TypeDefinition type, Map<PropertyRef, Value> properties) {
         List<Violation> violations = new ArrayList<>();
         for (PropertyDefinition property : type.properties()) {
-            if (property.cardinality().min() >= 1
-                && !properties.containsKey(new PropertyRef(property.iri()))) {
+            if (property.cardinality().min() >= 1 && !properties.containsKey(new PropertyRef(property.iri()))) {
                 violations.add(
-                    new Violation(
-                        property.iri(),
-                        "Property '" + shortName(property.iri()) + "' is required"));
+                        new Violation(property.iri(), "Property '" + shortName(property.iri()) + "' is required"));
             }
         }
         return violations;
     }
 
     private static List<Violation> validateMaxCardinality(
-        Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
+            Map<PropertyRef, Value> properties, Map<String, PropertyDefinition> byIri) {
         List<Violation> violations = new ArrayList<>();
         for (Map.Entry<PropertyRef, Value> entry : properties.entrySet()) {
             PropertyDefinition property = byIri.get(entry.getKey().iri());
@@ -186,24 +193,23 @@ public final class StructuralValidator {
             if (max.isEmpty()) {
                 continue;
             }
-            int actualCount =
-                entry.getValue() instanceof ListValue listValue ? listValue.values().size() : 1;
+            int actualCount = entry.getValue() instanceof ListValue listValue
+                    ? listValue.values().size()
+                    : 1;
             if (actualCount > max.getAsInt()) {
-                violations.add(
-                    new Violation(
-                        property.iri(),
-                        "expected at most " + max.getAsInt() + " value(s), got " + actualCount));
+                violations.add(new Violation(
+                        property.iri(), "expected at most " + max.getAsInt() + " value(s), got " + actualCount));
             }
         }
         return violations;
     }
 
     private static List<Violation> validateReferences(
-        Scope scope,
-        MetaModelSnapshot snapshot,
-        Map<PropertyRef, Value> properties,
-        Map<String, PropertyDefinition> byIri,
-        ObjectStorePort objectStorePort) {
+            Scope scope,
+            Schema schema,
+            Map<PropertyRef, Value> properties,
+            Map<String, PropertyDefinition> byIri,
+            ObjectStorePort objectStorePort) {
         Map<RelationshipDefinition, List<ObjectId>> targetsByProperty = new LinkedHashMap<>();
         Set<ObjectId> allTargetIds = new LinkedHashSet<>();
         for (Map.Entry<PropertyRef, Value> entry : properties.entrySet()) {
@@ -227,25 +233,20 @@ public final class StructuralValidator {
         Map<ObjectId, TypeRef> resolvedTypes = objectStorePort.typesOf(scope, allTargetIds);
 
         List<Violation> violations = new ArrayList<>();
-        for (Map.Entry<RelationshipDefinition, List<ObjectId>> entry :
-            targetsByProperty.entrySet()) {
+        for (Map.Entry<RelationshipDefinition, List<ObjectId>> entry : targetsByProperty.entrySet()) {
             RelationshipDefinition relationship = entry.getKey();
             for (ObjectId id : entry.getValue()) {
                 TypeRef resolvedType = resolvedTypes.get(id);
                 if (resolvedType == null) {
                     violations.add(
-                        new Violation(
-                            relationship.iri(),
-                            "Referenced object " + id.value() + " does not exist"));
+                            new Violation(relationship.iri(), "Referenced object " + id.value() + " does not exist"));
                     continue;
                 }
-                if (!TypeHierarchy.isSubtypeOf(
-                    snapshot, resolvedType.iri(), relationship.targetTypeIri())) {
-                    violations.add(
-                        new Violation(
+                if (!TypeHierarchy.isSubtypeOf(schema, resolvedType.iri(), relationship.targetTypeIri())) {
+                    violations.add(new Violation(
                             relationship.iri(),
-                            "Referenced object " + id.value() + " has type " + resolvedType.iri()
-                                + ", expected " + relationship.targetTypeIri() + " or a subtype"));
+                            "Referenced object " + id.value() + " has type " + resolvedType.iri() + ", expected "
+                                    + relationship.targetTypeIri() + " or a subtype"));
                 }
             }
         }

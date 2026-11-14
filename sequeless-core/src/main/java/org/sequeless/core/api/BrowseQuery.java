@@ -10,7 +10,7 @@ import org.sequeless.spi.object.Page;
  * facet counts — the query shape behind the browse use case (Phase 3, {@code
  * org.sequeless.core.usecase}, out of scope here).
  *
- * <p>Nothing in this record is checked against a {@link org.sequeless.spi.meta.MetaModelSnapshot}:
+ * <p>Nothing in this record is checked against a {@link org.sequeless.ontology.schema.api.Schema}:
  * that resolution — is {@code property} a real property on the type, is {@code operator}
  * applicable to its datatype, is a requested facet actually facetable, and so on — is the
  * responsibility of the use case that consumes a {@code BrowseQuery}, which raises {@link
@@ -27,11 +27,7 @@ import org.sequeless.spi.object.Page;
  *     full IRI; must not be {@code null}; may be empty
  */
 public record BrowseQuery(
-    List<Filter> filters,
-    Optional<String> text,
-    List<SortKey> sorts,
-    Page page,
-    List<String> facets) {
+        List<Filter> filters, Optional<String> text, List<SortKey> sorts, Page page, List<String> facets) {
 
     public BrowseQuery {
         Objects.requireNonNull(filters, "filters must not be null");

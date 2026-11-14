@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.List;
-import org.sequeless.spi.meta.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
 
 /**
  * JSON rendering of a type's {@code sq:StateMachine} ({@link StateMachineDefinition}), nested in
@@ -18,7 +18,4 @@ import org.sequeless.spi.meta.StateMachineDefinition;
  * @param transitions every transition this state machine defines
  */
 public record StateMachineResponse(
-        String iri,
-        List<StateResponse> states,
-        String initialState,
-        List<TransitionSummaryResponse> transitions) {}
+        String iri, List<StateResponse> states, String initialState, List<TransitionSummaryResponse> transitions) {}

@@ -2,8 +2,8 @@ package org.sequeless.adapter.automation.temporal;
 
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The Temporal workflow that durably drives one {@code ObjectCreated}/{@code ObjectUpdated}/{@code
@@ -14,17 +14,17 @@ import org.sequeless.spi.object.OutboxEntry;
  * successful no-op.
  *
  * <p><b>Ordering.</b> {@link ChangeEventWorkflowImpl#run} calls {@link TriggerActivities#recompute}
- * THEN {@link TriggerActivities#onChange}, in that order, for the same reason {@code
- * InProcessAutomationPort} does: {@code ex:ProjectLifecycle}'s {@code autoClose} guard reads a
- * materialised property from stored props, which must already be fresh by the time {@code
- * onChange} evaluates it.
+ * THEN {@link TriggerActivities#onChange}, in that order: {@code ex:ProjectLifecycle}'s {@code
+ * autoClose} guard reads a materialised property from stored props, which must already be fresh by
+ * the time {@code onChange} evaluates it. The outbox relay also runs the recompute before it
+ * dispatches the row, so for the same change this activity's recompute finds nothing to commit
+ * ({@code DefaultDerivationRecomputer} commits only when a value changed).
  *
- * <p><b>Recompute concurrency: RETRY_ONLY only, by design, for this first cut.</b> Unlike {@code
- * InProcessAutomationPort}'s configurable {@code serialize}/{@code coalesce} modes, this workflow
- * always calls {@link TriggerActivities#recompute} directly and unconditionally — relying on
- * {@code DefaultDerivationRecomputer}'s own intra-call {@code StaleObjectException} retry loop
- * (plus Temporal's own activity-level {@code RetryOptions} on top) as the only safety net, exactly
- * like the in-process adapter's {@code RETRY_ONLY} mode. See {@link TemporalAutomationPort}'s
+ * <p><b>Recompute concurrency: one unconditional recompute per change event, by design, for this
+ * first cut.</b> This workflow calls {@link TriggerActivities#recompute} directly, with no per-key
+ * serialization or coalescing, relying on {@code DefaultDerivationRecomputer}'s own intra-call
+ * {@code StaleObjectException} retry loop (plus Temporal's own activity-level {@code RetryOptions}
+ * on top) as the only safety net. See {@link TemporalAutomationPort}'s
  * class javadoc for why {@code serialize}/{@code coalesce} (a per-key {@code RecomputeWorkflow}
  * driven by {@code signalWithStart}) was not attempted this task: correlating "this specific
  * change event's own coalesced recompute has finished" with signal-with-start's fire-and-forget

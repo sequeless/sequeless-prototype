@@ -23,31 +23,37 @@ from its `Task`s, with nothing stored in `props`; a sample plug-in computes `Per
 writing a derived property is a 400 naming it; an unknown plug-in name fails at ontology activation,
 including application startup.
 
-Out of scope (unchanged from the plan): materialised derived values (`sq:materialised` stays
-reserved), filtering or sorting on derived values, state machines, events.
+Out of scope (unchanged from the plan): filtering or sorting on non-materialised derived values, state
+machines, events. Materialised derived values are shipped in phase 6 (DR-08) for `RollupRule` only
+(`sq:materialised true`); a `sq:Plugin` cannot be materialised. See "Known limitations" below and
+`automation.md` §11.
 
 ## SPI shapes
 
-`org.sequeless.spi.meta`:
+`org.sequeless.ontology.behaviour.api` (`AggregateFunction` is in `org.sequeless.ontology.schema.api`):
 
 ```java
-public sealed interface DerivationRule permits RollupRule, PluginRule {}
+public sealed interface DerivationRule permits RollupRule, PluginRule {
+
+    boolean materialised();        // sq:materialised, implemented by each record below
+}
 
 public record RollupRule(
     String sourceTypeIri,          // sq:over
     String viaIri,                 // sq:via — relationship on the source pointing back
     AggregateFunction function,    // sq:function
     Optional<String> ofPropertyIri,// sq:of
-    List<Criterion> criteria)      // sq:filter, already resolved to SPI criteria
+    List<Criterion> criteria,      // sq:filter, already resolved to SPI criteria
+    boolean materialised)          // sq:materialised, declared last (phase 6)
     implements DerivationRule {}
 
-public record PluginRule(String pluginName) implements DerivationRule {}
+public record PluginRule(String pluginName, boolean materialised) implements DerivationRule {}
 
 public enum AggregateFunction { COUNT, SUM, MIN, MAX, AVG }
 ```
 
-`PropertyDefinition.derivation()` is `Optional<DerivationRule>` — unchanged in shape from the
-placeholder that existed before this phase, now actually populated. A property carrying a
+`Behaviour.derivation(propertyIri)` returns `Optional<DerivationRule>`. Before spec 10 the same
+`Optional` was `PropertyDefinition.derivation()`, the placeholder this phase populated. A property carrying a
 derivation is forced `readOnly = true` by `SnapshotMapper` regardless of any `sq:readOnly`
 assertion, so `ValueCoercer`'s existing read-only rejection path covers writes (see "Write
 rejection" below for the more specific message a derived property gets).
@@ -66,7 +72,7 @@ public record AggregateRequest(
 public record AggregateResult(Map<ObjectId, Value> values) {}
 
 // QueryPort gains:
-AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request);
+AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request);
 ```
 
 `AggregateRequest` carries `Set<String> sourceTypes` rather than a single `sourceType` — subtype
@@ -88,7 +94,7 @@ public interface DerivationPlugin {
     String name();
     Map<ObjectId, Value> derive(DerivationContext context, List<BusinessObject> objects);
 }
-public record DerivationContext(Scope scope, MetaModelSnapshot snapshot, QueryPort queryPort) {}
+public record DerivationContext(Scope scope, Schema schema, QueryPort queryPort) {}
 ```
 
 `DerivationPlugin` is the direct `ServiceLoader` service type — no wrapper interface. A plug-in is
@@ -131,10 +137,11 @@ way `ex:status` does on `ex:WorkItem`. `ex:estimatedHours` itself gained `owl:ma
 `ex:Task` in this phase specifically so the Postgres `sum()` below can extract it directly as a bare
 tagged JSONB value (`{"decimal": n}`) rather than unnesting a JSON list.
 
-The plug-in form, shipped only in the testkit's `reference-plugin.ttl` fixture (the production
-`sequeless-app/.../ontology/reference.ttl` deliberately carries no `sq:Plugin`, since the sample
-plug-in lives in `sequeless-spi-testkit`, a test-scope dependency — referencing it from the
-production ontology would fail `spring-boot:run` at startup by design):
+The plug-in form, shipped only in the `reference-plugin.ttl` fixture of sequeless-ontology's
+`ontology-testfixtures` (the production `sequeless-app/.../ontology/reference.ttl` deliberately
+carries no `sq:Plugin`, since the sample plug-in (`WorkloadDerivationPlugin`) lives in
+`sequeless-spi-testkit`, a test-scope dependency — referencing it from the production ontology would
+fail `spring-boot:run` at startup by design):
 
 ```turtle
 ex:workload
@@ -146,11 +153,12 @@ ex:workload
 
 Rule-shape errors (unknown function, missing `sq:over`/`sq:via`, `sq:of` missing for
 `sum`/`min`/`max`/`avg` or present for `count`, `sq:via` not a relationship on the source type, a
-malformed `sq:filter` criterion, an unresolvable `sq:pluginName`, or both `sq:Rollup` and
-`sq:Plugin` on the same node) are ERROR `OntologyIssue`s named on the derived property's own IRI,
-merged into `MappingResult.issues` (renamed from `warnings` in this phase, and now able to carry
-`ERROR` severity) exactly like every other activation error — unknown imports, reserved terms, and
-so on. An unresolved `sq:pluginName` fails with exactly:
+malformed `sq:filter` criterion, a `sq:lt`, `sq:lte`, `sq:gt` or `sq:gte` criterion whose
+`sq:property` is not a number (integer, long, decimal, double) data property, an unresolvable
+`sq:pluginName`, or both `sq:Rollup` and `sq:Plugin` on the same node) are ERROR `OntologyIssue`s
+named on the derived property's own IRI, merged into `MappingResult.issues` (renamed from `warnings`
+in this phase, and now able to carry `ERROR` severity) exactly like every other activation error —
+unknown imports, reserved terms, and so on. An unresolved `sq:pluginName` fails with exactly:
 
 ```
 sq:pluginName 'NAME' has no registered DerivationPlugin on the classpath.
@@ -169,7 +177,7 @@ form activates cleanly under the real reasoner configuration, not just under `re
 `org.sequeless.core.derivation.DerivationPlanner(QueryPort, DerivationPluginRegistry)`:
 
 ```java
-List<BusinessObject> apply(Scope, MetaModelSnapshot, TypeDefinition requestType, List<BusinessObject> objects)
+List<BusinessObject> apply(Scope, Schema, Behaviour, TypeDefinition requestType, List<BusinessObject> objects)
 ```
 
 `read` calls this with a singleton list, so it shares exactly the same code path and the same bound
@@ -211,7 +219,7 @@ self-bounds its own aggregate calls; nothing enforces this for a plug-in author.
 
 One `GROUP BY` per `AggregateRequest`, reusing `PostgresQueryStore`'s existing
 `castExpression(...)`/`criterionSql(...)` helpers (the same ones `query()` already uses to resolve
-property IRIs into JSONB extraction expressions) and its existing `indexProperties(snapshot,
+property IRIs into JSONB extraction expressions) and its existing `indexProperties(schema,
 sourceTypes)` helper to resolve `PropertyDefinition`s for `ofPropertyIri` and every criterion
 property — no new snapshot-walking method was needed:
 
@@ -292,7 +300,7 @@ Nothing is ever present in `props` for a derived property's IRI; browsing or rea
 ```
 
 This is a more specific message than a plain read-only property gets (`"...is read-only"`) —
-`ValueCoercer.coerce` checks `property.derivation().isPresent()` to choose between the two wordings.
+`ValueCoercer.coerce` checks `behaviour.derivation(property.iri()).isPresent()` to choose between the two wordings.
 `StructuralValidator` carries its own defensive canary (`assertNoDerivedPropertyPresent`) guarding
 against a derived IRI ever reaching the store even if `ValueCoercer` were bypassed some other way;
 it is confirmed dead code on every tested path today, since `ValueCoercer`'s all-or-nothing
@@ -300,7 +308,7 @@ coercion always short-circuits first.
 
 ## Known limitations
 
-- **Materialised rollups exist (Phase 6 / DR-11), but only for `RollupRule`.** A rollup marked
+- **Materialised rollups exist (Phase 6 / DR-08), but only for `RollupRule`.** A rollup marked
   `sq:materialised true` is kept correct in `sq_object.props` from domain events — see
   `automation.md` §11 for the full recompute design — but `sq:materialised true` on a `sq:Plugin`
   node is a mapping *error*: a `PluginRule` has no `sourceTypeIri`/`viaIri` a recomputer could use
@@ -317,9 +325,11 @@ coercion always short-circuits first.
   under concurrency and the mechanism that terminates the recompute-triggers-another-recompute
   loop), and retrying the whole read-recompute-commit cycle on a `StaleObjectException` (default 8
   attempts, ~20ms base delay, both configurable — `sequeless.automation.recompute.retry.*`). See
-  `automation.md` §11 for the full design, including the three configurable concurrency modes
-  (`retry-only`/`serialize`/`coalesce`, in-process default `coalesce`) and the Temporal adapter's
-  deliberate `retry-only`-only scope reduction.
+  `automation.md` §11 for the full design. The relay runs the recompute synchronously, before it
+  dispatches the row to the automation port, and each store commit it makes runs in its own
+  `REQUIRES_NEW` transaction when the `sequelessPersistenceDataSource` bean exists. The in-process
+  concurrency modes (`retry-only`, `serialize`, `coalesce`) are gone, and the Temporal adapter has
+  no mode either: its one recompute per change event is a stated scope reduction.
 - **Filtering, sorting, or faceting on a *non*-materialised derived property is now a `400`, not a
   silent no-match.** `Query`/`Criterion`/`Sort`/`facetProperties` still only ever address stored
   properties, but as of Phase 6 naming an unmaterialised derived property on either side of a

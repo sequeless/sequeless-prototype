@@ -3,7 +3,7 @@
 
 Reference domain throughout: **Projects, Tasks, People**. Project has lifecycle Draft, Active,
 OnHold, Closed. Task belongs to one Project and is assigned to one Person. Project has derived
-`openTaskCount` and `totalEstimatedHours`. The reference ontology lives in the SPI testkit so every
+`openTaskCount` and `totalEstimatedHours`. The reference ontology lives in sequeless-ontology's `ontology-testfixtures` so every
 adapter is tested against the same fixture.
 
 | Phase | Goal | Depends on |
@@ -37,7 +37,7 @@ In: `MetaModelSnapshot` records (types, properties, relationships, cardinality, 
 hints, facet and index hints, placeholders for state machine and derivation rules); `sq:` vocabulary
 specification document (`docs/architecture/sq-vocabulary.md`); `OntologyPort`; Jena adapter using
 ontapi and the built-in OWL reasoner, selectable via `sequeless.ontology.reasoner=owl|rdfs|none`;
-Turtle loaded from a configured path or classpath; `OntologyContract` in the testkit; REST `GET
+Turtle loaded from a configured path or classpath; `OntologyContract` in `ontology-testfixtures`; REST `GET
 /api/types` and `GET /api/types/{iri}` returning descriptors with display hints; snapshot caching and reload
 endpoint.
 Out: persistence of the ontology, instances, validation.

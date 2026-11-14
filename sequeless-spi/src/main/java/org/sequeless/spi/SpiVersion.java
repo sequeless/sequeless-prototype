@@ -37,8 +37,7 @@ public final class SpiVersion {
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("^>=(\\d+)\\.(\\d+)\\.(\\d+)$");
 
-    private SpiVersion() {
-    }
+    private SpiVersion() {}
 
     /**
      * Reports whether {@code range} is well-formed according to this SPI's version-range grammar
@@ -68,7 +67,7 @@ public final class SpiVersion {
         Matcher m = RANGE_PATTERN.matcher(Objects.requireNonNull(range, "range must not be null"));
         if (!m.matches()) {
             throw new IllegalArgumentException(
-                "Malformed SPI version range (expected '>=MAJOR.MINOR.PATCH'): " + range);
+                    "Malformed SPI version range (expected '>=MAJOR.MINOR.PATCH'): " + range);
         }
         int reqMajor = Integer.parseInt(m.group(1));
         int reqMinor = Integer.parseInt(m.group(2));

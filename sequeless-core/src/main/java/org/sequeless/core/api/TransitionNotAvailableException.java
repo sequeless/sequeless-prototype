@@ -30,8 +30,7 @@ public final class TransitionNotAvailableException extends RuntimeException {
      */
     public TransitionNotAvailableException(String transitionName, String reason) {
         super(reason);
-        this.transitionName =
-            Objects.requireNonNull(transitionName, "transitionName must not be null");
+        this.transitionName = Objects.requireNonNull(transitionName, "transitionName must not be null");
         this.reason = Objects.requireNonNull(reason, "reason must not be null");
     }
 

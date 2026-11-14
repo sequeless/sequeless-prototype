@@ -7,7 +7,7 @@ package org.sequeless.adapter.automation.inprocess;
  * an {@link java.io.IOException} (the request never reached the server, or its response could not
  * be read) or received a non-2xx HTTP status.
  *
- * <p>Deliberately unchecked, for the same reason {@code org.sequeless.spi.expression.
+ * <p>Deliberately unchecked, for the same reason {@code org.sequeless.expression.api.
  * ExpressionException} is: a delivery failure is a condition the relay that called {@link
  * InProcessAutomationPort#dispatch} is expected to let propagate (and, in a later task, log or
  * surface as a failed outbox row), not a condition every intermediate signature should have to

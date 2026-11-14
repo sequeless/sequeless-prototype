@@ -36,7 +36,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * <p>Extends {@link PostgresTestcontainersSupport} and passes its container's connection details
  * as command-line arguments alongside the {@code sequeless.authz.adapter} override: {@code
  * sequeless.persistence.adapter=postgres} is baked into {@code application.yaml}, and the Jena
- * {@code OntologyPort} bean eagerly loads its active document from that store during bean
+ * {@code JenaOntologyPort} bean eagerly loads its active document from that store during bean
  * construction — in the singleton-creation pass that runs <em>before</em> {@code PortRegistry}'s own
  * checks. Without a reachable Postgres, that eager load would fail first and this test would never
  * reach the {@link PortBindingException} it means to assert on. {@code @DynamicPropertySource} does
@@ -47,22 +47,19 @@ class PortBindingStartupFailureTest extends PostgresTestcontainersSupport {
 
     @Test
     void unknownAdapterNameFailsFastNamingThePropertyAndAvailableAdapters() {
-        assertThatThrownBy(
-                () ->
-                    new SpringApplicationBuilder(SequelessApplication.class)
+        assertThatThrownBy(() -> new SpringApplicationBuilder(SequelessApplication.class)
                         .web(WebApplicationType.NONE)
                         .run(
-                            "--sequeless.authz.adapter=missing",
-                            "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                            "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                            "--sequeless.persistence.password=" + POSTGRES.getPassword()))
-            .satisfies(
-                thrown -> {
+                                "--sequeless.authz.adapter=missing",
+                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
+                .satisfies(thrown -> {
                     PortBindingException cause = findCause(thrown, PortBindingException.class);
                     assertThat(cause).isNotNull();
                     assertThat(cause.getMessage())
-                        .contains("sequeless.authz.adapter")
-                        .contains("permit-all");
+                            .contains("sequeless.authz.adapter")
+                            .contains("permit-all");
                 });
     }
 

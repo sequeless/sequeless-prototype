@@ -30,15 +30,15 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 class JenaOntologyAutoConfigurationTest {
 
     private static final String IMPORTS_RESOURCE =
-        "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
+            "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
     @Test
     void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException {
         List<String> classNames = readNonBlankLines(IMPORTS_RESOURCE);
         assertThat(classNames)
-            .containsExactlyInAnyOrder(
-                JenaOntologyAutoConfiguration.class.getName(),
-                ShaclValidationAutoConfiguration.class.getName());
+                .containsExactlyInAnyOrder(
+                        JenaOntologyAutoConfiguration.class.getName(),
+                        ShaclValidationAutoConfiguration.class.getName());
 
         Class<?> autoConfigurationClass = JenaOntologyAutoConfiguration.class;
 
@@ -48,7 +48,7 @@ class JenaOntologyAutoConfigurationTest {
         assertThat(condition.havingValue()).isEqualTo("jena");
 
         EnableConfigurationProperties propertiesBinding =
-            autoConfigurationClass.getAnnotation(EnableConfigurationProperties.class);
+                autoConfigurationClass.getAnnotation(EnableConfigurationProperties.class);
         assertThat(propertiesBinding).isNotNull();
         assertThat(propertiesBinding.value()).containsExactly(JenaOntologyProperties.class);
     }
@@ -56,8 +56,8 @@ class JenaOntologyAutoConfigurationTest {
     private static List<String> readNonBlankLines(String resource) throws IOException {
         List<String> lines = new ArrayList<>();
         try (InputStream in =
-                JenaOntologyAutoConfigurationTest.class.getClassLoader().getResourceAsStream(resource);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                        JenaOntologyAutoConfigurationTest.class.getClassLoader().getResourceAsStream(resource);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (!line.isBlank()) {

@@ -7,12 +7,12 @@ import java.util.Set;
 import org.sequeless.spi.object.Page;
 
 /**
- * A single request to {@link QueryPort#query}: which types to search, how to filter, sort, and
+ * A single request to {@link BrowsePort#browse}: which types to search, how to filter, sort, and
  * page the results, and which properties to compute facet buckets for.
  *
  * @param types the resolved set of concrete type IRIs to query; the caller (core) expands an
  *     abstract type such as {@code WorkItem} to its concrete subtypes ({@code Task}, {@code
- *     Project}) using the meta-model snapshot's hierarchy before constructing this {@code Query} —
+ *     Project}) using the schema's hierarchy before constructing this {@code Query} —
  *     the port itself never does hierarchy reasoning and never sees an abstract type IRI here;
  *     must not be {@code null}, must not be empty; returned as an unmodifiable copy so callers
  *     cannot mutate this query after construction
@@ -22,7 +22,7 @@ import org.sequeless.spi.object.Page;
  * @param text a free-text search term to match against searchable properties, if any; must not be
  *     {@code null} (the {@link Optional} wrapper itself, not just its contents)
  * @param sorts the ordering clauses to apply, in list order; must not be {@code null}; may be
- *     empty, in which case the default order documented on {@link QueryPort#query} applies;
+ *     empty, in which case the default order documented on {@link BrowsePort#browse} applies;
  *     returned as an unmodifiable copy so callers cannot mutate this query after construction
  * @param page the page of results to return; must not be {@code null}
  * @param facetProperties the property IRIs to compute facet buckets for; must not be {@code null};
@@ -32,13 +32,13 @@ import org.sequeless.spi.object.Page;
  *     pass {@code false}
  */
 public record Query(
-    Set<String> types,
-    List<Criterion> criteria,
-    Optional<String> text,
-    List<Sort> sorts,
-    Page page,
-    List<String> facetProperties,
-    boolean includeDeleted) {
+        Set<String> types,
+        List<Criterion> criteria,
+        Optional<String> text,
+        List<Sort> sorts,
+        Page page,
+        List<String> facetProperties,
+        boolean includeDeleted) {
 
     public Query {
         Objects.requireNonNull(types, "types must not be null");

@@ -19,7 +19,6 @@ public final class PermitAllAdapterDescriptorProvider implements AdapterDescript
 
     @Override
     public AdapterDescriptor descriptor() {
-        return new AdapterDescriptor(
-            "permit-all", AuthorizationPort.class, "sequeless.authz.adapter", ">=0.1.0");
+        return new AdapterDescriptor("permit-all", AuthorizationPort.class, "sequeless.authz.adapter", ">=0.1.0");
     }
 }

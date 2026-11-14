@@ -1,6 +1,6 @@
 # Phase 8 — automation feature: triggers and signals
 
-**Status: not started.** Depends on `core-api` (done), `rdf` (Phase 4, for the trigger-editing
+**Status: done.** Depends on `core-api` (done), `rdf` (Phase 4, for the trigger-editing
 deltas), and `ui-kit` (Phase 5, specifically the state-machine graph).
 
 ## Context
