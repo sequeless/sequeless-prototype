@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
@@ -112,7 +114,8 @@ class InProcessAutomationPortWebhookTest {
                 recorder,
                 properties,
                 triggerEvaluator,
-                new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator));
+                new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator),
+                tenant -> new Automation(new OntologyVersion(1), Map.of()));
     }
 
     private static OutboxEntry webhookEntry() {

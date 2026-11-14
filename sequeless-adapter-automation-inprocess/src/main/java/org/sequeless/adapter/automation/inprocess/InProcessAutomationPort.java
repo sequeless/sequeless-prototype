@@ -7,11 +7,19 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.LogAction;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
@@ -59,8 +67,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that is already
  * fresh. This port makes no recompute call of its own. {@code TimerScheduled}/{@code
  * TimerCancelled} go to {@link InProcessTimerScheduler}, and {@code SignalReceived} to {@link
- * TriggerEvaluator#onSignal}. {@code TransitionFired} is accepted and does nothing: it carries no
- * action or timer yet, so this port records nothing for it.
+ * TriggerEvaluator#onSignal}. {@code TransitionFired} is accepted and does nothing here:
+ * {@link #dispatchTransitionFired} can already apply a fired transition's actions from its own row,
+ * but {@link #dispatch} does not route to it yet, so this port's behaviour for that kind is unchanged.
  */
 public final class InProcessAutomationPort implements AutomationPort {
 
@@ -74,7 +83,15 @@ public final class InProcessAutomationPort implements AutomationPort {
     private final TriggerEvaluator triggerEvaluator;
     private final InProcessTimerScheduler timerScheduler;
     private final HttpClient httpClient;
+    private final AutomationSource automationSource;
     private final Set<UUID> dispatched = ConcurrentHashMap.newKeySet();
+    private final Set<ActionKey> dispatchedActions = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Identifies one action of one {@code TransitionFired} row, for {@link #dispatchTransitionFired}'s
+     * redelivery record. Kept separate from {@link #dispatched}, which is keyed by entry id alone.
+     */
+    private record ActionKey(UUID entryId, int actionIndex) {}
 
     /**
      * @param actionExecutor the {@link ActionExecutor} this port calls back into to actually apply
@@ -84,16 +101,20 @@ public final class InProcessAutomationPort implements AutomationPort {
      *     must not be {@code null}
      * @param timerScheduler the scheduler {@code TimerScheduled}/{@code TimerCancelled} entries are
      *     routed to; must not be {@code null}
+     * @param automationSource the source a {@code TransitionFired} row's actions are read from; must
+     *     not be {@code null}
      */
     public InProcessAutomationPort(
             ActionExecutor actionExecutor,
             InProcessAutomationProperties properties,
             TriggerEvaluator triggerEvaluator,
-            InProcessTimerScheduler timerScheduler) {
+            InProcessTimerScheduler timerScheduler,
+            AutomationSource automationSource) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor, "actionExecutor must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
         this.timerScheduler = Objects.requireNonNull(timerScheduler, "timerScheduler must not be null");
+        this.automationSource = Objects.requireNonNull(automationSource, "automationSource must not be null");
         this.httpClient = HttpClient.newHttpClient();
     }
 
@@ -134,6 +155,57 @@ public final class InProcessAutomationPort implements AutomationPort {
             }
             default ->
                 throw new IllegalArgumentException("Unrecognized ActionRequest payload actionKind: " + actionKind);
+        }
+    }
+
+    /**
+     * Applies each action of a {@code TransitionFired} row, in the automation's order, from the
+     * automation of the ontology version the row was written under. {@link #dispatch} does not reach
+     * this method yet, so for now only a direct call (a test's) runs it.
+     *
+     * <p>Redelivery is recorded per {@code (entry id, action index)}. A {@link LogAction} is recorded
+     * once applied, and a {@link WebhookAction} once its delivery succeeds, so neither repeats on a
+     * retry. A {@code SetProperty} or {@code CreateObject} action is never recorded: its write commits
+     * with the claim transaction and rolls back with it, so it must run again on a retry.
+     *
+     * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or the automation
+     *     is at a different ontology version than the row
+     */
+    void dispatchTransitionFired(Scope scope, OutboxEntry entry) {
+        Map<String, Object> payload = entry.payload();
+        Automation automation = automationSource.automation(scope.tenantId());
+        if (!(payload.get("ontologyVersion") instanceof Number stamp)) {
+            throw new IllegalStateException("TransitionFired row " + entry.id() + " has no ontologyVersion stamp");
+        }
+        int rowOntologyVersion = stamp.intValue();
+        if (automation.ontologyVersion().value() != rowOntologyVersion) {
+            throw new IllegalStateException("Automation is at ontology version "
+                    + automation.ontologyVersion().value()
+                    + " but TransitionFired row "
+                    + entry.id()
+                    + " was written at version "
+                    + rowOntologyVersion);
+        }
+
+        TransitionRef transition =
+                new TransitionRef((String) payload.get("machineIri"), (String) payload.get("fromState"), (String)
+                        payload.get("transitionName"));
+        List<Action> actions = automation.actions(transition);
+        for (int i = 0; i < actions.size(); i++) {
+            ActionKey key = new ActionKey(entry.id(), i);
+            if (dispatchedActions.contains(key)) {
+                continue;
+            }
+            Action action = actions.get(i);
+            if (action instanceof WebhookAction webhook) {
+                deliver(actionExecutor.resolveWebhookAction(scope, entry, webhook, i));
+                dispatchedActions.add(key);
+            } else {
+                actionExecutor.applyAction(scope, entry, action, i);
+                if (action instanceof LogAction) {
+                    dispatchedActions.add(key);
+                }
+            }
         }
     }
 

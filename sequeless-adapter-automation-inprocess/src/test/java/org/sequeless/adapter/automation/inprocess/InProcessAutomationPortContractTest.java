@@ -7,10 +7,13 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
@@ -63,7 +66,11 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
     private final InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
     private final AutomationPort port = new InProcessAutomationPort(
-            recorder, new InProcessAutomationProperties(), triggerEvaluator, timerScheduler);
+            recorder,
+            new InProcessAutomationProperties(),
+            triggerEvaluator,
+            timerScheduler,
+            tenant -> new Automation(new OntologyVersion(1), Map.of()));
 
     @Override
     protected AutomationPort port() {
