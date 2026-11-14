@@ -210,6 +210,7 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 - **5-ontology-q4**: the fix is merged as sequeless-ontology #15 (`10f5a57`). Still open: release PR #16 (blocked on owner CI approval), then the sequeless-build BOM update to ontology 0.1.1 and its release, the bom-contracts import, and the prototype BOM bump with the JDK 25 gate. The owner decision is (viii) in remaining-work.md.
 - **6-tracker-final**: this commit.
 - Held: P2, P3, P4 and P5b on O-3 and O-4 (owner checks, unanswered). Specs 14 to 19 wait on spec 13.
+- **Update 2026-11-14, step 5 is done.** The Q4 chain is complete: sequeless-ontology #15 (`10f5a57`, the fix) and #16 (`4a63388`, the release, admin rebase) are merged; ontology-jena-adapter 0.1.1 is published (tag `ontology-jena-adapter-v0.1.1`); sequeless-build #52 (the BOM lists ontology-jena-adapter 0.1.1), #53 (release sequeless-bom 0.1.5) and #54 (bom-contracts import of 0.1.5) are merged; prototype #152 (the BOM import of 0.1.5 and the OWL rollup test alignment) is merged. sequeless-ontology #17 (`28e0a2e`, a javadoc fix) was merged on its own and is not a step of the chain. sequeless-ontology #18, a separate docs-only release of ontology-jena-adapter 0.1.2, was merged on 2026-11-14 as `67b91af` (see section 15). It is not part of step 5.
 
 ## 14. Progress after #140 to #143 (recorded 2026-11-13)
 
@@ -222,6 +223,33 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 - Partial index sq_outbox_unprocessed_dispatchable_idx (V5): predicate kind IN (8 kinds) AND processed_at IS NULL. A dead-lettered row keeps processed_at NULL, so it stays in the index at the head of occurred_at order. The claim query already filters dead_lettered_at IS NULL, so the cost is a few wasted index entries per claim, not a correctness gap. Branch spec-13-dead-letter-index-v8 (commits b838237 and 6cf5938) adds migration V8 that adds AND dead_lettered_at IS NULL; the gate is green and Opus approved it. HELD, Navigator decision 2026-11-13 (option C): do not merge until the owner has run O-3 on the non-dev databases and chosen a window. Reason: V8 is DROP INDEX then CREATE INDEX in one transaction, run at app start by PostgresMigratingDataSource, so it takes an ACCESS EXCLUSIVE lock on sq_outbox that blocks reads and every claim for the build time, which grows with the table (processed rows are never deleted). No CONCURRENTLY precedent exists in the repo; the lock-free route needs the Flyway non-transactional marker in V8, a small additive change to re-review.
 - Migration V8 timing, owner decision (ix) in remaining-work.md: branch `spec-13-dead-letter-index-v8` (commits b838237 and 6cf5938) is pushed to origin with no PR, and is held, not merged. Checked 2026-11-13 with `gh pr list --head` (no PR in any state).
 - Navigator sessions of the earlier plans have ended and must not be resumed (sections 7, 12 and 13 name them). Navigator session `08e650684ebf42cd99de1f1fe99a026f` was alive when this section was written.
-- New open items, recorded in remaining-work.md on 2026-11-13: the DR-11 misattribution (automation.md, derived-properties.md, sq-vocabulary.md, sequeless-app/src/main/resources/ontology/reference.ttl:251; sequeless-ui/projects/rdf/src/testing/reference-ttl.ts:2 (generated from reference.ttl; regenerate, do not edit by hand)); the `KIND_TRANSITION_FIRED` javadoc in `OutboxEntry.java`; the BrowseContract coverage gaps; the decode-failure scope wording; and the Q4 release chain. Each is docs-only or needs its own PR.
-- Next session starts by asking the owner for three things: the O-3 result on each non-dev database, the O-4 result, and owner decision (viii) on sequeless-ontology #16 CI. Nothing else is unblocked.
-- Do not approve any CI run. Do not merge sequeless-kernel #12. Do not touch PR #106 (draft, do not merge).
+- New open items, recorded in remaining-work.md on 2026-11-13: the DR-11 misattribution (automation.md, derived-properties.md, sq-vocabulary.md, sequeless-app/src/main/resources/ontology/reference.ttl:251; sequeless-ui/projects/rdf/src/testing/reference-ttl.ts:2 (a byte-copy of reference.ttl; hand-maintained, see the coupled-sites item below)); the `KIND_TRANSITION_FIRED` javadoc in `OutboxEntry.java`; the BrowseContract coverage gaps; the decode-failure scope wording; and the Q4 release chain. Each is docs-only or needs its own PR.
+- Next session starts by asking the owner for the items listed in section 15. This replaces the 2026-11-13 ask about owner decision (viii) on sequeless-ontology #16 CI, which is obsolete: #16 merged as `4a63388`.
+- Do not approve any CI run. Do not merge sequeless-kernel #12. Do not touch PR #106 (draft, do not merge). (Updated 2026-11-14: kernel #12 is already merged as `11a92be`; see section 15.)
+
+## 15. Handoff recorded 2026-11-14
+
+- Checked against origin/main `79bdab1`. Read the tracker with `git show origin/main:...`, because a local checkout can be behind main.
+- No code step is unblocked. The held items are:
+  - P2, P3, P4 and P5b: held on O-3 and O-4.
+  - V8 index migration: held on owner decision (ix), the window.
+  - DR-11 coupled sites (`sequeless-app/src/main/resources/ontology/reference.ttl` line 251 and `sequeless-ui/projects/rdf/src/testing/reference-ttl.ts` line 2): blocked on an ontology-testfixtures release that carries the corrected bytes.
+  - `codeql.yml` `packages: read`: waits until its workflows pin moves.
+  - Mockito 5.14.2 bump in sequeless-ontology (remaining-work.md, the Mockito item): waits for the first Mockito test in that repo.
+  - Specs 14 to 19: wait on spec 13.
+- Owner asks for the next session:
+  1. The O-3 result on each non-dev database (the query is in section 14).
+  2. The O-4 result (the running Temporal workflow check is in section 14).
+  3. The V8 window, owner decision (ix).
+  4. Optional: an owner check of the GitHub Packages listing for `ontology-jena-adapter` 0.1.2. This run's token cannot read packages, so the listing is unchecked. The tag and release run are checked (see below).
+  5. Confirm whether the expression-jexl-adapter 0.1.2 gap is moot now that 0.1.3 is released (remaining-work.md, the #21 item). This is not blocking.
+- Done since section 14: sequeless-ontology #18 (docs-only release of ontology-jena-adapter 0.1.2) is merged as `67b91af` (2026-11-14T01:17:36Z). It was an admin rebase pinned to head `a596a17`, update rule only, all four checks green, under the Navigator's decision for this run. Its CI run `43519358243` (attempt 2) was triggered by bbartolome, and its checks passed. Release run `43539704411` succeeded, and tag `ontology-jena-adapter-v0.1.2` exists.
+- Closed since section 14: sequeless-kernel #16 is CLOSED and was not merged (2026-11-13T21:01:56Z). Its close-or-refresh question is answered. remaining-work.md (the kernel #16 hazard and the kernel release gap item) now says so.
+- Open, not held, and not started: the `ci.yml` pin at `workflows-v0.1.0` (remaining-work.md, the workflow pins item). No Renovate PR is open for it.
+- The Navigator session that set this plan is `3731b1f872a54a4ab1050a6bbaa558ef` (2026-11-14). Do not resume it.
+- Guardrails:
+  - Do not approve any CI run.
+  - sequeless-kernel #12 is merged (`11a92be`, 2026-11-13, by bbartolome). Before merging any kernel release PR, check that its label is `autorelease: pending`, not `autorelease: snapshot` (remaining-work.md, Open items, the kernel release gap item).
+  - Do not touch PR #106.
+  - PR #137 (draft, branch `docs/sequeless-explained-ste`, "docs: add Sequeless explanation") was CLOSED by bbartolome at 2026-11-14T01:09:00Z. The handoff run did not close it. Do not reopen it without the user's say-so.
+  - `--admin` only for the update rule, with each use recorded (remaining-work.md, Merge rules).
