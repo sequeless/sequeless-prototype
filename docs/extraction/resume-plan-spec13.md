@@ -229,23 +229,22 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
 
 ## 15. Handoff recorded 2026-11-14
 
-- Checked against origin/main `79bdab1`. Read the tracker with `git show origin/main:...`, because a local checkout can be behind main.
+- Checked against origin/main `7b168e6` (2026-11-14). Read the tracker with `git show origin/main:...`, because a local checkout can be behind main.
 - No code step is unblocked. The held items are:
   - P2, P3, P4 and P5b: held on O-3 and O-4.
   - V8 index migration: held on owner decision (ix), the window.
   - DR-11 coupled sites (`sequeless-app/src/main/resources/ontology/reference.ttl` line 251 and `sequeless-ui/projects/rdf/src/testing/reference-ttl.ts` line 2): blocked on an ontology-testfixtures release that carries the corrected bytes.
-  - `codeql.yml` `packages: read`: waits until its workflows pin moves.
   - Mockito 5.14.2 bump in sequeless-ontology (remaining-work.md, the Mockito item): waits for the first Mockito test in that repo.
   - Specs 14 to 19: wait on spec 13.
 - Owner asks for the next session:
-  1. The O-3 result on each non-dev database (the query is in section 14).
-  2. The O-4 result (the running Temporal workflow check is in section 14).
+  1. O-3: answered by the owner on 2026-11-14. There are no non-dev databases, so no non-dev unprocessed rows exist.
+  2. O-4: answered by the owner on 2026-11-14. The dev Temporal volumes sequeless-prototype-ui_sequeless-temporal and ui-kit_sequeless-temporal were cleared, and the stopped container ui-kit-temporal-1 was removed. No sequeless-prototype dev Temporal volume existed before.
   3. The V8 window, owner decision (ix).
   4. Optional: an owner check of the GitHub Packages listing for `ontology-jena-adapter` 0.1.2. This run's token cannot read packages, so the listing is unchecked. The tag and release run are checked (see below).
   5. Confirm whether the expression-jexl-adapter 0.1.2 gap is moot now that 0.1.3 is released (remaining-work.md, the #21 item). This is not blocking.
 - Done since section 14: sequeless-ontology #18 (docs-only release of ontology-jena-adapter 0.1.2) is merged as `67b91af` (2026-11-14T01:17:36Z). It was an admin rebase pinned to head `a596a17`, update rule only, all four checks green, under the Navigator's decision for this run. Its CI run `43519358243` (attempt 2) was triggered by bbartolome, and its checks passed. Release run `43539704411` succeeded, and tag `ontology-jena-adapter-v0.1.2` exists.
 - Closed since section 14: sequeless-kernel #16 is CLOSED and was not merged (2026-11-13T21:01:56Z). Its close-or-refresh question is answered. remaining-work.md (the kernel #16 hazard and the kernel release gap item) now says so.
-- Open, not held, and not started: the `ci.yml` pin at `workflows-v0.1.0` (remaining-work.md, the workflow pins item). No Renovate PR is open for it.
+- Done 2026-11-14: the `ci.yml` pin is at `workflows-v0.1.3`, and `codeql.yml` is at `workflows-v0.1.3` with `packages: read`, in the ci-pins PR that carries this section. No Renovate PR is open for either pin.
 - The Navigator session that set this plan is `3731b1f872a54a4ab1050a6bbaa558ef` (2026-11-14). Do not resume it.
 - Guardrails:
   - Do not approve any CI run.
