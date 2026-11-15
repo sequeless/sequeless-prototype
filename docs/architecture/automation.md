@@ -117,8 +117,8 @@ principal — is baked into the payload the moment the transition commits. A Tem
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
 `self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
 re-read" a design property rather than an incidental optimization — `ActionExecutor`'s four
-methods need nothing beyond the frozen payload to do their job, confirmed by a test that feeds a
-real `DefaultTransitionService.fire(...)` call's genuine `OutboxEntry` list straight into
+ActionRequest methods need nothing beyond the frozen payload to do their job, confirmed by a test
+that feeds a real `DefaultTransitionService.fire(...)` call's genuine `OutboxEntry` list straight into
 `DefaultActionExecutor`.
 
 ## 3. `OutboxRelay`
@@ -200,10 +200,11 @@ processed as soon as the `ActionWorkflow` execution durably **starts**, not when
 `ActionWorkflow` (`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry)`) takes the
 raw `OutboxEntry` as its workflow input with no bespoke DTO — it's a plain record of
 JSON-compatible types, which Temporal's default Jackson-based `DataConverter` round-trips natively.
-`ActionWorkflowImpl.execute` reads `payload.actionKind` and calls exactly one of
-`ActionActivities`' four methods (`applySetProperty`/`applyCreateObject`/`applyLog`, thin
-pass-throughs to `ActionExecutor`, or `executeWebhook`, which additionally performs the real HTTP
-call and throws `WebhookActivityException` on a non-2xx status or transport failure).
+`ActionWorkflowImpl.execute` reads `payload.actionKind` and calls exactly one of the four
+ActionRequest activity methods of `ActionActivities` (`applySetProperty`/`applyCreateObject`/
+`applyLog`, thin pass-throughs to `ActionExecutor`, or `executeWebhook`, which additionally performs
+the real HTTP call and throws `WebhookActivityException` on a non-2xx status or transport failure).
+`applyTransitionAction` is the fifth; `ActionWorkflowImpl` never calls it.
 
 Retries are Temporal's own, not a hand-rolled loop: `ActionActivitiesImpl.executeWebhook`
 deliberately does **not** retry — it throws once, letting Temporal's `RetryOptions` (attached to
@@ -211,7 +212,7 @@ the `ActivityOptions` every activity stub is built with) retry the whole activit
 policy is bound from `sequeless.automation.temporal.retry.*`
 (`TemporalAutomationProperties.Retry`): `initial-interval` (default **1s**), `backoff-coefficient`
 (default **2.0**), `maximum-attempts` (default **5**, including the first attempt) — applied
-uniformly to all four activities. This is the exact mechanism a "500, 500, 500, 200" acceptance
+uniformly to all five activity methods. This is the exact mechanism a "500, 500, 500, 200" acceptance
 test exercises.
 
 **Genuine Temporal SDK constraint worth knowing before touching this wiring.** Temporal

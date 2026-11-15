@@ -62,7 +62,7 @@ public class TemporalAutomationProperties {
 
     /**
      * The {@code sequeless.automation.temporal.retry.*} sub-namespace, mapped onto {@link
-     * io.temporal.common.RetryOptions} and applied uniformly to all four {@link ActionActivities}
+     * io.temporal.common.RetryOptions} and applied uniformly to all five {@link ActionActivities}
      * methods via the {@link io.temporal.activity.ActivityOptions} {@link
      * TemporalAutomationAutoConfiguration} builds.
      */
