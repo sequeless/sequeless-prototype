@@ -159,10 +159,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         triggerEvaluatorHolder.setDelegate(triggerRecorder);
         recomputerRecorder = new RecordingDerivationRecomputer();
         derivationRecomputerHolder.setDelegate(recomputerRecorder);
-    }
-
-    @BeforeEach
-    void resetAutomationSource() {
         SwappableAutomationSource.reset();
     }
 
