@@ -1,0 +1,19 @@
+name: CodeQL
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 5 * * 1'
+
+permissions:
+  contents: read
+  packages: read
+  security-events: write
+
+jobs:
+  codeql:
+    uses: sequeless/sequeless-build/.github/workflows/maven-codeql.yml@workflows-v0.1.3
+    with:
+      languages: '["actions","java-kotlin","javascript-typescript"]'
+    secrets: inherit

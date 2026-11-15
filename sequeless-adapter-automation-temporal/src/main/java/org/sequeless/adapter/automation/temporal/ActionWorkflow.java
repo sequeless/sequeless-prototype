@@ -2,7 +2,7 @@ package org.sequeless.adapter.automation.temporal;
 
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The Temporal workflow that durably drives one {@code ActionRequest} outbox entry's action to
@@ -21,9 +21,10 @@ import org.sequeless.spi.object.OutboxEntry;
 public interface ActionWorkflow {
 
     /**
-     * Reads {@code entry.payload()}'s {@code actionKind} and dispatches to exactly one of {@link
-     * ActionActivities}' four methods, having first reconstructed a {@link org.sequeless.spi.Scope}
-     * from the payload's own {@code tenantId}/{@code principalId} fields.
+     * Reads {@code entry.payload()}'s {@code actionKind} and dispatches to exactly one of the four
+     * ActionRequest activity methods of {@link ActionActivities}; {@code applyTransitionAction} is the
+     * fifth. Before dispatching, it reconstructs a {@link org.sequeless.kernel.identity.Scope} from the
+     * payload's own {@code tenantId}/{@code principalId} fields.
      *
      * @param entry the {@code ActionRequest}-kind outbox entry describing the action to run
      */

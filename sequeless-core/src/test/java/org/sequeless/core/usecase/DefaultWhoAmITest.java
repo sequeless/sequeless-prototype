@@ -10,9 +10,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.WhoAmIResult;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
@@ -28,8 +28,7 @@ import org.sequeless.spi.authz.Operation;
  */
 class DefaultWhoAmITest {
 
-    private static final Scope SCOPE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope SCOPE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     @Test
     void whoAmIEchoesScopeTenantAndPrincipalOnPermit() {
@@ -49,8 +48,8 @@ class DefaultWhoAmITest {
         DefaultWhoAmI whoAmI = new DefaultWhoAmI((scope, operation, resource) -> denial);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> whoAmI.whoAmI(SCOPE))
-            .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
+                .isThrownBy(() -> whoAmI.whoAmI(SCOPE))
+                .satisfies(exception -> assertThat(exception.decision()).isEqualTo(denial));
     }
 
     @Test
@@ -58,14 +57,12 @@ class DefaultWhoAmITest {
         List<Scope> capturedScopes = new ArrayList<>();
         List<Operation> capturedOperations = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        DefaultWhoAmI whoAmI =
-            new DefaultWhoAmI(
-                (scope, operation, resource) -> {
-                    capturedScopes.add(scope);
-                    capturedOperations.add(operation);
-                    capturedResources.add(resource);
-                    return AccessDecision.permit("ok");
-                });
+        DefaultWhoAmI whoAmI = new DefaultWhoAmI((scope, operation, resource) -> {
+            capturedScopes.add(scope);
+            capturedOperations.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        });
 
         whoAmI.whoAmI(SCOPE);
 

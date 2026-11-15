@@ -13,7 +13,6 @@ package org.sequeless.app.rest;
 final class PreconditionMismatchException extends RuntimeException {
 
     PreconditionMismatchException(long bodyVersion, long ifMatchVersion) {
-        super(
-                "Body version " + bodyVersion + " does not match If-Match version " + ifMatchVersion);
+        super("Body version " + bodyVersion + " does not match If-Match version " + ifMatchVersion);
     }
 }

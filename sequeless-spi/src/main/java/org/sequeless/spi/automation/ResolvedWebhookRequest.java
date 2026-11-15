@@ -6,7 +6,7 @@ import java.util.Optional;
 /**
  * The fully-rendered HTTP request a {@code sq:Webhook} action describes, as handed back by {@link
  * ActionExecutor#resolveWebhook}: {@code url} and {@code body}'s {@code ${expr}} placeholders have
- * already been substituted via the {@link org.sequeless.spi.expression.ExpressionPort}, and {@code
+ * already been substituted via the {@code org.sequeless.expression.api.ExpressionPort}, and {@code
  * method} is the literal HTTP verb. This record carries no HTTP I/O of its own — resolving the
  * request and actually issuing it are deliberately separate steps, so the calling automation
  * adapter (the in-process relay, or a Temporal activity) owns the HTTP call, its retry policy, and

@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.List;
-import org.sequeless.spi.ontology.ImportReport;
+import org.sequeless.ontology.api.ImportReport;
 
 /**
  * JSON response body rendered from an {@link ImportReport} — the body of {@code POST /ontology} on
@@ -12,7 +12,7 @@ import org.sequeless.spi.ontology.ImportReport;
  *
  * @param accepted whether the imported document was applied; always {@code true} when this type is
  *     rendered at all, per {@link ImportReport}'s own contract
- * @param typeCount the number of types in the resulting snapshot
+ * @param typeCount the number of types in the resulting schema
  * @param consistent whether the resulting ontology is consistent; always {@code true} here, for the
  *     same reason {@code accepted} is
  * @param issues the issues found while validating the imported ontology (warnings only, since an
@@ -23,7 +23,7 @@ public record OntologyImportResponse(
 
     /**
      * Maps a core {@link ImportReport} onto its wire representation, reusing {@link
-     * OntologyReportResponse}'s own rendering of {@link org.sequeless.spi.ontology.OntologyReport}
+     * OntologyReportResponse}'s own rendering of {@link org.sequeless.ontology.api.OntologyReport}
      * rather than duplicating it.
      *
      * @param report the report to map; must not be {@code null}

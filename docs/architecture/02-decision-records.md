@@ -16,8 +16,9 @@ only. Consequences: all storage, validation and API paths are generic. Reversibi
 
 ### DR-03 OWL ontology is the runtime meta-model, behind a port
 Context: user chose OWL as the core; hexagonal principle forbids Jena in the core. Decision: the OWL
-ontology plus `sq:` vocabulary is the source of truth; the core consumes a `MetaModelSnapshot`
-through `OntologyPort`; no Jena type crosses the SPI. Alternatives: internal model with OWL as an
+ontology plus `sq:` vocabulary is the source of truth; the core consumes the `Schema`, `Behaviour`
+and `Automation` records through the read ports `SchemaSource`, `BehaviourSource` and
+`AutomationSource`; no Jena type crosses the SPI. Alternatives: internal model with OWL as an
 export adapter; core using Jena directly. Consequences: a mapping layer and a custom vocabulary to
 maintain; open-world reasoning stays in the adapter; closed-world validation via SHACL and structural
 checks. Reversibility: moderate.
@@ -114,4 +115,48 @@ The shell adds automation to a route only when that route loads (`app.routes.ts`
 Decision: TypeScript wire models are hand-written, not OpenAPI-generated, for two reasons recorded in
 `docs/specs/phase-3-core-api.md` (Wire models, lines 54-60): `PropertyResponse` is a sealed interface with a
 plain `kind` discriminator that springdoc flattens, so a generator loses the discriminated union; and the
-`filter[x][y]` family is inexpressible in OpenAPI (`docs/architecture/query-port.md:341-347`). Reversibility: moderate.
+`filter[x][y]` family is inexpressible in OpenAPI (`docs/architecture/query-port.md:341-348`). Reversibility: moderate.
+
+### DR-21 Browse result order and id order
+Context: `BrowsePort` promised a `(createdAt, id)` order but not how ids compare. PostgreSQL orders
+`uuid` as unsigned bytes (checked on 18.6); `InMemoryBrowsePort` used the signed `UUID.compareTo`, so
+the two disagreed on half of random id pairs, unseen because no contract test had a tie. Decision: ids,
+and relationship values used as sort keys, compare in unsigned byte order of the 16-byte UUID
+(lowercase canonical-string order). Explicit sorts tie-break by `id`; text search by relevance, then
+`createdAt`, then `id`; the default is `createdAt`, then `id`. Missing values sort last ascending and
+first descending. `createdAt` compares as stored, at the adapter's precision. `BrowseContract` pins each
+tie-break with fixed ids. Alternatives: Java signed order (a non-native PostgreSQL `ORDER BY`); an
+unspecified id order (the contract cannot pin ties, so the double and PostgreSQL can disagree); an order per adapter (the double stops
+standing in for PostgreSQL). Consequences: PostgreSQL is unchanged; a keyword sort on the id string, as
+an OpenSearch store would use, agrees; no decision is recorded for OpenSearch; facet bucket order is not
+covered. Reversibility: easy.
+
+### DR-22 Facet bucket order
+Context: DR-21 left facet bucket order uncovered. The scalar facet `ORDER BY` had no tie-break, the
+reference facet had no tie-break and no null-key filter, and the in-memory double sorted ties by Java
+String order. Decision: buckets sort by count descending, then by bucket value in Unicode code point
+order. PostgreSQL uses `COLLATE "C"` (UTF-8 byte order, which equals code point order). Null bucket keys
+are excluded in both facets. The in-memory double compares by code point. Alternatives: (a) the database
+collation, which orders mixed-case values differently from the double; (b) an id-based key, which does not
+apply to scalar buckets and matches neither the double nor the label. Consequences: a target with no label
+no longer makes browse throw; it adds no bucket. The scalar and reference facets agree; the double and
+PostgreSQL agree for all code points. Reversibility: easy (query and test-double change only).
+
+### DR-23 Relay dead-letter after three failed dispatches
+Context: under B2 route 1 (resume plan spec 13, section 3), a row whose dispatch fails is left unprocessed
+and retried, so a permanently failing row blocks every row behind it. `OutboxRelay` recorded this as an
+accepted limitation with no dead-letter. `sq_outbox.attempts` is write-only, so it cannot count failures.
+Decision: B2 route 1 changes from "fail and retry" to "three failed dispatches, then dead-letter". Three V7
+columns (`fail_count`, `dead_lettered_at` and `error`) are added to `sq_outbox`. A failed dispatch rolls back its claim, then increments
+`fail_count` in its own transaction; the third failure stamps `dead_lettered_at` and `error` in that
+transaction. A payload that fails to decode counts as a failed dispatch, with the same threshold. The claim query skips dead-lettered rows, so the queue continues. A dead-lettered row keeps
+`processed_at` NULL. Alternatives: skip-ahead, where the claim moves past a failing row (the row is silently
+lost); a separate dead-letter table (the row leaves `sq_outbox`, so O-3's count no longer sees it); set
+`processed_at` on failure (silently removes the row from the O-3 count).
+Consequences: O-3's command still counts dead-lettered rows as unprocessed, so the kind-removal gate sees
+them. The P2 to P4 plans must drain or resolve dead-lettered rows before their kinds leave the outbox. A
+stamp mismatch under B2 that throws in dispatch now dead-letters after three tries instead of blocking the
+queue. The main cost: during a systemic failure (for example, the Temporal server being down), the oldest
+row fails on every poll, so a healthy row is dead-lettered every three polls. Nothing retries a
+dead-lettered row; recovery is manual: reset `dead_lettered_at`, `fail_count` and `error`.
+Reversibility: moderate (three V7 columns are added; the claim query changes).

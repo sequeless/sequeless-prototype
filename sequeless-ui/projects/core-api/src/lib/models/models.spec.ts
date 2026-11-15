@@ -45,7 +45,7 @@ const REF = 'https://sequeless.dev/ns/ref#';
 
 describe('core-api wire models', () => {
   describe('string unions', () => {
-    it('Datatype is exactly the eleven org.sequeless.spi.meta.Datatype enum names', () => {
+    it('Datatype is exactly the eleven org.sequeless.ontology.schema.api.Datatype enum names', () => {
       expectTypeOf<Datatype>().toEqualTypeOf<
         | 'STRING'
         | 'BOOLEAN'

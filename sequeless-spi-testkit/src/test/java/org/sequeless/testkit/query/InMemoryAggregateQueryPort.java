@@ -6,31 +6,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
 import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
-import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
 
 /**
  * A minimal {@link QueryPort} test double, existing purely to prove {@link AggregateContract}
- * itself is correct before T7's real Postgres implementation extends it. {@link #query} and
- * {@link #ensureIndexes} are not exercised by {@link AggregateContract} — that is {@link
- * QueryContract}'s job, and this module has no in-memory {@code QueryPort} implementation
- * complete enough to pass that broader contract — so they are left unimplemented here rather than
- * faked into something that would silently pass a contract this double was never meant to satisfy.
+ * itself is correct before the Postgres adapter extends it. {@link QueryPort} holds only aggregation
+ * now: browsing and reads are proven by {@link BrowseContract} and {@link ReadContract}, and index
+ * preparation by its own null-argument test, so this double implements {@link QueryPort#aggregate}
+ * alone and nothing else.
  *
  * <p>{@link #aggregate} is implemented honestly against {@link InMemoryAggregateObjectStorePort}'s
  * {@link InMemoryAggregateObjectStorePort#snapshot(Scope, java.util.Set)}: it reproduces the exact
@@ -49,22 +45,9 @@ final class InMemoryAggregateQueryPort implements QueryPort {
     }
 
     @Override
-    public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
-        throw new UnsupportedOperationException(
-            "query is not exercised by AggregateContract; use QueryContract against a real "
-                + "QueryPort implementation for that surface");
-    }
-
-    @Override
-    public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
-        throw new UnsupportedOperationException(
-            "ensureIndexes is not exercised by AggregateContract");
-    }
-
-    @Override
-    public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+    public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(request, "request must not be null");
 
         List<BusinessObject> sources = store.snapshot(scope, request.sourceTypes());
@@ -82,14 +65,18 @@ final class InMemoryAggregateQueryPort implements QueryPort {
             if (!request.targetIds().contains(reference.target())) {
                 continue;
             }
-            bySource.computeIfAbsent(reference.target(), key -> new java.util.ArrayList<>()).add(source);
+            bySource.computeIfAbsent(reference.target(), key -> new java.util.ArrayList<>())
+                    .add(source);
         }
 
         Map<ObjectId, Value> values = new HashMap<>();
         switch (request.function()) {
             case COUNT -> {
                 for (ObjectId target : request.targetIds()) {
-                    values.put(target, new IntegerValue(bySource.getOrDefault(target, List.of()).size()));
+                    values.put(
+                            target,
+                            new IntegerValue(
+                                    bySource.getOrDefault(target, List.of()).size()));
                 }
             }
             case SUM -> {
@@ -106,16 +93,16 @@ final class InMemoryAggregateQueryPort implements QueryPort {
                 for (Map.Entry<ObjectId, List<BusinessObject>> entry : bySource.entrySet()) {
                     List<BigDecimal> amounts = amountsOf(entry.getValue(), request.ofPropertyIri());
                     amounts.stream()
-                        .min(BigDecimal::compareTo)
-                        .ifPresent(min -> values.put(entry.getKey(), new DecimalValue(min)));
+                            .min(BigDecimal::compareTo)
+                            .ifPresent(min -> values.put(entry.getKey(), new DecimalValue(min)));
                 }
             }
             case MAX -> {
                 for (Map.Entry<ObjectId, List<BusinessObject>> entry : bySource.entrySet()) {
                     List<BigDecimal> amounts = amountsOf(entry.getValue(), request.ofPropertyIri());
                     amounts.stream()
-                        .max(BigDecimal::compareTo)
-                        .ifPresent(max -> values.put(entry.getKey(), new DecimalValue(max)));
+                            .max(BigDecimal::compareTo)
+                            .ifPresent(max -> values.put(entry.getKey(), new DecimalValue(max)));
                 }
             }
             case AVG -> {
@@ -126,7 +113,7 @@ final class InMemoryAggregateQueryPort implements QueryPort {
                     }
                     BigDecimal sum = amounts.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
                     BigDecimal average =
-                        sum.divide(BigDecimal.valueOf(amounts.size()), 10, java.math.RoundingMode.HALF_UP);
+                            sum.divide(BigDecimal.valueOf(amounts.size()), 10, java.math.RoundingMode.HALF_UP);
                     values.put(entry.getKey(), new DecimalValue(average));
                 }
             }
@@ -135,8 +122,7 @@ final class InMemoryAggregateQueryPort implements QueryPort {
     }
 
     private static List<BigDecimal> amountsOf(List<BusinessObject> sources, Optional<String> ofPropertyIri) {
-        String ofIri =
-            ofPropertyIri.orElseThrow(
+        String ofIri = ofPropertyIri.orElseThrow(
                 () -> new IllegalArgumentException("ofPropertyIri required for non-COUNT aggregate"));
         PropertyRef of = new PropertyRef(ofIri);
         List<BigDecimal> amounts = new java.util.ArrayList<>();
@@ -177,8 +163,8 @@ final class InMemoryAggregateQueryPort implements QueryPort {
             case NOT_NULL -> actual != null;
             default ->
                 throw new UnsupportedOperationException(
-                    "Operator " + criterion.operator() + " is not needed by AggregateContract's "
-                        + "scenarios and is not implemented in this test double");
+                        "Operator " + criterion.operator() + " is not needed by AggregateContract's "
+                                + "scenarios and is not implemented in this test double");
         };
     }
 

@@ -5,10 +5,15 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowExecutionAlreadyStarted;
 import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.client.WorkflowOptions;
+import java.util.List;
 import java.util.Objects;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The default, durable {@link AutomationPort} adapter. {@link #dispatch} routes by {@code
@@ -19,8 +24,9 @@ import org.sequeless.spi.object.OutboxEntry;
  * {@code TimerCancelled} signals that same {@code timerKey}'s {@link TimerWorkflow}; {@code
  * SignalReceived} starts a {@link SignalEventWorkflow} keyed by {@code entry.id()}. Every case is
  * fire-and-forget — {@link #dispatch} never waits for a started workflow to complete. {@code
- * TransitionFired} (and any other unrecognised kind) is rejected with {@link
- * IllegalArgumentException}.
+ * TransitionFired} is accepted and starts nothing: its per-action path, {@code
+ * startTransitionFiredActions}, is dormant, and {@link #dispatch} does not reach it yet. Any other
+ * unrecognised kind is rejected with {@link IllegalArgumentException}.
  *
  * <p><b>Idempotency comes from Temporal's own workflow-id semantics, not from any state this class
  * keeps.</b> A second {@link #dispatch} call for an entry (or, for timers, a {@code timerKey})
@@ -29,7 +35,7 @@ import org.sequeless.spi.object.OutboxEntry;
  * org.sequeless.adapter.automation.inprocess.InProcessAutomationPort}, which has to track
  * dispatched ids itself because it has no equivalent durable-engine mechanism to lean on.
  *
- * <p><b>Recompute concurrency is {@code RETRY_ONLY} only, for this first cut.</b> See {@link
+ * <p><b>Recompute concurrency has no serialize or coalesce mode, for this first cut.</b> See {@link
  * ChangeEventWorkflow}'s javadoc for why the plan's full {@code serialize}/{@code coalesce}
  * per-key-{@code RecomputeWorkflow}-via-{@code signalWithStart} design was not attempted, and what
  * would be needed to add it later.
@@ -53,6 +59,7 @@ public final class TemporalAutomationPort implements AutomationPort {
 
     private final WorkflowClient workflowClient;
     private final String taskQueue;
+    private final AutomationSource automationSource;
 
     /**
      * @param workflowClient the Temporal client used to start {@link ActionWorkflow} executions;
@@ -60,10 +67,13 @@ public final class TemporalAutomationPort implements AutomationPort {
      * @param taskQueue the task queue {@link ActionWorkflow} executions are started on, matching
      *     the queue name the worker(s) registered in {@link TemporalAutomationAutoConfiguration}
      *     poll; must not be {@code null}
+     * @param automationSource the {@link AutomationSource} the per-action path reads the automation
+     *     of a {@code TransitionFired} row's ontology version from; must not be {@code null}
      */
-    public TemporalAutomationPort(WorkflowClient workflowClient, String taskQueue) {
+    public TemporalAutomationPort(WorkflowClient workflowClient, String taskQueue, AutomationSource automationSource) {
         this.workflowClient = Objects.requireNonNull(workflowClient, "workflowClient must not be null");
         this.taskQueue = Objects.requireNonNull(taskQueue, "taskQueue must not be null");
+        this.automationSource = Objects.requireNonNull(automationSource, "automationSource must not be null");
     }
 
     @Override
@@ -73,20 +83,19 @@ public final class TemporalAutomationPort implements AutomationPort {
 
         switch (entry.kind()) {
             case OutboxEntry.KIND_ACTION_REQUEST -> startActionWorkflow(entry);
-            case OutboxEntry.KIND_OBJECT_CREATED,
-                OutboxEntry.KIND_OBJECT_UPDATED,
-                OutboxEntry.KIND_OBJECT_DELETED -> startChangeEventWorkflow(scope, entry);
+            case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
+                startChangeEventWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_SCHEDULED -> startTimerWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_CANCELLED -> signalTimerCancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> startSignalEventWorkflow(scope, entry);
-            default -> throw new IllegalArgumentException(
-                "Unsupported OutboxEntry kind for dispatch: " + entry.kind());
+            // Accepted as a no-op: a TransitionFired row carries no action or timer yet.
+            case OutboxEntry.KIND_TRANSITION_FIRED -> {}
+            default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }
 
     private void startActionWorkflow(OutboxEntry entry) {
-        ActionWorkflow workflow =
-            workflowClient.newWorkflowStub(
+        ActionWorkflow workflow = workflowClient.newWorkflowStub(
                 ActionWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::execute, entry);
@@ -96,8 +105,7 @@ public final class TemporalAutomationPort implements AutomationPort {
     }
 
     private void startChangeEventWorkflow(Scope scope, OutboxEntry entry) {
-        ChangeEventWorkflow workflow =
-            workflowClient.newWorkflowStub(
+        ChangeEventWorkflow workflow = workflowClient.newWorkflowStub(
                 ChangeEventWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
@@ -107,13 +115,60 @@ public final class TemporalAutomationPort implements AutomationPort {
     }
 
     private void startSignalEventWorkflow(Scope scope, OutboxEntry entry) {
-        SignalEventWorkflow workflow =
-            workflowClient.newWorkflowStub(
+        SignalEventWorkflow workflow = workflowClient.newWorkflowStub(
                 SignalEventWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
         } catch (WorkflowExecutionAlreadyStarted e) {
             // Idempotent no-op: this entry's workflow already exists (started or completed).
+        }
+    }
+
+    /**
+     * Starts one {@link TransitionActionWorkflow} for each action of a {@code TransitionFired} row's
+     * transition, in the automation's order, with workflow id {@code entryId + ":" + index}. Dormant:
+     * {@link #dispatch} does not call this method yet.
+     *
+     * <p>The automation is read first. The row's {@code ontologyVersion} stamp is then checked, missing
+     * or non-Number first and a mismatch second, and both checks run before any workflow starts. A
+     * transition with no actions starts nothing and throws nothing.
+     *
+     * <p>Idempotency is per index. An index whose workflow already exists is skipped, and the loop
+     * continues, so an earlier index that was already started does not stop a later one from starting.
+     *
+     * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or the automation
+     *     is at a different ontology version from the row's stamp
+     */
+    void startTransitionFiredActions(Scope scope, OutboxEntry entry) {
+        Automation automation = automationSource.automation(scope.tenantId());
+        if (!(entry.payload().get("ontologyVersion") instanceof Number stamp)) {
+            throw new IllegalStateException("TransitionFired row " + entry.id() + " has no ontologyVersion stamp");
+        }
+        int rowOntologyVersion = stamp.intValue();
+        int activeOntologyVersion = automation.ontologyVersion().value();
+        if (activeOntologyVersion != rowOntologyVersion) {
+            throw new IllegalStateException("Automation is at ontology version "
+                    + activeOntologyVersion
+                    + " but TransitionFired row "
+                    + entry.id()
+                    + " was written at version "
+                    + rowOntologyVersion);
+        }
+
+        TransitionRef transition = new TransitionRef(
+                (String) entry.payload().get("machineIri"),
+                (String) entry.payload().get("fromState"),
+                (String) entry.payload().get("transitionName"));
+        List<Action> actions = automation.actions(transition);
+        for (int i = 0; i < actions.size(); i++) {
+            TransitionActionWorkflow workflow = workflowClient.newWorkflowStub(
+                    TransitionActionWorkflow.class, workflowOptions(entry.id() + ":" + i));
+            try {
+                WorkflowClient.start(workflow::execute, entry, i);
+            } catch (WorkflowExecutionAlreadyStarted e) {
+                // Idempotent no-op for this index only: its workflow already exists. The loop continues,
+                // so a later index whose workflow has not started yet still starts.
+            }
         }
     }
 
@@ -126,8 +181,7 @@ public final class TemporalAutomationPort implements AutomationPort {
      */
     private void startTimerWorkflow(Scope scope, OutboxEntry entry) {
         String timerKey = (String) entry.payload().get("timerKey");
-        TimerWorkflow workflow =
-            workflowClient.newWorkflowStub(TimerWorkflow.class, workflowOptions(timerKey));
+        TimerWorkflow workflow = workflowClient.newWorkflowStub(TimerWorkflow.class, workflowOptions(timerKey));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
         } catch (WorkflowExecutionAlreadyStarted e) {
@@ -153,9 +207,9 @@ public final class TemporalAutomationPort implements AutomationPort {
 
     private WorkflowOptions workflowOptions(String workflowId) {
         return WorkflowOptions.newBuilder()
-            .setWorkflowId(workflowId)
-            .setTaskQueue(taskQueue)
-            .setWorkflowIdReusePolicy(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE)
-            .build();
+                .setWorkflowId(workflowId)
+                .setTaskQueue(taskQueue)
+                .setWorkflowIdReusePolicy(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE)
+                .build();
     }
 }

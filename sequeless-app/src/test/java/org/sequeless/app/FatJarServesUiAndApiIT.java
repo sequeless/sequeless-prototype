@@ -52,18 +52,17 @@ class FatJarServesUiAndApiIT extends PostgresTestcontainersSupport {
                 "sequeless.it.live=false: live HTTP proof skipped");
         Path jar = execJar();
         int port = freePort();
-        process =
-                new ProcessBuilder(
-                                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
-                                "-jar",
-                                jar.toString(),
-                                "--server.port=" + port,
-                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                "--sequeless.persistence.password=" + POSTGRES.getPassword())
-                        .redirectErrorStream(true)
-                        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                        .start();
+        process = new ProcessBuilder(
+                        Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                        "-jar",
+                        jar.toString(),
+                        "--server.port=" + port,
+                        "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                        "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                        "--sequeless.persistence.password=" + POSTGRES.getPassword())
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start();
 
         HttpClient client = HttpClient.newHttpClient();
         String base = "http://localhost:" + port;
@@ -85,9 +84,11 @@ class FatJarServesUiAndApiIT extends PostgresTestcontainersSupport {
         Path jar = execJar();
         try (JarFile jarFile = new JarFile(jar.toFile())) {
             boolean hasIndex = jarFile.getEntry(UI_ENTRY) != null;
-            boolean hasAssets =
-                    jarFile.stream().anyMatch(e -> e.getName().startsWith("BOOT-INF/classes/static/") && !e.isDirectory());
-            assertThat(hasAssets).as("static assets are packaged iff index.html is").isEqualTo(hasIndex);
+            boolean hasAssets = jarFile.stream()
+                    .anyMatch(e -> e.getName().startsWith("BOOT-INF/classes/static/") && !e.isDirectory());
+            assertThat(hasAssets)
+                    .as("static assets are packaged iff index.html is")
+                    .isEqualTo(hasIndex);
         }
     }
 
@@ -117,14 +118,15 @@ class FatJarServesUiAndApiIT extends PostgresTestcontainersSupport {
     }
 
     private HttpResponse<String> get(HttpClient client, String url) throws Exception {
-        return client.send(
-                HttpRequest.newBuilder(URI.create(url)).GET().build(), HttpResponse.BodyHandlers.ofString());
+        return client.send(HttpRequest.newBuilder(URI.create(url)).GET().build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private void awaitHealthy(HttpClient client, String base) throws Exception {
         long deadline = System.nanoTime() + STARTUP_TIMEOUT.toNanos();
         while (System.nanoTime() < deadline) {
-            assertThat(process.isAlive()).as("jar process exited during startup").isTrue();
+            assertThat(process.isAlive())
+                    .as("jar process exited during startup")
+                    .isTrue();
             try {
                 HttpResponse<String> health = get(client, base + "/actuator/health");
                 if (health.statusCode() == 200 && health.body().contains("\"UP\"")) {

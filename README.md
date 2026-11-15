@@ -33,6 +33,17 @@ npm run build:ui && mvn -B verify
 
 The full UI gate (clean install, lint, tests, shell build) is `npm run ci:ui`; `npm run ci:combined` runs it before `mvn verify`.
 
+### Build notes
+
+- The root POM's parent is `org.sequeless:sequeless-build-parent` 0.1.2 (GitHub Packages). Its
+  dependency analysis and JaCoCo read Java 25 class files; 0.1.1 needed two version overrides for that.
+  The root is `sequeless-prototype`, formerly `sequeless-parent`.
+- The prototype is not released or deployed (`maven.deploy.skip`).
+- `sequeless-app` skips `dependency:analyze`. It depends on its adapters only so their auto-configuration
+  runs, and no app code names them. Its boundaries are guarded by `ArchitectureTest`.
+- The root pins `commons-io`, `guava` and `error_prone_annotations`. Jena, Temporal and gRPC disagree on
+  these versions, so the pins move the host to 2.22.0, 33.6.0-jre and 2.50.0.
+
 ## End-to-end tests
 
 The Playwright suite under `sequeless-ui/e2e` is opt-in and never runs in `verify` or CI. Its browsers must be
@@ -51,7 +62,7 @@ mvn -pl sequeless-app spring-boot:run
 
 ```
 $ curl localhost:8080/api/whoami
-{"tenant":"default","principal":"anonymous","displayName":"Anonymous","roles":[],"decision":{"allowed":true,"reason":"permit-all adapter: all requests are allowed"}}
+{"tenant":"default","principal":"anonymous","displayName":"anonymous","roles":[],"decision":{"allowed":true,"reason":"permit-all adapter: all requests are allowed"}}
 
 $ curl localhost:8080/actuator/health
 {"groups":["liveness","readiness"],"status":"UP"}
@@ -67,6 +78,24 @@ The API module depends on its sibling modules, so install them once before the f
 ```
 mvn -B -DskipTests install
 ```
+
+Maven reads the parent, `sequeless-build-parent`, from GitHub Packages. That needs a `read:packages` token
+even though the package is public. Add a `github` server entry to `~/.m2/settings.xml` once (skip this if
+you already have one):
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>YOUR_GITHUB_USER</username>
+      <password>YOUR_READ_PACKAGES_TOKEN</password>
+    </server>
+  </servers>
+</settings>
+```
+
+Without that entry, Maven cannot download the parent.
 
 Then run the API and the Angular dev server in two terminals. The dev server proxies `/api`, `/actuator`
 and `/v3/api-docs` to the API on port 8080 (`sequeless-ui/proxy.conf.json`). The API needs PostgreSQL
@@ -147,11 +176,11 @@ Set 'sequeless.authz.adapter' to one of: permit-all
 
 | Module | Responsibility | May depend on |
 |---|---|---|
-| `sequeless-parent` | Root POM: versions, plugin management, module list, ArchUnit/japicmp config | none |
-| `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | nothing outside the JDK |
-| `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus the reference-domain ontology fixture | `sequeless-spi`, JUnit 5, AssertJ |
-| `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `sequeless-spi` |
-| `sequeless-adapter-ontology-jena` | `OntologyPort` and `ValidationPort` via Jena 6 ontapi, built-in OWL reasoner, jena-shacl; Turtle import/export | `sequeless-spi`, Jena, Spring Boot autoconfigure (optional scope), Lombok |
+| `sequeless-prototype` | Root POM: parent `sequeless-build-parent`, versions, convergence pins, module list, japicmp config | none |
+| `sequeless-spi` | Outbound port interfaces, immutable value types (records), `AdapterDescriptor` for ServiceLoader, `SpiVersion` | `kernel-identity`, `kernel-values`, `ontology-core`, `schema-contract` (JUnit 5 and AssertJ at test scope) |
+| `sequeless-spi-testkit` | Abstract JUnit 5 contract tests per port, plus general test fixtures (the reference ontology fixture is in sequeless-ontology's `ontology-testfixtures`) | `kernel-identity`, `kernel-values`, `sequeless-spi`, `schema-contract`, `behaviour-contract`, `ontology-core`, `ontology-testfixtures`, `filter-core`, `jackson-databind`, `junit-jupiter-api`, `assertj-core` |
+| `sequeless-core` | Use cases (inbound API in `…core.api`), BREAD orchestration, structural validation, state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok | `kernel-identity`, `kernel-values`, `sequeless-spi`, `ontology-core`, `schema-contract`, `behaviour-contract`, `automation-contract`, `expression-api`, `filter-core`, `jackson-databind`, `slf4j-api` (JUnit 5 and AssertJ at test scope) |
+| `sequeless-adapter-ontology-jena` | Prototype wiring around the released `ontology-jena-adapter`: `JenaOntologyAutoConfiguration`, `JenaOntologyProperties`, `JenaOntologyAdapterDescriptorProvider` and `ShaclValidationAdapterDescriptorProvider` (ServiceLoader descriptors), `ShaclValidationAutoConfiguration`, `ShaclValidationPort` (the SHACL validation adapter) and `ValidationSchemaAdapter`. The Jena 6 ontapi, built-in OWL reasoner, jena-shacl and Turtle import/export are in the released adapter | `kernel-identity`, `kernel-values`, `sequeless-spi`, `ontology-jena-adapter`, `ontology-core`, `schema-contract`, `spring-boot-autoconfigure` (optional), `spring-context`, `spring-beans`, `spring-boot` |
 | `sequeless-adapter-persistence-postgres` | `ObjectStorePort` and `QueryPort` on PostgreSQL 18 JSONB; Flyway migrations; outbox table; hint-driven indexes | `sequeless-spi`, JDBC/Spring JDBC, Flyway, Lombok |
 | `sequeless-adapter-expression-jexl` | `ExpressionPort` via Commons JEXL 3 in a sandboxed, side-effect-free configuration | `sequeless-spi`, JEXL |
 | `sequeless-adapter-automation-temporal` | `AutomationPort` via Temporal Java SDK: outbox relay, action workflows, timers, signals | `sequeless-spi`, Temporal SDK, Spring Boot starter |

@@ -5,41 +5,44 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.DerivationRule;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.PluginRule;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TriggerSpec;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
-import org.sequeless.spi.object.BoolValue;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
+import org.sequeless.core.api.TypeDescription;
+import org.sequeless.core.derivation.FilterNodeToCriterion;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
+import org.sequeless.ontology.behaviour.api.OnChangeTrigger;
+import org.sequeless.ontology.behaviour.api.PluginRule;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.api.State;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TimerTrigger;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.behaviour.api.TriggerSpec;
+import org.sequeless.ontology.behaviour.api.UserActionTrigger;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Operator;
 
 /**
- * Maps sequeless-core's {@code org.sequeless.spi.meta} types onto their {@link TypesController}
- * wire representations. Factored out of {@link TypesController} itself, mirroring {@link
- * WhoAmIResponse#from(org.sequeless.core.api.WhoAmIResult)}, because both {@link
- * TypeSummaryResponse} and {@link TypeDetailResponse} need the same superTypes-to-short-names
- * rendering.
+ * Maps the {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.ontology.behaviour.api}
+ * types, and core's {@link
+ * TypeDescription}, onto their {@link TypesController} wire representations. Factored out of {@link
+ * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.core.api.WhoAmIResult)},
+ * because both {@link TypeSummaryResponse} and {@link TypeDetailResponse} need the same
+ * superTypes-to-short-names rendering.
  *
  * <p>Package-private: nothing outside {@code org.sequeless.app.rest} has a reason to map these
  * types directly.
@@ -53,43 +56,47 @@ final class TypeResponseMapper {
      * {@code IS_NULL} -&gt; {@code isnull}, {@code NOT_NULL} -&gt; {@code notnull}); the rest do
      * (e.g. {@code EQ} -&gt; {@code eq}).
      */
-    private static final Map<Operator, String> OPERATOR_TOKENS =
-            Map.ofEntries(
-                    Map.entry(Operator.EQ, "eq"),
-                    Map.entry(Operator.NE, "ne"),
-                    Map.entry(Operator.IN, "in"),
-                    Map.entry(Operator.LT, "lt"),
-                    Map.entry(Operator.LTE, "lte"),
-                    Map.entry(Operator.GT, "gt"),
-                    Map.entry(Operator.GTE, "gte"),
-                    Map.entry(Operator.CONTAINS, "contains"),
-                    Map.entry(Operator.STARTS_WITH, "startswith"),
-                    Map.entry(Operator.IS_NULL, "isnull"),
-                    Map.entry(Operator.NOT_NULL, "notnull"));
+    private static final Map<Operator, String> OPERATOR_TOKENS = Map.ofEntries(
+            Map.entry(Operator.EQ, "eq"),
+            Map.entry(Operator.NE, "ne"),
+            Map.entry(Operator.IN, "in"),
+            Map.entry(Operator.LT, "lt"),
+            Map.entry(Operator.LTE, "lte"),
+            Map.entry(Operator.GT, "gt"),
+            Map.entry(Operator.GTE, "gte"),
+            Map.entry(Operator.CONTAINS, "contains"),
+            Map.entry(Operator.STARTS_WITH, "startswith"),
+            Map.entry(Operator.IS_NULL, "isnull"),
+            Map.entry(Operator.NOT_NULL, "notnull"));
 
     private TypeResponseMapper() {}
 
     /**
-     * @param snapshot the snapshot to render; must not be {@code null}
-     * @return one {@link TypeSummaryResponse} per {@link MetaModelSnapshot#types()}, in the same
-     *     order, with {@code superTypes} resolved to short names via a {@code Map<iri, name>}
-     *     built once for this call
+     * @param schema the schema to render; must not be {@code null}
+     * @return one {@link TypeSummaryResponse} per {@link Schema#types()}, in the same order, with
+     *     {@code superTypes} resolved to short names via a {@code Map<iri, name>} built once for
+     *     this call
      */
-    static List<TypeSummaryResponse> toSummaries(MetaModelSnapshot snapshot) {
-        Map<String, String> namesByIri = namesByIri(snapshot);
-        return snapshot.types().stream().map(type -> toSummary(type, namesByIri)).toList();
+    static List<TypeSummaryResponse> toSummaries(Schema schema) {
+        Map<String, String> namesByIri = namesByIri(schema);
+        return schema.types().stream().map(type -> toSummary(type, namesByIri)).toList();
     }
 
     /**
-     * @param type the resolved, authorized type to render; must not be {@code null}
-     * @return the {@link TypeDetailResponse} rendering of {@code type}, with {@code properties}
-     *     left in the order {@link TypeDefinition#properties()} already provides
+     * @param description the resolved, authorized type with its state machine and derivations; must
+     *     not be {@code null}
+     * @param schema the schema the rollup filters of {@code description} are resolved against; must
+     *     not be {@code null}
+     * @return the {@link TypeDetailResponse} rendering of {@code description}, with {@code
+     *     properties} left in the order {@link TypeDefinition#properties()} already provides
      */
-    static TypeDetailResponse toDetail(TypeDefinition type) {
+    static TypeDetailResponse toDetail(TypeDescription description, Schema schema) {
+        TypeDefinition type = description.type();
         List<String> superTypeNames =
                 type.superTypes().stream().map(TypeResponseMapper::shortName).toList();
-        List<PropertyResponse> properties =
-                type.properties().stream().map(TypeResponseMapper::toProperty).toList();
+        List<PropertyResponse> properties = type.properties().stream()
+                .map(property -> toProperty(property, description.derivations(), schema))
+                .toList();
         return new TypeDetailResponse(
                 type.iri(),
                 shortName(type.iri()),
@@ -99,7 +106,10 @@ final class TypeResponseMapper {
                 type.displayHints().group().orElse(null),
                 type.displayHints().hidden(),
                 properties,
-                type.stateMachine().map(TypeResponseMapper::toStateMachineResponse).orElse(null));
+                description
+                        .stateMachine()
+                        .map(TypeResponseMapper::toStateMachineResponse)
+                        .orElse(null));
     }
 
     /**
@@ -122,11 +132,11 @@ final class TypeResponseMapper {
      * ever be fired by the engine itself ({@code fireAutomated}).
      */
     private static StateMachineResponse toStateMachineResponse(StateMachineDefinition machine) {
-        List<StateResponse> states = machine.states().stream().map(TypeResponseMapper::toState).toList();
-        List<TransitionSummaryResponse> transitions =
-                machine.transitions().stream()
-                        .map(TypeResponseMapper::toTransitionSummary)
-                        .toList();
+        List<StateResponse> states =
+                machine.states().stream().map(TypeResponseMapper::toState).toList();
+        List<TransitionSummaryResponse> transitions = machine.transitions().stream()
+                .map(TypeResponseMapper::toTransitionSummary)
+                .toList();
         return new StateMachineResponse(
                 machine.iri(), states, shortName(machine.initialState().iri()), transitions);
     }
@@ -151,7 +161,7 @@ final class TypeResponseMapper {
     /**
      * Renders {@link TransitionSummaryResponse#after()} from a transition's {@link TriggerSpec}, an
      * exhaustive {@code switch} over the sealed hierarchy with no {@code default} branch, mirroring
-     * {@link #toDerivationResponse(DerivationRule)}'s own exhaustive switch.
+     * {@link #toDerivationResponse(DerivationRule, Schema)}'s own exhaustive switch.
      */
     private static String triggerAfter(TriggerSpec trigger) {
         return switch (trigger) {
@@ -180,7 +190,7 @@ final class TypeResponseMapper {
     private static List<String> triggerWatch(TriggerSpec trigger) {
         return switch (trigger) {
             case OnChangeTrigger onChange ->
-                    onChange.watchIris().stream().map(TypeResponseMapper::shortName).toList();
+                onChange.watchIris().stream().map(TypeResponseMapper::shortName).toList();
             case UserActionTrigger ignored -> List.of();
             case TimerTrigger ignored -> List.of();
             case ExternalSignalTrigger ignored -> List.of();
@@ -188,17 +198,16 @@ final class TypeResponseMapper {
     }
 
     private static TypeSummaryResponse toSummary(TypeDefinition type, Map<String, String> namesByIri) {
-        List<String> superTypeNames =
-                type.superTypes().stream()
-                        .map(iri -> namesByIri.getOrDefault(iri, shortName(iri)))
-                        .toList();
+        List<String> superTypeNames = type.superTypes().stream()
+                .map(iri -> namesByIri.getOrDefault(iri, shortName(iri)))
+                .toList();
         return new TypeSummaryResponse(
                 type.iri(), namesByIri.get(type.iri()), type.label(), type.isAbstract(), superTypeNames);
     }
 
-    private static Map<String, String> namesByIri(MetaModelSnapshot snapshot) {
-        List<TypeDefinition> types = snapshot.types();
-        List<String> names = snapshot.names();
+    private static Map<String, String> namesByIri(Schema schema) {
+        List<TypeDefinition> types = schema.types();
+        List<String> names = schema.names();
         Map<String, String> namesByIri = new HashMap<>();
         for (int i = 0; i < types.size(); i++) {
             namesByIri.put(types.get(i).iri(), names.get(i));
@@ -211,71 +220,93 @@ final class TypeResponseMapper {
      * exhaustive over the sealed {@link PropertyDefinition} hierarchy with no {@code default}
      * branch, so a third permitted implementation arriving later would fail this compilation unit
      * rather than silently falling through unmapped.
+     *
+     * @param property the property to render; must not be {@code null}
+     * @param derivations the derivation of each derived property of the type, keyed by property
+     *     IRI; a property with no entry has no {@code derivation} in its response
+     * @param schema the schema the rollup filters are resolved against
      */
-    private static PropertyResponse toProperty(PropertyDefinition property) {
+    private static PropertyResponse toProperty(
+            PropertyDefinition property, Map<String, DerivationRule> derivations, Schema schema) {
         return switch (property) {
-            case AttributeDefinition attribute -> new AttributePropertyResponse(
-                    "attribute",
-                    attribute.iri(),
-                    shortName(attribute.iri()),
-                    attribute.label(),
-                    attribute.order(),
-                    attribute.displayHints().group().orElse(null),
-                    attribute.displayHints().hidden(),
-                    attribute.facet(),
-                    attribute.indexed(),
-                    attribute.searchable(),
-                    attribute.readOnly(),
-                    attribute.cardinality().min(),
-                    attribute.cardinality().max().isPresent()
-                            ? attribute.cardinality().max().getAsInt()
-                            : null,
-                    attribute.datatype().name(),
-                    attribute.derivation().map(TypeResponseMapper::toDerivationResponse).orElse(null));
-            case RelationshipDefinition relationship -> new RelationshipPropertyResponse(
-                    "relationship",
-                    relationship.iri(),
-                    shortName(relationship.iri()),
-                    relationship.label(),
-                    relationship.order(),
-                    relationship.displayHints().group().orElse(null),
-                    relationship.displayHints().hidden(),
-                    relationship.facet(),
-                    relationship.indexed(),
-                    relationship.searchable(),
-                    relationship.readOnly(),
-                    relationship.cardinality().min(),
-                    relationship.cardinality().max().isPresent()
-                            ? relationship.cardinality().max().getAsInt()
-                            : null,
-                    relationship.targetTypeIri(),
-                    relationship.inverseIri().orElse(null),
-                    relationship.transitive(),
-                    relationship
-                            .derivation()
-                            .map(TypeResponseMapper::toDerivationResponse)
-                            .orElse(null));
+            case AttributeDefinition attribute ->
+                new AttributePropertyResponse(
+                        "attribute",
+                        attribute.iri(),
+                        shortName(attribute.iri()),
+                        attribute.label(),
+                        attribute.order(),
+                        attribute.displayHints().group().orElse(null),
+                        attribute.displayHints().hidden(),
+                        attribute.facet(),
+                        attribute.indexed(),
+                        attribute.searchable(),
+                        attribute.readOnly(),
+                        attribute.cardinality().min(),
+                        attribute.cardinality().max().isPresent()
+                                ? attribute.cardinality().max().getAsInt()
+                                : null,
+                        attribute.datatype().name(),
+                        derivationOf(attribute.iri(), derivations, schema));
+            case RelationshipDefinition relationship ->
+                new RelationshipPropertyResponse(
+                        "relationship",
+                        relationship.iri(),
+                        shortName(relationship.iri()),
+                        relationship.label(),
+                        relationship.order(),
+                        relationship.displayHints().group().orElse(null),
+                        relationship.displayHints().hidden(),
+                        relationship.facet(),
+                        relationship.indexed(),
+                        relationship.searchable(),
+                        relationship.readOnly(),
+                        relationship.cardinality().min(),
+                        relationship.cardinality().max().isPresent()
+                                ? relationship.cardinality().max().getAsInt()
+                                : null,
+                        relationship.targetTypeIri(),
+                        relationship.inverseIri().orElse(null),
+                        relationship.transitive(),
+                        derivationOf(relationship.iri(), derivations, schema));
         };
+    }
+
+    /**
+     * @param propertyIri the IRI of the property being rendered
+     * @param derivations the derivation of each derived property of the type, keyed by property IRI
+     * @param schema the schema the rollup filters are resolved against
+     * @return the {@link DerivationResponse} of {@code propertyIri}, or {@code null} if the property
+     *     is not derived
+     */
+    private static DerivationResponse derivationOf(
+            String propertyIri, Map<String, DerivationRule> derivations, Schema schema) {
+        DerivationRule rule = derivations.get(propertyIri);
+        return rule == null ? null : toDerivationResponse(rule, schema);
     }
 
     /**
      * Maps one {@link DerivationRule} onto its {@link DerivationResponse}, an exhaustive {@code
      * switch} over the sealed {@link DerivationRule} hierarchy with no {@code default} branch,
-     * mirroring {@link #toProperty(PropertyDefinition)}'s own exhaustive switch.
+     * mirroring {@link #toProperty(PropertyDefinition, Map, Schema)}'s own exhaustive switch.
      */
-    private static DerivationResponse toDerivationResponse(DerivationRule rule) {
+    private static DerivationResponse toDerivationResponse(DerivationRule rule, Schema schema) {
         return switch (rule) {
-            case RollupRule rollup -> new DerivationResponse(
-                    "rollup", rollupSummary(rollup), rollup.materialised());
-            case PluginRule plugin -> new DerivationResponse(
-                    "plugin", "plugin(" + plugin.pluginName() + ")", plugin.materialised());
+            case RollupRule rollup ->
+                new DerivationResponse("rollup", rollupSummary(rollup, schema), rollup.materialised());
+            case PluginRule plugin ->
+                new DerivationResponse("plugin", "plugin(" + plugin.pluginName() + ")", plugin.materialised());
         };
     }
 
-    private static String rollupSummary(RollupRule rollup) {
+    /**
+     * Renders a rollup as {@code function(Source via Via of Of where criteria)}. The released filter
+     * tree is bridged to the flat criteria the query port runs, so the summary shows the same
+     * criteria the aggregate is computed with: an {@code IN} criterion renders its list value.
+     */
+    private static String rollupSummary(RollupRule rollup, Schema schema) {
         StringBuilder summary = new StringBuilder();
-        summary
-                .append(rollup.function().name().toLowerCase(Locale.ROOT))
+        summary.append(rollup.function().name().toLowerCase(Locale.ROOT))
                 .append('(')
                 .append(shortName(rollup.sourceTypeIri()))
                 .append(" via ")
@@ -283,13 +314,14 @@ final class TypeResponseMapper {
         if (rollup.ofPropertyIri().isPresent()) {
             summary.append(" of ").append(shortName(rollup.ofPropertyIri().get()));
         }
-        if (!rollup.criteria().isEmpty()) {
-            summary
-                    .append(" where ")
-                    .append(
-                            rollup.criteria().stream()
-                                    .map(TypeResponseMapper::criterionSummary)
-                                    .collect(Collectors.joining(" and ")));
+        List<Criterion> criteria = rollup.criteria()
+                .map(node -> FilterNodeToCriterion.toCriteria(node, schema, rollup.sourceTypeIri()))
+                .orElse(List.of());
+        if (!criteria.isEmpty()) {
+            summary.append(" where ")
+                    .append(criteria.stream()
+                            .map(TypeResponseMapper::criterionSummary)
+                            .collect(Collectors.joining(" and ")));
         }
         summary.append(')');
         return summary.toString();
@@ -317,20 +349,20 @@ final class TypeResponseMapper {
             case DateValue date -> date.value().toString();
             case DateTimeValue dateTime -> dateTime.value().toString();
             case ReferenceValue reference -> reference.target().toString();
-            case ListValue list -> list.values().stream()
-                    .map(TypeResponseMapper::valueSummary)
-                    .collect(Collectors.joining(", ", "[", "]"));
+            case ListValue list ->
+                list.values().stream()
+                        .map(TypeResponseMapper::valueSummary)
+                        .collect(Collectors.joining(", ", "[", "]"));
         };
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule (local name after an IRI's last
-     * {@code #}, or after its last {@code /} if there is no {@code #}) rather than calling back
-     * into a snapshot, because {@link #toDetail(TypeDefinition)} renders a single, already
-     * resolved {@link TypeDefinition} — fetching a whole snapshot just to look up one supertype's
-     * short name would mean an extra, redundantly-authorized {@code OntologyPort} round trip for
-     * no benefit: the rule is a pure function of the IRI string, not of what else happens to be in
-     * the snapshot.
+     * Duplicates {@code Schema}'s own short-name rule (local name after an IRI's last {@code #}, or
+     * after its last {@code /} if there is no {@code #}) rather than calling back into a schema,
+     * because {@link #toDetail(TypeDescription, Schema)} renders a single, already resolved {@link
+     * TypeDefinition} — reading a whole schema just to look up one supertype's short name would
+     * mean an extra read for no benefit: the rule is a pure function of the IRI string, not of what
+     * else happens to be in the schema.
      *
      * @param iri the IRI to derive a short name from; must not be {@code null}
      * @return the local name after the IRI's last {@code #}, or after its last {@code /} if there

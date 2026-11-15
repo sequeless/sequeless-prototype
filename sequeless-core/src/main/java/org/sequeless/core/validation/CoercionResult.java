@@ -3,8 +3,8 @@ package org.sequeless.core.validation;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.Value;
 import org.sequeless.spi.validation.Violation;
 
 /**

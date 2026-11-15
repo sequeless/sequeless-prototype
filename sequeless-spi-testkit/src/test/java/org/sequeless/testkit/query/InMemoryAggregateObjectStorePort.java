@@ -8,7 +8,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.ontology.spi.StoredOntologyDocument;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -16,18 +21,11 @@ import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.StoredOntologyDocument;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.ontology.OntologyDocument;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * A minimal in-memory {@link ObjectStorePort} purely so {@link AggregateContract} — abstract, and
@@ -61,17 +59,10 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
     }
 
     @Override
-    public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-        throw new UnsupportedOperationException(
-            "browse is not exercised by AggregateContract; this double only supports commit and "
-                + "aggregation reads");
-    }
-
-    @Override
     public Map<ObjectId, TypeRef> typesOf(Scope scope, Set<ObjectId> ids) {
         throw new UnsupportedOperationException(
-            "typesOf is not exercised by AggregateContract; this double only supports commit and "
-                + "aggregation reads");
+                "typesOf is not exercised by AggregateContract; this double only supports commit and "
+                        + "aggregation reads");
     }
 
     @Override
@@ -105,16 +96,32 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             @Override
             public StoredOntologyDocument activate(Scope scope, OntologyDocument document) {
                 throw new UnsupportedOperationException(
-                    "AggregateContract never activates an ontology through the store");
+                        "AggregateContract never activates an ontology through the store");
             }
         };
     }
 
     /**
+     * Lists every object of {@code scope.tenantId()}, soft-deleted ones included, for the browse
+     * and read doubles, which apply soft-delete filtering themselves.
+     *
      * @param scope the tenant to read for; only objects with a matching {@link
-     *     org.sequeless.spi.TenantId} are returned
-     * @param typeIris the type IRIs to include, matched as a union exactly like {@link
-     *     ObjectStorePort#browse}'s {@code types}
+     *     org.sequeless.kernel.identity.TenantId} are returned
+     * @return every object of {@code scope.tenantId()} in insertion order, deleted or not
+     */
+    List<BusinessObject> everyObject(Scope scope) {
+        synchronized (lock) {
+            return objects.values().stream()
+                    .filter(object -> object.tenant().equals(scope.tenantId()))
+                    .toList();
+        }
+    }
+
+    /**
+     * @param scope the tenant to read for; only objects with a matching {@link
+     *     org.sequeless.kernel.identity.TenantId} are returned
+     * @param typeIris the type IRIs to include, matched as a union, as {@link
+     *     org.sequeless.spi.query.Query#types()} is
      * @return every non-deleted object of {@code scope.tenantId()} whose type is in {@code
      *     typeIris}
      */
@@ -123,8 +130,8 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             List<BusinessObject> matching = new ArrayList<>();
             for (BusinessObject object : objects.values()) {
                 if (!object.deleted()
-                    && object.tenant().equals(scope.tenantId())
-                    && typeIris.contains(object.type().iri())) {
+                        && object.tenant().equals(scope.tenantId())
+                        && typeIris.contains(object.type().iri())) {
                     matching.add(object);
                 }
             }
@@ -155,8 +162,7 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
     private BusinessObject apply(Scope scope, Mutation mutation) {
         return switch (mutation) {
             case Create create -> {
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         create.object().id(),
                         create.object().type(),
                         scope.tenantId(),
@@ -169,8 +175,7 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
                 yield stored;
             }
             case Update update -> {
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         update.object().id(),
                         update.object().type(),
                         scope.tenantId(),
@@ -184,17 +189,14 @@ final class InMemoryAggregateObjectStorePort implements ObjectStorePort {
             }
             case Delete delete -> {
                 BusinessObject previous = objects.get(delete.id());
-                BusinessObject stored =
-                    new BusinessObject(
+                BusinessObject stored = new BusinessObject(
                         previous.id(),
                         previous.type(),
                         previous.tenant(),
                         delete.expectedVersion() + 1,
                         previous.state(),
                         previous.properties(),
-                        new Audit(
-                            previous.audit().createdAt(), previous.audit().createdBy(), delete.at(),
-                            delete.by()),
+                        new Audit(previous.audit().createdAt(), previous.audit().createdBy(), delete.at(), delete.by()),
                         true);
                 objects.put(stored.id(), stored);
                 yield stored;

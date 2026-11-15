@@ -18,48 +18,52 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.object.BoolValue;
-import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.spi.query.IndexPreparationPort;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.ReadPort;
+import org.sequeless.spi.query.ReadRequest;
 import org.sequeless.spi.query.Sort;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The PostgreSQL-backed {@link QueryPort}: filtered, sorted, paged, faceted, and free-text queries
- * over {@code sq_object}'s tagged JSONB {@code props} column, sharing the same {@link JdbcClient}
- * wiring convention as {@link PostgresObjectStore}. See {@code plan.md} "PostgreSQL adapter design"
- * for the tagged-JSONB extraction/cast table this class implements, and {@link QueryPort}'s
- * interface-level javadoc for the full behavioural contract ({@code QueryContract} asserts every
- * clause of it mechanically).
+ * The PostgreSQL-backed {@link ReadPort}, {@link BrowsePort}, {@link IndexPreparationPort}, and
+ * {@link QueryPort}: single-object reads, filtered, sorted, paged, faceted, and free-text browse
+ * queries, index preparation, and aggregates, over {@code sq_object}'s tagged JSONB {@code props}
+ * column, sharing the same {@link JdbcClient} wiring convention as {@link PostgresObjectStore}. See
+ * {@code plan.md} "PostgreSQL adapter design" for the tagged-JSONB extraction/cast table this class
+ * implements, and each port's interface-level javadoc for the full behavioural contract.
  */
-public final class PostgresQueryStore implements QueryPort {
+public final class PostgresQueryStore implements ReadPort, BrowsePort, IndexPreparationPort, QueryPort {
 
     private final JdbcClient jdbcClient;
     private final TransactionTemplate transactionTemplate;
@@ -67,7 +71,7 @@ public final class PostgresQueryStore implements QueryPort {
     /**
      * @param jdbcClient the client to run reads through; must not be {@code null}
      * @param transactionManager the transaction manager backing {@link #transactionTemplate},
-     *     mirroring {@link PostgresObjectStore}'s constructor even though {@link #query} itself
+     *     mirroring {@link PostgresObjectStore}'s constructor even though {@link #browse} itself
      *     does not currently need a transaction; must not be {@code null}
      */
     public PostgresQueryStore(JdbcClient jdbcClient, PlatformTransactionManager transactionManager) {
@@ -76,22 +80,45 @@ public final class PostgresQueryStore implements QueryPort {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
+    /**
+     * Reads one object with the same tenant and soft-delete predicates as {@link
+     * PostgresObjectStore}'s {@code find}: an id that is soft-deleted or belongs to another tenant
+     * yields {@link Optional#empty()}.
+     */
     @Override
-    public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+    public Optional<ObjectView> read(Scope scope, ReadRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(request, "request must not be null");
+        return jdbcClient
+                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
+                        + "updated_at, updated_by, deleted_at FROM sq_object "
+                        + "WHERE id = :id AND tenant_id = :tenantId AND deleted_at IS NULL")
+                .param("id", request.id().value())
+                .param("tenantId", scope.tenantId().value())
+                .query(PostgresObjectStore::mapViewRow)
+                .optional();
+    }
+
+    @Override
+    public QueryResult browse(Scope scope, Schema schema, Query query) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(query, "query must not be null");
 
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> propertyIndex = indexProperties(snapshot, query.types());
+        Map<String, PropertyDefinition> propertyIndex = indexProperties(schema, query.types());
 
-        WhereClause mainWhere =
-            buildWhere(
-                tenantId, query.types(), query.criteria(), query.includeDeleted(), Optional.empty(),
-                query.text(), "", propertyIndex);
+        WhereClause mainWhere = buildWhere(
+                tenantId,
+                query.types(),
+                query.criteria(),
+                query.includeDeleted(),
+                Optional.empty(),
+                query.text(),
+                "",
+                propertyIndex);
 
-        long total =
-            jdbcClient
+        long total = jdbcClient
                 .sql("SELECT COUNT(*) FROM sq_object WHERE " + mainWhere.sql())
                 .params(mainWhere.params())
                 .query(Long.class)
@@ -104,23 +131,20 @@ public final class PostgresQueryStore implements QueryPort {
         itemParams.put("limit", query.page().size());
         itemParams.put("offset", query.page().number() * query.page().size());
 
-        List<BusinessObject> items =
-            jdbcClient
-                .sql(
-                    "SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
+        List<ObjectView> items = jdbcClient
+                .sql("SELECT id, tenant_id, type_iri, version, state, props, created_at, created_by, "
                         + "updated_at, updated_by, deleted_at FROM sq_object WHERE "
                         + mainWhere.sql()
                         + " ORDER BY "
                         + orderBy.sql()
                         + " LIMIT :limit OFFSET :offset")
                 .params(itemParams)
-                .query(PostgresObjectStore::mapRow)
+                .query(PostgresObjectStore::mapViewRow)
                 .list();
 
         Map<String, List<FacetBucket>> facets = new LinkedHashMap<>();
         for (String facetProperty : query.facetProperties()) {
-            facets.put(
-                facetProperty, computeFacet(tenantId, query, facetProperty, propertyIndex, snapshot));
+            facets.put(facetProperty, computeFacet(tenantId, query, facetProperty, propertyIndex, schema));
         }
 
         return new QueryResult(items, total, facets);
@@ -128,53 +152,56 @@ public final class PostgresQueryStore implements QueryPort {
 
     /**
      * Registers every {@code sq:indexed} property's expression index in {@code sq_index_registry}
-     * (creating the index itself if not already present) and every {@code sq:searchable}
-     * property in {@code sq_searchable_property}, backfilling {@code search_vector} for the
-     * tenant's existing rows when a new searchable property is registered. Idempotent: a property
-     * already present in either registry table is left untouched, so calling this repeatedly for
-     * the same {@link MetaModelSnapshot} is cheap.
+     * (creating the index itself if not already present) and every {@code sq:searchable} property
+     * in {@code sq_searchable_property}. Idempotent: a property already present in either registry
+     * table is left untouched, so calling this repeatedly for the same {@link Schema} is cheap. The
+     * {@code version} argument is not used: the work depends on {@code schema} alone.
      *
-     * <p>Runs inside {@link #transactionTemplate} so a concurrent {@code ensureIndexes} call for
-     * the same tenant cannot interleave a registry insert with another's backfill, matching
-     * {@link PostgresOntologyDocumentStore#activate}'s use of the same transactional-wrapping
-     * pattern for multi-statement atomicity.
+     * <p>Returns {@code true} iff this call inserted a {@code sq_searchable_property} row. This method
+     * never touches {@code sq_object}: the caller recomputes the existing objects' {@code
+     * search_vector} through {@link org.sequeless.spi.object.SearchVectorBackfillPort} when this
+     * returns {@code true}.
+     *
+     * <p>Runs inside {@link #transactionTemplate}, which is {@code REQUIRED}: when the host has
+     * already opened a transaction over the same {@link javax.sql.DataSource}, this method joins it,
+     * so the registry writes commit or roll back together with the backfill that follows them.
      */
     @Override
-    public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
+    public boolean prepare(Scope scope, OntologyVersion version, Schema schema) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(version, "version must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> allProperties = indexAllProperties(snapshot);
+        Map<String, PropertyDefinition> allProperties = indexAllProperties(schema);
 
-        transactionTemplate.executeWithoutResult(status -> {
-            boolean backfillNeeded = false;
+        Boolean newlyRegistered = transactionTemplate.execute(status -> {
+            boolean registeredAny = false;
             for (PropertyDefinition property : allProperties.values()) {
                 if (property.indexed()) {
                     ensureIndex(tenantId, property);
                 }
                 if (property.searchable()) {
-                    backfillNeeded |= registerSearchable(tenantId, property);
+                    registeredAny |= registerSearchable(tenantId, property);
                 }
             }
-            if (backfillNeeded) {
-                backfillSearchVector(tenantId);
-            }
+            return registeredAny;
         });
+        return Boolean.TRUE.equals(newlyRegistered);
     }
 
     /**
      * Computes {@code request.function()} in one {@code GROUP BY} query over {@code sq_object},
-     * reusing {@link #castExpression} and {@link #criterionSql} exactly as {@link #query}'s {@link
+     * reusing {@link #castExpression} and {@link #criterionSql} exactly as {@link #browse}'s {@link
      * #buildWhere} does. See {@link QueryPort#aggregate}'s javadoc for the full density contract:
-     * {@link org.sequeless.spi.meta.AggregateFunction#COUNT} is zero-filled for every requested
+     * {@link AggregateFunction#COUNT} is zero-filled for every requested
      * target id, while {@code SUM}/{@code MIN}/{@code MAX}/{@code AVG} simply omit a target with no
      * matching source rows (a {@code GROUP BY} naturally emits no row for an empty group, so no
      * special-casing is needed for those).
      */
     @Override
-    public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+    public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(snapshot, "snapshot must not be null");
+        Objects.requireNonNull(schema, "schema must not be null");
         Objects.requireNonNull(request, "request must not be null");
 
         if (request.targetIds().isEmpty()) {
@@ -182,11 +209,10 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         String tenantId = scope.tenantId().value();
-        Map<String, PropertyDefinition> propertyIndex =
-            indexProperties(snapshot, request.sourceTypes());
+        Map<String, PropertyDefinition> propertyIndex = indexProperties(schema, request.sourceTypes());
 
         Optional<AttributeDefinition> ofProperty =
-            request.ofPropertyIri().map(iri -> (AttributeDefinition) propertyIndex.get(iri));
+                request.ofPropertyIri().map(iri -> (AttributeDefinition) propertyIndex.get(iri));
 
         StringBuilder sql = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
@@ -197,31 +223,26 @@ public final class PostgresQueryStore implements QueryPort {
         if (request.function() == AggregateFunction.COUNT) {
             sql.append("COUNT(*) AS agg_value ");
         } else {
-            AttributeDefinition attribute =
-                ofProperty.orElseThrow(
-                    () ->
-                        new IllegalArgumentException(
-                            "AggregateRequest.ofPropertyIri() is required for " + request.function()));
+            AttributeDefinition attribute = ofProperty.orElseThrow(() -> new IllegalArgumentException(
+                    "AggregateRequest.ofPropertyIri() is required for " + request.function()));
             String aggExpr = castExpression(attribute, "", "of");
             params.put("of", attribute.iri());
-            String aggFunction =
-                switch (request.function()) {
-                    case SUM -> "SUM";
-                    case MIN -> "MIN";
-                    case MAX -> "MAX";
-                    case AVG -> "AVG";
-                    case COUNT -> throw new IllegalStateException("unreachable");
-                };
+            String aggFunction = switch (request.function()) {
+                case SUM -> "SUM";
+                case MIN -> "MIN";
+                case MAX -> "MAX";
+                case AVG -> "AVG";
+                case COUNT -> throw new IllegalStateException("unreachable");
+            };
             sql.append(aggFunction).append('(').append(aggExpr).append(") AS agg_value ");
         }
 
         sql.append("FROM sq_object WHERE tenant_id = :tenantId AND type_iri IN (:sourceTypes) "
-            + "AND deleted_at IS NULL AND (props -> :via ->> 'ref')::uuid IN (:targetIds)");
+                + "AND deleted_at IS NULL AND (props -> :via ->> 'ref')::uuid IN (:targetIds)");
         params.put("tenantId", tenantId);
         params.put("sourceTypes", List.copyOf(request.sourceTypes()));
         params.put(
-            "targetIds",
-            request.targetIds().stream().map(ObjectId::value).toList());
+                "targetIds", request.targetIds().stream().map(ObjectId::value).toList());
 
         int i = 0;
         for (Criterion criterion : request.criteria()) {
@@ -237,8 +258,7 @@ public final class PostgresQueryStore implements QueryPort {
         sql.append(" GROUP BY 1");
 
         if (request.function() == AggregateFunction.COUNT) {
-            Map<ObjectId, Long> counts =
-                jdbcClient
+            Map<ObjectId, Long> counts = jdbcClient
                     .sql(sql.toString())
                     .params(params)
                     .query((rs, rowNum) -> Map.entry(objectIdOf(rs), rs.getLong("agg_value")))
@@ -254,15 +274,13 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         Datatype datatype = ofProperty.orElseThrow().datatype();
-        Map<ObjectId, Value> result =
-            jdbcClient
+        Map<ObjectId, Value> result = jdbcClient
                 .sql(sql.toString())
                 .params(params)
                 .query((rs, rowNum) -> Map.entry(objectIdOf(rs), aggregateValue(rs, datatype)))
                 .list()
                 .stream()
-                .collect(
-                    LinkedHashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), Map::putAll);
+                .collect(LinkedHashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), Map::putAll);
 
         return new AggregateResult(result);
     }
@@ -283,24 +301,21 @@ public final class PostgresQueryStore implements QueryPort {
             case DECIMAL, DOUBLE -> new DecimalValue(rs.getBigDecimal("agg_value"));
             case INTEGER, LONG -> new IntegerValue(rs.getLong("agg_value"));
             case STRING, ANY_URI, TIME, DURATION, BOOLEAN, DATE, DATE_TIME ->
-                throw new IllegalArgumentException(
-                    "Aggregate function is not supported for datatype " + datatype);
+                throw new IllegalArgumentException("Aggregate function is not supported for datatype " + datatype);
         };
     }
 
-    private static Map<String, PropertyDefinition> indexAllProperties(MetaModelSnapshot snapshot) {
+    private static Map<String, PropertyDefinition> indexAllProperties(Schema schema) {
         Map<String, PropertyDefinition> result = new LinkedHashMap<>();
-        for (TypeDefinition type : snapshot.types()) {
+        for (TypeDefinition type : schema.types()) {
             type.properties().forEach(p -> result.putIfAbsent(p.iri(), p));
         }
         return result;
     }
 
     private void ensureIndex(String tenantId, PropertyDefinition property) {
-        boolean alreadyRegistered =
-            jdbcClient
-                .sql(
-                    "SELECT 1 FROM sq_index_registry WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
+        boolean alreadyRegistered = jdbcClient
+                .sql("SELECT 1 FROM sq_index_registry WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
                 .param("tenantId", tenantId)
                 .param("propertyIri", property.iri())
                 .query()
@@ -313,19 +328,17 @@ public final class PostgresQueryStore implements QueryPort {
         }
         String indexName = indexNameFor(tenantId, property.iri());
         jdbcClient
-            .sql(
-                "CREATE INDEX IF NOT EXISTS " + indexName + " ON sq_object (("
-                    + castExpressionLiteral(property) + "))")
-            .update();
+                .sql("CREATE INDEX IF NOT EXISTS " + indexName + " ON sq_object ((" + castExpressionLiteral(property)
+                        + "))")
+                .update();
         jdbcClient
-            .sql(
-                "INSERT INTO sq_index_registry (tenant_id, property_iri, index_name, created_at) "
-                    + "VALUES (:tenantId, :propertyIri, :indexName, :createdAt)")
-            .param("tenantId", tenantId)
-            .param("propertyIri", property.iri())
-            .param("indexName", indexName)
-            .param("createdAt", Timestamp.from(Instant.now()))
-            .update();
+                .sql("INSERT INTO sq_index_registry (tenant_id, property_iri, index_name, created_at) "
+                        + "VALUES (:tenantId, :propertyIri, :indexName, :createdAt)")
+                .param("tenantId", tenantId)
+                .param("propertyIri", property.iri())
+                .param("indexName", indexName)
+                .param("createdAt", Timestamp.from(Instant.now()))
+                .update();
     }
 
     /**
@@ -337,8 +350,7 @@ public final class PostgresQueryStore implements QueryPort {
      */
     static String indexNameFor(String tenantId, String propertyIri) {
         try {
-            byte[] digest =
-                MessageDigest.getInstance("MD5")
+            byte[] digest = MessageDigest.getInstance("MD5")
                     .digest((tenantId + "|" + propertyIri).getBytes(StandardCharsets.UTF_8));
             return "sq_idx_" + HexFormat.of().formatHex(digest).substring(0, 16);
         } catch (NoSuchAlgorithmException e) {
@@ -347,10 +359,8 @@ public final class PostgresQueryStore implements QueryPort {
     }
 
     private boolean registerSearchable(String tenantId, PropertyDefinition property) {
-        boolean alreadyRegistered =
-            jdbcClient
-                .sql(
-                    "SELECT 1 FROM sq_searchable_property WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
+        boolean alreadyRegistered = jdbcClient
+                .sql("SELECT 1 FROM sq_searchable_property WHERE tenant_id = :tenantId AND property_iri = :propertyIri")
                 .param("tenantId", tenantId)
                 .param("propertyIri", property.iri())
                 .query()
@@ -362,49 +372,19 @@ public final class PostgresQueryStore implements QueryPort {
             return false;
         }
         jdbcClient
-            .sql(
-                "INSERT INTO sq_searchable_property (tenant_id, property_iri) VALUES (:tenantId, :propertyIri)")
-            .param("tenantId", tenantId)
-            .param("propertyIri", property.iri())
-            .update();
+                .sql("INSERT INTO sq_searchable_property (tenant_id, property_iri) VALUES (:tenantId, :propertyIri)")
+                .param("tenantId", tenantId)
+                .param("propertyIri", property.iri())
+                .update();
         return true;
-    }
-
-    /**
-     * Recomputes {@code search_vector} for every existing row of {@code tenantId} from the
-     * tenant's current {@code sq_searchable_property} registry. Must stay textually consistent
-     * with {@code sq_object_update_search_vector()} in {@code
-     * V2__query_indexes_and_search.sql} — same {@code 'simple'} text search configuration, same
-     * {@code string_agg} pattern over each searchable property's {@code 'text'}-tagged value — so
-     * a newly backfilled row and a freshly trigger-computed row rank identically for the same
-     * content.
-     */
-    // Calls the same sq_extract_searchable_text(props, property_iri) SQL function the V2 migration's
-    // insert/update trigger uses, so a scalar-tagged ({"text": ...}) or list-tagged ({"list": [...]})
-    // searchable property is extracted identically here and on every future row insert/update --
-    // see V2__query_indexes_and_search.sql for why both shapes must be handled (sq:searchable
-    // carries no scalar-cardinality requirement, unlike sq:facet/sq:indexed).
-    private void backfillSearchVector(String tenantId) {
-        jdbcClient
-            .sql(
-                "UPDATE sq_object o SET search_vector = ("
-                    + "SELECT to_tsvector('simple', COALESCE(string_agg(sq_extract_searchable_text(o.props, sp.property_iri), ' '), '')) "
-                    + "FROM sq_searchable_property sp WHERE sp.tenant_id = o.tenant_id) "
-                    + "WHERE o.tenant_id = :tenantId")
-            .param("tenantId", tenantId)
-            .update();
     }
 
     // -- Property resolution -----------------------------------------------------------------
 
-    private static Map<String, PropertyDefinition> indexProperties(
-        MetaModelSnapshot snapshot, Set<String> typeIris) {
+    private static Map<String, PropertyDefinition> indexProperties(Schema schema, Set<String> typeIris) {
         Map<String, PropertyDefinition> result = new LinkedHashMap<>();
         for (String typeIri : typeIris) {
-            snapshot
-                .type(typeIri)
-                .ifPresent(
-                    type -> type.properties().forEach(p -> result.putIfAbsent(p.iri(), p)));
+            schema.type(typeIri).ifPresent(type -> type.properties().forEach(p -> result.putIfAbsent(p.iri(), p)));
         }
         return result;
     }
@@ -425,19 +405,21 @@ public final class PostgresQueryStore implements QueryPort {
      * @param tableAlias {@code ""} for a plain query, {@code "o."} for the reference-facet join
      */
     private WhereClause buildWhere(
-        String tenantId,
-        Set<String> typeIris,
-        List<Criterion> criteria,
-        boolean includeDeleted,
-        Optional<String> excludingProperty,
-        Optional<String> text,
-        String tableAlias,
-        Map<String, PropertyDefinition> propertyIndex) {
+            String tenantId,
+            Set<String> typeIris,
+            List<Criterion> criteria,
+            boolean includeDeleted,
+            Optional<String> excludingProperty,
+            Optional<String> text,
+            String tableAlias,
+            Map<String, PropertyDefinition> propertyIndex) {
         StringBuilder sql = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
 
-        sql.append(tableAlias).append("tenant_id = :tenantId AND ").append(tableAlias)
-            .append("type_iri IN (:types)");
+        sql.append(tableAlias)
+                .append("tenant_id = :tenantId AND ")
+                .append(tableAlias)
+                .append("type_iri IN (:types)");
         params.put("tenantId", tenantId);
         params.put("types", List.copyOf(typeIris));
 
@@ -462,16 +444,14 @@ public final class PostgresQueryStore implements QueryPort {
         }
 
         if (text.isPresent()) {
-            sql.append(" AND ").append(tableAlias)
-                .append("search_vector @@ plainto_tsquery('simple', :searchText)");
+            sql.append(" AND ").append(tableAlias).append("search_vector @@ plainto_tsquery('simple', :searchText)");
             params.put("searchText", text.get());
         }
 
         return new WhereClause(sql.toString(), params);
     }
 
-    private String criterionSql(
-        Criterion criterion, String expr, String valueParam, Map<String, Object> params) {
+    private String criterionSql(Criterion criterion, String expr, String valueParam, Map<String, Object> params) {
         return switch (criterion.operator()) {
             case EQ -> {
                 params.put(valueParam, toSqlParam(criterion.value().orElseThrow()));
@@ -485,7 +465,9 @@ public final class PostgresQueryStore implements QueryPort {
             }
             case IN -> {
                 ListValue list = (ListValue) criterion.value().orElseThrow();
-                List<Object> values = list.values().stream().map(PostgresQueryStore::toSqlParam).toList();
+                List<Object> values = list.values().stream()
+                        .map(PostgresQueryStore::toSqlParam)
+                        .toList();
                 params.put(valueParam, values);
                 yield expr + " IN (:" + valueParam + ")";
             }
@@ -535,14 +517,14 @@ public final class PostgresQueryStore implements QueryPort {
             case ReferenceValue ref -> ref.target().value();
             case ListValue list ->
                 throw new IllegalStateException(
-                    "ListValue must be unwrapped by the caller; only valid nested inside IN");
+                        "ListValue must be unwrapped by the caller; only valid nested inside IN");
         };
     }
 
     // -- ORDER BY building --------------------------------------------------------------------
 
     private static SqlFragment buildOrderBy(
-        List<Sort> sorts, Optional<String> text, Map<String, PropertyDefinition> propertyIndex) {
+            List<Sort> sorts, Optional<String> text, Map<String, PropertyDefinition> propertyIndex) {
         if (!sorts.isEmpty()) {
             Map<String, Object> params = new HashMap<>();
             List<String> parts = new ArrayList<>();
@@ -558,8 +540,8 @@ public final class PostgresQueryStore implements QueryPort {
         }
         if (text.isPresent()) {
             return new SqlFragment(
-                "ts_rank(search_vector, plainto_tsquery('simple', :searchText)) DESC, created_at, id",
-                Map.of("searchText", text.get()));
+                    "ts_rank(search_vector, plainto_tsquery('simple', :searchText)) DESC, created_at, id",
+                    Map.of("searchText", text.get()));
         }
         return new SqlFragment("created_at, id", Map.of());
     }
@@ -589,7 +571,7 @@ public final class PostgresQueryStore implements QueryPort {
     /**
      * DDL-time cast expression with the property IRI embedded as an escaped string literal, for use
      * in a {@code CREATE INDEX ... ON sq_object ((<expr>))} statement, which cannot take bind
-     * parameters. Package-private so [T6]'s {@code ensureIndexes} can reuse the same per-datatype
+     * parameters. Package-private so {@code prepare} can reuse the same per-datatype
      * switch logic as {@link #castExpression} rather than re-deriving it.
      */
     static String castExpressionLiteral(PropertyDefinition property) {
@@ -621,96 +603,99 @@ public final class PostgresQueryStore implements QueryPort {
     // -- Facet computation --------------------------------------------------------------------
 
     private List<FacetBucket> computeFacet(
-        String tenantId,
-        Query query,
-        String facetProperty,
-        Map<String, PropertyDefinition> propertyIndex,
-        MetaModelSnapshot snapshot) {
+            String tenantId,
+            Query query,
+            String facetProperty,
+            Map<String, PropertyDefinition> propertyIndex,
+            Schema schema) {
         PropertyDefinition property = propertyIndex.get(facetProperty);
         return property instanceof RelationshipDefinition rel
-            ? computeReferenceFacet(tenantId, query, facetProperty, rel, snapshot, propertyIndex)
-            : computeScalarFacet(tenantId, query, facetProperty, (AttributeDefinition) property, propertyIndex);
+                ? computeReferenceFacet(tenantId, query, facetProperty, rel, schema, propertyIndex)
+                : computeScalarFacet(tenantId, query, facetProperty, (AttributeDefinition) property, propertyIndex);
     }
 
     private List<FacetBucket> computeScalarFacet(
-        String tenantId,
-        Query query,
-        String facetProperty,
-        AttributeDefinition attribute,
-        Map<String, PropertyDefinition> propertyIndex) {
-        WhereClause excluding =
-            buildWhere(
-                tenantId, query.types(), query.criteria(), query.includeDeleted(),
-                Optional.of(facetProperty), query.text(), "", propertyIndex);
+            String tenantId,
+            Query query,
+            String facetProperty,
+            AttributeDefinition attribute,
+            Map<String, PropertyDefinition> propertyIndex) {
+        WhereClause excluding = buildWhere(
+                tenantId,
+                query.types(),
+                query.criteria(),
+                query.includeDeleted(),
+                Optional.of(facetProperty),
+                query.text(),
+                "",
+                propertyIndex);
 
         String tag = tagFor(attribute.datatype());
         String valueExpr = "props -> :facetProp ->> '" + tag + "'";
 
-        String sql =
-            "SELECT (" + valueExpr + ") AS bucket_value, COUNT(*) AS bucket_count "
+        String sql = "SELECT ((" + valueExpr + ") COLLATE \"C\") AS bucket_value, COUNT(*) AS bucket_count "
                 + "FROM sq_object WHERE "
                 + excluding.sql()
                 + " AND ("
                 + valueExpr
-                + ") IS NOT NULL GROUP BY 1 ORDER BY bucket_count DESC";
+                + ") IS NOT NULL GROUP BY 1 ORDER BY bucket_count DESC, bucket_value";
 
         Map<String, Object> params = new HashMap<>(excluding.params());
         params.put("facetProp", facetProperty);
 
         return jdbcClient
-            .sql(sql)
-            .params(params)
-            .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
-            .list();
+                .sql(sql)
+                .params(params)
+                .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
+                .list();
     }
 
     private List<FacetBucket> computeReferenceFacet(
-        String tenantId,
-        Query query,
-        String facetProperty,
-        RelationshipDefinition rel,
-        MetaModelSnapshot snapshot,
-        Map<String, PropertyDefinition> propertyIndex) {
-        WhereClause excluding =
-            buildWhere(
-                tenantId, query.types(), query.criteria(), query.includeDeleted(),
-                Optional.of(facetProperty), query.text(), "o.", propertyIndex);
+            String tenantId,
+            Query query,
+            String facetProperty,
+            RelationshipDefinition rel,
+            Schema schema,
+            Map<String, PropertyDefinition> propertyIndex) {
+        WhereClause excluding = buildWhere(
+                tenantId,
+                query.types(),
+                query.criteria(),
+                query.includeDeleted(),
+                Optional.of(facetProperty),
+                query.text(),
+                "o.",
+                propertyIndex);
 
-        Optional<AttributeDefinition> labelProperty = displayLabelProperty(snapshot, rel.targetTypeIri());
-        String valueExpr =
-            labelProperty.isPresent()
-                ? "target.props -> :labelProp ->> '" + tagFor(labelProperty.get().datatype()) + "'"
+        Optional<AttributeDefinition> labelProperty = displayLabelProperty(schema, rel.targetTypeIri());
+        String valueExpr = labelProperty.isPresent()
+                ? "target.props -> :labelProp ->> '"
+                        + tagFor(labelProperty.get().datatype()) + "'"
                 : "target.id::text";
 
-        String sql =
-            "SELECT ("
-                + valueExpr
-                + ") AS bucket_value, COUNT(*) AS bucket_count "
+        String sql = "SELECT ((" + valueExpr + ") COLLATE \"C\") AS bucket_value, COUNT(*) AS bucket_count "
                 + "FROM sq_object o "
                 + "JOIN sq_object target ON target.id = (o.props -> :facetProp ->> 'ref')::uuid "
                 + "AND target.tenant_id = :tenantId AND target.deleted_at IS NULL "
                 + "WHERE "
                 + excluding.sql()
-                + " GROUP BY 1 ORDER BY bucket_count DESC";
+                + " AND (" + valueExpr + ") IS NOT NULL "
+                + "GROUP BY 1 ORDER BY bucket_count DESC, bucket_value";
 
         Map<String, Object> params = new HashMap<>(excluding.params());
         params.put("facetProp", facetProperty);
         labelProperty.ifPresent(p -> params.put("labelProp", p.iri()));
 
         return jdbcClient
-            .sql(sql)
-            .params(params)
-            .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
-            .list();
+                .sql(sql)
+                .params(params)
+                .query((rs, rowNum) -> new FacetBucket(rs.getString("bucket_value"), rs.getLong("bucket_count")))
+                .list();
     }
 
-    private static Optional<AttributeDefinition> displayLabelProperty(
-        MetaModelSnapshot snapshot, String targetTypeIri) {
-        return snapshot
-            .type(targetTypeIri)
-            .flatMap(
-                type ->
-                    type.properties().stream()
+    private static Optional<AttributeDefinition> displayLabelProperty(Schema schema, String targetTypeIri) {
+        return schema.type(targetTypeIri)
+                .flatMap(type -> type.properties().stream()
                         .filter(PropertyDefinition::displayLabel)
                         .filter(AttributeDefinition.class::isInstance)
                         .map(AttributeDefinition.class::cast)

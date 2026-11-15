@@ -3,8 +3,8 @@ package org.sequeless.app.rest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.query.FacetBucket;
 
 /**
@@ -49,17 +49,16 @@ final class FacetResponseMapper {
         for (Map.Entry<String, List<FacetBucket>> entry : facetsByIri.entrySet()) {
             String iri = entry.getKey();
             String name = namesByIri.getOrDefault(iri, shortName(iri));
-            List<FacetBucketResponse> buckets =
-                    entry.getValue().stream()
-                            .map(bucket -> new FacetBucketResponse(bucket.value(), bucket.count()))
-                            .toList();
+            List<FacetBucketResponse> buckets = entry.getValue().stream()
+                    .map(bucket -> new FacetBucketResponse(bucket.value(), bucket.count()))
+                    .toList();
             result.put(name, buckets);
         }
         return result;
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * Duplicates {@code Schema}'s own short-name rule, for the same reason {@link
      * TypeResponseMapper#shortName}, {@link ObjectPropertyMapper#shortName}, and {@link
      * ApiExceptionAdvice#shortName} do.
      *

@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
+import com.fasterxml.jackson.databind.node.TextNode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,59 +26,60 @@ import org.sequeless.core.derivation.DerivationPlanner;
 import org.sequeless.core.derivation.DerivationPluginRegistry;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.validation.ValidationException;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.filter.api.FieldFilter;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.RollupRule;
+import org.sequeless.ontology.behaviour.api.State;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.AggregateFunction;
-import org.sequeless.spi.meta.AttributeDefinition;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.Datatype;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.RollupRule;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
 import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.TextValue;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.query.AggregateRequest;
 import org.sequeless.spi.query.AggregateResult;
+import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.query.Sort;
 import org.sequeless.spi.validation.ValidationPort;
 import org.sequeless.spi.validation.Violation;
@@ -89,7 +90,7 @@ import org.sequeless.spi.validation.Violation;
  * unrelated {@code Person} and abstract {@code AbstractThing}), the same idiom {@code
  * TypeHierarchyTest} and {@code DefaultMetaModelServiceTest} use: every port double is either a
  * plain lambda ({@link AuthorizationPort}, {@link ValidationPort}) or a small hand-written fake
- * ({@link FakeOntologyPort}, {@link FakeObjectStorePort}, {@link FakeQueryPort}) rather than a
+ * ({@link FakeOntology}, {@link FakeObjectStorePort}, {@link FakeQueryPort}) rather than a
  * mocking framework. Core must not depend on the testkit module at all, so {@code
  * sequeless-spi-testkit}'s {@code InMemoryObjectStorePort} is deliberately not reused here.
  */
@@ -110,98 +111,149 @@ class DefaultBusinessObjectServiceTest {
     private static final String OPEN_TASK_COUNT_IRI = NS + "openTaskCount";
     private static final String TOTAL_ESTIMATED_HOURS_IRI = NS + "totalEstimatedHours";
 
-    private static final AttributeDefinition TITLE =
-        new AttributeDefinition(
-            TITLE_IRI, "title", Cardinality.range(1, 1), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.STRING);
-    private static final AttributeDefinition HOURS =
-        new AttributeDefinition(
-            HOURS_IRI, "estimatedHours", Cardinality.atMost(1), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.DECIMAL);
-    private static final RelationshipDefinition ASSIGNED_TO =
-        new RelationshipDefinition(
-            ASSIGNED_TO_IRI, "assignedTo", Cardinality.atMost(1), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), PERSON_IRI, Optional.empty(), false);
+    private static final AttributeDefinition TITLE = new AttributeDefinition(
+            TITLE_IRI,
+            "title",
+            Cardinality.range(1, 1),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Datatype.STRING);
+    private static final AttributeDefinition HOURS = new AttributeDefinition(
+            HOURS_IRI,
+            "estimatedHours",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Datatype.DECIMAL);
+    private static final RelationshipDefinition ASSIGNED_TO = new RelationshipDefinition(
+            ASSIGNED_TO_IRI,
+            "assignedTo",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            PERSON_IRI,
+            Optional.empty(),
+            false);
     /** Facet-enabled, indexed, scalar property — usable as a filter, sort, or facet key. */
-    private static final AttributeDefinition STATUS =
-        new AttributeDefinition(
-            STATUS_IRI, "status", Cardinality.atMost(1), true, true, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    private static final AttributeDefinition STATUS = new AttributeDefinition(
+            STATUS_IRI,
+            "status",
+            Cardinality.atMost(1),
+            true,
+            true,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Datatype.STRING);
     /** Genuinely multi-valued property — must be rejected by filter/sort/facet resolution. */
-    private static final AttributeDefinition TAGS =
-        new AttributeDefinition(
-            TAGS_IRI, "tags", Cardinality.optional(), false, false, false, false, false,
-            DisplayHints.none(), Optional.empty(), Datatype.STRING);
+    private static final AttributeDefinition TAGS = new AttributeDefinition(
+            TAGS_IRI,
+            "tags",
+            Cardinality.optional(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            Datatype.STRING);
     /**
      * {@code sq:Rollup}-derived: {@code count} of {@code Task} via {@code belongsToProject},
-     * filtered to {@code status != "open"} — mirrors {@code QueryFixtures.openTaskCount()}'s exact
-     * {@link RollupRule} shape.
+     * filtered to {@code status != "open"}. The rule lives in {@link #BEHAVIOUR}, not on the
+     * attribute. It has the shape of the rule in {@code QueryFixtures.behaviour()} (different filter
+     * value; materialised).
      */
-    private static final AttributeDefinition OPEN_TASK_COUNT =
-        new AttributeDefinition(
-            OPEN_TASK_COUNT_IRI, "openTaskCount", Cardinality.atMost(1), false, false, false, true,
-            false, DisplayHints.none(),
-            Optional.of(
-                new RollupRule(
-                    TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.COUNT, Optional.empty(),
-                    List.of(
-                        new Criterion(
-                            STATUS_IRI, Operator.NE, Optional.of(Value.text("open")))),
-                    true)),
+    private static final AttributeDefinition OPEN_TASK_COUNT = new AttributeDefinition(
+            OPEN_TASK_COUNT_IRI,
+            "openTaskCount",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            true,
+            false,
+            DisplayHints.none(),
             Datatype.INTEGER);
     /**
      * {@code sq:Rollup}-derived: {@code sum} of {@code estimatedHours} over {@code Task} via
-     * {@code belongsToProject}, no filter — mirrors {@code
-     * QueryFixtures.totalEstimatedHours()}'s exact {@link RollupRule} shape.
+     * {@code belongsToProject}, no filter. The rule lives in {@link #BEHAVIOUR}, not on the
+     * attribute; it mirrors the rule {@code QueryFixtures.behaviour()} carries for {@code
+     * totalEstimatedHours}.
      */
-    private static final AttributeDefinition TOTAL_ESTIMATED_HOURS =
-        new AttributeDefinition(
-            TOTAL_ESTIMATED_HOURS_IRI, "totalEstimatedHours", Cardinality.atMost(1), false, false,
-            false, true, false, DisplayHints.none(),
-            Optional.of(
-                new RollupRule(
-                    TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM,
-                    Optional.of(HOURS_IRI), List.of(), false)),
+    private static final AttributeDefinition TOTAL_ESTIMATED_HOURS = new AttributeDefinition(
+            TOTAL_ESTIMATED_HOURS_IRI,
+            "totalEstimatedHours",
+            Cardinality.atMost(1),
+            false,
+            false,
+            false,
+            true,
+            false,
+            DisplayHints.none(),
             Datatype.DECIMAL);
 
-    private static final TypeDefinition WORK_ITEM =
-        new TypeDefinition(
-            WORK_ITEM_IRI, "WorkItem", List.of(), List.of(), DisplayHints.none(), true,
-            Optional.empty());
-    private static final TypeDefinition TASK =
-        new TypeDefinition(
-            TASK_IRI, "Task", List.of(WORK_ITEM_IRI),
-            List.of(TITLE, HOURS, ASSIGNED_TO, STATUS, TAGS), DisplayHints.none(), false,
-            Optional.empty());
-    private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(WORK_ITEM_IRI),
-            List.of(OPEN_TASK_COUNT, TOTAL_ESTIMATED_HOURS), DisplayHints.none(), false,
-            Optional.empty());
-    private static final TypeDefinition PERSON =
-        new TypeDefinition(
-            PERSON_IRI, "Person", List.of(), List.of(), DisplayHints.none(), false,
-            Optional.empty());
-    private static final TypeDefinition ABSTRACT_THING =
-        new TypeDefinition(
-            ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true,
-            Optional.empty());
+    private static final RollupRule OPEN_TASK_COUNT_RULE = new RollupRule(
+            TASK_IRI,
+            BELONGS_TO_PROJECT_IRI,
+            AggregateFunction.COUNT,
+            Optional.empty(),
+            Optional.of(new FieldFilter(STATUS_IRI, "is not", TextNode.valueOf("open"))),
+            true);
+    private static final RollupRule TOTAL_ESTIMATED_HOURS_RULE = new RollupRule(
+            TASK_IRI, BELONGS_TO_PROJECT_IRI, AggregateFunction.SUM, Optional.of(HOURS_IRI), Optional.empty(), false);
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
+    /** The behaviour: the two rollups, keyed by the IRI of the property each derives. */
+    private static final Behaviour BEHAVIOUR = new Behaviour(
+            new OntologyVersion(1),
+            Map.of(),
+            Map.of(OPEN_TASK_COUNT_IRI, OPEN_TASK_COUNT_RULE, TOTAL_ESTIMATED_HOURS_IRI, TOTAL_ESTIMATED_HOURS_RULE));
+
+    private static final TypeDefinition WORK_ITEM =
+            new TypeDefinition(WORK_ITEM_IRI, "WorkItem", List.of(), List.of(), DisplayHints.none(), true);
+    private static final TypeDefinition TASK = new TypeDefinition(
+            TASK_IRI,
+            "Task",
+            List.of(WORK_ITEM_IRI),
+            List.of(TITLE, HOURS, ASSIGNED_TO, STATUS, TAGS),
+            DisplayHints.none(),
+            false);
+    private static final TypeDefinition PROJECT = new TypeDefinition(
+            PROJECT_IRI,
+            "Project",
+            List.of(WORK_ITEM_IRI),
+            List.of(OPEN_TASK_COUNT, TOTAL_ESTIMATED_HOURS),
+            DisplayHints.none(),
+            false);
+    private static final TypeDefinition PERSON =
+            new TypeDefinition(PERSON_IRI, "Person", List.of(), List.of(), DisplayHints.none(), false);
+    private static final TypeDefinition ABSTRACT_THING =
+            new TypeDefinition(ABSTRACT_THING_IRI, "AbstractThing", List.of(), List.of(), DisplayHints.none(), true);
+
+    private static final Schema SCHEMA = new Schema(
+            new OntologyVersion(1),
             NS.substring(0, NS.length() - 1),
             Optional.empty(),
             Map.of(),
-            List.of(WORK_ITEM, TASK, PROJECT, PERSON, ABSTRACT_THING),
-            new OntologyReport(true, List.of()));
+            List.of(WORK_ITEM, TASK, PROJECT, PERSON, ABSTRACT_THING));
 
     private static final Instant NOW = Instant.parse("2026-09-17T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
-    private static final Scope BOB =
-        new Scope(new TenantId("acme"), new Principal("bob", "Bob", Set.of("member")));
+    private static final Scope ALICE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
+    private static final Scope BOB = new Scope(new TenantId("acme"), new Principal("bob", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");
@@ -212,21 +264,37 @@ class DefaultBusinessObjectServiceTest {
     }
 
     private static DefaultBusinessObjectService service(
-        FakeObjectStorePort store, ValidationPort validationPort, AuthorizationPort authorizationPort) {
+            FakeObjectStorePort store, ValidationPort validationPort, AuthorizationPort authorizationPort) {
         return service(store, validationPort, authorizationPort, new FakeQueryPort());
     }
 
     private static DefaultBusinessObjectService service(
-        FakeObjectStorePort store,
-        ValidationPort validationPort,
-        AuthorizationPort authorizationPort,
-        FakeQueryPort queryPort) {
+            FakeObjectStorePort store,
+            ValidationPort validationPort,
+            AuthorizationPort authorizationPort,
+            FakeQueryPort queryPort) {
         return new DefaultBusinessObjectService(
-            new FakeOntologyPort(), store, validationPort, authorizationPort, queryPort, CLOCK);
+                new FakeOntology(),
+                new FakeOntology(),
+                store,
+                validationPort,
+                authorizationPort,
+                readOver(store),
+                queryPort,
+                queryPort,
+                CLOCK);
+    }
+
+    /**
+     * A {@link ReadPort} over {@code store}, so {@link DefaultBusinessObjectService#read} sees the
+     * same objects the command side commits to it.
+     */
+    private static ReadPort readOver(FakeObjectStorePort store) {
+        return (scope, request) -> store.find(scope, request.id()).map(ObjectViewMapper::toView);
     }
 
     private static ValidationPort noViolations() {
-        return (scope, snapshot, object) -> List.of();
+        return (scope, schema, object) -> List.of();
     }
 
     private static BrowseQuery browseQuery(Page page) {
@@ -241,14 +309,12 @@ class DefaultBusinessObjectServiceTest {
         FakeQueryPort queryPort = new FakeQueryPort();
         List<Operation> capturedOps = new ArrayList<>();
         List<String> capturedResources = new ArrayList<>();
-        AuthorizationPort authorizationPort =
-            (scope, operation, resource) -> {
-                capturedOps.add(operation);
-                capturedResources.add(resource);
-                return AccessDecision.permit("ok");
-            };
-        DefaultBusinessObjectService service =
-            service(store, noViolations(), authorizationPort, queryPort);
+        AuthorizationPort authorizationPort = (scope, operation, resource) -> {
+            capturedOps.add(operation);
+            capturedResources.add(resource);
+            return AccessDecision.permit("ok");
+        };
+        DefaultBusinessObjectService service = service(store, noViolations(), authorizationPort, queryPort);
 
         QueryResult result = service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20)));
 
@@ -275,8 +341,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
 
         assertThatExceptionOfType(TypeNotFoundException.class)
-            .isThrownBy(
-                () -> service.browse(ALICE, "NoSuchType", browseQuery(new Page(0, 20))));
+                .isThrownBy(() -> service.browse(ALICE, "NoSuchType", browseQuery(new Page(0, 20))));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -287,7 +352,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), denyAll(), queryPort);
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20))));
+                .isThrownBy(() -> service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20))));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -296,17 +361,17 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("noSuchProperty", "eq", Optional.of("x"))),
-                Optional.empty(), List.of(), new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Task", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> assertThat(violation.path()).isEqualTo("noSuchProperty")));
+                .isThrownBy(() -> service.browse(ALICE, "Task", query))
+                .satisfies(exception -> assertThat(exception.violations())
+                        .anySatisfy(violation -> assertThat(violation.path()).isEqualTo("noSuchProperty")));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -317,20 +382,19 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
         // STATUS is Datatype.STRING; operatorApplicable only allows GT for INTEGER, LONG, DECIMAL,
         // DOUBLE, DATE, and DATE_TIME attributes, so GT against a string property is rejected.
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("status", "gt", Optional.of("open"))),
-                Optional.empty(), List.of(), new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Task", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> {
-                            assertThat(violation.path()).isEqualTo(STATUS_IRI);
-                            assertThat(violation.message()).contains("gt").contains("status");
-                        }));
+                .isThrownBy(() -> service.browse(ALICE, "Task", query))
+                .satisfies(exception -> assertThat(exception.violations()).anySatisfy(violation -> {
+                    assertThat(violation.path()).isEqualTo(STATUS_IRI);
+                    assertThat(violation.message()).contains("gt").contains("status");
+                }));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -339,15 +403,12 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
-                List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of("title"));
+        BrowseQuery query = new BrowseQuery(List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of("title"));
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Task", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TITLE_IRI)));
+                .isThrownBy(() -> service.browse(ALICE, "Task", query))
+                .satisfies(exception -> assertThat(exception.violations())
+                        .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TITLE_IRI)));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -356,16 +417,17 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
-                List.of(), Optional.empty(), List.of(new BrowseQuery.SortKey("tags", "asc")),
-                new Page(0, 20), List.of());
+        BrowseQuery query = new BrowseQuery(
+                List.of(),
+                Optional.empty(),
+                List.of(new BrowseQuery.SortKey("tags", "asc")),
+                new Page(0, 20),
+                List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Task", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TAGS_IRI)));
+                .isThrownBy(() -> service.browse(ALICE, "Task", query))
+                .satisfies(exception -> assertThat(exception.violations())
+                        .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TAGS_IRI)));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -374,18 +436,17 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("totalEstimatedHours", "eq", Optional.of("40"))),
-                Optional.empty(), List.of(), new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Project", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> assertThat(violation.path())
-                            .isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
+                .isThrownBy(() -> service.browse(ALICE, "Project", query))
+                .satisfies(exception -> assertThat(exception.violations())
+                        .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -394,19 +455,17 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
-                List.of(), Optional.empty(),
-                List.of(new BrowseQuery.SortKey("totalEstimatedHours", "asc")), new Page(0, 20),
+        BrowseQuery query = new BrowseQuery(
+                List.of(),
+                Optional.empty(),
+                List.of(new BrowseQuery.SortKey("totalEstimatedHours", "asc")),
+                new Page(0, 20),
                 List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Project", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> assertThat(violation.path())
-                            .isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
+                .isThrownBy(() -> service.browse(ALICE, "Project", query))
+                .satisfies(exception -> assertThat(exception.violations())
+                        .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -415,18 +474,13 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
-                List.of(), Optional.empty(), List.of(), new Page(0, 20),
-                List.of("totalEstimatedHours"));
+        BrowseQuery query = new BrowseQuery(
+                List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of("totalEstimatedHours"));
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Project", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> assertThat(violation.path())
-                            .isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
+                .isThrownBy(() -> service.browse(ALICE, "Project", query))
+                .satisfies(exception -> assertThat(exception.violations())
+                        .anySatisfy(violation -> assertThat(violation.path()).isEqualTo(TOTAL_ESTIMATED_HOURS_IRI)));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -438,11 +492,12 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("openTaskCount", "eq", Optional.of("0"))),
-                Optional.empty(), List.of(new BrowseQuery.SortKey("openTaskCount", "asc")),
-                new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(new BrowseQuery.SortKey("openTaskCount", "asc")),
+                new Page(0, 20),
+                List.of());
 
         service.browse(ALICE, "Project", query);
 
@@ -454,20 +509,19 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("title", "bogus", Optional.of("x"))),
-                Optional.empty(), List.of(), new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Task", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> {
-                            assertThat(violation.path()).isEqualTo("title");
-                            assertThat(violation.message()).contains("bogus");
-                        }));
+                .isThrownBy(() -> service.browse(ALICE, "Task", query))
+                .satisfies(exception -> assertThat(exception.violations()).anySatisfy(violation -> {
+                    assertThat(violation.path()).isEqualTo("title");
+                    assertThat(violation.message()).contains("bogus");
+                }));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -476,20 +530,19 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
-                List.of(), Optional.empty(), List.of(new BrowseQuery.SortKey("title", "bogus")),
-                new Page(0, 20), List.of());
+        BrowseQuery query = new BrowseQuery(
+                List.of(),
+                Optional.empty(),
+                List.of(new BrowseQuery.SortKey("title", "bogus")),
+                new Page(0, 20),
+                List.of());
 
         assertThatExceptionOfType(InvalidQueryException.class)
-            .isThrownBy(() -> service.browse(ALICE, "Task", query))
-            .satisfies(
-                exception -> assertThat(exception.violations())
-                    .anySatisfy(
-                        violation -> {
-                            assertThat(violation.path()).isEqualTo("title");
-                            assertThat(violation.message()).contains("bogus");
-                        }));
+                .isThrownBy(() -> service.browse(ALICE, "Task", query))
+                .satisfies(exception -> assertThat(exception.violations()).anySatisfy(violation -> {
+                    assertThat(violation.path()).isEqualTo("title");
+                    assertThat(violation.message()).contains("bogus");
+                }));
         assertThat(queryPort.queries).isEmpty();
     }
 
@@ -510,8 +563,7 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("title", "eq", Optional.of("Write plan"))),
                 Optional.empty(),
                 List.of(new BrowseQuery.SortKey("estimatedHours", "asc")),
@@ -524,7 +576,7 @@ class DefaultBusinessObjectServiceTest {
         Query captured = queryPort.queries.get(0);
         assertThat(captured.types()).containsExactly(TASK_IRI);
         assertThat(captured.criteria())
-            .containsExactly(new Criterion(TITLE_IRI, Operator.EQ, Optional.of(Value.text("Write plan"))));
+                .containsExactly(new Criterion(TITLE_IRI, Operator.EQ, Optional.of(Value.text("Write plan"))));
         assertThat(captured.sorts()).containsExactly(new Sort(HOURS_IRI, Direction.ASC));
         assertThat(captured.facetProperties()).containsExactly(STATUS_IRI);
     }
@@ -534,10 +586,12 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("status", "in", Optional.of("a,b,c"))),
-                Optional.empty(), List.of(), new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of());
 
         service.browse(ALICE, "Task", query);
 
@@ -548,8 +602,7 @@ class DefaultBusinessObjectServiceTest {
         assertThat(criterion.value()).isPresent();
         assertThat(criterion.value().get()).isInstanceOf(ListValue.class);
         ListValue listValue = (ListValue) criterion.value().get();
-        assertThat(listValue.values())
-            .containsExactly(Value.text("a"), Value.text("b"), Value.text("c"));
+        assertThat(listValue.values()).containsExactly(Value.text("a"), Value.text("b"), Value.text("c"));
     }
 
     @Test
@@ -557,10 +610,12 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
-        BrowseQuery query =
-            new BrowseQuery(
+        BrowseQuery query = new BrowseQuery(
                 List.of(new BrowseQuery.Filter("title", "isnull", Optional.empty())),
-                Optional.empty(), List.of(), new Page(0, 20), List.of());
+                Optional.empty(),
+                List.of(),
+                new Page(0, 20),
+                List.of());
 
         service.browse(ALICE, "Task", query);
 
@@ -575,12 +630,17 @@ class DefaultBusinessObjectServiceTest {
     void browseComputesRollupsWithExactlyTwoAggregateCallsForFiftyProjects() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
-        List<BusinessObject> projects = new ArrayList<>();
+        List<ObjectView> projects = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
-            projects.add(
-                new BusinessObject(
-                    ObjectId.random(), new TypeRef(PROJECT_IRI), ALICE.tenantId(), 1,
-                    Optional.empty(), Map.of(), new Audit(NOW, "alice", NOW, "alice"), false));
+            projects.add(new ObjectView(
+                    ObjectId.random(),
+                    new TypeRef(PROJECT_IRI),
+                    ALICE.tenantId(),
+                    1,
+                    Optional.empty(),
+                    Map.of(),
+                    new Audit(NOW, "alice", NOW, "alice"),
+                    false));
         }
         queryPort.response = new QueryResult(projects, 50, Map.of());
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
@@ -590,13 +650,11 @@ class DefaultBusinessObjectServiceTest {
         // Exactly one COUNT request and one SUM request — never one per object (50) and never
         // one per property-per-object (100).
         assertThat(queryPort.aggregateRequests).hasSize(2);
-        AggregateRequest countRequest =
-            queryPort.aggregateRequests.stream()
+        AggregateRequest countRequest = queryPort.aggregateRequests.stream()
                 .filter(request -> request.function() == AggregateFunction.COUNT)
                 .findFirst()
                 .orElseThrow();
-        AggregateRequest sumRequest =
-            queryPort.aggregateRequests.stream()
+        AggregateRequest sumRequest = queryPort.aggregateRequests.stream()
                 .filter(request -> request.function() == AggregateFunction.SUM)
                 .findFirst()
                 .orElseThrow();
@@ -610,9 +668,8 @@ class DefaultBusinessObjectServiceTest {
 
         assertThat(result.items()).hasSize(50);
         assertThat(result.items())
-            .allSatisfy(
-                object ->
-                    assertThat(object.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI)));
+                .allSatisfy(
+                        object -> assertThat(object.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI)));
     }
 
     // --- read ---
@@ -623,9 +680,9 @@ class DefaultBusinessObjectServiceTest {
         BusinessObject task = seedTask(store, "alice", NOW, 1);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
-        BusinessObject result = service.read(ALICE, "Task", task.id());
+        ObjectView result = service.read(ALICE, "Task", task.id());
 
-        assertThat(result).isEqualTo(task);
+        assertThat(result).isEqualTo(ObjectViewMapper.toView(task));
     }
 
     @Test
@@ -634,24 +691,29 @@ class DefaultBusinessObjectServiceTest {
         BusinessObject task = seedTask(store, "alice", NOW, 1);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
-        BusinessObject result = service.read(ALICE, "WorkItem", task.id());
+        ObjectView result = service.read(ALICE, "WorkItem", task.id());
 
-        assertThat(result).isEqualTo(task);
+        assertThat(result).isEqualTo(ObjectViewMapper.toView(task));
     }
 
     @Test
     void readThrowsObjectNotFoundForUnrelatedStoredType() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
-        BusinessObject person =
-            new BusinessObject(
-                ObjectId.random(), new TypeRef(PERSON_IRI), ALICE.tenantId(), 1, Optional.empty(),
-                Map.of(), new Audit(NOW, "alice", NOW, "alice"), false);
+        BusinessObject person = new BusinessObject(
+                ObjectId.random(),
+                new TypeRef(PERSON_IRI),
+                ALICE.tenantId(),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(NOW, "alice", NOW, "alice"),
+                false);
         store.seed(person);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(() -> service.read(ALICE, "Task", person.id()));
+                .isThrownBy(() -> service.read(ALICE, "Task", person.id()));
         // The type-mismatch 404 must short-circuit before derivation ever runs an aggregate.
         assertThat(queryPort.aggregateRequests).isEmpty();
     }
@@ -660,14 +722,19 @@ class DefaultBusinessObjectServiceTest {
     void readComputesRollupsWithExactlyTwoAggregateCallsSameAsBrowse() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
-        BusinessObject project =
-            new BusinessObject(
-                ObjectId.random(), new TypeRef(PROJECT_IRI), ALICE.tenantId(), 1, Optional.empty(),
-                Map.of(), new Audit(NOW, "alice", NOW, "alice"), false);
+        BusinessObject project = new BusinessObject(
+                ObjectId.random(),
+                new TypeRef(PROJECT_IRI),
+                ALICE.tenantId(),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(NOW, "alice", NOW, "alice"),
+                false);
         store.seed(project);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll(), queryPort);
 
-        BusinessObject result = service.read(ALICE, "Project", project.id());
+        ObjectView result = service.read(ALICE, "Project", project.id());
 
         assertThat(queryPort.aggregateRequests).hasSize(2);
         assertThat(result.properties()).containsKey(new PropertyRef(OPEN_TASK_COUNT_IRI));
@@ -685,17 +752,20 @@ class DefaultBusinessObjectServiceTest {
     @Test
     void computeRuleProducesTheSameValueAndRequestShapeAsReadsInlineDispatchDid() {
         FakeQueryPort queryPort = new FakeQueryPort();
-        DerivationPlanner planner =
-            new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
+        DerivationPlanner planner = new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader());
         ObjectId projectId = ObjectId.random();
-        BusinessObject project =
-            new BusinessObject(
-                projectId, new TypeRef(PROJECT_IRI), ALICE.tenantId(), 1, Optional.empty(), Map.of(),
-                new Audit(NOW, "alice", NOW, "alice"), false);
-        RollupRule rule = (RollupRule) OPEN_TASK_COUNT.derivation().orElseThrow();
+        BusinessObject project = new BusinessObject(
+                projectId,
+                new TypeRef(PROJECT_IRI),
+                ALICE.tenantId(),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(NOW, "alice", NOW, "alice"),
+                false);
+        RollupRule rule = (RollupRule) BEHAVIOUR.derivation(OPEN_TASK_COUNT_IRI).orElseThrow();
 
-        Map<ObjectId, Value> values =
-            planner.computeRule(ALICE, SNAPSHOT, rule, Set.of(projectId), List.of(project));
+        Map<ObjectId, Value> values = planner.computeRule(ALICE, SCHEMA, rule, Set.of(projectId), List.of(project));
 
         assertThat(queryPort.aggregateRequests).hasSize(1);
         AggregateRequest request = queryPort.aggregateRequests.get(0);
@@ -713,7 +783,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(() -> service.read(ALICE, "Task", ObjectId.random()));
+                .isThrownBy(() -> service.read(ALICE, "Task", ObjectId.random()));
     }
 
     @Test
@@ -723,7 +793,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), denyAll());
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.read(ALICE, "Task", task.id()));
+                .isThrownBy(() -> service.read(ALICE, "Task", task.id()));
         assertThat(store.findCalls).isZero();
     }
 
@@ -754,33 +824,65 @@ class DefaultBusinessObjectServiceTest {
     }
 
     @Test
+    void addStampsTheOntologyVersionOfTheSchemaItValidatedAgainst() {
+        // Isolated schema and behaviour at version 7, so the stamp must come from the snapshot read,
+        // not from the shared fixtures' version 1.
+        String ticketIri = NS + "Ticket";
+        TypeDefinition ticket =
+                new TypeDefinition(ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(7), NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(ticket));
+        Behaviour behaviour = new Behaviour(new OntologyVersion(7), Map.of(), Map.of());
+
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        DefaultBusinessObjectService service = new DefaultBusinessObjectService(
+                new FakeOntology(schema, behaviour),
+                new FakeOntology(schema, behaviour),
+                store,
+                new FakeValidationPort(List.of()),
+                permitAll(),
+                readOver(store),
+                new FakeQueryPort(),
+                new FakeQueryPort(),
+                CLOCK);
+
+        service.add(ALICE, "Ticket", Map.of());
+
+        OutboxEntry created = store.commits.get(0).outbox().get(0);
+        assertThat(created.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_CREATED);
+        assertThat(created.payload()).containsEntry("ontologyVersion", 7);
+    }
+
+    @Test
     void addWithStateMachineInitializesStateToInitialState() {
-        // Isolated snapshot (not the shared SNAPSHOT fixture) carrying a stateMachine() on its one
-        // type, so this test exercises add()'s new "initialize state" branch without perturbing
-        // any other test's shared type list.
+        // Isolated schema and behaviour (not the shared fixtures) whose behaviour carries the state
+        // machine for its one type, so this test exercises add()'s new "initialize state" branch
+        // without perturbing any other test's shared type list or state machines.
         String ticketIri = NS + "Ticket";
         String draftIri = NS + "Draft";
         String openIri = NS + "Open";
         State draft = new State(draftIri, "Draft", 0);
         State open = new State(openIri, "Open", 1);
         StateMachineDefinition machine =
-            new StateMachineDefinition(
-                NS + "TicketLifecycle", List.of(draft, open), draft, List.of());
+                new StateMachineDefinition(NS + "TicketLifecycle", List.of(draft, open), draft, List.of());
         TypeDefinition ticket =
-            new TypeDefinition(
-                ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false,
-                Optional.of(machine));
-        MetaModelSnapshot snapshot =
-            new MetaModelSnapshot(
-                NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(ticket),
-                new OntologyReport(true, List.of()));
+                new TypeDefinition(ticketIri, "Ticket", List.of(), List.of(), DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(1), NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(ticket));
+        Behaviour behaviour = new Behaviour(new OntologyVersion(1), Map.of(ticketIri, machine), Map.of());
 
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeValidationPort validationPort = new FakeValidationPort(List.of());
-        DefaultBusinessObjectService service =
-            new DefaultBusinessObjectService(
-                new FakeOntologyPort(snapshot), store, validationPort, permitAll(),
-                new FakeQueryPort(), CLOCK);
+        DefaultBusinessObjectService service = new DefaultBusinessObjectService(
+                new FakeOntology(schema, behaviour),
+                new FakeOntology(schema, behaviour),
+                store,
+                validationPort,
+                permitAll(),
+                readOver(store),
+                new FakeQueryPort(),
+                new FakeQueryPort(),
+                CLOCK);
 
         BusinessObject result = service.add(ALICE, "Ticket", Map.of());
 
@@ -797,10 +899,9 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(() -> service.add(ALICE, "Task", Map.of("title", 42)))
-            .satisfies(
-                exception -> assertThat(exception.source())
-                    .isEqualTo(ValidationException.Source.STRUCTURAL));
+                .isThrownBy(() -> service.add(ALICE, "Task", Map.of("title", 42)))
+                .satisfies(
+                        exception -> assertThat(exception.source()).isEqualTo(ValidationException.Source.STRUCTURAL));
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
     }
@@ -813,18 +914,13 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll(), queryPort);
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(() -> service.add(ALICE, "Project", Map.of("openTaskCount", 3)))
-            .satisfies(
-                exception -> {
-                    assertThat(exception.source())
-                        .isEqualTo(ValidationException.Source.STRUCTURAL);
-                    assertThat(exception.violations())
-                        .anySatisfy(
-                            violation -> {
-                                assertThat(violation.path()).isEqualTo(OPEN_TASK_COUNT_IRI);
-                                assertThat(violation.message())
-                                    .contains("is a derived property and cannot be set directly");
-                            });
+                .isThrownBy(() -> service.add(ALICE, "Project", Map.of("openTaskCount", 3)))
+                .satisfies(exception -> {
+                    assertThat(exception.source()).isEqualTo(ValidationException.Source.STRUCTURAL);
+                    assertThat(exception.violations()).anySatisfy(violation -> {
+                        assertThat(violation.path()).isEqualTo(OPEN_TASK_COUNT_IRI);
+                        assertThat(violation.message()).contains("is a derived property and cannot be set directly");
+                    });
                 });
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
@@ -838,10 +934,9 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(() -> service.add(ALICE, "Task", Map.of()))
-            .satisfies(
-                exception -> assertThat(exception.source())
-                    .isEqualTo(ValidationException.Source.STRUCTURAL));
+                .isThrownBy(() -> service.add(ALICE, "Task", Map.of()))
+                .satisfies(
+                        exception -> assertThat(exception.source()).isEqualTo(ValidationException.Source.STRUCTURAL));
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
     }
@@ -854,10 +949,8 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(() -> service.add(ALICE, "Task", Map.of("title", "Write plan")))
-            .satisfies(
-                exception -> assertThat(exception.source())
-                    .isEqualTo(ValidationException.Source.SHACL));
+                .isThrownBy(() -> service.add(ALICE, "Task", Map.of("title", "Write plan")))
+                .satisfies(exception -> assertThat(exception.source()).isEqualTo(ValidationException.Source.SHACL));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -867,9 +960,8 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(() -> service.add(ALICE, "AbstractThing", Map.of()))
-            .satisfies(
-                exception -> {
+                .isThrownBy(() -> service.add(ALICE, "AbstractThing", Map.of()))
+                .satisfies(exception -> {
                     assertThat(exception.source()).isEqualTo(ValidationException.Source.STRUCTURAL);
                     assertThat(exception.violations()).hasSize(1);
                 });
@@ -881,7 +973,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), denyAll());
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(() -> service.add(ALICE, "Task", Map.of("title", "Write plan")));
+                .isThrownBy(() -> service.add(ALICE, "Task", Map.of("title", "Write plan")));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -895,8 +987,7 @@ class DefaultBusinessObjectServiceTest {
         FakeValidationPort validationPort = new FakeValidationPort(List.of());
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
-        BusinessObject result =
-            service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated"));
+        BusinessObject result = service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated"));
 
         assertThat(store.commits).hasSize(1);
         ChangeSet changeSet = store.commits.get(0);
@@ -920,8 +1011,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(
-                () -> service.edit(BOB, "Task", ObjectId.random(), 1, Map.of("title", "x")));
+                .isThrownBy(() -> service.edit(BOB, "Task", ObjectId.random(), 1, Map.of("title", "x")));
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
     }
@@ -929,16 +1019,20 @@ class DefaultBusinessObjectServiceTest {
     @Test
     void editWithMismatchedStoredTypeThrowsObjectNotFound() {
         FakeObjectStorePort store = new FakeObjectStorePort();
-        BusinessObject person =
-            new BusinessObject(
-                ObjectId.random(), new TypeRef(PERSON_IRI), ALICE.tenantId(), 1, Optional.empty(),
-                Map.of(), new Audit(NOW, "alice", NOW, "alice"), false);
+        BusinessObject person = new BusinessObject(
+                ObjectId.random(),
+                new TypeRef(PERSON_IRI),
+                ALICE.tenantId(),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(NOW, "alice", NOW, "alice"),
+                false);
         store.seed(person);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(
-                () -> service.edit(BOB, "Task", person.id(), 1, Map.of("title", "x")));
+                .isThrownBy(() -> service.edit(BOB, "Task", person.id(), 1, Map.of("title", "x")));
     }
 
     @Test
@@ -949,10 +1043,9 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(() -> service.edit(BOB, "Task", existing.id(), 1, Map.of()))
-            .satisfies(
-                exception -> assertThat(exception.source())
-                    .isEqualTo(ValidationException.Source.STRUCTURAL));
+                .isThrownBy(() -> service.edit(BOB, "Task", existing.id(), 1, Map.of()))
+                .satisfies(
+                        exception -> assertThat(exception.source()).isEqualTo(ValidationException.Source.STRUCTURAL));
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
     }
@@ -966,21 +1059,13 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, validationPort, permitAll(), queryPort);
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(
-                () ->
-                    service.edit(
-                        BOB, "Project", existing.id(), 1, Map.of("totalEstimatedHours", 40)))
-            .satisfies(
-                exception -> {
-                    assertThat(exception.source())
-                        .isEqualTo(ValidationException.Source.STRUCTURAL);
-                    assertThat(exception.violations())
-                        .anySatisfy(
-                            violation -> {
-                                assertThat(violation.path()).isEqualTo(TOTAL_ESTIMATED_HOURS_IRI);
-                                assertThat(violation.message())
-                                    .contains("is a derived property and cannot be set directly");
-                            });
+                .isThrownBy(() -> service.edit(BOB, "Project", existing.id(), 1, Map.of("totalEstimatedHours", 40)))
+                .satisfies(exception -> {
+                    assertThat(exception.source()).isEqualTo(ValidationException.Source.STRUCTURAL);
+                    assertThat(exception.violations()).anySatisfy(violation -> {
+                        assertThat(violation.path()).isEqualTo(TOTAL_ESTIMATED_HOURS_IRI);
+                        assertThat(violation.message()).contains("is a derived property and cannot be set directly");
+                    });
                 });
         assertThat(store.commitCalls).isZero();
         assertThat(validationPort.calls).isZero();
@@ -991,16 +1076,12 @@ class DefaultBusinessObjectServiceTest {
     void editWithShaclViolationThrowsShaclValidationExceptionWithoutCommit() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         BusinessObject existing = seedTask(store, "alice", NOW, 1);
-        FakeValidationPort validationPort =
-            new FakeValidationPort(List.of(new Violation(TITLE_IRI, "shacl says no")));
+        FakeValidationPort validationPort = new FakeValidationPort(List.of(new Violation(TITLE_IRI, "shacl says no")));
         DefaultBusinessObjectService service = service(store, validationPort, permitAll());
 
         assertThatExceptionOfType(ValidationException.class)
-            .isThrownBy(
-                () -> service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated")))
-            .satisfies(
-                exception -> assertThat(exception.source())
-                    .isEqualTo(ValidationException.Source.SHACL));
+                .isThrownBy(() -> service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated")))
+                .satisfies(exception -> assertThat(exception.source()).isEqualTo(ValidationException.Source.SHACL));
         assertThat(store.commitCalls).isZero();
     }
 
@@ -1011,8 +1092,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), denyAll());
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(
-                () -> service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated")));
+                .isThrownBy(() -> service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated")));
         assertThat(store.findCalls).isZero();
     }
 
@@ -1023,8 +1103,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
         assertThatExceptionOfType(StaleObjectException.class)
-            .isThrownBy(
-                () -> service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated")));
+                .isThrownBy(() -> service.edit(BOB, "Task", existing.id(), 1, Map.of("title", "Updated")));
     }
 
     // --- delete ---
@@ -1050,8 +1129,7 @@ class DefaultBusinessObjectServiceTest {
         // encodes every other outbox value.
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) outbox.payload().get("properties");
-        assertThat(properties)
-            .containsEntry(TITLE_IRI, PayloadValueCodec.toPayload(new TextValue("Write plan")));
+        assertThat(properties).containsEntry(TITLE_IRI, PayloadValueCodec.toPayload(new TextValue("Write plan")));
     }
 
     @Test
@@ -1073,24 +1151,27 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(
-                () -> service.delete(ALICE, "Task", ObjectId.random(), OptionalLong.empty()));
+                .isThrownBy(() -> service.delete(ALICE, "Task", ObjectId.random(), OptionalLong.empty()));
         assertThat(store.commitCalls).isZero();
     }
 
     @Test
     void deleteWithMismatchedStoredTypeThrowsObjectNotFound() {
         FakeObjectStorePort store = new FakeObjectStorePort();
-        BusinessObject person =
-            new BusinessObject(
-                ObjectId.random(), new TypeRef(PERSON_IRI), ALICE.tenantId(), 1, Optional.empty(),
-                Map.of(), new Audit(NOW, "alice", NOW, "alice"), false);
+        BusinessObject person = new BusinessObject(
+                ObjectId.random(),
+                new TypeRef(PERSON_IRI),
+                ALICE.tenantId(),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(NOW, "alice", NOW, "alice"),
+                false);
         store.seed(person);
         DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
 
         assertThatExceptionOfType(ObjectNotFoundException.class)
-            .isThrownBy(
-                () -> service.delete(ALICE, "Task", person.id(), OptionalLong.empty()));
+                .isThrownBy(() -> service.delete(ALICE, "Task", person.id(), OptionalLong.empty()));
     }
 
     @Test
@@ -1100,8 +1181,7 @@ class DefaultBusinessObjectServiceTest {
         DefaultBusinessObjectService service = service(store, noViolations(), denyAll());
 
         assertThatExceptionOfType(AuthorizationException.class)
-            .isThrownBy(
-                () -> service.delete(ALICE, "Task", existing.id(), OptionalLong.empty()));
+                .isThrownBy(() -> service.delete(ALICE, "Task", existing.id(), OptionalLong.empty()));
         assertThat(store.findCalls).isZero();
     }
 
@@ -1110,31 +1190,107 @@ class DefaultBusinessObjectServiceTest {
     @Test
     void constructorRejectsNullArguments() {
         FakeObjectStorePort store = new FakeObjectStorePort();
+        ReadPort readPort = readOver(store);
         FakeQueryPort queryPort = new FakeQueryPort();
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    null, store, noViolations(), permitAll(), queryPort, CLOCK));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        null,
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), null, noViolations(), permitAll(), queryPort, CLOCK));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        null,
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, null, permitAll(), queryPort, CLOCK));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        null,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, noViolations(), null, queryPort, CLOCK));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        null,
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, noViolations(), permitAll(), null, CLOCK));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        null,
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, null));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        null,
+                        queryPort,
+                        queryPort,
+                        CLOCK));
+        assertThatNullPointerException()
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        null,
+                        queryPort,
+                        CLOCK));
+        assertThatNullPointerException()
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        null,
+                        CLOCK));
+        assertThatNullPointerException()
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readPort,
+                        queryPort,
+                        queryPort,
+                        null));
     }
 
     @Test
@@ -1142,18 +1298,23 @@ class DefaultBusinessObjectServiceTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> new DefaultBusinessObjectService(
-                    new FakeOntologyPort(), store, noViolations(), permitAll(), queryPort, CLOCK,
-                    null));
+                .isThrownBy(() -> new DefaultBusinessObjectService(
+                        new FakeOntology(),
+                        new FakeOntology(),
+                        store,
+                        noViolations(),
+                        permitAll(),
+                        readOver(store),
+                        queryPort,
+                        CLOCK,
+                        null));
     }
 
     // --- null arguments per method ---
 
     @Test
     void browseRejectsNullArguments() {
-        DefaultBusinessObjectService service =
-            service(new FakeObjectStorePort(), noViolations(), permitAll());
+        DefaultBusinessObjectService service = service(new FakeObjectStorePort(), noViolations(), permitAll());
         BrowseQuery query = browseQuery(new Page(0, 20));
         assertThatNullPointerException().isThrownBy(() -> service.browse(null, "Task", query));
         assertThatNullPointerException().isThrownBy(() -> service.browse(ALICE, null, query));
@@ -1162,19 +1323,15 @@ class DefaultBusinessObjectServiceTest {
 
     @Test
     void readRejectsNullArguments() {
-        DefaultBusinessObjectService service =
-            service(new FakeObjectStorePort(), noViolations(), permitAll());
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.read(null, "Task", ObjectId.random()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.read(ALICE, null, ObjectId.random()));
+        DefaultBusinessObjectService service = service(new FakeObjectStorePort(), noViolations(), permitAll());
+        assertThatNullPointerException().isThrownBy(() -> service.read(null, "Task", ObjectId.random()));
+        assertThatNullPointerException().isThrownBy(() -> service.read(ALICE, null, ObjectId.random()));
         assertThatNullPointerException().isThrownBy(() -> service.read(ALICE, "Task", null));
     }
 
     @Test
     void addRejectsNullArguments() {
-        DefaultBusinessObjectService service =
-            service(new FakeObjectStorePort(), noViolations(), permitAll());
+        DefaultBusinessObjectService service = service(new FakeObjectStorePort(), noViolations(), permitAll());
         assertThatNullPointerException().isThrownBy(() -> service.add(null, "Task", Map.of()));
         assertThatNullPointerException().isThrownBy(() -> service.add(ALICE, null, Map.of()));
         assertThatNullPointerException().isThrownBy(() -> service.add(ALICE, "Task", null));
@@ -1182,11 +1339,9 @@ class DefaultBusinessObjectServiceTest {
 
     @Test
     void editRejectsNullArguments() {
-        DefaultBusinessObjectService service =
-            service(new FakeObjectStorePort(), noViolations(), permitAll());
+        DefaultBusinessObjectService service = service(new FakeObjectStorePort(), noViolations(), permitAll());
         ObjectId id = ObjectId.random();
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.edit(null, "Task", id, 1, Map.of()));
+        assertThatNullPointerException().isThrownBy(() -> service.edit(null, "Task", id, 1, Map.of()));
         assertThatNullPointerException().isThrownBy(() -> service.edit(ALICE, null, id, 1, Map.of()));
         assertThatNullPointerException().isThrownBy(() -> service.edit(ALICE, "Task", null, 1, Map.of()));
         assertThatNullPointerException().isThrownBy(() -> service.edit(ALICE, "Task", id, 1, null));
@@ -1194,66 +1349,63 @@ class DefaultBusinessObjectServiceTest {
 
     @Test
     void deleteRejectsNullArguments() {
-        DefaultBusinessObjectService service =
-            service(new FakeObjectStorePort(), noViolations(), permitAll());
+        DefaultBusinessObjectService service = service(new FakeObjectStorePort(), noViolations(), permitAll());
         ObjectId id = ObjectId.random();
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.delete(null, "Task", id, OptionalLong.empty()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.delete(ALICE, null, id, OptionalLong.empty()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.delete(ALICE, "Task", null, OptionalLong.empty()));
-        assertThatNullPointerException()
-            .isThrownBy(() -> service.delete(ALICE, "Task", id, null));
+        assertThatNullPointerException().isThrownBy(() -> service.delete(null, "Task", id, OptionalLong.empty()));
+        assertThatNullPointerException().isThrownBy(() -> service.delete(ALICE, null, id, OptionalLong.empty()));
+        assertThatNullPointerException().isThrownBy(() -> service.delete(ALICE, "Task", null, OptionalLong.empty()));
+        assertThatNullPointerException().isThrownBy(() -> service.delete(ALICE, "Task", id, null));
     }
 
     private static BusinessObject seedTask(
-        FakeObjectStorePort store, String createdBy, Instant createdAt, long version) {
-        BusinessObject task =
-            new BusinessObject(
-                ObjectId.random(), new TypeRef(TASK_IRI), new TenantId("acme"), version,
-                Optional.empty(), Map.of(new PropertyRef(TITLE_IRI), new TextValue("Write plan")),
-                new Audit(createdAt, createdBy, createdAt, createdBy), false);
+            FakeObjectStorePort store, String createdBy, Instant createdAt, long version) {
+        BusinessObject task = new BusinessObject(
+                ObjectId.random(),
+                new TypeRef(TASK_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.empty(),
+                Map.of(new PropertyRef(TITLE_IRI), new TextValue("Write plan")),
+                new Audit(createdAt, createdBy, createdAt, createdBy),
+                false);
         store.seed(task);
         return task;
     }
 
     private static BusinessObject seedProject(
-        FakeObjectStorePort store, String createdBy, Instant createdAt, long version) {
-        BusinessObject project =
-            new BusinessObject(
-                ObjectId.random(), new TypeRef(PROJECT_IRI), new TenantId("acme"), version,
-                Optional.empty(), Map.of(),
-                new Audit(createdAt, createdBy, createdAt, createdBy), false);
+            FakeObjectStorePort store, String createdBy, Instant createdAt, long version) {
+        BusinessObject project = new BusinessObject(
+                ObjectId.random(),
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.empty(),
+                Map.of(),
+                new Audit(createdAt, createdBy, createdAt, createdBy),
+                false);
         store.seed(project);
         return project;
     }
 
     /**
-     * Hand-written {@link QueryPort} double: captures every {@link Query} passed to {@link
-     * #query}, returning a configurable (default empty) {@link QueryResult}. {@link #ensureIndexes}
-     * is not exercised by these tests (that's {@code DefaultOntologyAdministrationTest}'s job), so
-     * it throws, matching how every other fake in this file leaves an unexercised method
-     * unimplemented.
+     * Hand-written {@link QueryPort} and {@link BrowsePort} double: captures every {@link Query}
+     * passed to {@link #browse}, returning a configurable (default empty) {@link QueryResult}. It
+     * serves aggregate for the derivation planner and browse for the service under test; the
+     * index preparation port is not exercised by these tests at all.
      */
-    private static final class FakeQueryPort implements QueryPort {
+    private static final class FakeQueryPort implements QueryPort, BrowsePort {
 
         private final List<Query> queries = new ArrayList<>();
         private final List<AggregateRequest> aggregateRequests = new ArrayList<>();
         private QueryResult response = new QueryResult(List.of(), 0, Map.of());
 
         @Override
-        public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
+        public QueryResult browse(Scope scope, Schema schema, Query query) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(query, "query must not be null");
             queries.add(query);
             return response;
-        }
-
-        @Override
-        public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         /**
@@ -1265,9 +1417,9 @@ class DefaultBusinessObjectServiceTest {
          * response that still respects the density contract.
          */
         @Override
-        public AggregateResult aggregate(Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+        public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(request, "request must not be null");
             aggregateRequests.add(request);
             if (request.function() == AggregateFunction.COUNT) {
@@ -1282,43 +1434,36 @@ class DefaultBusinessObjectServiceTest {
     }
 
     /**
-     * Hand-written {@link OntologyPort} double: only {@code snapshot} is exercised. Defaults to
-     * the shared {@link #SNAPSHOT} fixture (every pre-existing test uses the no-arg constructor
-     * and is unaffected by this overload), but a test that needs its own isolated {@link
-     * MetaModelSnapshot} — e.g. one carrying a {@code stateMachine()} — can supply one directly
-     * rather than growing the shared fixture's type list.
+     * Hand-written stand-in for the two read ports, serving one schema and one behaviour. Defaults
+     * to the shared {@link #SCHEMA} schema and {@link #BEHAVIOUR} (every pre-existing test uses
+     * the no-arg constructor), but a test that needs its own isolated schema and behaviour, e.g. a
+     * state machine on its own type, can supply both directly rather than growing the shared
+     * fixtures.
      */
-    private static final class FakeOntologyPort implements OntologyPort {
+    private static final class FakeOntology implements SchemaSource, BehaviourSource {
 
-        private final MetaModelSnapshot snapshot;
+        private final Schema schema;
+        private final Behaviour behaviour;
 
-        FakeOntologyPort() {
-            this(SNAPSHOT);
+        FakeOntology() {
+            this(SCHEMA, BEHAVIOUR);
         }
 
-        FakeOntologyPort(MetaModelSnapshot snapshot) {
-            this.snapshot = snapshot;
-        }
-
-        @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return snapshot;
+        FakeOntology(Schema schema, Behaviour behaviour) {
+            this.schema = schema;
+            this.behaviour = behaviour;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return schema;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return behaviour;
         }
     }
 
@@ -1337,9 +1482,9 @@ class DefaultBusinessObjectServiceTest {
         }
 
         @Override
-        public List<Violation> validate(Scope scope, MetaModelSnapshot snapshot, BusinessObject object) {
+        public List<Violation> validate(Scope scope, Schema schema, BusinessObject object) {
             Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(snapshot, "snapshot must not be null");
+            Objects.requireNonNull(schema, "schema must not be null");
             Objects.requireNonNull(object, "object must not be null");
             calls++;
             return violations;
@@ -1358,10 +1503,8 @@ class DefaultBusinessObjectServiceTest {
         private final Map<ObjectId, BusinessObject> store = new HashMap<>();
         private final List<ChangeSet> commits = new ArrayList<>();
         private int findCalls;
-        private int browseCalls;
         private int typesOfCalls;
         private int commitCalls;
-        private Set<TypeRef> lastBrowseTypes;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
@@ -1377,23 +1520,6 @@ class DefaultBusinessObjectServiceTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            Objects.requireNonNull(types, "types must not be null");
-            Objects.requireNonNull(page, "page must not be null");
-            browseCalls++;
-            lastBrowseTypes = types;
-            List<BusinessObject> items =
-                store.values().stream()
-                    .filter(object -> !object.deleted() && types.contains(object.type()))
-                    .sorted(
-                        Comparator.comparing((BusinessObject object) -> object.audit().createdAt())
-                            .thenComparing(object -> object.id().value()))
-                    .toList();
-            return new PageResult<>(items, page.number(), page.size(), items.size());
         }
 
         @Override
@@ -1441,13 +1567,15 @@ class DefaultBusinessObjectServiceTest {
                     if (current.version() != delete.expectedVersion()) {
                         throw new StaleObjectException(delete.id(), delete.expectedVersion());
                     }
-                    BusinessObject deleted =
-                        new BusinessObject(
-                            current.id(), current.type(), current.tenant(),
-                            delete.expectedVersion() + 1, current.state(), current.properties(),
+                    BusinessObject deleted = new BusinessObject(
+                            current.id(),
+                            current.type(),
+                            current.tenant(),
+                            delete.expectedVersion() + 1,
+                            current.state(),
+                            current.properties(),
                             new Audit(
-                                current.audit().createdAt(), current.audit().createdBy(), delete.at(),
-                                delete.by()),
+                                    current.audit().createdAt(), current.audit().createdBy(), delete.at(), delete.by()),
                             true);
                     store.put(delete.id(), deleted);
                     resultObjects.add(deleted);

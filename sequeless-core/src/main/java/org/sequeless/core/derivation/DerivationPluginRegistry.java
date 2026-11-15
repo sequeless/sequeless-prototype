@@ -47,8 +47,8 @@ public final class DerivationPluginRegistry {
      * @throws NullPointerException if {@code name} is {@code null}
      * @throws IllegalStateException if no plug-in is registered under {@code name} — should be
      *     unreachable in practice, since ontology activation already rejects an unknown {@code
-     *     sq:pluginName} before a {@link org.sequeless.spi.meta.PluginRule} naming it can ever
-     *     reach a snapshot; this is a defensive guard, not the primary validation path
+     *     sq:pluginName} before a {@link org.sequeless.ontology.behaviour.api.PluginRule} naming it can ever
+     *     reach a schema; this is a defensive guard, not the primary validation path
      */
     public DerivationPlugin get(String name) {
         Objects.requireNonNull(name, "name must not be null");

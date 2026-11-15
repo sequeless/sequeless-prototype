@@ -1,10 +1,16 @@
 package org.sequeless.adapter.ontology.jena;
 
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.api.OntologyAdministration;
+import org.sequeless.ontology.jena.JenaOntologyPort;
+import org.sequeless.ontology.jena.JenaOntologySettings;
+import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.ontology.OntologyPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,13 +23,19 @@ import org.springframework.context.annotation.Bean;
  * PermitAllAuthorizationAutoConfiguration} exactly.
  *
  * <p>Deliberately has no {@code matchIfMissing}: when the property is unset, the condition must
- * evaluate to {@code false} and no {@link OntologyPort} bean must exist here at all, so the
+ * evaluate to {@code false} and no {@link JenaOntologyPort} bean must exist here at all, so the
  * application's port registry can detect the absent-property case itself and report it, rather than
  * this auto-configuration silently conjuring a default.
  *
+ * <p>The bean is typed as the concrete {@link JenaOntologyPort}, so one bean serves all four of its
+ * interfaces ({@link org.sequeless.ontology.schema.spi.SchemaSource}, {@link
+ * org.sequeless.ontology.behaviour.spi.BehaviourSource}, {@link
+ * org.sequeless.ontology.automation.spi.AutomationSource} and {@link OntologyAdministration}) and the
+ * port registry can see it without eager initialisation.
+ *
  * <p>Deliberately has no {@code @ConditionalOnMissingBean}: if another adapter's auto-configuration
- * also produces an {@link OntologyPort} bean under the same property value, both beans must be
- * allowed to exist so the application's port registry — not Spring — is the thing that detects and
+ * also produces an {@link OntologyAdministration} bean under the same property value, both beans must
+ * be allowed to exist so the application's port registry — not Spring — is the thing that detects and
  * rejects the ambiguity.
  *
  * <p>Takes an {@link ObjectProvider} of {@link ObjectStorePort} — not a plain {@link ObjectStorePort}
@@ -48,16 +60,38 @@ public class JenaOntologyAutoConfiguration {
      *     JenaOntologyProperties#getSource()} exactly as before
      */
     @Bean
-    public OntologyPort ontologyPort(
+    public JenaOntologyPort ontologyPort(
             JenaOntologyProperties properties, ObjectProvider<ObjectStorePort> objectStoreProvider) {
+        JenaOntologySettings settings = properties.settings();
         ObjectStorePort store = objectStoreProvider.getIfAvailable();
         if (store == null) {
             return JenaOntologyPort.fromSource(
-                "sequeless.ontology.source", properties.getSource(), properties.getReasoner());
+                    "sequeless.ontology.source",
+                    settings.source(),
+                    settings.reasoner(),
+                    JenaOntologyAutoConfiguration::registeredDerivationPlugins);
         }
         Scope scope = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
         return JenaOntologyPort.fromStore(
-            store.ontologyDocuments(), scope, "sequeless.ontology.source", properties.getSource(),
-            properties.getReasoner());
+                store.ontologyDocuments(),
+                scope,
+                "sequeless.ontology.source",
+                settings.source(),
+                settings.reasoner(),
+                JenaOntologyAutoConfiguration::registeredDerivationPlugins);
+    }
+
+    /**
+     * Names every {@link DerivationPlugin} registered on the classpath through {@link ServiceLoader}.
+     * The port calls this on every build, not once at bean creation, so a plug-in deployed after
+     * startup is seen by the next reload.
+     *
+     * @return the {@link DerivationPlugin#name()} of each registered plug-in; a fresh set on each call
+     */
+    public static Set<String> registeredDerivationPlugins() {
+        return ServiceLoader.load(DerivationPlugin.class).stream()
+                .map(ServiceLoader.Provider::get)
+                .map(DerivationPlugin::name)
+                .collect(Collectors.toSet());
     }
 }

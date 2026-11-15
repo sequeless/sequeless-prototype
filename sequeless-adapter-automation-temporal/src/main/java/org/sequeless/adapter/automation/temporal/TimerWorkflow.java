@@ -4,8 +4,8 @@ import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The Temporal workflow that durably waits out one {@code TimerScheduled} outbox entry's {@code

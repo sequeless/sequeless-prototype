@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.List;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.ontology.api.OntologyReport;
 
 /**
  * JSON response body rendered from an {@link OntologyReport} — on the success path, the body of
@@ -15,7 +15,7 @@ import org.sequeless.spi.ontology.OntologyReport;
 public record OntologyReportResponse(boolean consistent, List<Issue> issues) {
 
     /**
-     * JSON response shape for a single {@code org.sequeless.spi.ontology.OntologyIssue}.
+     * JSON response shape for a single {@code org.sequeless.ontology.api.OntologyIssue}.
      *
      * @param severity the issue's severity, e.g. {@code "ERROR"} or {@code "WARNING"}
      * @param subjectIri the IRI of the resource the issue concerns, or {@code null} if none
@@ -30,15 +30,10 @@ public record OntologyReportResponse(boolean consistent, List<Issue> issues) {
      * @return the equivalent {@link OntologyReportResponse}
      */
     public static OntologyReportResponse from(OntologyReport report) {
-        List<Issue> issues =
-                report.issues().stream()
-                        .map(
-                                issue ->
-                                        new Issue(
-                                                issue.severity().name(),
-                                                issue.subjectIri().orElse(null),
-                                                issue.message()))
-                        .toList();
+        List<Issue> issues = report.issues().stream()
+                .map(issue ->
+                        new Issue(issue.severity().name(), issue.subjectIri().orElse(null), issue.message()))
+                .toList();
         return new OntologyReportResponse(report.consistent(), issues);
     }
 }

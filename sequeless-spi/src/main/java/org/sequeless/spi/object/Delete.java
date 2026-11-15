@@ -2,6 +2,7 @@ package org.sequeless.spi.object;
 
 import java.time.Instant;
 import java.util.Objects;
+import org.sequeless.kernel.values.ObjectId;
 
 /**
  * A {@link Mutation} that soft-deletes an object, subject to optimistic locking. The stored object

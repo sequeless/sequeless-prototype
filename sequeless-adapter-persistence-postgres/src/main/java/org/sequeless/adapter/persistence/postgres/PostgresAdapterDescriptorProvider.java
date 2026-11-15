@@ -19,7 +19,6 @@ public final class PostgresAdapterDescriptorProvider implements AdapterDescripto
 
     @Override
     public AdapterDescriptor descriptor() {
-        return new AdapterDescriptor(
-            "postgres", ObjectStorePort.class, "sequeless.persistence.adapter", ">=0.1.0");
+        return new AdapterDescriptor("postgres", ObjectStorePort.class, "sequeless.persistence.adapter", ">=0.1.0");
     }
 }

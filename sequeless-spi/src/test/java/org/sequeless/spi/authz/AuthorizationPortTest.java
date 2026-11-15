@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
 
 /**
  * Unit-level tests for the {@link AuthorizationPort} interface shape itself. The full behavioural
@@ -49,9 +49,8 @@ class AuthorizationPortTest {
         Scope scope = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
 
         assertThatNullPointerException()
-            .isThrownBy(() -> port.decide(null, Operation.READ, AuthorizationPort.EVERYTHING));
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.decide(scope, null, AuthorizationPort.EVERYTHING));
+                .isThrownBy(() -> port.decide(null, Operation.READ, AuthorizationPort.EVERYTHING));
+        assertThatNullPointerException().isThrownBy(() -> port.decide(scope, null, AuthorizationPort.EVERYTHING));
         assertThatNullPointerException().isThrownBy(() -> port.decide(scope, Operation.READ, null));
     }
 }

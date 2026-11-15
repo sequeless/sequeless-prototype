@@ -4,7 +4,7 @@ import java.util.Objects;
 
 /**
  * A single value/count pair within one property's facet, as returned by {@link
- * QueryPort#query}. {@code value} is always a display string, never a raw identifier: for a
+ * BrowsePort#browse}. {@code value} is always a display string, never a raw identifier: for a
  * reference-typed facet property it is the target object's {@code sq:displayLabel}-marked
  * property value, or the target id as text if the target type declares no {@code
  * sq:displayLabel} property, but never a raw UUID; for a scalar facet property it is the lexical

@@ -8,10 +8,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.ObjectId;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.Value;
 
 /**
  * Round-trips every {@link Value} variant through {@link ValueJsonCodec}, including the
@@ -24,8 +24,7 @@ class ValueJsonCodecTest {
     @Test
     void roundTripsEveryScalarVariant() {
         ObjectId referenced = ObjectId.random();
-        Map<PropertyRef, Value> properties =
-            Map.of(
+        Map<PropertyRef, Value> properties = Map.of(
                 new PropertyRef(NS + "text"), Value.text("hello"),
                 new PropertyRef(NS + "integer"), Value.integer(42L),
                 new PropertyRef(NS + "decimal"), Value.decimal(new BigDecimal("12.50")),

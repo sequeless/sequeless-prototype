@@ -9,7 +9,7 @@ import java.util.List;
  * available}, since availability is per-object, not per-type).
  *
  * <p>{@code trigger}/{@code after}/{@code signalName}/{@code watch} render {@code
- * org.sequeless.spi.meta.Transition#trigger()} (phase 6). {@code
+ * org.sequeless.ontology.behaviour.api.Transition#trigger()} (phase 6). {@code
  * org.sequeless.app.rest.TypeResponseMapper#toStateMachineResponse} currently only ever maps
  * transitions whose {@code trigger().kind()} is {@code USER_ACTION} into a {@link
  * StateMachineResponse} — {@code GET /types/{nameOrIri}}'s state-machine descriptor lists only
@@ -25,7 +25,7 @@ import java.util.List;
  * @param hasGuard whether this transition declares a guard ({@code sq:guard}); does not reflect
  *     whether the guard currently passes for any particular object
  * @param trigger the discriminator naming which of the four trigger kinds this transition uses
- *     ({@code org.sequeless.spi.meta.TriggerKind#name()}: {@code "USER_ACTION"}, {@code
+ *     ({@code org.sequeless.ontology.behaviour.api.TriggerKind#name()}: {@code "USER_ACTION"}, {@code
  *     "ON_CHANGE"}, {@code "TIMER"}, or {@code "EXTERNAL_SIGNAL"})
  * @param after the ISO-8601 duration a {@code TIMER}-triggered transition waits ({@code sq:after}),
  *     or {@code null} for every other trigger kind

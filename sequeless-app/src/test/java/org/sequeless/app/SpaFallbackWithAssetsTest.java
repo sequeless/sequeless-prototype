@@ -65,13 +65,16 @@ class SpaFallbackWithAssetsTest extends PostgresTestcontainersSupport {
     /** Present only in {@code src/test/resources/test-spa/assets/app-abc123.js}. */
     static final String ASSET_MARKER = "SEQUELESS-TEST-SPA-ASSET";
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     private String getSpaIndexAt(String path) {
@@ -111,18 +114,17 @@ class SpaFallbackWithAssetsTest extends PostgresTestcontainersSupport {
 
     @Test
     void existingHashedBundleIsServedVerbatim() {
-        String body =
-                restTestClient
-                        .get()
-                        .uri("/assets/app-abc123.js")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .contentTypeCompatibleWith(MediaType.valueOf("text/javascript"))
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String body = restTestClient
+                .get()
+                .uri("/assets/app-abc123.js")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.valueOf("text/javascript"))
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(body).contains(ASSET_MARKER).doesNotContain(INDEX_MARKER);
     }
@@ -136,16 +138,15 @@ class SpaFallbackWithAssetsTest extends PostgresTestcontainersSupport {
         // checking" error, hiding the real problem (a stale build). The resolver's dot guard (last
         // path segment contains '.') must turn this into an honest 404 instead — see
         // SpaFallbackResourceResolverTest.missingAssetIsNotAnsweredWithTheIndexBecauseOfTheDotGuard.
-        String body =
-                restTestClient
-                        .get()
-                        .uri("/assets/app-deadbeef.js")
-                        .exchange()
-                        .expectStatus()
-                        .isNotFound()
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String body = restTestClient
+                .get()
+                .uri("/assets/app-deadbeef.js")
+                .exchange()
+                .expectStatus()
+                .isNotFound()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(body).as("404 body for a missing bundle").doesNotContain(INDEX_MARKER);
     }
@@ -155,16 +156,15 @@ class SpaFallbackWithAssetsTest extends PostgresTestcontainersSupport {
         // /api is reserved (sequeless.api.base-path, see ApiPathPrefixConfiguration): an API client
         // hitting a wrong URL must get a 404 from the error handling, not a 200 HTML page it would
         // then fail to parse as JSON.
-        String body =
-                restTestClient
-                        .get()
-                        .uri("/api/nope")
-                        .exchange()
-                        .expectStatus()
-                        .isNotFound()
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String body = restTestClient
+                .get()
+                .uri("/api/nope")
+                .exchange()
+                .expectStatus()
+                .isNotFound()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(body).as("404 body for an unknown API path").doesNotContain(INDEX_MARKER);
     }
@@ -175,34 +175,32 @@ class SpaFallbackWithAssetsTest extends PostgresTestcontainersSupport {
         // (application/vnd.spring-boot.actuator.v3+json), which is not "compatible with"
         // application/json under MimeType's rules, so the body — not the header — is what proves
         // this is Actuator's JSON rather than the UI shell.
-        String body =
-                restTestClient
-                        .get()
-                        .uri("/actuator/health")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String body = restTestClient
+                .get()
+                .uri("/actuator/health")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(body).contains("\"status\"").doesNotContain(INDEX_MARKER);
     }
 
     @Test
     void openApiDocumentIsStillServedAsJsonNotTheSpaIndex() {
-        String body =
-                restTestClient
-                        .get()
-                        .uri("/v3/api-docs")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
-                        .expectBody(String.class)
-                        .returnResult()
-                        .getResponseBody();
+        String body = restTestClient
+                .get()
+                .uri("/v3/api-docs")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(body).contains("\"openapi\"").doesNotContain(INDEX_MARKER);
     }

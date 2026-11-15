@@ -5,7 +5,6 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,7 +27,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * against a real Postgres container: facet counts (including reference-facet display-label
  * resolution), a reference-property filter, a date-range filter, numeric (not lexical) sort,
  * {@code WorkItem} returning both {@code Task} and {@code Project}, free-text search ranking, and
- * the invalid-query 400 shape. {@code QueryContract} (spi-testkit) and the Postgres adapter's own
+ * the invalid-query 400 shape. {@code BrowseContract} (spi-testkit) and the Postgres adapter's own
  * {@code EXPLAIN} index-usage test already prove the underlying {@code QueryPort} contract and
  * index usage directly against Postgres; this class's job is only to prove the same behaviour is
  * reachable through {@code GET /api/objects/{type}} end to end.
@@ -41,64 +40,30 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * from Spring's test-context cache; see {@code ObjectsEndToEndTest}'s javadoc for the full
  * explanation.
  *
- * <p><b>The {@code ensureIndexes} gap:</b> the app loads its ontology at startup from {@code
- * sequeless.ontology.source} (a classpath resource), which never goes through {@code
- * DefaultOntologyAdministration#importTurtle} and so never calls {@code
- * QueryPort#ensureIndexes} on its own. Without that having run at least once, {@code
- * sq_searchable_property} is empty and the {@code search_vector} trigger writes empty tsvectors,
- * so free-text search would find nothing even though data exists. {@link #triggerEnsureIndexes()}
- * forces this by exporting the currently-active ontology and immediately re-importing the same
- * content — {@code ensureIndexes} is documented idempotent, so doing this once per test is cheap
- * and safe.
+ * <p>The search and facet assertions depend on query indexes already being prepared. This class
+ * does not prepare them itself: {@code OntologyStartupValidator} prepares them for the ontology
+ * loaded from {@code sequeless.ontology.source} before the first request, so these tests prove that
+ * startup call end to end.
  *
  * <p>Every test builds its own fixture data and asserts on deltas or id-membership, never bare/
  * exact totals — this module's tests all share one Postgres container/tenant across the whole
  * test run (and, within this class, across every test method), so absolute counts are never
  * stable.
  */
-@SpringBootTest(
-        webEnvironment = RANDOM_PORT,
-        properties = "sequeless.ontology.reasoner=owl")
+@SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.ontology.reasoner=owl")
 class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
-        triggerEnsureIndexes();
-    }
-
-    /**
-     * Forces {@code QueryPort#ensureIndexes} to run by exporting the currently-active ontology
-     * and re-importing that exact same content. See this class's javadoc for why this is
-     * necessary before any browse/search/facet assertion.
-     */
-    private void triggerEnsureIndexes() {
-        byte[] exported =
-                restTestClient
-                        .get()
-                        .uri("/api/ontology")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
-        assertThat(exported).isNotNull();
-        String turtle = new String(exported, StandardCharsets.UTF_8);
-
-        restTestClient
-                .post()
-                .uri("/api/ontology")
-                .contentType(MediaType.valueOf("text/turtle"))
-                .body(turtle)
-                .exchange()
-                .expectStatus()
-                .isOk();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     // --- fixture helpers -------------------------------------------------------------------
@@ -139,16 +104,15 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private JsonNode fetchAsJson(String uri) {
-        byte[] responseBody =
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {
@@ -224,7 +188,8 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         // the unassigned OPEN task does not.
         long adaDelta =
                 assignedToAfter.getOrDefault("Ada Lovelace", 0L) - assignedToBaseline.getOrDefault("Ada Lovelace", 0L);
-        assertThat(assignedToAfter.keySet()).as("assignedTo facet is label-keyed, not UUID-keyed")
+        assertThat(assignedToAfter.keySet())
+                .as("assignedTo facet is label-keyed, not UUID-keyed")
                 .doesNotContain(ada.id().toString());
         assertThat(adaDelta).as("Ada Lovelace assignedTo facet delta").isEqualTo(2L);
     }
@@ -242,21 +207,19 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
         JsonNode assignedItem = findItem(result, assigned.id().toString());
         assertThat(assignedItem).isNotNull();
-        assertThat(assignedItem.get("properties").get("assignedTo").asText()).isEqualTo(person.id().toString());
+        assertThat(assignedItem.get("properties").get("assignedTo").asText())
+                .isEqualTo(person.id().toString());
     }
 
     @Test
     void filteringOnDateRangeWorks() {
         BusinessObjectResponse early =
                 createTask(Map.of("title", List.of("Date range early"), "dueDate", "2026-01-05"));
-        BusinessObjectResponse mid =
-                createTask(Map.of("title", List.of("Date range mid"), "dueDate", "2026-06-15"));
-        BusinessObjectResponse late =
-                createTask(Map.of("title", List.of("Date range late"), "dueDate", "2026-12-25"));
+        BusinessObjectResponse mid = createTask(Map.of("title", List.of("Date range mid"), "dueDate", "2026-06-15"));
+        BusinessObjectResponse late = createTask(Map.of("title", List.of("Date range late"), "dueDate", "2026-12-25"));
 
-        JsonNode result =
-                fetchAsJson(
-                        "/api/objects/Task?filter[dueDate][gte]=2026-02-01&filter[dueDate][lte]=2026-09-01&size=200");
+        JsonNode result = fetchAsJson(
+                "/api/objects/Task?filter[dueDate][gte]=2026-02-01&filter[dueDate][lte]=2026-09-01&size=200");
         Set<String> ids = idsOf(result);
         assertThat(ids).contains(mid.id().toString());
         assertThat(ids).doesNotContain(early.id().toString(), late.id().toString());
@@ -268,19 +231,22 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse p2 = createTask(Map.of("title", List.of("Numeric sort fixture A"), "priority", 2));
         BusinessObjectResponse p10 = createTask(Map.of("title", List.of("Numeric sort fixture B"), "priority", 10));
         BusinessObjectResponse p3 = createTask(Map.of("title", List.of("Numeric sort fixture C"), "priority", 3));
-        Set<String> fixtureIds = Set.of(p2.id().toString(), p10.id().toString(), p3.id().toString());
+        Set<String> fixtureIds =
+                Set.of(p2.id().toString(), p10.id().toString(), p3.id().toString());
 
         JsonNode ascResult = fetchAsJson("/api/objects/Task?sort=priority&size=200");
         List<String> ascOrder = orderedIdsAmong(ascResult, fixtureIds);
         assertThat(ascOrder)
                 .as("ascending priority sort is numeric")
-                .containsExactly(p2.id().toString(), p3.id().toString(), p10.id().toString());
+                .containsExactly(
+                        p2.id().toString(), p3.id().toString(), p10.id().toString());
 
         JsonNode descResult = fetchAsJson("/api/objects/Task?sort=-priority&size=200");
         List<String> descOrder = orderedIdsAmong(descResult, fixtureIds);
         assertThat(descOrder)
                 .as("descending priority sort is numeric")
-                .containsExactly(p10.id().toString(), p3.id().toString(), p2.id().toString());
+                .containsExactly(
+                        p10.id().toString(), p3.id().toString(), p2.id().toString());
     }
 
     @Test
@@ -294,7 +260,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         JsonNode projectItem = findItem(result, project.id().toString());
 
         assertThat(taskItem).as("created Task appears when browsing WorkItem").isNotNull();
-        assertThat(projectItem).as("created Project appears when browsing WorkItem").isNotNull();
+        assertThat(projectItem)
+                .as("created Project appears when browsing WorkItem")
+                .isNotNull();
         assertThat(taskItem.get("type").asText()).isEqualTo("Task");
         assertThat(projectItem.get("type").asText()).isEqualTo("Project");
     }
@@ -302,19 +270,16 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void textSearchRanksMatchingTaskFirst() {
         String token = "roadmap" + Long.toHexString(System.nanoTime());
-        BusinessObjectResponse task =
-                createTask(
-                        Map.of(
-                                "title", List.of("Roadmap task"),
-                                "description", List.of("The quarterly " + token + " review meeting notes")));
-        BusinessObjectResponse project =
-                createProject(
-                        Map.of(
-                                "title", List.of("Other project"),
-                                "description", List.of("Unrelated project description")));
+        BusinessObjectResponse task = createTask(Map.of(
+                "title", List.of("Roadmap task"),
+                "description", List.of("The quarterly " + token + " review meeting notes")));
+        BusinessObjectResponse project = createProject(Map.of(
+                "title", List.of("Other project"),
+                "description", List.of("Unrelated project description")));
 
         JsonNode result = fetchAsJson("/api/objects/WorkItem?q=" + token + "&size=200");
-        List<String> order = orderedIdsAmong(result, Set.of(task.id().toString(), project.id().toString()));
+        List<String> order = orderedIdsAmong(
+                result, Set.of(task.id().toString(), project.id().toString()));
 
         assertThat(order).as("the matching Task is present").contains(task.id().toString());
         assertThat(order.get(0))

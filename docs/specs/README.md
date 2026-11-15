@@ -6,10 +6,9 @@ and seven libraries, serving the same purpose the backend's own hexagon serves o
 a stable core, swappable adapters, and a generic surface driven by the ontology rather than
 per-type code.
 
-Each file below is one phase. Phases 1–4 are built; their specs double as a record of what exists
-and why. Phase 4 landed on branch `phase-4-rdf` and is not yet merged. Phases 5–8 are specified but
-not yet implemented — each is detailed enough to hand to an agent (or a person) as a standalone
-unit of work, the same way `docs/architecture/prompts/phase-*.md` serve the backend.
+Each file below is one phase. Phases 1–9 are built; their specs double as a record of what exists
+and why. Each is detailed enough to hand to an agent (or a person) as a standalone unit of work,
+the same way `docs/architecture/prompts/phase-*.md` serve the backend.
 
 ## Phase order and status
 
@@ -19,7 +18,7 @@ unit of work, the same way `docs/architecture/prompts/phase-*.md` serve the back
 | 2 | [Angular workspace and shell](phase-2-angular-workspace-and-shell.md) | **Done** |
 | 3 | [core-api library](phase-3-core-api.md) | **Done** |
 | 4 | [rdf library — ontology round-trip](phase-4-rdf.md) | **Done** |
-| 5 | [ui-kit library — presentational components](phase-5-ui-kit.md) | Done |
+| 5 | [ui-kit library — presentational components](phase-5-ui-kit.md) | **Done** |
 | 6 | [objects feature — generic BREAD](phase-6-objects.md) | **Done** |
 | 7 | [ontology feature — authoring UI](phase-7-ontology.md) | **Done** |
 | 8 | [automation feature — triggers and signals](phase-8-automation.md) | **Done** |
@@ -36,8 +35,8 @@ Phase 2 (workspace)──┘        │                 ├──► Phase 7 (on
                                     Phase 5 (ui-kit) ──► Phase 6, 7, 8
 ```
 
-Phases 1–8 are built. Phase 9 is partially done: its live e2e run and R4 gates pass, but the README
-dev-mode section and the CI workflow validation are still open. See
+Phases 1–9 are built. Phase 9 is done, with one caveat: the CI workflow has not been validated
+(actionlint and a YAML parser were not available). See
 `docs/plans/phase-9.5-shell-composition-completion.md`.
 
 ## Conventions every phase follows
@@ -52,8 +51,8 @@ dev-mode section and the CI workflow validation are still open. See
 - **No new Maven module, no `frontend-maven-plugin`.** The Angular build writes straight into
   `sequeless-app/src/main/resources/static/` (gitignored); `mvn verify` alone must always stay
   green with that directory absent.
-- **Hand-written wire models, not OpenAPI-generated** — recorded as DR-20 (pending write-up in
-  `docs/architecture/02-decision-records.md`; see Phase 3's spec for the reasoning).
+- **Hand-written wire models, not OpenAPI-generated** — recorded as DR-20 in
+  `docs/architecture/02-decision-records.md`; see Phase 3's spec for the reasoning.
 - **Pluggability mirrors the backend's `sequeless.<port>.adapter` swap.** Every phase that adds a
   swappable concern (RDF store, Turtle editor, graph layout, error mapper, field renderers) adds
   or extends a DI token in `core-api` and a `provideDefault*()` alongside it, never hard-wiring the

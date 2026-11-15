@@ -16,25 +16,34 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.statemachine.PayloadValueCodec;
 import org.sequeless.core.usecase.DefaultTransitionService;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
+import org.sequeless.expression.api.ExpressionContext;
+import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
+import org.sequeless.ontology.behaviour.api.OnChangeTrigger;
+import org.sequeless.ontology.behaviour.api.State;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TimerTrigger;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.DisplayHints;
+import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.RelationshipDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.expression.ExpressionContext;
-import org.sequeless.spi.expression.ExpressionPort;
-import org.sequeless.spi.meta.Cardinality;
-import org.sequeless.spi.meta.DisplayHints;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.OnChangeTrigger;
-import org.sequeless.spi.meta.RelationshipDefinition;
-import org.sequeless.spi.meta.State;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TimerTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.meta.UserActionTrigger;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -42,24 +51,12 @@ import org.sequeless.spi.object.CommitResult;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.ontology.OntologyReport;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Unit tests for {@link DefaultTriggerEvaluator}, built against a hand-written {@code Project}
@@ -87,58 +84,78 @@ class DefaultTriggerEvaluatorTest {
     private static final State CLOSED = new State(CLOSED_IRI, "Closed", 1);
     private static final State ON_HOLD = new State(ON_HOLD_IRI, "OnHold", 2);
 
-    private static final RelationshipDefinition BELONGS_TO_PROJECT =
-        new RelationshipDefinition(
-            BELONGS_TO_PROJECT_IRI, "belongsToProject", Cardinality.optional(), false, false,
-            false, false, false, DisplayHints.none(), Optional.empty(), PROJECT_IRI,
-            Optional.empty(), false);
+    private static final RelationshipDefinition BELONGS_TO_PROJECT = new RelationshipDefinition(
+            BELONGS_TO_PROJECT_IRI,
+            "belongsToProject",
+            Cardinality.optional(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            DisplayHints.none(),
+            PROJECT_IRI,
+            Optional.empty(),
+            false);
 
     /** {@code OnChange}, unguarded: fires whenever any watched {@code Task} changes. */
-    private static final Transition AUTO_CLOSE =
-        new Transition(
-            "autoClose", ACTIVE_IRI, CLOSED_IRI,
-            new OnChangeTrigger(List.of(BELONGS_TO_PROJECT_IRI)), Optional.empty(),
-            Optional.empty(), List.of());
-    private static final Transition EXPIRE_HOLD =
-        new Transition(
-            "expireHold", ON_HOLD_IRI, CLOSED_IRI, new TimerTrigger(java.time.Duration.ofHours(72)),
-            Optional.empty(), Optional.empty(), List.of());
-    private static final Transition REOPEN =
-        new Transition(
-            "reopen", CLOSED_IRI, ACTIVE_IRI, new ExternalSignalTrigger("reopen"), Optional.empty(),
-            Optional.empty(), List.of());
-    /** A second signal-triggered transition, so onSignal's name-matching is actually exercised. */
-    private static final Transition ARCHIVE_SIGNAL =
-        new Transition(
-            "archiveSignal", CLOSED_IRI, CLOSED_IRI, new ExternalSignalTrigger("archive"),
-            Optional.empty(), Optional.empty(), List.of());
+    private static final Transition AUTO_CLOSE = new Transition(
+            "autoClose",
+            ACTIVE_IRI,
+            CLOSED_IRI,
+            new OnChangeTrigger(List.of(BELONGS_TO_PROJECT_IRI)),
+            Optional.empty(),
+            Optional.empty());
 
-    private static final StateMachineDefinition PROJECT_LIFECYCLE =
-        new StateMachineDefinition(
-            NS + "ProjectLifecycle", List.of(ACTIVE, CLOSED, ON_HOLD), ACTIVE,
+    private static final Transition EXPIRE_HOLD = new Transition(
+            "expireHold",
+            ON_HOLD_IRI,
+            CLOSED_IRI,
+            new TimerTrigger(java.time.Duration.ofHours(72)),
+            Optional.empty(),
+            Optional.empty());
+    private static final Transition REOPEN = new Transition(
+            "reopen", CLOSED_IRI, ACTIVE_IRI, new ExternalSignalTrigger("reopen"), Optional.empty(), Optional.empty());
+    /** A second signal-triggered transition, so onSignal's name-matching is actually exercised. */
+    private static final Transition ARCHIVE_SIGNAL = new Transition(
+            "archiveSignal",
+            CLOSED_IRI,
+            CLOSED_IRI,
+            new ExternalSignalTrigger("archive"),
+            Optional.empty(),
+            Optional.empty());
+
+    private static final StateMachineDefinition PROJECT_LIFECYCLE = new StateMachineDefinition(
+            NS + "ProjectLifecycle",
+            List.of(ACTIVE, CLOSED, ON_HOLD),
+            ACTIVE,
             List.of(AUTO_CLOSE, EXPIRE_HOLD, REOPEN, ARCHIVE_SIGNAL));
 
     private static final TypeDefinition PROJECT =
-        new TypeDefinition(
-            PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false,
-            Optional.of(PROJECT_LIFECYCLE));
+            new TypeDefinition(PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false);
 
     private static final TypeDefinition TASK =
-        new TypeDefinition(
-            TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false,
-            Optional.empty());
+            new TypeDefinition(TASK_IRI, "Task", List.of(), List.of(BELONGS_TO_PROJECT), DisplayHints.none(), false);
 
-    private static final MetaModelSnapshot SNAPSHOT =
-        new MetaModelSnapshot(
-            NS.substring(0, NS.length() - 1), Optional.empty(), Map.of(), List.of(PROJECT, TASK),
-            new OntologyReport(true, List.of()));
+    private static final Schema SCHEMA = new Schema(
+            new OntologyVersion(1),
+            NS.substring(0, NS.length() - 1),
+            Optional.empty(),
+            Map.of(),
+            List.of(PROJECT, TASK));
+
+    /** The state machine governs {@code Project}; no other type has one. */
+    private static final Behaviour BEHAVIOUR =
+            new Behaviour(new OntologyVersion(1), Map.of(PROJECT_IRI, PROJECT_LIFECYCLE), Map.of());
+
+    /** No transition has actions, so the automation half is empty. */
+    private static final Automation AUTOMATION = new Automation(new OntologyVersion(1), Map.of());
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-01T00:00:00Z");
     private static final Instant NOW = Instant.parse("2026-09-19T00:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private static final Scope ALICE =
-        new Scope(new TenantId("acme"), new Principal("alice", "Alice", Set.of("member")));
+    private static final Scope ALICE = new Scope(new TenantId("acme"), new Principal("alice", Set.of("member")));
 
     private static AuthorizationPort permitAll() {
         return (scope, operation, resource) -> AccessDecision.permit("ok");
@@ -146,50 +163,63 @@ class DefaultTriggerEvaluatorTest {
 
     private static BusinessObject project(ObjectId id, long version, String state) {
         return new BusinessObject(
-            id, new TypeRef(PROJECT_IRI), new TenantId("acme"), version, Optional.of(state),
-            Map.of(), new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(PROJECT_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.of(state),
+                Map.of(),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static BusinessObject task(ObjectId id, long version, ObjectId belongsToProjectId) {
-        Map<PropertyRef, Value> properties =
-            belongsToProjectId == null
+        Map<PropertyRef, Value> properties = belongsToProjectId == null
                 ? Map.of()
                 : Map.of(new PropertyRef(BELONGS_TO_PROJECT_IRI), Value.ref(belongsToProjectId));
         return new BusinessObject(
-            id, new TypeRef(TASK_IRI), new TenantId("acme"), version, Optional.empty(), properties,
-            new Audit(CREATED_AT, "carol", CREATED_AT, "carol"), false);
+                id,
+                new TypeRef(TASK_IRI),
+                new TenantId("acme"),
+                version,
+                Optional.empty(),
+                properties,
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
     }
 
     private static OutboxEntry objectUpdatedEvent(ObjectId taskId) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI), NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI),
+                NOW);
     }
 
     private static OutboxEntry objectDeletedEvent(ObjectId taskId, ObjectId belongsToProjectId) {
         Map<String, Object> properties =
-            Map.of(
-                BELONGS_TO_PROJECT_IRI,
-                PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
+                Map.of(BELONGS_TO_PROJECT_IRI, PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED,
-            Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
-            NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_DELETED,
+                Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
+                NOW);
     }
 
     private static OutboxEntry timerScheduledEvent(ObjectId projectId, String state, String transitionName) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED,
-            Map.of(
-                "objectId", projectId.value().toString(), "state", state, "transitionName",
-                transitionName),
-            NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_TIMER_SCHEDULED,
+                Map.of("objectId", projectId.value().toString(), "state", state, "transitionName", transitionName),
+                NOW);
     }
 
     private static OutboxEntry signalReceivedEvent(ObjectId projectId, String signalName) {
         return new OutboxEntry(
-            UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED,
-            Map.of("objectId", projectId.value().toString(), "signalName", signalName), NOW);
+                UUID.randomUUID(),
+                OutboxEntry.KIND_SIGNAL_RECEIVED,
+                Map.of("objectId", projectId.value().toString(), "signalName", signalName),
+                NOW);
     }
 
     // --- onChange ---
@@ -234,10 +264,11 @@ class DefaultTriggerEvaluatorTest {
         store.seed(project(projectId, 1, ACTIVE_IRI));
         DefaultTriggerEvaluator evaluator = evaluator(store);
 
-        OutboxEntry projectChanged =
-            new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
-                Map.of("objectId", projectId.value().toString(), "typeIri", PROJECT_IRI), NOW);
+        OutboxEntry projectChanged = new OutboxEntry(
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                Map.of("objectId", projectId.value().toString(), "typeIri", PROJECT_IRI),
+                NOW);
         evaluator.onChange(ALICE, projectChanged);
 
         // AUTO_CLOSE departs Active with no guard, so the changed Project itself is a candidate
@@ -274,9 +305,9 @@ class DefaultTriggerEvaluatorTest {
         // AUTO_CLOSE's own self-candidacy path, which is exercised separately above; here we
         // confirm the *watch* scan does not spuriously match a type that doesn't declare the
         // property, by using a type with no state machine and no relationship of that name.
-        OutboxEntry unrelatedChange =
-            new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_OBJECT_UPDATED,
+        OutboxEntry unrelatedChange = new OutboxEntry(
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
                 Map.of("objectId", ObjectId.random().value().toString(), "typeIri", "urn:unknown:Type"),
                 NOW);
 
@@ -317,8 +348,7 @@ class DefaultTriggerEvaluatorTest {
         FakeObjectStorePort store = new FakeObjectStorePort();
         DefaultTriggerEvaluator evaluator = evaluator(store);
 
-        evaluator.onTimerElapsed(
-            ALICE, timerScheduledEvent(ObjectId.random(), ON_HOLD_IRI, "expireHold"));
+        evaluator.onTimerElapsed(ALICE, timerScheduledEvent(ObjectId.random(), ON_HOLD_IRI, "expireHold"));
 
         assertThat(store.commitCalls).isZero();
     }
@@ -377,10 +407,10 @@ class DefaultTriggerEvaluatorTest {
     // --- wiring helper ---
 
     private static DefaultTriggerEvaluator evaluator(FakeObjectStorePort store) {
-        DefaultTransitionService transitionService =
-            new DefaultTransitionService(
-                new FakeOntologyPort(), store, permitAll(), new FakeExpressionPort(), CLOCK);
-        return new DefaultTriggerEvaluator(new FakeOntologyPort(), store, transitionService);
+        FakeOntology ontology = new FakeOntology();
+        DefaultTransitionService transitionService = new DefaultTransitionService(
+                ontology, ontology, ontology, store, permitAll(), new FakeExpressionPort(), CLOCK);
+        return new DefaultTriggerEvaluator(ontology, ontology, store, transitionService);
     }
 
     // --- fakes ---
@@ -389,8 +419,7 @@ class DefaultTriggerEvaluatorTest {
 
         @Override
         public Value evaluate(String expression, ExpressionContext context) {
-            throw new UnsupportedOperationException(
-                "no guard is exercised by these fixtures: " + expression);
+            throw new UnsupportedOperationException("no guard is exercised by these fixtures: " + expression);
         }
 
         @Override
@@ -399,27 +428,25 @@ class DefaultTriggerEvaluatorTest {
         }
     }
 
-    private static final class FakeOntologyPort implements OntologyPort {
+    /** Hand-written stand-in for the three read ports, each serving one fixed half. */
+    private static final class FakeOntology implements SchemaSource, BehaviourSource, AutomationSource {
 
         @Override
-        public MetaModelSnapshot snapshot(Scope scope) {
-            Objects.requireNonNull(scope, "scope must not be null");
-            return SNAPSHOT;
+        public Schema schema(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return SCHEMA;
         }
 
         @Override
-        public MetaModelSnapshot reload(Scope scope) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Behaviour behaviour(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return BEHAVIOUR;
         }
 
         @Override
-        public OntologyDocument export(Scope scope, OntologyFormat format) {
-            throw new UnsupportedOperationException("not exercised by these tests");
-        }
-
-        @Override
-        public ImportReport importDocument(Scope scope, OntologyDocument document, ImportMode mode) {
-            throw new UnsupportedOperationException("not exercised by these tests");
+        public Automation automation(TenantId tenant) {
+            Objects.requireNonNull(tenant, "tenant must not be null");
+            return AUTOMATION;
         }
     }
 
@@ -441,11 +468,6 @@ class DefaultTriggerEvaluatorTest {
                 return Optional.empty();
             }
             return Optional.of(found);
-        }
-
-        @Override
-        public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
-            throw new UnsupportedOperationException("not exercised by these tests");
         }
 
         @Override

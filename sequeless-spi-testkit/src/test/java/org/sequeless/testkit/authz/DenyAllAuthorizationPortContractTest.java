@@ -1,7 +1,7 @@
 package org.sequeless.testkit.authz;
 
 import java.util.Objects;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;

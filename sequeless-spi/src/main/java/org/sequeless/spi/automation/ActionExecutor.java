@@ -1,7 +1,9 @@
 package org.sequeless.spi.automation;
 
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The inbound port an automation adapter (the in-process relay, or a Temporal activity) calls back
@@ -33,8 +35,8 @@ import org.sequeless.spi.object.OutboxEntry;
  *       object's type, and its <em>new</em> state (the transition's {@code toStateIri}) after the
  *       transition that produced this request.
  *   <li>{@code self} ({@code Map<String, Object>}) — a snapshot of the transitioning object's own
- *       properties, keyed by property <em>short name</em> (not IRI) — matching {@link
- *       org.sequeless.spi.expression.ExpressionContext#selfProperties()} exactly, so it decodes
+ *       properties, keyed by property <em>short name</em> (not IRI) — matching {@code
+ *       org.sequeless.expression.api.ExpressionContext#selfProperties()} exactly, so it decodes
  *       straight into an {@code ExpressionContext} with zero re-keying — each value tagged per
  *       {@code org.sequeless.core.statemachine.PayloadValueCodec}'s scheme.
  *   <li>{@code actionKind} ({@code String}) — one of {@code "SetProperty"}, {@code "CreateObject"},
@@ -142,4 +144,56 @@ public interface ActionExecutor {
      *     be {@code null}
      */
     void applyLog(Scope scope, OutboxEntry entry);
+
+    /**
+     * Applies one action that an adapter has already built from the automation of the {@code
+     * TransitionFired} row's ontology version. The adapter passes the sealed {@link Action} itself
+     * rather than an {@code ActionRequest}-kind entry for this method to decode.
+     *
+     * <p>{@code transitionFired} is the {@code TransitionFired}-kind {@link OutboxEntry}, which
+     * carries {@code objectId}, {@code tenantId}, {@code principalId}, {@code transitionName},
+     * {@code fromState}, {@code toState}, {@code ontologyVersion}, {@code self}, {@code typeIri} and
+     * {@code machineIri}. {@code action} is the pre-built sealed {@link Action}. {@code actionIndex}
+     * is the action's 0-based position in the list the automation returns.
+     *
+     * <p>The default implementation throws {@link UnsupportedOperationException} until an
+     * implementation overrides this method.
+     *
+     * @param scope the tenant and principal to apply the action on behalf of; must not be {@code
+     *     null}
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates
+     *     from; must not be {@code null}
+     * @param action the pre-built sealed action to apply; must not be {@code null}
+     * @param actionIndex the action's 0-based position in the list the automation returns
+     * @throws IllegalArgumentException if action is a WebhookAction; deliver it through resolveWebhookAction instead
+     */
+    default void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
+        throw new UnsupportedOperationException("applyAction is not implemented by this ActionExecutor");
+    }
+
+    /**
+     * Resolves one webhook action that an adapter has already built from the automation of the
+     * {@code TransitionFired} row's ontology version, into a fully-rendered {@link
+     * ResolvedWebhookRequest}. The {@code url}, {@code method} and {@code body} are rendered against
+     * the row's {@code self}, {@code toState} and {@code principalId}, exactly as {@link
+     * #resolveWebhook} renders an {@code ActionRequest} row. This method performs no HTTP I/O: the
+     * calling adapter delivers the returned request.
+     *
+     * <p>{@code transitionFired} and {@code actionIndex} are as described for {@link #applyAction}.
+     *
+     * <p>The default implementation throws {@link UnsupportedOperationException} until an
+     * implementation overrides this method.
+     *
+     * @param scope the tenant and principal to render the templates on behalf of; must not be {@code
+     *     null}
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates
+     *     from; must not be {@code null}
+     * @param action the pre-built webhook action to resolve; must not be {@code null}
+     * @param actionIndex the action's 0-based position in the list the automation returns
+     * @return the fully-rendered request, ready for the caller to issue over HTTP
+     */
+    default ResolvedWebhookRequest resolveWebhookAction(
+            Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
+        throw new UnsupportedOperationException("resolveWebhookAction is not implemented by this ActionExecutor");
+    }
 }

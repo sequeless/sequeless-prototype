@@ -53,8 +53,7 @@ public abstract class AuthorizationContract {
     void decideReturnsNonNullDecisionForEveryOperation() {
         AuthorizationPort port = port();
         for (Operation operation : Operation.values()) {
-            AccessDecision decision =
-                port.decide(Fixtures.defaultScope(), operation, AuthorizationPort.EVERYTHING);
+            AccessDecision decision = port.decide(Fixtures.defaultScope(), operation, AuthorizationPort.EVERYTHING);
             assertThat(decision).as("decision for %s", operation).isNotNull();
             assertThat(decision.reason()).as("reason for %s", operation).isNotNull();
         }
@@ -64,29 +63,26 @@ public abstract class AuthorizationContract {
     void decideRejectsNullScope() {
         AuthorizationPort port = port();
         assertThatNullPointerException()
-            .isThrownBy(() -> port.decide(null, Operation.READ, AuthorizationPort.EVERYTHING));
+                .isThrownBy(() -> port.decide(null, Operation.READ, AuthorizationPort.EVERYTHING));
     }
 
     @Test
     void decideRejectsNullOperation() {
         AuthorizationPort port = port();
         assertThatNullPointerException()
-            .isThrownBy(
-                () -> port.decide(Fixtures.defaultScope(), null, AuthorizationPort.EVERYTHING));
+                .isThrownBy(() -> port.decide(Fixtures.defaultScope(), null, AuthorizationPort.EVERYTHING));
     }
 
     @Test
     void decideRejectsNullResource() {
         AuthorizationPort port = port();
-        assertThatNullPointerException()
-            .isThrownBy(() -> port.decide(Fixtures.defaultScope(), Operation.READ, null));
+        assertThatNullPointerException().isThrownBy(() -> port.decide(Fixtures.defaultScope(), Operation.READ, null));
     }
 
     @Test
     void decideHandlesArbitraryOpaqueResource() {
         AuthorizationPort port = port();
-        AccessDecision decision =
-            port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
+        AccessDecision decision = port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
         assertThat(decision).isNotNull();
         assertThat(decision.reason()).isNotNull();
     }
@@ -94,10 +90,8 @@ public abstract class AuthorizationContract {
     @Test
     void decideIsDeterministicForIdenticalInputs() {
         AuthorizationPort port = port();
-        AccessDecision first =
-            port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
-        AccessDecision second =
-            port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
+        AccessDecision first = port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
+        AccessDecision second = port.decide(Fixtures.defaultScope(), Operation.READ, Fixtures.OPAQUE_RESOURCE);
         assertThat(second.allowed()).isEqualTo(first.allowed());
     }
 }

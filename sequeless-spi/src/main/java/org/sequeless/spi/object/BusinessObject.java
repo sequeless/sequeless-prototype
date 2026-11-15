@@ -3,7 +3,9 @@ package org.sequeless.spi.object;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
 
 /**
  * An instance of an ontology type, as stored by an {@link ObjectStorePort}: its identity, type,
@@ -23,14 +25,14 @@ import org.sequeless.spi.TenantId;
  * @param deleted whether this object has been soft-deleted
  */
 public record BusinessObject(
-    ObjectId id,
-    TypeRef type,
-    TenantId tenant,
-    long version,
-    Optional<String> state,
-    Map<PropertyRef, Value> properties,
-    Audit audit,
-    boolean deleted) {
+        ObjectId id,
+        TypeRef type,
+        TenantId tenant,
+        long version,
+        Optional<String> state,
+        Map<PropertyRef, Value> properties,
+        Audit audit,
+        boolean deleted) {
 
     public BusinessObject {
         Objects.requireNonNull(id, "id must not be null");

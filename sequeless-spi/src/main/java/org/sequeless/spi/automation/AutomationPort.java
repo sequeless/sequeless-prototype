@@ -1,14 +1,14 @@
 package org.sequeless.spi.automation;
 
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The outbound port a relay (the in-process poller, or a future Temporal-backed one) calls to
  * durably start — or, for a synchronous adapter, fully complete — the handling of one outbox row,
  * whatever its kind: an {@link OutboxEntry#KIND_ACTION_REQUEST} applies a fired transition's
  * action, the three object-lifecycle kinds trigger a recompute and then trigger-evaluation pass,
- * and the three automation kinds introduced alongside {@link org.sequeless.spi.meta.TriggerSpec}
+ * and the three automation kinds introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec}
  * drive a timer or a signal. Exactly one implementation is wired into the running application at a
  * time, selected by configuration property, the same way every other outbound port in this SPI
  * is selected.
@@ -38,8 +38,8 @@ public interface AutomationPort {
      *     OutboxEntry#KIND_ACTION_REQUEST}, {@link OutboxEntry#KIND_OBJECT_CREATED}, {@link
      *     OutboxEntry#KIND_OBJECT_UPDATED}, {@link OutboxEntry#KIND_OBJECT_DELETED}, {@link
      *     OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, or {@link
-     *     OutboxEntry#KIND_SIGNAL_RECEIVED} — {@link OutboxEntry#KIND_TRANSITION_FIRED} is
-     *     audit-only and is never dispatched here
+     *     OutboxEntry#KIND_SIGNAL_RECEIVED}. An {@link OutboxEntry#KIND_TRANSITION_FIRED} entry is
+     *     accepted and does nothing
      */
     void dispatch(Scope scope, OutboxEntry entry);
 }

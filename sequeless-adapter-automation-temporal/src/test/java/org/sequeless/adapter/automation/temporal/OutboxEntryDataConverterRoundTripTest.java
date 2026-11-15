@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.object.OutboxEntry;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Proves Temporal's default {@link DataConverter} can serialize and deserialize a real {@link
@@ -48,7 +48,7 @@ class OutboxEntryDataConverterRoundTripTest {
         payload.put("body", "templated-body");
 
         OutboxEntry original =
-            new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
 
         DataConverter converter = DataConverter.getDefaultInstance();
         Optional<Payload> encoded = converter.toPayload(original);

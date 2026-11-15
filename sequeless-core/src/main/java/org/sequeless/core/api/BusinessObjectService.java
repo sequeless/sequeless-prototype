@@ -4,14 +4,14 @@ import java.util.Map;
 import java.util.OptionalLong;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.validation.ValidationException;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
 
 /**
@@ -23,7 +23,7 @@ import org.sequeless.spi.query.QueryResult;
  * before the shape-based {@code ValidationPort} SHACL check runs.
  *
  * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against
- * the current {@link org.sequeless.spi.meta.MetaModelSnapshot} the same way {@link
+ * the current {@link org.sequeless.ontology.schema.api.Schema} the same way {@link
  * MetaModelService#describeType} resolves its own {@code nameOrIri} argument.
  *
  * @see org.sequeless.core.usecase.DefaultBusinessObjectService
@@ -36,12 +36,12 @@ public interface BusinessObjectService {
      *
      * <p>Authorizes {@link Operation#BROWSE} against the resolved type's IRI, then resolves {@code
      * type} to its concrete subtype IRIs against the current {@link
-     * org.sequeless.spi.meta.MetaModelSnapshot} — the set a {@link
+     * org.sequeless.ontology.schema.api.Schema} — the set a {@link
      * org.sequeless.spi.query.Query#types()} is built from, since a query port never sees an
      * abstract type IRI — validates {@code query}'s filter, sort, and facet property names (each
      * given as a property short name or full IRI) and operator applicability against that
-     * snapshot, coerces raw filter values to the properties' declared datatypes, and delegates to
-     * {@link org.sequeless.spi.query.QueryPort#query}.
+     * schema, coerces raw filter values to the properties' declared datatypes, and delegates to
+     * {@link org.sequeless.spi.query.BrowsePort#browse}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
@@ -51,7 +51,7 @@ public interface BusinessObjectService {
      * @return a non-null result containing the matching page of objects, the total match count, and
      *     the computed facet buckets
      * @throws NullPointerException if any argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws InvalidQueryException if a filter, sort, or facet property name does not resolve, an
      *     operator is not applicable to its property, or a multi-valued property is used somewhere
@@ -60,7 +60,8 @@ public interface BusinessObjectService {
     QueryResult browse(Scope scope, String type, BrowseQuery query);
 
     /**
-     * Reads a single object of {@code type} (or a subtype of it) by id.
+     * Reads a single object of {@code type} (or a subtype of it) by id, returned as its {@link
+     * ObjectView} with the derived properties computed.
      *
      * <p>Authorizes {@link Operation#READ} against the resolved type's IRI. An id that does not
      * exist, is soft-deleted, or belongs to an unrelated type — one that is not {@code type} itself
@@ -71,14 +72,14 @@ public interface BusinessObjectService {
      *     null}
      * @param type the type's short name or full IRI; must not be {@code null}
      * @param id the object's id; must not be {@code null}
-     * @return the matching object
+     * @return the matching object's view
      * @throws NullPointerException if any argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
      *     subtype of it exists with {@code id}
      */
-    BusinessObject read(Scope scope, String type, ObjectId id);
+    ObjectView read(Scope scope, String type, ObjectId id);
 
     /**
      * Creates a new object of {@code type} with {@code properties}.
@@ -96,7 +97,7 @@ public interface BusinessObjectService {
      *     must not be {@code null}
      * @return the newly created object, at version 1
      * @throws NullPointerException if any argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ValidationException if coercion, the structural checks, or the SHACL check finds a
      *     violation
@@ -122,7 +123,7 @@ public interface BusinessObjectService {
      *     properties, keyed by property short name or full IRI; must not be {@code null}
      * @return the updated object, at version {@code expectedVersion + 1}
      * @throws NullPointerException if any reference-typed argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
      *     subtype of it exists with {@code id}
@@ -130,8 +131,7 @@ public interface BusinessObjectService {
      *     violation
      * @throws StaleObjectException if the stored object is not currently at {@code expectedVersion}
      */
-    BusinessObject edit(
-        Scope scope, String type, ObjectId id, long expectedVersion, Map<String, Object> properties);
+    BusinessObject edit(Scope scope, String type, ObjectId id, long expectedVersion, Map<String, Object> properties);
 
     /**
      * Soft-deletes an existing object of {@code type} (or a subtype of it).
@@ -149,7 +149,7 @@ public interface BusinessObjectService {
      *     or {@link OptionalLong#empty()} to use whatever version is currently stored; must not be
      *     {@code null} (the wrapper itself)
      * @throws NullPointerException if any reference-typed argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
      *     subtype of it exists with {@code id}

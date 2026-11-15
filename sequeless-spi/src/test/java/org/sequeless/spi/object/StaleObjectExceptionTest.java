@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import org.junit.jupiter.api.Test;
+import org.sequeless.kernel.values.ObjectId;
 
 class StaleObjectExceptionTest {
 

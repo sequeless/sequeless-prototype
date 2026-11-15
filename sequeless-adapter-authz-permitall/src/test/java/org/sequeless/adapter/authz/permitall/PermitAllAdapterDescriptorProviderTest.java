@@ -21,8 +21,7 @@ class PermitAllAdapterDescriptorProviderTest {
 
     @Test
     void isDiscoverableViaServiceLoaderAndDescribesItselfCorrectly() {
-        List<AdapterDescriptorProvider> providers =
-            ServiceLoader.load(AdapterDescriptorProvider.class).stream()
+        List<AdapterDescriptorProvider> providers = ServiceLoader.load(AdapterDescriptorProvider.class).stream()
                 .map(ServiceLoader.Provider::get)
                 .toList();
 

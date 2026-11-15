@@ -18,8 +18,8 @@ class PortBindingFailureAnalyzerTest {
     @Test
     void analyzeCopiesMessageAndActionFromException() {
         PortDefinition definition = new PortDefinition("sequeless.authz.adapter", AuthorizationPort.class);
-        List<AdapterDescriptor> available =
-            List.of(new AdapterDescriptor("permit-all", AuthorizationPort.class, "sequeless.authz.adapter", ">=0.1.0"));
+        List<AdapterDescriptor> available = List.of(
+                new AdapterDescriptor("permit-all", AuthorizationPort.class, "sequeless.authz.adapter", ">=0.1.0"));
         PortBindingException exception = PortBindingException.unknownAdapter("missing", definition, available);
 
         FailureAnalysis analysis = new PortBindingFailureAnalyzer().analyze(exception);

@@ -7,7 +7,8 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.TenantId;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
 
 class CreateTest {
 
@@ -15,8 +16,14 @@ class CreateTest {
         Instant now = Instant.parse("2026-09-16T10:00:00Z");
         Audit audit = new Audit(now, "alice", now, "alice");
         return new BusinessObject(
-            ObjectId.random(), new TypeRef("https://example.org/ns#Task"), TenantId.DEFAULT, 1,
-            Optional.empty(), Map.of(), audit, false);
+                ObjectId.random(),
+                new TypeRef("https://example.org/ns#Task"),
+                TenantId.DEFAULT,
+                1,
+                Optional.empty(),
+                Map.of(),
+                audit,
+                false);
     }
 
     @Test

@@ -1,6 +1,6 @@
 # Phase 5 — ui-kit library: presentational components
 
-**Status: not started.** Depends only on `core-api` (done); does not depend on `rdf`. Needed by
+**Status: done.** Depends only on `core-api` (done); does not depend on `rdf`. Needed by
 Phase 6 (dynamic fields, relationship picker), Phase 7 (Turtle editor, problem banner), and
 Phase 8 (state-machine graph).
 

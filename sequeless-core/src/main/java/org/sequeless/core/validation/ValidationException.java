@@ -68,7 +68,6 @@ public final class ValidationException extends RuntimeException {
     private static String buildMessage(Source source, List<Violation> violations) {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(violations, "violations must not be null");
-        return "Validation failed (" + source + "): " + violations.size() + " violation(s): "
-            + violations;
+        return "Validation failed (" + source + "): " + violations.size() + " violation(s): " + violations;
     }
 }

@@ -1,5 +1,5 @@
 /**
- * Shell package for the default {@code OntologyPort} and {@code ValidationPort} adapter, backed by
+ * Shell package for the default {@code OntologyAdministration} and {@code ValidationPort} adapter, backed by
  * Apache Jena (ontapi, the built-in OWL reasoner, and jena-shacl for SHACL validation). Turtle
  * import/export lands here too.
  *

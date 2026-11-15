@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,46 +12,34 @@
   <artifactId>sequeless-adapter-ontology-jena</artifactId>
 
   <name>sequeless-adapter-ontology-jena</name>
-  <description>
-    The default OntologyPort adapter: Jena 6 ontapi, the built-in OWL/RDFS reasoners selected by
-    sequeless.ontology.reasoner, owl:imports resolution against a bundled copy of the sq: vocabulary,
-    sq: annotation mapping into the SPI's MetaModelSnapshot records, a consistency check producing an
-    OntologyReport, and Turtle import/export. jena-shacl and ValidationPort arrive in Phase 2.
-  </description>
+  <description>The default ontology adapter (SchemaSource, BehaviourSource, AutomationSource, OntologyAdministration),
+    compiling OWL and SHACL into the spi Schema, Behaviour and Automation records.</description>
 
   <dependencies>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>kernel-identity</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>kernel-values</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
-
-    <!--
-      Version comes from the root dependencyManagement. jcl-over-slf4j is excluded because it ships
-      the org.apache.commons.logging classes that Spring Boot's own spring-jcl provides: with both on
-      the classpath the winner is classpath-order-dependent, which is exactly the kind of failure that
-      only shows up in the packaged app. Jena only needs commons-logging for third-party code paths
-      this adapter never exercises.
-    -->
     <dependency>
-      <groupId>org.apache.jena</groupId>
-      <artifactId>jena-ontapi</artifactId>
-      <exclusions>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>jcl-over-slf4j</artifactId>
-        </exclusion>
-      </exclusions>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-jena-adapter</artifactId>
     </dependency>
-
-    <!--
-      Backs ShaclValidationPort (T8). jena-shacl depends on jena-arq/jena-core, already pulled in by
-      jena-ontapi above, so no new jcl-over-slf4j-style clash is expected; verified with
-      `mvn dependency:tree` during T8 implementation.
-    -->
     <dependency>
-      <groupId>org.apache.jena</groupId>
-      <artifactId>jena-shacl</artifactId>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
     </dependency>
 
     <dependency>
@@ -62,20 +48,20 @@
       <optional>true</optional>
     </dependency>
 
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <optional>true</optional>
-    </dependency>
-
     <!--
-      Brings OntologyContract, the reference-domain Turtle fixtures, and (transitively, at compile
-      scope there by design) JUnit Jupiter and AssertJ.
+      The test-scope ontology-testfixtures artifact supplies OntologyContract and the reference-domain
+      Turtle fixtures. sequeless-spi-testkit brings (transitively, at compile scope there by design)
+      JUnit Jupiter and AssertJ.
     -->
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi-testkit</artifactId>
       <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-testfixtures</artifactId>
       <scope>test</scope>
     </dependency>
 
@@ -89,6 +75,39 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-beans</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

@@ -2,7 +2,7 @@ package org.sequeless.testkit.object;
 
 import java.util.List;
 import java.util.UUID;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.object.ObjectStorePort;
 
 /**

@@ -20,16 +20,15 @@ class ShaclValidationAdapterDescriptorProviderTest {
 
     @Test
     void isDiscoverableViaServiceLoaderAndDescribesItselfCorrectly() {
-        List<AdapterDescriptorProvider> providers =
-            ServiceLoader.load(AdapterDescriptorProvider.class).stream()
+        List<AdapterDescriptorProvider> providers = ServiceLoader.load(AdapterDescriptorProvider.class).stream()
                 .map(ServiceLoader.Provider::get)
                 .toList();
 
         AdapterDescriptor descriptor = providers.stream()
-            .map(AdapterDescriptorProvider::descriptor)
-            .filter(d -> d.name().equals("shacl"))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("No 'shacl' AdapterDescriptorProvider registered"));
+                .map(AdapterDescriptorProvider::descriptor)
+                .filter(d -> d.name().equals("shacl"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No 'shacl' AdapterDescriptorProvider registered"));
 
         assertThat(descriptor.name()).isEqualTo("shacl");
         assertThat(descriptor.port()).isEqualTo(ValidationPort.class);

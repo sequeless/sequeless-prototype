@@ -5,7 +5,7 @@
  * Phase 8). `OWL`/`RDF`/`RDFS`/`XSD` must carry the standard namespace IRIs for the terms this
  * library actually needs (per the edit-delta table in docs/specs/phase-4-rdf.md).
  * `DATATYPE_TO_XSD` must cover all eleven `Datatype` values with the exact `xsd:` IRIs
- * `org.sequeless.spi.meta.Datatype` binds them to, and `xsdToDatatype` must invert that mapping,
+ * `org.sequeless.ontology.schema.api.Datatype` binds them to, and `xsdToDatatype` must invert that mapping,
  * falling back to `'STRING'` for any IRI outside the closed set.
  */
 import { DATATYPE_TO_XSD, OWL, RDF, RDFS, SQ, SQ_NS, XSD, xsdToDatatype } from './vocabulary';
@@ -103,7 +103,7 @@ const DOCUMENTED_SQ_TERMS = [
 // so this library must not expose them as if they were usable.
 const RESERVED_SQ_TERMS = ['permission'] as const;
 
-// org.sequeless.spi.meta.Datatype's xsdIri() for each of its 11 constants.
+// org.sequeless.ontology.schema.api.Datatype's xsdIri() for each of its 11 constants.
 const DATATYPE_XSD_IRIS: Readonly<Record<Datatype, string>> = {
   STRING: 'http://www.w3.org/2001/XMLSchema#string',
   BOOLEAN: 'http://www.w3.org/2001/XMLSchema#boolean',

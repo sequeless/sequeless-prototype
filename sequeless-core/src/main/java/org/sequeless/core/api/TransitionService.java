@@ -3,15 +3,14 @@ package org.sequeless.core.api;
 import java.util.Map;
 import java.util.Optional;
 import org.sequeless.core.AuthorizationException;
-import org.sequeless.spi.Scope;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
+import org.sequeless.ontology.behaviour.api.Transition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.spi.authz.Operation;
-import org.sequeless.spi.meta.ExternalSignalTrigger;
-import org.sequeless.spi.meta.Transition;
-import org.sequeless.spi.meta.TriggerKind;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectNotFoundException;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
 
 /**
@@ -20,7 +19,7 @@ import org.sequeless.spi.object.StaleObjectException;
  * to state-machine-governed objects only.
  *
  * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against
- * the current {@link org.sequeless.spi.meta.MetaModelSnapshot}, the same way {@link
+ * the current {@link org.sequeless.ontology.schema.api.Schema}, the same way {@link
  * BusinessObjectService}'s own {@code type} parameters do.
  *
  * @see org.sequeless.core.usecase.DefaultTransitionService
@@ -47,12 +46,12 @@ public interface TransitionService {
      * @param type the type's short name or full IRI; must not be {@code null}
      * @param id the id of the object to transition; must not be {@code null}
      * @param transitionName the name of the transition to fire ({@link
-     *     org.sequeless.spi.meta.Transition#name()}); must not be {@code null}
+     *     org.sequeless.ontology.behaviour.api.Transition#name()}); must not be {@code null}
      * @param expectedVersion the version the caller expects the stored object to currently be at
      * @return the object after the transition, at version {@code expectedVersion + 1}, with {@code
      *     state} moved to the transition's target state
      * @throws NullPointerException if any reference-typed argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
      *     subtype of it exists with {@code id}
@@ -61,8 +60,7 @@ public interface TransitionService {
      *     that transition's guard currently evaluates to {@code false}
      * @throws StaleObjectException if the stored object is not currently at {@code expectedVersion}
      */
-    BusinessObject fire(
-        Scope scope, String type, ObjectId id, String transitionName, long expectedVersion);
+    BusinessObject fire(Scope scope, String type, ObjectId id, String transitionName, long expectedVersion);
 
     /**
      * Fires {@code transitionName} on {@code id} in response to an automation event — a change to
@@ -86,8 +84,7 @@ public interface TransitionService {
      *     evaluates {@code false}, or its trigger kind does not equal {@code expected}
      * @throws NullPointerException if any argument is {@code null}
      */
-    Optional<BusinessObject> fireAutomated(
-        Scope scope, ObjectId id, String transitionName, TriggerKind expected);
+    Optional<BusinessObject> fireAutomated(Scope scope, ObjectId id, String transitionName, TriggerKind expected);
 
     /**
      * Records an external signal for {@code id}, for {@code POST
@@ -113,7 +110,7 @@ public interface TransitionService {
      * @param body the request body to record alongside the signal for audit; must not be {@code
      *     null}; not bound into any guard's {@code ExpressionContext} this phase
      * @throws NullPointerException if any argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current snapshot matches {@code type}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
      * @throws AuthorizationException if the authorization port denies the operation
      * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
      *     subtype of it exists with {@code id}

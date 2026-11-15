@@ -1,6 +1,6 @@
 # Phase 4 — rdf library: the ontology round-trip
 
-**Status: not started.** No specs, no implementation. Needed by Phase 7 (ontology authoring) and
+**Status: done.** Needed by Phase 7 (ontology authoring) and
 Phase 8 (automation's trigger editors, which also author `sq:` terms).
 
 ## Context

@@ -3,8 +3,7 @@ package org.sequeless.adapter.persistence.postgres;
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
 import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OutboxPort;
-import org.sequeless.spi.query.QueryPort;
+import org.sequeless.spi.outbox.OutboxPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -37,11 +36,13 @@ import org.springframework.transaction.PlatformTransactionManager;
  * <em>any</em> {@code DataSource} bean once the {@code Flyway} class and a {@code DataSource} bean
  * are both on the classpath, against one global {@code classpath:db/migration} default location. If
  * the application that assembles this adapter ever adds an unrelated schema of its own under that
- * default location, it must never become entangled with this module's own {@code
- * classpath:db/migration/sequeless/postgres} migrations. Instead, {@link PostgresMigrations#migrate}
- * runs this adapter's own {@code Flyway.configure()} call, scoped to its own location string, lazily
- * against {@link #sequelessPersistenceDataSource}'s first real connection (see {@link
- * PostgresMigratingDataSource}) rather than eagerly when either bean method here runs.
+ * default location, it must never become entangled with this module's own migrations. Those are two
+ * sets: {@code classpath:db/migration/sequeless/postgres} (the Command set, default history table)
+ * and {@code classpath:db/migration/sequeless/postgres-query} (the Query set, its own history table).
+ * Instead, {@link PostgresMigrations#migrate} runs this adapter's own {@code Flyway.configure()}
+ * calls, scoped to those location strings, lazily against {@link #sequelessPersistenceDataSource}'s
+ * first real connection (see {@link PostgresMigratingDataSource}) rather than eagerly when either
+ * bean method here runs.
  */
 @AutoConfiguration
 @ConditionalOnProperty(name = "sequeless.persistence.adapter", havingValue = "postgres")
@@ -81,10 +82,10 @@ public class PostgresPersistenceAutoConfiguration {
      * @return a new {@link PostgresObjectStore} over that {@link DataSource}
      */
     @Bean
-    public ObjectStorePort objectStorePort(DataSource sequelessPersistenceDataSource) {
+    public PostgresObjectStore objectStorePort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
-            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+                new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresObjectStore(jdbcClient, transactionManager);
     }
 
@@ -109,10 +110,10 @@ public class PostgresPersistenceAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(name = "sequeless.query.adapter", havingValue = "postgres", matchIfMissing = true)
-    public QueryPort queryPort(DataSource sequelessPersistenceDataSource) {
+    public PostgresQueryStore queryPort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
-            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+                new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresQueryStore(jdbcClient, transactionManager);
     }
 
@@ -137,7 +138,7 @@ public class PostgresPersistenceAutoConfiguration {
     public OutboxPort outboxPort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
-            new DataSourceTransactionManager(sequelessPersistenceDataSource);
+                new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresOutboxPort(jdbcClient, transactionManager);
     }
 }

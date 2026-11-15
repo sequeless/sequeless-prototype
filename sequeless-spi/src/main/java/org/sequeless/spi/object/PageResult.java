@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A page of results from {@link ObjectStorePort#browse}: the items on this page, the page request
- * it answers, and the total number of items across every page.
+ * A page of results: the items on this page, the {@link Page} request it answers, and the total
+ * number of items across every page.
  *
  * @param items the items on this page; must not be {@code null}; may be empty (for a page number
  *     past the end); returned as an unmodifiable copy so callers cannot mutate this result after
