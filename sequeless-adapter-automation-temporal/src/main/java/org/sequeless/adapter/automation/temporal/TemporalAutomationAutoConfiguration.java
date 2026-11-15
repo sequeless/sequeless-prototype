@@ -8,6 +8,7 @@ import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import java.time.Duration;
+import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
@@ -81,11 +82,15 @@ public class TemporalAutomationAutoConfiguration {
      *     with
      * @param props the bound {@code sequeless.automation.temporal.*} configuration, supplying the
      *     task queue name
-     * @return a new {@link TemporalAutomationPort} over both
+     * @param automationSource the {@link AutomationSource} bean the per-action path reads the
+     *     automation of a {@code TransitionFired} row's ontology version from; required, so it is
+     *     injected eagerly
+     * @return a new {@link TemporalAutomationPort} over these
      */
     @Bean
-    public AutomationPort automationPort(WorkflowClient client, TemporalAutomationProperties props) {
-        return new TemporalAutomationPort(client, props.getTaskQueue());
+    public AutomationPort automationPort(
+            WorkflowClient client, TemporalAutomationProperties props, AutomationSource automationSource) {
+        return new TemporalAutomationPort(client, props.getTaskQueue(), automationSource);
     }
 
     /**
@@ -118,6 +123,8 @@ public class TemporalAutomationAutoConfiguration {
      *     actionExecutor}'s own precedent)
      * @param derivationRecomputer the {@link DerivationRecomputer} bean {@link TriggerActivitiesImpl}
      *     calls back into, expected to already be registered on the context
+     * @param automationSource the {@link AutomationSource} bean {@link ActionActivitiesImpl}'s
+     *     {@code applyTransitionAction} reads the automation from, required and injected eagerly
      * @param props the bound {@code sequeless.automation.temporal.*} configuration, supplying the
      *     task queue name and retry policy
      * @return the {@link WorkerFactory}, kept as a bean so its lifecycle is visible to (and
@@ -129,6 +136,7 @@ public class TemporalAutomationAutoConfiguration {
             ActionExecutor actionExecutor,
             TriggerEvaluator triggerEvaluator,
             DerivationRecomputer derivationRecomputer,
+            AutomationSource automationSource,
             TemporalAutomationProperties props) {
         ActionWorkflowImpl.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
 
@@ -136,11 +144,12 @@ public class TemporalAutomationAutoConfiguration {
         Worker worker = factory.newWorker(props.getTaskQueue());
         worker.registerWorkflowImplementationTypes(
                 ActionWorkflowImpl.class,
+                TransitionActionWorkflowImpl.class,
                 ChangeEventWorkflowImpl.class,
                 TimerWorkflowImpl.class,
                 SignalEventWorkflowImpl.class);
         worker.registerActivitiesImplementations(
-                new ActionActivitiesImpl(actionExecutor),
+                new ActionActivitiesImpl(actionExecutor, automationSource),
                 new TriggerActivitiesImpl(triggerEvaluator, derivationRecomputer));
         try {
             factory.start();

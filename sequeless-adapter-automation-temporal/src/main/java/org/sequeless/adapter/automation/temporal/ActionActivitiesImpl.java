@@ -1,5 +1,6 @@
 package org.sequeless.adapter.automation.temporal;
 
+import io.temporal.failure.ApplicationFailure;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -7,14 +8,21 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The real {@link ActionActivities} implementation: three of its four methods are pure
+ * The real {@link ActionActivities} implementation: three of its four ActionRequest methods are pure
  * pass-throughs to the injected {@link ActionExecutor}; {@link #executeWebhook} additionally
  * issues the resolved request's actual HTTP call via the JDK's own {@link HttpClient} (no new
  * dependency, matching {@code InProcessAutomationPort}'s choice).
@@ -31,14 +39,18 @@ import org.sequeless.spi.outbox.OutboxEntry;
 public final class ActionActivitiesImpl implements ActionActivities {
 
     private final ActionExecutor actionExecutor;
+    private final AutomationSource automationSource;
     private final HttpClient httpClient;
 
     /**
      * @param actionExecutor the {@link ActionExecutor} this activity implementation calls back
      *     into; must not be {@code null}
+     * @param automationSource the {@link AutomationSource} {@link #applyTransitionAction} reads the
+     *     automation of the row's ontology version from; must not be {@code null}
      */
-    public ActionActivitiesImpl(ActionExecutor actionExecutor) {
+    public ActionActivitiesImpl(ActionExecutor actionExecutor, AutomationSource automationSource) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor, "actionExecutor must not be null");
+        this.automationSource = Objects.requireNonNull(automationSource, "automationSource must not be null");
         this.httpClient = HttpClient.newHttpClient();
     }
 
@@ -61,6 +73,62 @@ public final class ActionActivitiesImpl implements ActionActivities {
     public void executeWebhook(Scope scope, OutboxEntry entry) {
         ResolvedWebhookRequest resolved = actionExecutor.resolveWebhook(scope, entry);
         deliver(resolved);
+    }
+
+    /**
+     * Applies one action of a {@code TransitionFired} row, in this order on every attempt: reads the
+     * automation first, so each attempt reads it exactly once; checks the row's {@code
+     * ontologyVersion} stamp (missing or non-Number, then a mismatch against the automation); checks
+     * the index against the automation's list for the row's transition; then applies the action. A
+     * webhook action is resolved and delivered, and any other action is applied through {@link
+     * ActionExecutor#applyAction}.
+     *
+     * <p>The three checks throw a non-retryable {@link ApplicationFailure}, so Temporal does not
+     * retry the activity. The row was already processed by the relay before this runs, so no
+     * dead-letter applies: a failure here is visible only in Temporal's history.
+     *
+     * @param scope the tenant and principal to apply the action on behalf of
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates from
+     * @param actionIndex the action's 0-based position in the automation's list for the row's
+     *     transition
+     * @throws ApplicationFailure non-retryable, if the row has no {@code ontologyVersion} stamp, the
+     *     stamp differs from the automation's version, or the index is outside the list
+     */
+    @Override
+    public void applyTransitionAction(Scope scope, OutboxEntry transitionFired, int actionIndex) {
+        Map<String, Object> payload = transitionFired.payload();
+        Automation automation = automationSource.automation(scope.tenantId());
+        if (!(payload.get("ontologyVersion") instanceof Number stamp)) {
+            throw ApplicationFailure.newNonRetryableFailure(
+                    "TransitionFired row " + transitionFired.id() + " has no ontologyVersion stamp",
+                    "TransitionFiredStampMissing");
+        }
+        int rowOntologyVersion = stamp.intValue();
+        int activeOntologyVersion = automation.ontologyVersion().value();
+        if (activeOntologyVersion != rowOntologyVersion) {
+            throw ApplicationFailure.newNonRetryableFailure(
+                    "Automation is at ontology version " + activeOntologyVersion
+                            + " but TransitionFired row " + transitionFired.id()
+                            + " was written at version " + rowOntologyVersion,
+                    "TransitionFiredStampMismatch");
+        }
+
+        TransitionRef transition =
+                new TransitionRef((String) payload.get("machineIri"), (String) payload.get("fromState"), (String)
+                        payload.get("transitionName"));
+        List<Action> actions = automation.actions(transition);
+        if (actionIndex < 0 || actionIndex >= actions.size()) {
+            throw ApplicationFailure.newNonRetryableFailure(
+                    "TransitionFired row " + transitionFired.id() + " has no action at index " + actionIndex,
+                    "TransitionFiredIndexOutOfRange");
+        }
+
+        Action action = actions.get(actionIndex);
+        if (action instanceof WebhookAction webhook) {
+            deliver(actionExecutor.resolveWebhookAction(scope, transitionFired, webhook, actionIndex));
+        } else {
+            actionExecutor.applyAction(scope, transitionFired, action, actionIndex);
+        }
     }
 
     /**

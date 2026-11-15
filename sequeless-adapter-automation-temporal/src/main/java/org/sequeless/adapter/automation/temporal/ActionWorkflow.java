@@ -21,9 +21,10 @@ import org.sequeless.spi.outbox.OutboxEntry;
 public interface ActionWorkflow {
 
     /**
-     * Reads {@code entry.payload()}'s {@code actionKind} and dispatches to exactly one of {@link
-     * ActionActivities}' four methods, having first reconstructed a {@link org.sequeless.kernel.identity.Scope}
-     * from the payload's own {@code tenantId}/{@code principalId} fields.
+     * Reads {@code entry.payload()}'s {@code actionKind} and dispatches to exactly one of the four
+     * ActionRequest activity methods of {@link ActionActivities}; {@code applyTransitionAction} is the
+     * fifth. Before dispatching, it reconstructs a {@link org.sequeless.kernel.identity.Scope} from the
+     * payload's own {@code tenantId}/{@code principalId} fields.
      *
      * @param entry the {@code ActionRequest}-kind outbox entry describing the action to run
      */

@@ -4,9 +4,10 @@
  * {@link org.sequeless.adapter.automation.temporal.ActionWorkflow} execution per {@code
  * ActionRequest} outbox entry (workflow id = {@code entry.id().toString()}, giving idempotent
  * redispatch for free via Temporal's own {@code WorkflowExecutionAlreadyStarted} semantics), which
- * in turn calls exactly one of {@link
- * org.sequeless.adapter.automation.temporal.ActionActivities}' four activities — thin wrappers over
- * an injected {@code ActionExecutor}, except {@link
+ * in turn calls exactly one of the four ActionRequest activity methods of {@link
+ * org.sequeless.adapter.automation.temporal.ActionActivities}; {@code applyTransitionAction} is the
+ * fifth. The four ActionRequest methods are thin wrappers over an injected {@code ActionExecutor},
+ * except {@link
  * org.sequeless.adapter.automation.temporal.ActionActivities#executeWebhook}, which also performs
  * the real HTTP call and lets Temporal's own configurable {@code RetryOptions} retry it, rather
  * than hand-rolling a retry loop the way the in-process adapter does.
