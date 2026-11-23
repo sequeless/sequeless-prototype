@@ -46,7 +46,7 @@ Tests (P2d):
 - `sequeless-adapter-persistence-postgres/{test}/...`: `PostgresOutboxDecodeFailureIT.java` 43-44 (uses `KIND_ACTION_REQUEST` and `KIND_TIMER_SCHEDULED`); `PostgresOutboxPortIT.java` 109 and 112 (constants). `PostgresOutboxClaimIT.java` 44-45 and 69, and `PostgresOutboxV5MigrationIT.java` 43-44 and 70-71, use string literals and compile after P3.
 - `sequeless-spi/{test}/outbox/OutboxEntryTest.java`: 11 `KIND_` references and no assertion on the set of kinds. The kind-set test that the spec describes (line 208) does not exist yet.
 
-Docs (not code): `docs/architecture/automation.md` names the timer kinds (lines 54 to 56). `docs/architecture/sq-vocabulary.md` names no timer kind; its timer terms are `sq:Timer` and `TimerTrigger` (lines 153, 166, 179; also 273 and 275). `docs/architecture/02-decision-records.md` has DR-24 at P2d (line 164).
+Docs (not code): `docs/architecture/automation.md` names the timer kinds (lines 54 to 56, 474 to 475, 530 and 540). `docs/architecture/sq-vocabulary.md` names no timer kind; its timer terms are `sq:Timer` and `TimerTrigger` (lines 153, 166, 179; also 273 and 275). `docs/architecture/02-decision-records.md` has DR-24 at P2d (line 164).
 
 ## 3. The new data path
 
@@ -94,7 +94,7 @@ Add:
 20. A migration at the next free number (V9, subject to OQ7; the file name is set at merge, section 5), under `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`.
 21. The migration's integration test, `PostgresOutboxV9MigrationIT.java` if the number is V9 (next free number, subject to OQ7), modelled on `PostgresOutboxV8MigrationIT.java` (P2d, 120 lines).
 22. A kind-set assertion in `OutboxEntryTest` (open question 13).
-23. A DR entry (open question 14), and doc updates to `docs/architecture/automation.md` (the timer kinds, lines 54 to 56) and, if its timer wording changes, `sq-vocabulary.md` (names no timer kind).
+23. A DR entry (open question 14), and doc updates to `docs/architecture/automation.md` (the timer kinds, lines 54 to 56, 474 to 475, 530 and 540) and, if its timer wording changes, `sq-vocabulary.md` (names no timer kind).
 
 Tests changed:
 
