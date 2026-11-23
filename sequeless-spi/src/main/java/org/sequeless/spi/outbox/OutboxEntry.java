@@ -18,7 +18,8 @@ import org.sequeless.spi.object.Update;
  *
  * <p>{@code kind} is one of {@link #KIND_OBJECT_CREATED}, {@link #KIND_OBJECT_UPDATED}, or {@link
  * #KIND_OBJECT_DELETED} for the mutations this SPI defines, {@link #KIND_TRANSITION_FIRED} for a
- * fired state-machine transition, whose row carries the actions the automation port applies,
+ * fired state-machine transition, whose row names the transition and its ontology version, and from
+ * which the automation port applies the actions,
  * or {@link #KIND_TIMER_SCHEDULED}, {@link #KIND_TIMER_CANCELLED}, or {@link
  * #KIND_SIGNAL_RECEIVED} for the automation events introduced alongside {@code
  * org.sequeless.ontology.behaviour.api.TriggerSpec} — though the type itself does not restrict {@code kind} to
@@ -52,9 +53,11 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     public static final String KIND_OBJECT_DELETED = "ObjectDeleted";
 
     /**
-     * The event kind recorded once for each fired state-machine transition. The row carries the
-     * transition's actions. The outbox relay claims each such row and dispatches it to the automation
-     * port, whose adapters apply those actions in order.
+     * The event kind recorded once for each fired state-machine transition. The row names the
+     * transition and its ontology version. The outbox relay claims each such row and dispatches it to
+     * the automation port, whose adapters read the transition's actions from the automation and apply
+     * them by action index: the in-process adapter applies them in index order, and the Temporal
+     * adapter starts one workflow per action.
      */
     public static final String KIND_TRANSITION_FIRED = "TransitionFired";
 

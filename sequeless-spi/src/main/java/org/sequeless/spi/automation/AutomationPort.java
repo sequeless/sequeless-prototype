@@ -32,12 +32,12 @@ public interface AutomationPort {
      * and the action index together: the in-process adapter runs {@code SetProperty} and {@code
      * CreateObject} actions again on a repeat call.
      *
+     * <p>A {@link OutboxEntry#KIND_TRANSITION_FIRED} entry applies the transition's actions.
+     *
      * @param scope the tenant and principal to dispatch the action on behalf of; must not be
      *     {@code null}
      * @param entry the outbox entry describing the work to dispatch; must not be {@code null}
      * @throws NullPointerException if either argument is {@code null}
-     * <p>A {@link OutboxEntry#KIND_TRANSITION_FIRED} entry applies the transition's actions.
-     *
      * @throws IllegalArgumentException if {@code entry.kind()} is not one of {@link
      *     OutboxEntry#KIND_TRANSITION_FIRED}, {@link OutboxEntry#KIND_OBJECT_CREATED}, {@link
      *     OutboxEntry#KIND_OBJECT_UPDATED}, {@link OutboxEntry#KIND_OBJECT_DELETED}, {@link

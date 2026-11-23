@@ -1,6 +1,6 @@
 # Spec 13, P2d: the flip and V8 (plan)
 
-Status: revision 5. Section 10 is the current decision record. It is revised after the Opus REWORK of revision 4, and the fixes are inline in section 10 (there is no section 11). Q-D stays open (section 10.5). Earlier: revision 3 took in the read-only Opus review of revision 2 (verdict REWORK). Its line claims were checked against the code, and the two blocking items are fixed in section 8. Base: `origin/main` `60f87fb`. Tracker: [#41](https://github.com/sequeless/sequeless-prototype/issues/41). Scope decisions M1 (a) to (d) are from the navigator session `1bf3726d9cb34bfea35f455da8703742`. Items marked **OPEN** are not decided; they go to the navigator before code. Resume plan section 18 lists the 2d items; this file supersedes that list where they differ.
+Status: revision 5. Section 10 is the current decision record. It is revised after the Opus REWORK of revision 4, and the fixes are inline in section 10 (there is no section 11). Q-D is decided (section 10.5). Earlier: revision 3 took in the read-only Opus review of revision 2 (verdict REWORK). Its line claims were checked against the code, and the two blocking items are fixed in section 8. Base: `origin/main` `60f87fb`. Tracker: [#41](https://github.com/sequeless/sequeless-prototype/issues/41). Scope decisions M1 (a) to (d) are from the navigator session `1bf3726d9cb34bfea35f455da8703742`. Items marked **OPEN** are not decided; they go to the navigator before code. Resume plan section 18 lists the 2d items; this file supersedes that list where they differ.
 
 ## 1. Scope
 
@@ -221,5 +221,5 @@ Option A from the Navigator: the seven set-plan steps, each with its file list e
 
 ### 10.5 Open for the Navigator (not decided in rev 5)
 
-- **Q-D: `OutboxEntry.KIND_ACTION_REQUEST`** (the SPI constant, `sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxEntry.java` line 72). Spec line 91 says the kind goes in P2. Deleting a public SPI constant is a break, so this is a scope question. Options: delete in P2d, or keep it deprecated until P2e. Ask before p2d-5 removes it.
+- **Q-D: `OutboxEntry.KIND_ACTION_REQUEST`** (the SPI constant, `sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxEntry.java` line 72). Spec line 91 says the kind goes in P2. Deleting a public SPI constant is a break, so this is a scope question. Options: delete in P2d, or keep it deprecated until P2e. Ask before p2d-5 removes it. **Decided by the Navigator (session `ea0d601086724e1d860d6222bfc46b19`): keep `OutboxEntry.KIND_ACTION_REQUEST` `@Deprecated` until P2e; nothing is deleted in P2d.**
 - The Temporal fixture in p2d-5 (see above) must be verified by the implementer and recorded before that conversion.

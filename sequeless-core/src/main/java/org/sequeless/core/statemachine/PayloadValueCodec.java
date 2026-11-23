@@ -30,8 +30,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * targets plain {@code Map<String, Object>}/{@code List<Object>} rather than Jackson's {@code
  * JsonNode}.
  *
- * <p>{@link #toPayload(Value)} is used by {@code DefaultTransitionService} to build each {@code
- * ActionRequest} {@link OutboxEntry}'s {@code self} map and kind-specific {@code value} fields;
+ * <p>{@link #toPayload(Value)} is used by {@code DefaultTransitionService} to build the {@code self}
+ * map of each {@code TransitionFired} {@link OutboxEntry}. The writer no longer writes {@code
+ * ActionRequest} rows, so it builds no {@code value} field;
  * {@link #fromPayload(Object)} is the symmetric decode a later {@code
  * org.sequeless.core.automation.ActionExecutor} implementation uses to read them back.
  *

@@ -175,8 +175,8 @@ the per-action path uses `TransitionActionWorkflow`, keyed `<entryId>:<index>`, 
 Alternatives: one workflow per row, keyed by the entry id. Rejected, because a row carries several actions,
 and the workflow-id reuse policy would start only the first one.
 Consequences: an `ActionRequest` row that the old version did not drain before the flip is no longer claimed,
-so the owner's mixed-version procedure (resume plan spec 13, section 8) drains them before the P2d PR merges.
+so the owner's mixed-version procedure (docs/extraction/spec-13-p2d-plan.md, section 8) drains them before the P2d PR merges.
 V8 (`V8__outbox_actions_drained.sql`) then stamps any remaining `ActionRequest` row, and any `TransitionFired`
 row with no `self` key, as processed, so neither is dispatched. The drain methods of `ActionExecutor`
-(`applySetProperty` and the others) have no caller in the running application until P2e.
+(`applySetProperty` and the others) have no caller in the running application, and are removed in P2e.
 Reversibility: moderate. V8 marks rows processed, and reverting the code does not unmark them.

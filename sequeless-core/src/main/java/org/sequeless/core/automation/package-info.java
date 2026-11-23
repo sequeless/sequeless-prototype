@@ -3,15 +3,17 @@
  * org.sequeless.core.automation.DefaultActionExecutor}, the reference implementation of {@link
  * org.sequeless.spi.automation.ActionExecutor}. Sibling to {@code
  * org.sequeless.core.statemachine} (the interpreter and {@code TransitionService} that produce
- * each {@code ActionRequest} outbox row) rather than nested inside it, because this package's one
- * job — applying an already-fired transition's action, on an automation adapter's callback thread
- * — is a distinct responsibility from computing which transitions are available or firing one.
+ * each {@code TransitionFired} outbox row, which carries the {@code self} map and the transition's
+ * keys; the writer no longer writes {@code ActionRequest} rows) rather than nested inside it,
+ * because this package's one job — applying an already-fired transition's action, on an automation
+ * adapter's callback thread — is a distinct responsibility from computing which transitions are
+ * available or firing one.
  *
  * <p>This package has exactly one cross-package dependency within {@code sequeless-core} itself:
  * {@link org.sequeless.core.statemachine.PayloadValueCodec}, the {@link
  * org.sequeless.kernel.values.Value}-to-outbox-payload codec {@code DefaultTransitionService} uses to
- * encode each {@code ActionRequest} payload's {@code self}/{@code value}/{@code createProperties}
- * fields. {@link org.sequeless.core.automation.DefaultActionExecutor} is the symmetric decode
+ * encode the {@code self} map of each {@code TransitionFired} payload.
+ * {@link org.sequeless.core.automation.DefaultActionExecutor} is the symmetric decode
  * side, calling {@link org.sequeless.core.statemachine.PayloadValueCodec#fromPayload} rather than
  * inventing a second codec, so both sides of the outbox payload format are guaranteed to agree.
  *

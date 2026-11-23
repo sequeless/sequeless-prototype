@@ -40,8 +40,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Reference implementation of {@link ActionExecutor}, called back into by an automation adapter
- * (the in-process relay, or a Temporal activity) once a fired transition's {@code ActionRequest}
- * outbox row has been dispatched. Every mutation this class performs goes through {@link
+ * (the in-process relay, or a Temporal activity) once a fired transition's {@code TransitionFired}
+ * outbox row has been dispatched. The writer no longer writes {@code ActionRequest} rows: the
+ * {@code TransitionFired} row carries the {@code self} map and the transition's keys (its machine
+ * IRI, from state and name), and the single-action methods read them from it. Every mutation this
+ * class performs goes through {@link
  * ObjectStorePort#commit}, and every {@code value}/{@code expression}/template field an {@code
  * ActionRequest} payload carries is resolved through {@link ExpressionPort} — never evaluated by
  * hand here — exactly mirroring how {@code DefaultBusinessObjectService} and {@code

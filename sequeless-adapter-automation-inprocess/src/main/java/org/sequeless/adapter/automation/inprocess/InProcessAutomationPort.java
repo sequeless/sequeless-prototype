@@ -56,8 +56,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * InProcessAutomationProperties#getRetryAttempts()} total attempts, each separated by {@link
  * InProcessAutomationProperties#getRetryDelay()} — deliberately dumb, in contrast to a future
  * Temporal activity's configurable, exponential-backoff {@code RetryOptions}. Only the HTTP call
- * itself is retried: {@link ActionExecutor#resolveWebhook}'s own template-resolution failures (a
- * malformed {@code ${expr}}) propagate immediately, on the first and only attempt, since retrying
+ * itself is retried: {@link ActionExecutor#resolveWebhookAction}'s own template-resolution
+ * failures (a malformed {@code ${expr}}) propagate immediately, on the first and only attempt, since
+ * retrying
  * a deterministic template error can never succeed.
  *
  * <p><b>Kind routing.</b> {@link #dispatch} routes the three

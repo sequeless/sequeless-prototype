@@ -12,7 +12,7 @@ this document starts where a transition has already been decided available and i
 
 `DefaultTransitionService.fire` (`sequeless-core`, `org.sequeless.core.usecase`) moves an object's
 `state` and, in the same `ChangeSet`/`ObjectStorePort#commit` call, writes one `TransitionFired`
-outbox event that carries the fired transition's actions — all committed atomically with the state change, so there is no window where the state has moved
+outbox event that names the fired transition and its ontology version, from which the adapters apply its actions by index — all committed atomically with the state change, so there is no window where the state has moved
 but the record of what should happen next has not been durably written (or vice versa). `sq_outbox`
 is the same transactional-outbox table `ObjectCreated`/`ObjectUpdated`/`ObjectDeleted` events have
 used since DR-12; Phase 5 adds two new `kind` values to it and a `processed_at` marker column.
@@ -105,9 +105,19 @@ principal — is baked into the payload the moment the transition commits. A Tem
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
 `self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
 re-read" a design property rather than an incidental optimization — `ActionExecutor`'s four
-ActionRequest methods need nothing beyond the frozen payload to do their job. Before the flip, a test
-fed a real `DefaultTransitionService.fire(...)` call's `OutboxEntry` list straight into
-`DefaultActionExecutor` to confirm it.
+ActionRequest methods need nothing beyond the frozen payload to do their job. A test feeds a real
+`DefaultTransitionService.fire(...)` call's `TransitionFired` row straight into `DefaultActionExecutor`
+to confirm it (`DefaultActionExecutorTest`). The hand-built `ActionRequest` tests in that class
+exercise the drain path, which is removed in P2e.
+
+**What the per-action path reads, and when.** The row names the transition (`machineIri`,
+`fromState`, `transitionName`) and its `ontologyVersion`, but not the actions. Both adapters read the
+actions from the `AutomationSource` for the row's ontology version. `TemporalAutomationPort.dispatch`
+reads them once, to count the workflows to start, and `ActionActivitiesImpl#applyTransitionAction`
+reads them again on each attempt, to pick the action at its index. `InProcessAutomationPort` reads
+them once, at dispatch. A missing `ontologyVersion` stamp, or one that differs from the automation's
+version, throws `IllegalStateException` at dispatch. In the Temporal activity the same checks throw a
+non-retryable `ApplicationFailure`, so Temporal does not retry them.
 
 ## 3. `OutboxRelay`
 
@@ -177,7 +187,7 @@ A `sq:Webhook` action's HTTP call (via the JDK's own `HttpClient`, no new depend
 a small **fixed** retry loop, configured by `InProcessAutomationProperties`
 (`sequeless.automation.inprocess.*`): `retryAttempts` (default **3**, total attempts including the
 first) and `retryDelay` (default **200ms**, fixed — not exponential — between attempts). Only the
-HTTP call itself is retried; `ActionExecutor#resolveWebhook`'s own template-resolution failures (a
+HTTP call itself is retried; `ActionExecutor#resolveWebhookAction`'s own template-resolution failures (a
 malformed `${expr}`) propagate immediately on the first attempt, since retrying a deterministic
 template error can never succeed.
 
@@ -391,6 +401,13 @@ through the reference ontology; it constructs its own `TransitionFired` `OutboxE
 real `ObjectStorePort#commit` call, bypassing `TransitionService`/the ontology entirely), with a test
 automation that holds the webhook action, pointing at a local JDK `HttpServer` stub instead.
 
+The in-process adapter makes this caveat stricter. A failing webhook throws `WebhookDeliveryException`
+out of `dispatchTransitionFired`, which rolls back the claim transaction for the whole fired row. No
+action of that row takes effect, including the kickoff `CreateObject`, and the row is dead-lettered
+after three polls. `TransitionsEndToEndTest` therefore redirects the webhook to a local stand-in at the
+`ActionExecutor` seam (`WebhookStandInConfiguration`), so that the `activate` row's kickoff `Task` is
+created.
+
 **Testcontainers gotcha from the acceptance-test task.** Two `@SpringBootTest` classes that both
 extend `TemporalTestcontainersSupport`/`PostgresTestcontainersSupport` must **not** use
 byte-identical `@SpringBootTest` `properties` arrays. JUnit 5's `@Testcontainers` extension manages
@@ -449,8 +466,8 @@ stale — the object may have moved on, been deleted, or the guard may no longer
 automation hint is the normal case, not an error condition. `fireAutomated` performs no
 authorization check either (no `Operation.TRANSITION`); it is system-triggered, not
 user-triggered. When a transition *does* fire this way, it shares the exact same private commit
-path `fire()` (the REST path) uses — guard, state move, and one `TransitionFired` row that carries the
-actions — so an automated transition is indistinguishable, in the audit trail and in its
+path `fire()` (the REST path) uses — guard, state move, and one `TransitionFired` row that names the
+transition, whose actions the adapters apply — so an automated transition is indistinguishable, in the audit trail and in its
 side-effects, from one a user fired directly.
 
 **The `timerKey` scheme.** Every successful transition, automated or user-fired, additionally
@@ -523,8 +540,8 @@ sequenceDiagram
 A `TimerScheduled`/`TimerCancelled`/`SignalReceived` row follows the same claim → dispatch shape,
 just routed to `onTimerElapsed`/(cancel by `timerKey`)/`onSignal` instead of `onChange`; each
 adapter's `dispatch` switches on `kind()` to route them. A `TransitionFired` row is written alongside
-every fired transition and carries its actions. The relay claims it like any other kind, and both
-adapters apply its actions (§4).
+every fired transition and names the transition and its ontology version. The relay claims it like
+any other kind, and both adapters apply its actions by index (§4).
 
 ## 11. Materialised derivations (Phase 6 / DR-08)
 
