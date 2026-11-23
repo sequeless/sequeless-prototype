@@ -120,6 +120,23 @@ class OutboxRelayTest {
     }
 
     /**
+     * The relay claims only its dispatchable kinds. An {@code ActionRequest} row is not one of them,
+     * so it stays unprocessed and nothing is dispatched for it.
+     */
+    @Test
+    void relayDoesNotClaimActionRequestRows() {
+        InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
+        outboxPort.enqueue("tenant-a", actionRequest());
+        RecordingAutomationPort automationPort = new RecordingAutomationPort();
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+
+        relay.pollOnce();
+
+        assertThat(automationPort.dispatchedEntries).isEmpty();
+        assertThat(outboxPort.remaining()).isEqualTo(1);
+    }
+
+    /**
      * The recompute must run before the ingress for the same row: the automation adapter's change
      * handling reads the materialised values the recompute writes.
      */
@@ -162,6 +179,16 @@ class OutboxRelayTest {
         payload.put("toState", "https://example.com/ns#Active");
         payload.put("ontologyVersion", 1);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+    }
+
+    /** Builds a legacy {@code ActionRequest}-kind {@link OutboxEntry}, which the relay must not claim. */
+    @SuppressWarnings("deprecation")
+    private static OutboxEntry actionRequest() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", UUID.randomUUID().toString());
+        payload.put("tenantId", "tenant-a");
+        payload.put("principalId", "alice");
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
     }
 
     private static ObjectProvider<AutomationPort> providerOf(AutomationPort port) {

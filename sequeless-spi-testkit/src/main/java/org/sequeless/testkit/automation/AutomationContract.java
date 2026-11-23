@@ -214,6 +214,7 @@ public abstract class AutomationContract {
                 new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
         assertThatIllegalStateException().isThrownBy(() -> port().dispatch(SCOPE, entry));
+        assertThat(recordingExecutor().calls()).isEmpty();
     }
 
     @Test
