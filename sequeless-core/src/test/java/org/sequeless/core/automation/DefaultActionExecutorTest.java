@@ -178,18 +178,17 @@ class DefaultActionExecutorTest {
                 Map.of(),
                 List.of(projectType));
         Behaviour behaviour = new Behaviour(new OntologyVersion(1), Map.of(PROJECT_IRI, lifecycle), Map.of());
+        // The test's own action list. The index of each entry is the actionIndex it is applied with.
+        List<Action> actions = List.<Action>of(
+                setPropertyValue,
+                setPropertyExpression,
+                createObjectValue,
+                createObjectExpression,
+                webhookWithBody,
+                webhookNoBody,
+                logAction);
         Automation automation = new Automation(
-                new OntologyVersion(1),
-                Map.of(
-                        new TransitionRef(lifecycle.iri(), DRAFT_IRI, "activate"),
-                        List.<Action>of(
-                                setPropertyValue,
-                                setPropertyExpression,
-                                createObjectValue,
-                                createObjectExpression,
-                                webhookWithBody,
-                                webhookNoBody,
-                                logAction)));
+                new OntologyVersion(1), Map.of(new TransitionRef(lifecycle.iri(), DRAFT_IRI, "activate"), actions));
 
         ObjectId projectId = ObjectId.random();
         Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
@@ -203,56 +202,55 @@ class DefaultActionExecutorTest {
                 new DefaultTransitionService(ontology, ontology, ontology, store, permitAll(), expressionPort, CLOCK);
         transitionService.fire(ALICE, "Project", projectId, "activate", 5);
 
-        // The real payload DefaultTransitionService produced — not hand-built.
+        // The real payload DefaultTransitionService produced, not hand-built. The fire writes one
+        // TransitionFired row, and the actions are applied from that row.
         List<OutboxEntry> outbox = store.commits.get(0).outbox();
-        assertThat(outbox).hasSize(8); // 1 TransitionFired + 7 ActionRequest
+        assertThat(outbox).hasSize(1);
         assertThat(outbox.get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
-        List<OutboxEntry> actionRequests = outbox.subList(1, outbox.size());
+        OutboxEntry firedRow = outbox.get(0);
 
         DefaultActionExecutor executor = new DefaultActionExecutor(expressionPort, store, CLOCK);
 
         // actionIndex 0: SetProperty, value variant — status differs from absent, commits.
-        executor.applySetProperty(ALICE, actionRequests.get(0));
+        executor.applyAction(ALICE, firedRow, actions.get(0), 0);
         BusinessObject afterFirstSet = store.store.get(projectId);
         assertThat(afterFirstSet.properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("kicked-off"));
-        // The ObjectUpdated event carries the version its ActionRequest row was stamped with.
+        // The ObjectUpdated event carries the ontologyVersion that the TransitionFired row was stamped with.
         assertThat(store.commits.get(1).outbox().get(0).payload()).containsEntry("ontologyVersion", 1);
 
         // actionIndex 1: SetProperty, expression variant ("self.owner") — self is frozen at
         // transition-fire time, so it still resolves to "alice" even though status is now
         // "kicked-off" in the live store; differs from "kicked-off", so commits again.
-        executor.applySetProperty(ALICE, actionRequests.get(1));
+        executor.applyAction(ALICE, firedRow, actions.get(1), 1);
         BusinessObject afterSecondSet = store.store.get(projectId);
         assertThat(afterSecondSet.properties().get(new PropertyRef(STATUS_IRI))).isEqualTo(Value.text("alice"));
 
         // actionIndex 2: CreateObject, value variant.
-        executor.applyCreateObject(ALICE, actionRequests.get(2));
-        UUID entryId2 = actionRequests.get(2).id();
+        executor.applyAction(ALICE, firedRow, actions.get(2), 2);
         ObjectId derivedId2 = new ObjectId(
-                UUID.nameUUIDFromBytes((entryId2 + ":2").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                UUID.nameUUIDFromBytes((firedRow.id() + ":2").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject task1 = store.store.get(derivedId2);
         assertThat(task1).isNotNull();
         assertThat(task1.type()).isEqualTo(new TypeRef(TASK_IRI));
         assertThat(task1.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("Kickoff"));
         assertThat(task1.state()).isEmpty();
 
-        // Idempotency: firing the very same ActionRequest a second time must not create a duplicate.
+        // Idempotency: applying the same CreateObject (same index) again must not commit again.
         int commitsBeforeRetry = store.commitCalls;
-        executor.applyCreateObject(ALICE, actionRequests.get(2));
+        executor.applyAction(ALICE, firedRow, actions.get(2), 2);
         assertThat(store.commitCalls).isEqualTo(commitsBeforeRetry);
         assertThat(store.store.get(derivedId2)).isEqualTo(task1);
 
         // actionIndex 3: CreateObject, expression variant ("self.owner").
-        executor.applyCreateObject(ALICE, actionRequests.get(3));
-        UUID entryId3 = actionRequests.get(3).id();
+        executor.applyAction(ALICE, firedRow, actions.get(3), 3);
         ObjectId derivedId3 = new ObjectId(
-                UUID.nameUUIDFromBytes((entryId3 + ":3").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                UUID.nameUUIDFromBytes((firedRow.id() + ":3").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject task2 = store.store.get(derivedId3);
         assertThat(task2).isNotNull();
         assertThat(task2.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("alice"));
 
         // actionIndex 4: Webhook, with a templated URL and body.
-        ResolvedWebhookRequest resolved1 = executor.resolveWebhook(ALICE, actionRequests.get(4));
+        ResolvedWebhookRequest resolved1 = executor.resolveWebhookAction(ALICE, firedRow, webhookWithBody, 4);
         assertThat(resolved1.url()).isEqualTo("https://example.com/hook?owner=alice");
         assertThat(resolved1.method()).isEqualTo("POST");
         assertThat(resolved1.body()).contains("alice");
@@ -260,7 +258,7 @@ class DefaultActionExecutorTest {
         // actionIndex 5: Webhook, no body — url has no placeholders, passes through untouched.
         int findCallsBefore = store.findCalls;
         int commitCallsBefore = store.commitCalls;
-        ResolvedWebhookRequest resolved2 = executor.resolveWebhook(ALICE, actionRequests.get(5));
+        ResolvedWebhookRequest resolved2 = executor.resolveWebhookAction(ALICE, firedRow, webhookNoBody, 5);
         assertThat(resolved2.url()).isEqualTo("https://example.com/reopen");
         assertThat(resolved2.method()).isEqualTo("GET");
         assertThat(resolved2.body()).isEmpty();
@@ -269,7 +267,7 @@ class DefaultActionExecutorTest {
 
         // actionIndex 6: Log.
         expressionPort.renderTemplateCalls.clear();
-        executor.applyLog(ALICE, actionRequests.get(6));
+        executor.applyAction(ALICE, firedRow, actions.get(6), 6);
         assertThat(expressionPort.renderTemplateCalls).hasSize(1);
         assertThat(expressionPort.renderTemplateCalls.get(0).template()).isEqualTo("Activated by ${self.owner}");
         assertThat(expressionPort.renderTemplateCalls.get(0).context().selfProperties())
