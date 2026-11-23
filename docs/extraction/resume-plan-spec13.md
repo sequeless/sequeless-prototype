@@ -333,3 +333,20 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
   6. Record the ActionRequest sibling id note (section 17, item 8) in the 2d PR body.
 - **Owner items, unchanged.** The V8 index window (decision ix): the held branch `spec-13-dead-letter-index-v8` renumbers to V9, and V9 is never merged before V8. The DR-11 coupled sites are blocked on an ontology-testfixtures release. The Mockito 5.14.2 bump waits for the first Mockito test.
 - **Worktrees** (machine-local, not needed): `/Users/bbartolome/workspace/sequeless-prototype.worktrees/p2c-impl` (branch merged) and `.../p2c-plan` (detached planning copy). Create the 2d worktree from `origin/main`.
+
+## 19. Handoff recorded 2026-11-23 (P2d revision 5; code not started)
+
+- **Base.** `origin/main` was `aea0161` (#164, the P2d plan rev 3, merged). This handoff's PR is the next commit on `spec-13-p2d-flip`. Machine-local worktree: `/Users/bbartolome/workspace/sequeless-prototype.worktrees/p2d-impl`, branch `spec-13-p2d-flip`, cut from `aea0161`.
+- **Decisions are settled.** The Navigator session `cc206f68705e4d93956f7e58ddd8c6e9` (pair mode, not ended) decided Q-A (a mix), Q-B (option B), Q-C (option C, the merge waits), the ActionWorkflow hold (kept in P2d, deleted in P2e), and DR-24. The reasons and the step list (p2d-1 to p2d-8, with each file expanded) are in `docs/extraction/spec-13-p2d-plan.md` section 10. Do not re-ask them, and do not resume that session. Q-E is also decided: convert the three suites' ActionRequest tests inside p2d-5, and delete none. Q-D is open: whether `OutboxEntry.KIND_ACTION_REQUEST` is deleted in P2d or kept until P2e. Ask the Navigator before p2d-5 removes the constant.
+- **What is left, in order.**
+  1. Owner: confirm the Q-A acceptance of loss on #41, which the Navigator recorded on the owner's behalf for the dev stack only.
+  2. Owner: run the mixed-version procedure on the dev stack with the OLD version (plan section 8, steps 1 to 4, using the Q-A mix in section 10.1). Report the zero-check results. The P2d PR may merge only after this.
+  3. Implementation: the steps p2d-1 to p2d-8 are applied in sequence on one branch, `spec-13-p2d-flip`, one commit per step. They are not independent: they edit the same Temporal switch, the same in-process `dispatch`, and the same `AutomationContract`. Haiku subagents may implement a step, but each builds on the previous head, and an Opus review checks each step. The full gate runs once, on the final head. Then open the PR, and merge it only after step 2. The order and the reasons are in `docs/extraction/spec-13-p2d-plan.md` section 10.2.
+  4. After P2d merges: P2e (the section 17 list, and deleting ActionWorkflow with the holder moved), then P3, P4 and P5b.
+- **Gotchas found this session.**
+  - The primary checkout (`/Users/bbartolome/workspace/sequeless-prototype`) was at `60f87fb`, behind `origin/main`. Work from the worktree.
+  - The JDK is at `/opt/sdkman/candidates/java/25.0.3-tem`. The default `java` is 21.
+  - Two paths in the plan were misremembered by the Navigator and corrected: `DefaultTransitionService` is under `core/usecase/`, and `AutomationContract` is under `testkit/automation/`.
+  - Plan line numbers were checked against `origin/main` `aea0161`, and most match. The Opus review of revision 4 found some that do not: the `PostgresOutboxPortIT` citations (lines 63 and 180; line 63 is a TRUNCATE, and the file needs no change), the p2d-6 range (now 301 to 345), and the claim-query line in section 8 (now 84). Revision 5 fixes them.
+  - `OutboxRelayTest` line 169 is a `{@code}` reference, so removing `actionRequestPayload` does not break javadoc. The text is still stale.
+  - The spec's P2 row says `ActionWorkflow` takes the TransitionFired row. 2c's D5 superseded that, and DR-24 records it.
