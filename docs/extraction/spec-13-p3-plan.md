@@ -8,9 +8,9 @@ Conventions: `{main}` stands for `src/main/java/org/sequeless` and `{test}` for 
 
 - P3 is planned as a stack on P2d. P2d is not merged, and P3 changes code that P2d leaves in place.
 - No P3 code starts until P2d and P2e have merged. The handoff orders P3 after them (resume plan line 345: "After P2d merges: P2e ..., then P3, P4 and P5b"). The spec gives the same order (line 76). P2e removes `KIND_ACTION_REQUEST` (`{main}/spi/outbox/OutboxEntry.java:64-74`, deprecated in P2d) and `ActionWorkflow`.
-- B2 is settled by the Navigator as route 1; the owner may confirm it (resume plan line 262) (resume plan lines 159 and 262). DR-23 changed its wording to "three failed dispatches, then dead-letter" (`docs/architecture/02-decision-records.md:145-161`). The spec's B2 item still reads "OWNER DECISION, open" (line 366), and its route 1 reads "fail and retry" (line 367). The spec is stale here.
+- B2 is settled by the Navigator as route 1; the owner may confirm it (resume plan lines 159 and 262). DR-23 changed its wording to "three failed dispatches, then dead-letter" (`docs/architecture/02-decision-records.md:145-161`). The spec's B2 item still reads "OWNER DECISION, open" (line 366), and its route 1 reads "fail and retry" (line 367). The spec is stale here.
 - O-3 and O-4 were answered on 2026-11-14 (resume plan lines 239-240), before P2d. The spec's policy (line 332, and steps 3 and 4 at lines 104-105) asks for the count again when each removing step deploys. That is this plan's reading (OQ9).
-- The spec's line numbers for this code are stale. Only the P3 row (line 92) cites the ranges 369-385 (`addTimerOutboxEntries`) and 398-414 (`timerScheduledEntry`). O-2 (spec line 330) cites only the lookup at 377-378 and `TimerTrigger` at lines 40, 378 and 403. At P2d these are 362-382, 392-411 and 372. On main, `addTimerOutboxEntries` starts at 372. This plan uses P2d numbers.
+- The spec's line numbers for this code are stale. The inventory row (spec line 50) and the P3 row (line 92) cite the ranges 369-385 (`addTimerOutboxEntries`) and 398-414 (`timerScheduledEntry`), and both, with line 51, cite the loop at 377-378. O-2 (spec line 330) cites only the lookup at 377-378 and `TimerTrigger` at lines 40, 378 and 403. At P2d these are 362-382, 392-411 and 372. On main, `addTimerOutboxEntries` starts at 372. This plan uses P2d numbers.
 
 ## 2. Inventory
 
@@ -98,7 +98,7 @@ Add:
 
 Tests changed:
 
-24. `DefaultTransitionServiceTest` 526-570: entering a timer state commits one row. Change `hasSize(2)` (536, 563) and the timer assertions (537-550, 564-571).
+24. `DefaultTransitionServiceTest` 526-571: entering a timer state commits one row. Change `hasSize(2)` (536, 563) and the timer assertions (537-550, 564-571).
 25. `DefaultTriggerEvaluatorTest`: the helper (209-215) and the tests from 319 move to the new input. Add cases for the lookup: state, duration, key, no timers for a transition without a timer trigger, and a stamp failure.
 26. `AutomationContract.java`: the timer contracts (240-297) are driven from a `TransitionFired` row. The redispatch contract (284-297) keeps dispatching the same row twice. The builders (332-362) change.
 27. `TemporalAutomationPortContractTest.java`: the wrapper cases (178-184) change. `awaitCancellationTakesEffect` (247-263) goes if open question 1 drops cancellation.
@@ -167,7 +167,7 @@ These are decisions the repo cannot settle. The plan does not decide them. Secti
 11. Temporal versioning: change `TimerWorkflowImpl.run` in place, which needs drain or terminate (spec step 4), or add `Workflow.getVersion`, as P5a may (spec line 90)?
 12. Where `timerKey` lives: core uses it (`DefaultTransitionService.java:430-438`), and so do both adapters. Move it to `DefaultTriggerEvaluator`, or to `spi/outbox` beside the kinds, so that one definition serves all?
 13. Kind-set test: the spec (line 208) describes an `OutboxEntryTest` assertion that does not exist at P2d. Does P3 add it, expecting five constants?
-14. DR entry: does P3 record a DR for removing the timer kinds and ending cancellation, as DR-24 did at P2d (`docs/architecture/02-decision-records.md` line 164)? Spec O-16 at line 362 names DR-21, which records Browse order, so it is stale on this point. Under which number?
+14. DR entry: does P3 record a DR for removing the timer kinds and ending cancellation, as DR-24 did at P2d (`docs/architecture/02-decision-records.md` line 164)? On main (da3c08d), spec O-16 (line 362) named DR-21, which records Browse order; P2d (28b918e) corrected it to DR-24. Under which number?
 15. In-process growth: pending timers have no bound and no cancel. Accept that for the test adapter, or add a bound?
 16. Dev-stack adapter: the repo's `application.yaml` does not set `sequeless.automation.adapter`, and no compose file does. Which adapter does the dev stack run, and so which adapter must O-4 cover?
 17. Retried `TransitionFired` row (section 7, risk 8). After P3 a retry re-enters `dispatchTransitionFired`, and the in-process adapter would re-arm its timer with a fresh due time. Should the timer start be gated per row, as the action records gate actions, so that a retry cannot move the due time? Or is a moved due time acceptable?
