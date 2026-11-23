@@ -170,10 +170,11 @@ class TemporalTransitionActivationEndToEndTest extends TemporalTestcontainersSup
         assertThat(activated.state()).isEqualTo("Active");
         assertThat(activated.version()).isEqualTo(3L);
 
-        // The kickoff Task is created asynchronously: the live OutboxRelay drains the
-        // ActionRequest row this transition wrote and hands it to the real Temporal-backed
-        // AutomationPort, which starts an ActionWorkflow that runs the CreateObject activity —
-        // not synchronously by the POST above. See this class's javadoc for why the title is
+        // The kickoff Task is created asynchronously: the live OutboxRelay claims the
+        // TransitionFired row this transition wrote and hands it to the real Temporal-backed
+        // AutomationPort, which starts one TransitionActionWorkflow per action; the CreateObject
+        // action runs as an activity of that workflow — not synchronously by the POST above.
+        // See this class's javadoc for why the title is
         // "Kickoff: [<title>]", brackets included.
         awaitKickoffTask("Kickoff: [" + projectTitle + "]");
     }

@@ -14,14 +14,21 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * org.sequeless.core.automation.DefaultActionExecutor}), and an adapter calls it, rather than the
  * other way around.
  *
- * <p>Every method takes the same two arguments: a {@link Scope} reconstructed from {@code
- * entry.payload()}'s own {@code tenantId}/{@code principalId} fields, and the {@code
- * ActionRequest}-kind {@link OutboxEntry} itself, whose {@code payload()} map is the sole source
- * of every field the method reads. That payload is a self-contained, JSON-compatible snapshot
- * frozen at transition-fire time by {@code org.sequeless.core.usecase.DefaultTransitionService},
- * so a retried Temporal activity (or an in-process relay retry) never needs to re-read mutable
- * object state to reproduce the same result. Every field common to all four action kinds, plus the
- * kind-specific fields each method below documents, is present in {@code entry.payload()}:
+ * <p>The class has two paths. The drain path ({@link #applySetProperty}, {@link #applyCreateObject},
+ * {@link #resolveWebhook} and {@link #applyLog}) applies one legacy {@code ActionRequest}-kind
+ * {@link OutboxEntry}, claimed by the relay before the flip. No code writes such a row any more, and
+ * nothing in the running application starts the workflow that calls these methods. The per-action
+ * path ({@link #applyAction} and {@link #resolveWebhookAction}) takes one {@code TransitionFired}-kind
+ * {@link OutboxEntry} and applies one action of its transition, by 0-based index. The adapter builds
+ * that action from the automation of the row's ontology version and passes it in.
+ *
+ * <p>On the drain path, every method takes the same two arguments: a {@link Scope} reconstructed from
+ * {@code entry.payload()}'s own {@code tenantId}/{@code principalId} fields, and the {@code
+ * ActionRequest}-kind {@link OutboxEntry} itself, whose {@code payload()} map is the sole source of
+ * every field the method reads. That payload is a self-contained, JSON-compatible snapshot frozen at
+ * transition-fire time, so a retried call never needs to re-read mutable object state to reproduce
+ * the same result. Every field common to all four action kinds, plus the kind-specific fields each
+ * method below documents, is present in {@code entry.payload()}:
  *
  * <ul>
  *   <li>{@code objectId} ({@code String}) — the transitioning object's id; also required by {@link

@@ -36,8 +36,9 @@
  *
  * <p>{@link org.sequeless.spi.outbox.OutboxPort} is a sibling outbound port, not a method on
  * {@link org.sequeless.spi.object.ObjectStorePort}: it lets a relay claim, one row at a time, an
- * unprocessed {@link org.sequeless.spi.outbox.OutboxEntry#KIND_ACTION_REQUEST} row written by
- * {@code commit} above, without forcing every {@code ObjectStorePort} implementation — including
+ * unprocessed {@link org.sequeless.spi.outbox.OutboxEntry#KIND_TRANSITION_FIRED} row written by
+ * {@code commit} above, which carries the fired transition's actions, without forcing every {@code
+ * ObjectStorePort} implementation — including
  * test doubles that have no use for outbox claiming — to implement it.
  *
  * <p>{@link org.sequeless.spi.object.SearchVectorBackfillPort} is a sibling outbound port, not a

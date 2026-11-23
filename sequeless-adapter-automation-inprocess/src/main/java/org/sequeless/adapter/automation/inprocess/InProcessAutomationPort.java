@@ -38,7 +38,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * A Temporal adapter gets this for free from workflow-id semantics ({@code
  * WorkflowExecutionAlreadyStarted}); this adapter has no such built-in mechanism, so it keeps an
  * in-memory, thread-safe set of every {@link OutboxEntry#id()} it has already dispatched and
- * short-circuits a repeat as a no-op. This set grows unbounded for the process's lifetime and is
+ * short-circuits a repeat as a no-op. The exception is a {@code TransitionFired} row, which is keyed
+ * by entry id and action index. This set grows unbounded for the process's lifetime and is
  * <b>not crash-safe</b> — a process restart forgets every id it ever saw. Both are accepted
  * limitations, not bugs: durability across restarts is Temporal's job, not this adapter's, which
  * exists only for tests and local development.

@@ -41,8 +41,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 
 /**
- * Covers {@link TemporalAutomationPort#startTransitionFiredActions}, the dormant per-action entry point,
- * against real {@link TransitionActionWorkflowImpl} executions in an in-memory {@link
+ * Covers {@link TemporalAutomationPort#startTransitionFiredActions}, the per-action entry point that
+ * {@link TemporalAutomationPort#dispatch} calls for every {@code TransitionFired} row, against real
+ * {@link TransitionActionWorkflowImpl} executions in an in-memory {@link
  * TestWorkflowEnvironment}. The port's own checks are tested here: a bad stamp throws before any workflow
  * starts, a transition with no actions starts nothing, and each action index gets its own workflow.
  *
