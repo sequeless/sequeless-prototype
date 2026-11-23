@@ -1,6 +1,7 @@
 package org.sequeless.testkit.automation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.time.Duration;
@@ -165,8 +166,12 @@ public abstract class AutomationContract {
         assertThatNullPointerException().isThrownBy(() -> port().dispatch(SCOPE, null));
     }
 
+    /**
+     * A {@code TransitionFired} row with no {@code ontologyVersion} stamp is rejected: {@code dispatch}
+     * throws {@link IllegalStateException} and starts nothing for that row.
+     */
     @Test
-    void dispatchAcceptsTransitionFiredAsANoOp() {
+    void dispatchRejectsTransitionFiredWithoutOntologyVersionStamp() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
@@ -177,11 +182,7 @@ public abstract class AutomationContract {
         OutboxEntry entry =
                 new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
-        port().dispatch(SCOPE, entry);
-
-        assertThat(recordingExecutor().calls()).isEmpty();
-        assertThat(recordingTriggerEvaluator().calls()).isEmpty();
-        assertThat(recordingDerivationRecomputer().calls()).isEmpty();
+        assertThatIllegalStateException().isThrownBy(() -> port().dispatch(SCOPE, entry));
     }
 
     @Test

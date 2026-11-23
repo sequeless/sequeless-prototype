@@ -24,9 +24,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * {@code TimerCancelled} signals that same {@code timerKey}'s {@link TimerWorkflow}; {@code
  * SignalReceived} starts a {@link SignalEventWorkflow} keyed by {@code entry.id()}. Every case is
  * fire-and-forget — {@link #dispatch} never waits for a started workflow to complete. {@code
- * TransitionFired} is accepted and starts nothing: its per-action path, {@code
- * startTransitionFiredActions}, is dormant, and {@link #dispatch} does not reach it yet. Any other
- * unrecognised kind is rejected with {@link IllegalArgumentException}.
+ * TransitionFired} is routed to {@code startTransitionFiredActions}, which starts one {@link
+ * TransitionActionWorkflow} per action of the transition, keyed by {@code entry.id()} and the action
+ * index. Any other unrecognised kind is rejected with {@link IllegalArgumentException}.
  *
  * <p><b>Idempotency comes from Temporal's own workflow-id semantics, not from any state this class
  * keeps.</b> A second {@link #dispatch} call for an entry (or, for timers, a {@code timerKey})
@@ -88,8 +88,7 @@ public final class TemporalAutomationPort implements AutomationPort {
             case OutboxEntry.KIND_TIMER_SCHEDULED -> startTimerWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_CANCELLED -> signalTimerCancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> startSignalEventWorkflow(scope, entry);
-            // Accepted as a no-op: a TransitionFired row carries no action or timer yet.
-            case OutboxEntry.KIND_TRANSITION_FIRED -> {}
+            case OutboxEntry.KIND_TRANSITION_FIRED -> startTransitionFiredActions(scope, entry);
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }
@@ -126,8 +125,8 @@ public final class TemporalAutomationPort implements AutomationPort {
 
     /**
      * Starts one {@link TransitionActionWorkflow} for each action of a {@code TransitionFired} row's
-     * transition, in the automation's order, with workflow id {@code entryId + ":" + index}. Dormant:
-     * {@link #dispatch} does not call this method yet.
+     * transition, in the automation's order, with workflow id {@code entryId + ":" + index}. {@link
+     * #dispatch} calls this method for every {@code TransitionFired} row.
      *
      * <p>The automation is read first. The row's {@code ontologyVersion} stamp is then checked, missing
      * or non-Number first and a mismatch second, and both checks run before any workflow starts. A
