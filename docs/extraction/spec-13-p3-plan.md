@@ -2,15 +2,15 @@
 
 Status: plan only, no code. Made against the P2d branch head `197e36c` (PR #168, not merged). Parent: `docs/extraction/spec-13-prototype-stage4-prepare.md` (the P3 row is at line 92; "spec" below means that file). "Resume plan" is `docs/extraction/resume-plan-spec13.md`. Tracker: #41.
 
-Conventions: `{main}` stands for `src/main/java/org/sequeless` and `{test}` for `src/test/java/org/sequeless`, inside the module named first. Line numbers are P2d unless marked "main" (`da3c08d`).
+Conventions: `{main}` stands for `src/main/java/org/sequeless` and `{test}` for `src/test/java/org/sequeless`, inside the module named first. Line numbers are P2d unless marked "main" (`da3c08d`). `OQn` means open question n in section 8.
 
 ## 1. Scope and base
 
 - P3 is planned as a stack on P2d. P2d is not merged, and P3 changes code that P2d leaves in place.
 - No P3 code starts until P2d and P2e have merged. The handoff orders P3 after them (resume plan line 345: "After P2d merges: P2e ..., then P3, P4 and P5b"). The spec gives the same order (line 76). P2e removes `KIND_ACTION_REQUEST` (`{main}/spi/outbox/OutboxEntry.java:64-74`, deprecated in P2d) and `ActionWorkflow`.
-- B2 is settled as route 1 (resume plan lines 159 and 262). DR-23 changed its wording to "three failed dispatches, then dead-letter" (`docs/architecture/02-decision-records.md:145-161`). The spec's B2 item still reads "OWNER DECISION, open" (line 366), and its route 1 reads "fail and retry" (line 367). The spec is stale here.
-- O-3 and O-4 were answered on 2026-11-14 (resume plan lines 239-240), before P2d. The spec's policy (line 332, and steps 3 and 4 at lines 104-105) asks for the count again when each removing step deploys.
-- The spec's line numbers for this code are stale. Row P3 (line 92) and O-2 (line 330) cite `addTimerOutboxEntries` at 369-385, `timerScheduledEntry` at 398-414, and the lookup at 377-378. At P2d these are 362-382, 392-411 and 372. On main, `addTimerOutboxEntries` starts at 372. This plan uses P2d numbers.
+- B2 is settled by the Navigator as route 1; the owner may confirm it (resume plan line 262) (resume plan lines 159 and 262). DR-23 changed its wording to "three failed dispatches, then dead-letter" (`docs/architecture/02-decision-records.md:145-161`). The spec's B2 item still reads "OWNER DECISION, open" (line 366), and its route 1 reads "fail and retry" (line 367). The spec is stale here.
+- O-3 and O-4 were answered on 2026-11-14 (resume plan lines 239-240), before P2d. The spec's policy (line 332, and steps 3 and 4 at lines 104-105) asks for the count again when each removing step deploys. That is this plan's reading (OQ9).
+- The spec's line numbers for this code are stale. Only the P3 row (line 92) cites the ranges 369-385 (`addTimerOutboxEntries`) and 398-414 (`timerScheduledEntry`). O-2 (spec line 330) cites only the lookup at 377-378 and `TimerTrigger` at lines 40, 378 and 403. At P2d these are 362-382, 392-411 and 372. On main, `addTimerOutboxEntries` starts at 372. This plan uses P2d numbers.
 
 ## 2. Inventory
 
@@ -29,25 +29,24 @@ Main code (P2d):
 - `...temporal/TriggerActivities.java` 30-32 and `TriggerActivitiesImpl.java` 45-48 (`onTimerElapsed`).
 - `...temporal/TemporalAutomationAutoConfiguration.java` 145-150 (`TimerWorkflowImpl` registered at 149).
 - `sequeless-app/{main}/app/automation/OutboxRelay.java`: javadoc 21-30; `DISPATCHABLE_KINDS` 53-60 (timer kinds at 58-59); comment at 150. `package-info.java` line 7 names the timer kinds.
-- `sequeless-app/{main}/app/config/CoreConfiguration.java:342` (javadoc).
 - `sequeless-app/{main}/app/rest/TypeResponseMapper.java` 26, 168, 181, 195: reads `TimerTrigger` for REST output. Not changed by P3.
 - `sequeless-adapter-persistence-postgres/{main}/.../postgres/PostgresOutboxPort.java` 83-85: claim SQL `WHERE kind IN (:kinds)`. Not changed by P3.
 - Migrations V4 and V5 (`sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`) list both timer kinds in the claim index. Main ends at V7. V8 exists only at P2d.
 
 Tests (P2d):
 
-- `sequeless-core/{test}/usecase/DefaultTransitionServiceTest.java`: fixture 187; entering a timer state 526-539 (`hasSize(2)` at 536); leaving 553-570 (`hasSize(2)` at 563).
+- `sequeless-core/{test}/usecase/DefaultTransitionServiceTest.java`: fixture 187; entering a timer state 526-539 (`hasSize(2)` at 536); leaving 553-571 (`hasSize(2)` at 563).
 - `sequeless-core/{test}/automation/DefaultTriggerEvaluatorTest.java`: `TimerTrigger` fixture 114; helper `timerScheduledEvent` 209-215; `onTimerElapsed` tests from 319.
 - `sequeless-spi-testkit/{main}/testkit/automation/AutomationContract.java`: `advanceTime` 107-120; timer contracts 240-297; entry builders 332-362.
 - `RecordingTriggerEvaluator.java` 35-36 and 60 (keeps `onTimerElapsed`; no change).
 - `sequeless-adapter-automation-inprocess/{test}/...`: `InProcessAutomationPortContractTest.java` 70-73 (builds the scheduler) and 113-115 (`advanceTime` sweeps); `InProcessAutomationPortTransitionFiredTest.java` 64 and 178 and `InProcessAutomationPortWebhookTest.java` 135 (build the scheduler); `MutableClock.java` 11-12 (javadoc).
-- `sequeless-adapter-automation-temporal/{test}/...TemporalAutomationPortContractTest.java`: javadoc 65-75 and 102-105; `TimerWorkflowImpl` registered at 141; dispatch wrapper cases 178-184; `awaitTimerWorkflowParked` 225-245; `awaitCancellationTakesEffect` 248-260; settle 269-301; delegate 480-481.
+- `sequeless-adapter-automation-temporal/{test}/...TemporalAutomationPortContractTest.java`: javadoc 65-75 and 102-105; `TimerWorkflowImpl` registered at 141; dispatch wrapper cases 178-184; `awaitTimerWorkflowParked` 225-245; `awaitCancellationTakesEffect` 247-263; settle 269-301; delegate 480-481.
 - `sequeless-app/{test}/app/AutomationEndToEndTest.java`: javadoc 44-46 and 91; awaits on `TimerScheduled` at 197; the hold-then-resume test 231-253, with awaits on `TimerScheduled` and `TimerCancelled` at 247-248.
 - `sequeless-app/{test}/app/TypesEndToEndTest.java` 226-229: REST expectations for `expireHold` (TIMER, PT72H). Not changed by P3.
 - `sequeless-adapter-persistence-postgres/{test}/...`: `PostgresOutboxDecodeFailureIT.java` 43-44 (uses `KIND_ACTION_REQUEST` and `KIND_TIMER_SCHEDULED`); `PostgresOutboxPortIT.java` 109 and 112 (constants). `PostgresOutboxClaimIT.java` 44-45 and 69, and `PostgresOutboxV5MigrationIT.java` 43-44 and 70-71, use string literals and compile after P3.
 - `sequeless-spi/{test}/outbox/OutboxEntryTest.java`: 11 `KIND_` references and no assertion on the set of kinds. The kind-set test that the spec describes (line 208) does not exist yet.
 
-Docs (not code): `docs/architecture/automation.md` and `docs/architecture/sq-vocabulary.md` name the timer kinds. `docs/architecture/02-decision-records.md` has DR-24 at P2d.
+Docs (not code): `docs/architecture/automation.md` names the timer kinds (lines 54 to 56). `docs/architecture/sq-vocabulary.md` names no timer kind; its timer terms are `sq:Timer` and `TimerTrigger` (lines 153, 166, 179; also 273 and 275). `docs/architecture/02-decision-records.md` has DR-24 at P2d (line 164).
 
 ## 3. The new data path
 
@@ -69,9 +68,9 @@ Delete:
 
 1. `OutboxEntry.java`: `KIND_TIMER_SCHEDULED` (86), `KIND_TIMER_CANCELLED` (97) and their javadoc (76-96). Reword 23-24.
 2. `DefaultTransitionService.java`: the import (35), the call (346), the javadoc at 302-305, `addTimerOutboxEntries` (353-382), `timerScheduledEntry` (384-411) and `timerCancelledEntry` (413-428). `timerKey` (430-438) moves to the place chosen in open question 12.
-3. `InProcessTimerScheduler.java`: `cancel` (69-79). Its only caller is `InProcessAutomationPort.java:138`.
-4. `InProcessAutomationPort.java`: the timer cases (137-138).
-5. `TemporalAutomationPort.java`: the timer cases (86-87), `startTimerWorkflow` (169-177) and `signalTimerCancel` (185-193). The start moves into `startTransitionFiredActions`.
+3. `InProcessTimerScheduler.java`: `cancel` (69-79) goes if open question 1 drops cancellation. Its only caller is `InProcessAutomationPort.java:138`.
+4. `InProcessAutomationPort.java`: the schedule case (137). The cancel case (138) goes only if open question 1 drops cancellation.
+5. `TemporalAutomationPort.java`: the schedule case (86) and `startTimerWorkflow` (169-177). The cancel case (87) and `signalTimerCancel` (185-193) go only if open question 1 drops cancellation. The start moves into `startTransitionFiredActions`.
 6. `OutboxRelay.java`: the timer kinds leave `DISPATCHABLE_KINDS` (58-59). Rewrite the javadoc (21-30) and the comment at 150.
 7. `AutomationPort.java` 41-45: remove the two timer kinds from the `@throws` list.
 
@@ -79,33 +78,33 @@ Edit:
 
 8. `DefaultTriggerEvaluator.java`: add the timer lookup, and a method that returns the timers a `TransitionFired` row starts (its inputs and outputs depend on open questions 3 and 5). `onTimerElapsed` keeps the staleness check (148-152); its input changes from a `TimerScheduled` entry.
 9. `TriggerEvaluator.java` (SPI): rewrite the javadoc at 49-66 (line 55). Add a method only if open question 3 needs one.
-10. `InProcessTimerScheduler.java`: `schedule` takes a timer descriptor (key, due duration, scope, `objectId`, `state`, `transitionName`) instead of an `OutboxEntry` (61-67). Rewrite the javadoc at 13-28, which names the deleted kind.
+10. `InProcessTimerScheduler.java`: `schedule` (61-67) takes the input that open question 3 settles. The spec's P3 row says the scheduler takes the `TransitionFired` row. The plan's choice of a timer descriptor (key, due duration, scope, `objectId`, `state`, `transitionName`) in place of an `OutboxEntry` departs from that; the departure is open under OQ3. Rewrite the javadoc at 13-28, which names the deleted kind.
 11. `InProcessAutomationPort.java`: `dispatchTransitionFired` (157-193) starts the row's timers outside the action loop. The per-action redelivery record stays.
-12. `InProcessAutomationAutoConfiguration.java`: move the javadoc at 39-48 onto `timerTickExecutor` (64). No bean signature change is expected.
+12. Optional, not P3 scope. `InProcessAutomationAutoConfiguration.java`: move the misplaced javadoc at 39-48 onto `timerTickExecutor` (64). No bean signature change is expected.
 13. `TimerWorkflow.java`: `run` (36-37) takes the new input (open question 4). Rewrite the javadoc at 10-24, which describes the `TimerScheduled` input.
 14. `TimerWorkflowImpl.java`: `run` reads `after` from its input, not from `entry.payload()` (30). `Workflow.await` (36) and the activity call (38) stay.
 15. `TriggerActivities.java` and `TriggerActivitiesImpl.java`: change only if open question 4 changes the input.
-16. `TemporalAutomationPort.java`: `startTransitionFiredActions` (129-160) starts the timer workflow for the row, keyed by `timerKey`, with `workflowOptions` (195-201). Rewrite the javadoc at 22-23, 163-168 and 180-184.
+16. `TemporalAutomationPort.java`: `startTransitionFiredActions` (129-160) starts the timer workflow for the row, keyed per OQ2, with `workflowOptions` (195-201). Rewrite the javadoc at 22-23, 163-168 and 180-184.
 17. `PostgresOutboxDecodeFailureIT.java` (43-44) and `PostgresOutboxPortIT.java` (109, 112): replace the deleted constant. The first file also names `KIND_ACTION_REQUEST`, which P2e removes.
-18. `DefaultTransitionService.java`: `commitTransition` (314-351) keeps the version check (323-327) and the single `TransitionFired` entry (345). Reword the class javadoc at 67.
-19. Comments that name the timer kinds, at `OutboxRelay.java:150`, `CoreConfiguration.java:342` and `package-info.java:7`: reword.
+18. Optional, not P3 scope. `DefaultTransitionService.java`: `commitTransition` (314-351) keeps the version check (323-327) and the single `TransitionFired` entry (345). The class javadoc at 67 has no timer text, so a reword is not needed for P3.
+19. Comments that name the timer kinds, at `OutboxRelay.java:150`, `package-info.java:7`, `InProcessAutomationPort.java` lines 70 to 71 and line 99, `InProcessAutomationAutoConfiguration.java` line 109, and `DefaultTriggerEvaluator.java` line 150 (the comment): reword.
 
 Add:
 
-20. A migration `V9__...sql` (name at merge; section 5), under `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`.
-21. `PostgresOutboxV9MigrationIT.java`, modelled on `PostgresOutboxV8MigrationIT.java` (P2d, 120 lines).
+20. A migration at the next free number (V9, subject to OQ7; the file name is set at merge, section 5), under `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`.
+21. The migration's integration test, `PostgresOutboxV9MigrationIT.java` if the number is V9 (next free number, subject to OQ7), modelled on `PostgresOutboxV8MigrationIT.java` (P2d, 120 lines).
 22. A kind-set assertion in `OutboxEntryTest` (open question 13).
-23. A DR entry, and doc updates to `docs/architecture/automation.md` and `sq-vocabulary.md` (open question 14).
+23. A DR entry (open question 14), and doc updates to `docs/architecture/automation.md` (the timer kinds, lines 54 to 56) and, if its timer wording changes, `sq-vocabulary.md` (names no timer kind).
 
 Tests changed:
 
 24. `DefaultTransitionServiceTest` 526-570: entering a timer state commits one row. Change `hasSize(2)` (536, 563) and the timer assertions (537-550, 564-571).
 25. `DefaultTriggerEvaluatorTest`: the helper (209-215) and the tests from 319 move to the new input. Add cases for the lookup: state, duration, key, no timers for a transition without a timer trigger, and a stamp failure.
 26. `AutomationContract.java`: the timer contracts (240-297) are driven from a `TransitionFired` row. The redispatch contract (284-297) keeps dispatching the same row twice. The builders (332-362) change.
-27. `TemporalAutomationPortContractTest.java`: the wrapper cases (178-184) change. `awaitCancellationTakesEffect` (248-260) goes if open question 1 drops cancellation.
-28. `AutomationEndToEndTest.java`: the awaits at 197 and 247-248 wait on `TransitionFired` rows, and the comment at 241-242 changes. The assertion (no auto-close after resume) stays.
+27. `TemporalAutomationPortContractTest.java`: the wrapper cases (178-184) change. `awaitCancellationTakesEffect` (247-263) goes if open question 1 drops cancellation.
+28. `AutomationEndToEndTest.java`: the awaits at 197 and 247-248 wait on `TransitionFired` rows, and the comment at 241-246 changes. The assertion (no auto-close after resume) stays.
 
-No change: `RecordingTriggerEvaluator`, `PostgresOutboxClaimIT`, `PostgresOutboxV5MigrationIT`, `TypeResponseMapper`, `TypesEndToEndTest`, `TemporalAutomationAutoConfiguration`, `PostgresOutboxPort`. `InProcessAutomationPortContractTest` changes only if the scheduler constructor changes.
+No change: `PostgresOutboxClaimIT`, `PostgresOutboxV5MigrationIT`, `TypeResponseMapper`, `TypesEndToEndTest`, `TemporalAutomationAutoConfiguration`, `PostgresOutboxPort`. `RecordingTriggerEvaluator` has no change only if open questions 3 and 4 leave the `TriggerEvaluator` signature alone. `InProcessAutomationPortContractTest` changes only if the scheduler or port constructor changes, which depends on open questions 3 and 4.
 
 ## 5. Migration
 
@@ -134,8 +133,8 @@ Proof, by layer:
 - Contract, both adapters: fires only after `advanceTime`; the same row dispatched twice schedules once; a transition with no actions still schedules its timer.
 - End to end, in-process: hold, then advance, auto-closes; hold, resume, advance, does not.
 - End to end, Temporal: `TemporalAutomationEndToEndTest`. The test that redispatches the same row after a restart (line 232) keeps its premise.
-- Postgres: `PostgresOutboxV9MigrationIT`. It stamps timer rows and leaves the rest alone, and leaves dead-lettered rows alone if open question 8 says so.
-- Kind set: `OutboxEntryTest` expects five constants after P3 (spec line 208), with P2e merged.
+- Postgres: `PostgresOutboxV9MigrationIT` (V9 subject to OQ7). It stamps timer rows and leaves the rest alone, and leaves dead-lettered rows alone if open question 8 says so.
+- Kind set, if open question 13 adds the assertion: `OutboxEntryTest` expects five constants after P3 (spec line 208), with P2e merged. The test does not exist today: `OutboxEntryTest` has 11 `KIND_` references, all `KIND_OBJECT_CREATED`, and no kind-set assertion.
 - Dev stack, before the new version starts: the O-3 count is zero for every claimed kind, and O-4 lists no running `TimerWorkflow` (spec steps 3 and 4, lines 104-105). Record both results in the PR.
 
 No test covers replay. The P2d code has no replay test and no `Workflow.getVersion` call (grep of the worktree). Section 7 depends on this.
@@ -145,10 +144,11 @@ No test covers replay. The P2d code has no replay test and no `Workflow.getVersi
 1. In-flight timers. In-process timers live in memory and are lost at a stop (`InProcessTimerScheduler.java:19-22`). Temporal timers can wait 72 hours (`reference.ttl:310`). The mixed-version procedure applies (spec lines 100-108): stop writes, drain every claimed kind, then wait for or terminate the running timers. Terminating needs the owner's written acceptance of the loss (spec line 105).
 2. Replay. `TimerWorkflowImpl.run` changes its input. A running old execution replays its recorded history under the new code, and a changed workflow can fail on replay. The spec avoids this with drain or terminate, not versioning. Only P5a mentions `Workflow.getVersion` (line 90). Open question 11.
 3. Memory. Without `TimerCancelled`, a timer stays pending until it is due, up to 72 hours per hold, and then no-ops at the staleness check. Pending entries for objects that left the state pile up in the in-process map, and a restart drops them.
-4. Re-hold on Temporal (read from the code, not run). A second entry into the same state for the same object has the same `timerKey`, so the same workflow id. `workflowOptions` uses REJECT_DUPLICATE (199), which refuses that id even after a closed run (javadoc 42-51). `startTimerWorkflow` catches the error and does nothing (174-176). Today the first run is cancelled on leaving, so a second hold gets no timer at all. After P3 nothing cancels it, so the second hold keeps the first timer's remaining time, not a new 72 hours. The in-process adapter overwrites the pending entry instead (`InProcessTimerScheduler.java:66`), so the two adapters would diverge. The one resume test (`AutomationEndToEndTest.java:231`) resumes once and never holds again. Open question 2.
+4. Re-hold on Temporal (read from the code, not run). A second entry into the same state for the same object has the same `timerKey`, so the same workflow id. `workflowOptions` uses REJECT_DUPLICATE (199), which refuses that id even after a closed run (javadoc 42-51). `startTimerWorkflow` catches the error and does nothing (174-176). The re-hold keeps the first timer's remaining time only when the re-hold comes before the first run is due. If the first run has already closed, REJECT_DUPLICATE gives the second hold no timer at all. Today the first run is cancelled on leaving, so a second hold gets no timer on Temporal. The adapters already diverge today: the in-process path removes the timer on cancel (`InProcessTimerScheduler.java` line 78, reached from `InProcessAutomationPort.java` line 138) and re-puts a fresh 72 hours on the re-hold, while Temporal gets no timer. After P3, when the re-hold comes while the first timer is pending, the in-process adapter still overwrites the pending entry (`InProcessTimerScheduler.java:66`) and gives a fresh 72 hours, while Temporal keeps the remaining time, so the adapters diverge. The one resume test (`AutomationEndToEndTest.java:231`) resumes once and never holds again. Open question 2.
 5. Zero-action transitions. A timer that depends on actions would be lost (section 3). The test in section 6 covers it.
 6. Dead-lettered rows (DR-23). After three failed dispatches a row is dead-lettered. Its timer and its actions then never start, and nothing retries it. A stamp mismatch counts toward the three (DR-23, line 158).
 7. Stale B2 wording (section 1). The timer path must follow one wording.
+8. In-process re-arm on a retried `TransitionFired` row. The in-process port does not gate `TransitionFired` by the `dispatched` set (`InProcessAutomationPort.java` lines 123 to 127), and the per-action record (`dispatchedActions`) covers only the actions. After P3 the timer start sits in `dispatchTransitionFired`, outside the action loop (section 4, item 11), so a retried row calls `schedule` again, through the put at `InProcessTimerScheduler.java` line 66, with a fresh due time. Temporal's start error is caught at 174-176, so the same retry is a no-op there. Open question 17.
 
 ## 8. OPEN QUESTIONS FOR THE NAVIGATOR
 
@@ -167,13 +167,14 @@ These are decisions the repo cannot settle. The plan does not decide them. Secti
 11. Temporal versioning: change `TimerWorkflowImpl.run` in place, which needs drain or terminate (spec step 4), or add `Workflow.getVersion`, as P5a may (spec line 90)?
 12. Where `timerKey` lives: core uses it (`DefaultTransitionService.java:430-438`), and so do both adapters. Move it to `DefaultTriggerEvaluator`, or to `spi/outbox` beside the kinds, so that one definition serves all?
 13. Kind-set test: the spec (line 208) describes an `OutboxEntryTest` assertion that does not exist at P2d. Does P3 add it, expecting five constants?
-14. DR entry: does P3 record a DR for removing the timer kinds and ending cancellation, as DR-21 did for `ActionRequest` (O-16, spec line 362)? Under which number?
+14. DR entry: does P3 record a DR for removing the timer kinds and ending cancellation, as DR-24 did at P2d (`docs/architecture/02-decision-records.md` line 164)? Spec O-16 at line 362 names DR-21, which records Browse order, so it is stale on this point. Under which number?
 15. In-process growth: pending timers have no bound and no cancel. Accept that for the test adapter, or add a bound?
 16. Dev-stack adapter: the repo's `application.yaml` does not set `sequeless.automation.adapter`, and no compose file does. Which adapter does the dev stack run, and so which adapter must O-4 cover?
+17. Retried `TransitionFired` row (section 7, risk 8). After P3 a retry re-enters `dispatchTransitionFired`, and the in-process adapter would re-arm its timer with a fresh due time. Should the timer start be gated per row, as the action records gate actions, so that a retry cannot move the due time? Or is a moved due time acceptable?
 
 ## 9. Merge order
 
 1. P2d (PR #168) merges after the owner's dev-stack check with the old version (resume plan line 343).
 2. P2e merges (resume plan section 17 list; `ActionWorkflow` and `KIND_ACTION_REQUEST` go).
-3. P3 merges. Before any P3 code: a read-only plan review (resume plan line 311) and answers to open questions 1 to 6. At deploy: the O-3 and O-4 checks on the stopped dev stack, then the new version runs V9 at startup (spec steps 3 to 5).
+3. P3 merges. Before any P3 code: a read-only plan review (resume plan line 311) and answers to the open questions that gate code: 1, 2, 3, 4, 7 and 8. Open questions 11, 12 and 13 also shape code. At deploy: the O-3 and O-4 checks on the stopped dev stack, then the new version runs the migration at the next free number (V9, subject to OQ7) at startup (spec steps 3 to 5).
 4. P4 follows P3 (resume plan line 120). P4 and P5b are out of scope for this document.
