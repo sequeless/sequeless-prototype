@@ -40,9 +40,9 @@ Test writers of the holder: `TT/TemporalAutomationPortContractTest.java:130` (wi
 | `T/ActionActivities.java` | 67-68 | `applyTransitionAction`, kept. Its only caller is `T/TransitionActionWorkflowImpl.java:30` |
 | `T/ActionActivitiesImpl.java` | 58, 63, 68, 73-75 | the four drain implementations. Line 74 calls `resolveWebhook`, and 75 calls `deliver` |
 | `T/ActionActivitiesImpl.java` | 25, 33 (javadoc), 97-101, 128, 142 | `applyTransitionAction` and its stamp check (101). `deliver` is called from 128 and defined at 142, so it stays |
-| `sequeless-spi/src/main/java/org/sequeless/spi/automation/ActionExecutor.java` | 81, 108, 134, 153 | the four drain methods. The class javadoc at 17-23 and the payload list at 25-52 describe the drain path. The per-action methods are at 177 and 202 |
+| `sequeless-spi/src/main/java/org/sequeless/spi/automation/ActionExecutor.java` | 81, 108, 134, 153 | the four drain methods. The two-path paragraph at 17-23 (class javadoc 8-53) and the payload list at 25-52 describe the drain path. The per-action methods are at 177 and 202 |
 | `sequeless-core/src/main/java/org/sequeless/core/automation/DefaultActionExecutor.java` | 91, 103, 118, 131 | drain implementations. `applyAction` (140) and `resolveWebhookAction` (174) are the per-action path. Private helpers run from 190 to 393 |
-| `sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxEntry.java` | 63-74 | javadoc "Removed in P2e (spec 13)" (64-72); `@Deprecated` at 73; `KIND_ACTION_REQUEST` at 74 |
+| `sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxEntry.java` | 64-74 | javadoc "Removed in P2e (spec 13)" (64-72); `@Deprecated` at 73; `KIND_ACTION_REQUEST` at 74 |
 | `sequeless-app/src/main/java/org/sequeless/app/automation/OutboxRelay.java` | 53-60, 150 | `DISPATCHABLE_KINDS` has no ActionRequest. The javadoc at 150 still names it |
 
 There is no main-code writer of the ActionRequest kind, and the constant is used in no main code except its declaration.
@@ -85,7 +85,7 @@ Tags: [M] depends on the owner's mixed-version procedure (section 6, risk 1; sec
 5. `TT/TemporalAutomationPortContractTest.java:138`: remove the same registration. [M]
 6. `T/ActionActivities.java:31-32, 35-36, 39-40, 41-48`, and the implementations `T/ActionActivitiesImpl.java:58-75`. Keep `applyTransitionAction` (67-68, 97-101) and `deliver` (142). [M] [D 3]
 7. The drain path in the SPI and in core: `ActionExecutor.java:81, 108, 134, 153` with its drain javadoc (25-52); `DefaultActionExecutor.java:90-137`; the private helpers that only those methods call (the compiler lists them, this plan does not); and the five implementers in section 2.2 (`DefaultActionExecutor` and the four others named there). [D 3]
-8. `OutboxEntry.java:63-74`, if Q1 says delete. [D 1] No database effect if V8 has stamped every ActionRequest row, which needs the P2d hold met (section 8, step 3).
+8. `OutboxEntry.java:64-74`, if Q1 says delete. [D 1] No database effect if V8 has stamped every ActionRequest row, which needs the P2d hold met (section 8, step 3).
 
 **Convert or delete (tests)**
 
@@ -138,7 +138,7 @@ Each item is quoted from `docs/extraction/resume-plan-spec13.md`, with its statu
    Status: DONE by the flip. `docs/architecture/automation.md` lines 84 to 86 already list `machineIri`, `typeIri`, `ontologyVersion` and `self`. Change: none. Re-read it and record it in the PR body.
 
 8. Quote: "Core tests for the derived create id under the TransitionFired id: the review said the id differs from the ActionRequest id, which is safe only because of the drain gate. Record it in the 2d PR body."
-   Status: not done. The derived-id checks at DefaultActionExecutorTest lines 594 to 615 and 228 to 242 already cover TransitionFired rows, including the replay (assertion at 611 to 613). What remains open is the note: the PR #168 body does not contain it, so it must be recorded in the P2e PR body. Change: open. The text says "record it in the 2d PR body" but sits under step 2e. Whether this is a test or a PR-body note is Q6.
+   Status: coverage exists; the note is not yet recorded. The derived-id checks at DefaultActionExecutorTest lines 594 to 615 and 228 to 242 already cover TransitionFired rows, including the replay (assertion at 611 to 613). What remains open is the note: the PR #168 body does not contain it, so it must be recorded in the P2e PR body. Change: open. The text says "record it in the 2d PR body" but sits under step 2e. Whether this is a test or a PR-body note is Q6.
 
 ## 5. Proof and tests
 
