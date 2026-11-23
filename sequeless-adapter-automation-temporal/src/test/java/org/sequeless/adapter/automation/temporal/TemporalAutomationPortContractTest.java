@@ -318,6 +318,12 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         return recomputerRecorder;
     }
 
+    /** Serves the actions through {@link SwappableAutomationSource}, the source the activities read from. */
+    @Override
+    protected void serveAutomationWithActions(Map<TransitionRef, List<Action>> actionsByTransition) {
+        SwappableAutomationSource.current = new Automation(new OntologyVersion(1), actionsByTransition);
+    }
+
     /**
      * Dispatching a {@code TransitionFired} row starts the per-action workflows. The one for action
      * index 0 of the row's transition, {@code <entry id>:0}, exists straight after {@code dispatch}

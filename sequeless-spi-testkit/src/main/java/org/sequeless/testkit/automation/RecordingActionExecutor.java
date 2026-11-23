@@ -43,6 +43,9 @@ public final class RecordingActionExecutor implements ActionExecutor {
     /** The method name recorded for a call to {@link ActionExecutor#resolveWebhookAction}. */
     public static final String METHOD_RESOLVE_WEBHOOK_ACTION = "resolveWebhookAction";
 
+    /** The {@link Call#actionIndex()} recorded for a call that carries no action. */
+    private static final int NO_ACTION_INDEX = -1;
+
     /**
      * One recorded {@link ActionExecutor} call.
      *
@@ -50,8 +53,12 @@ public final class RecordingActionExecutor implements ActionExecutor {
      *     {@link #METHOD_RESOLVE_WEBHOOK}, {@link #METHOD_APPLY_LOG}, {@link #METHOD_APPLY_ACTION}, or
      *     {@link #METHOD_RESOLVE_WEBHOOK_ACTION}
      * @param entryId the {@link OutboxEntry#id()} the call was made with
+     * @param actionIndex the action index a {@link #METHOD_APPLY_ACTION} or {@link
+     *     #METHOD_RESOLVE_WEBHOOK_ACTION} call was made with; {@code -1} for any other method
+     * @param action the action a {@link #METHOD_APPLY_ACTION} or {@link #METHOD_RESOLVE_WEBHOOK_ACTION}
+     *     call was made with, so its type is the action's type; {@code null} for any other method
      */
-    public record Call(String method, UUID entryId) {}
+    public record Call(String method, UUID entryId, int actionIndex, Action action) {}
 
     private final List<Call> calls = Collections.synchronizedList(new ArrayList<>());
     private final ResolvedWebhookRequest webhookResponse;
@@ -92,13 +99,13 @@ public final class RecordingActionExecutor implements ActionExecutor {
 
     @Override
     public void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
-        record(METHOD_APPLY_ACTION, transitionFired);
+        recordAction(METHOD_APPLY_ACTION, transitionFired, action, actionIndex);
     }
 
     @Override
     public ResolvedWebhookRequest resolveWebhookAction(
             Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
-        record(METHOD_RESOLVE_WEBHOOK_ACTION, transitionFired);
+        recordAction(METHOD_RESOLVE_WEBHOOK_ACTION, transitionFired, action, actionIndex);
         return webhookResponse;
     }
 
@@ -118,6 +125,10 @@ public final class RecordingActionExecutor implements ActionExecutor {
     }
 
     private void record(String method, OutboxEntry entry) {
-        calls.add(new Call(method, entry.id()));
+        calls.add(new Call(method, entry.id(), NO_ACTION_INDEX, null));
+    }
+
+    private void recordAction(String method, OutboxEntry transitionFired, Action action, int actionIndex) {
+        calls.add(new Call(method, transitionFired.id(), actionIndex, action));
     }
 }

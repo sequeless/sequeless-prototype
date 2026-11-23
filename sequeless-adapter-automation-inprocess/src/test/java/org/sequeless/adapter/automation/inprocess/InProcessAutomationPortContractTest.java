@@ -7,12 +7,15 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
@@ -65,16 +68,18 @@ class InProcessAutomationPortContractTest extends AutomationContract {
     private final RecordingDerivationRecomputer derivationRecomputer = new RecordingDerivationRecomputer();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
     private final InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
+    private Automation automation = new Automation(new OntologyVersion(1), Map.of());
     private final AutomationPort port = new InProcessAutomationPort(
-            recorder,
-            new InProcessAutomationProperties(),
-            triggerEvaluator,
-            timerScheduler,
-            tenant -> new Automation(new OntologyVersion(1), Map.of()));
+            recorder, new InProcessAutomationProperties(), triggerEvaluator, timerScheduler, tenant -> automation);
 
     @Override
     protected AutomationPort port() {
         return port;
+    }
+
+    @Override
+    protected void serveAutomationWithActions(Map<TransitionRef, List<Action>> actionsByTransition) {
+        automation = new Automation(new OntologyVersion(1), actionsByTransition);
     }
 
     /**
