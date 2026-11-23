@@ -17,9 +17,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The default, durable {@link AutomationPort} adapter. {@link #dispatch} routes by {@code
- * entry.kind()}: {@code ActionRequest} durably <b>starts</b> an {@link ActionWorkflow} execution
- * keyed by {@code entry.id()}; the three object-lifecycle kinds start a {@link ChangeEventWorkflow}
- * (also keyed by {@code entry.id()}) that runs recompute then {@code onChange}, in that order;
+ * entry.kind()}: the three object-lifecycle kinds start a {@link ChangeEventWorkflow} (also keyed
+ * by {@code entry.id()}) that runs recompute then {@code onChange}, in that order;
  * {@code TimerScheduled} starts a {@link TimerWorkflow} keyed by the payload's {@code timerKey};
  * {@code TimerCancelled} signals that same {@code timerKey}'s {@link TimerWorkflow}; {@code
  * SignalReceived} starts a {@link SignalEventWorkflow} keyed by {@code entry.id()}. Every case is
@@ -62,11 +61,11 @@ public final class TemporalAutomationPort implements AutomationPort {
     private final AutomationSource automationSource;
 
     /**
-     * @param workflowClient the Temporal client used to start {@link ActionWorkflow} executions;
-     *     must not be {@code null}
-     * @param taskQueue the task queue {@link ActionWorkflow} executions are started on, matching
-     *     the queue name the worker(s) registered in {@link TemporalAutomationAutoConfiguration}
-     *     poll; must not be {@code null}
+     * @param workflowClient the Temporal client used to start {@link TransitionActionWorkflow}
+     *     executions; must not be {@code null}
+     * @param taskQueue the task queue {@link TransitionActionWorkflow} executions are started on,
+     *     matching the queue name the worker(s) registered in {@link
+     *     TemporalAutomationAutoConfiguration} poll; must not be {@code null}
      * @param automationSource the {@link AutomationSource} the per-action path reads the automation
      *     of a {@code TransitionFired} row's ontology version from; must not be {@code null}
      */
@@ -82,7 +81,6 @@ public final class TemporalAutomationPort implements AutomationPort {
         Objects.requireNonNull(entry, "entry must not be null");
 
         switch (entry.kind()) {
-            case OutboxEntry.KIND_ACTION_REQUEST -> startActionWorkflow(entry);
             case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
                 startChangeEventWorkflow(scope, entry);
             case OutboxEntry.KIND_TIMER_SCHEDULED -> startTimerWorkflow(scope, entry);
@@ -90,16 +88,6 @@ public final class TemporalAutomationPort implements AutomationPort {
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> startSignalEventWorkflow(scope, entry);
             case OutboxEntry.KIND_TRANSITION_FIRED -> startTransitionFiredActions(scope, entry);
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
-        }
-    }
-
-    private void startActionWorkflow(OutboxEntry entry) {
-        ActionWorkflow workflow = workflowClient.newWorkflowStub(
-                ActionWorkflow.class, workflowOptions(entry.id().toString()));
-        try {
-            WorkflowClient.start(workflow::execute, entry);
-        } catch (WorkflowExecutionAlreadyStarted e) {
-            // Idempotent no-op: this entry's workflow already exists (started or completed).
         }
     }
 

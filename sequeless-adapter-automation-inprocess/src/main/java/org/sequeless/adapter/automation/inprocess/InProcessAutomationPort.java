@@ -27,8 +27,8 @@ import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The test/dev {@link AutomationPort} adapter: {@link #dispatch} runs an {@code ActionRequest}
- * outbox entry's action synchronously, to completion, on the calling (relay) thread, by invoking
+ * The test/dev {@link AutomationPort} adapter: {@link #dispatch} runs a {@code TransitionFired}
+ * outbox entry's actions synchronously, to completion, on the calling (relay) thread, by invoking
  * the matching {@link ActionExecutor} method directly — no separate durable engine to hand off to,
  * unlike a future Temporal adapter.
  *
@@ -59,7 +59,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * malformed {@code ${expr}}) propagate immediately, on the first and only attempt, since retrying
  * a deterministic template error can never succeed.
  *
- * <p><b>Kind routing beyond {@code ActionRequest}.</b> {@link #dispatch} routes the three
+ * <p><b>Kind routing.</b> {@link #dispatch} routes the three
  * object-lifecycle kinds ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}) to
  * {@link TriggerEvaluator#onChange}. The application's outbox relay runs {@link
  * org.sequeless.spi.automation.DerivationRecomputer#recompute} for the same row before it calls this
@@ -72,11 +72,6 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * automation of the row's ontology version.
  */
 public final class InProcessAutomationPort implements AutomationPort {
-
-    private static final String ACTION_KIND_SET_PROPERTY = "SetProperty";
-    private static final String ACTION_KIND_CREATE_OBJECT = "CreateObject";
-    private static final String ACTION_KIND_WEBHOOK = "Webhook";
-    private static final String ACTION_KIND_LOG = "Log";
 
     private final ActionExecutor actionExecutor;
     private final InProcessAutomationProperties properties;
@@ -135,28 +130,12 @@ public final class InProcessAutomationPort implements AutomationPort {
         }
 
         switch (entry.kind()) {
-            case OutboxEntry.KIND_ACTION_REQUEST -> dispatchActionRequest(scope, entry);
             case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
                 triggerEvaluator.onChange(scope, entry);
             case OutboxEntry.KIND_TIMER_SCHEDULED -> timerScheduler.schedule(scope, entry);
             case OutboxEntry.KIND_TIMER_CANCELLED -> timerScheduler.cancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> triggerEvaluator.onSignal(scope, entry);
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
-        }
-    }
-
-    private void dispatchActionRequest(Scope scope, OutboxEntry entry) {
-        String actionKind = (String) entry.payload().get("actionKind");
-        switch (actionKind) {
-            case ACTION_KIND_SET_PROPERTY -> actionExecutor.applySetProperty(scope, entry);
-            case ACTION_KIND_CREATE_OBJECT -> actionExecutor.applyCreateObject(scope, entry);
-            case ACTION_KIND_LOG -> actionExecutor.applyLog(scope, entry);
-            case ACTION_KIND_WEBHOOK -> {
-                ResolvedWebhookRequest resolved = actionExecutor.resolveWebhook(scope, entry);
-                deliver(resolved);
-            }
-            default ->
-                throw new IllegalArgumentException("Unrecognized ActionRequest payload actionKind: " + actionKind);
         }
     }
 
