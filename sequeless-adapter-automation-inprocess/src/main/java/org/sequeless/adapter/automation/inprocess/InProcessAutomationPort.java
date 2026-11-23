@@ -67,9 +67,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that is already
  * fresh. This port makes no recompute call of its own. {@code TimerScheduled}/{@code
  * TimerCancelled} go to {@link InProcessTimerScheduler}, and {@code SignalReceived} to {@link
- * TriggerEvaluator#onSignal}. {@code TransitionFired} is accepted and does nothing here:
- * {@link #dispatchTransitionFired} can already apply a fired transition's actions from its own row,
- * but {@link #dispatch} does not route to it yet, so this port's behaviour for that kind is unchanged.
+ * TriggerEvaluator#onSignal}. {@code TransitionFired} is applied per action: {@link #dispatch} routes
+ * each such row to {@link #dispatchTransitionFired}, which applies the row's actions in order from the
+ * automation of the row's ontology version.
  */
 public final class InProcessAutomationPort implements AutomationPort {
 
@@ -124,7 +124,9 @@ public final class InProcessAutomationPort implements AutomationPort {
         Objects.requireNonNull(entry, "entry must not be null");
 
         if (OutboxEntry.KIND_TRANSITION_FIRED.equals(entry.kind())) {
-            // Accepted as a no-op, before the redelivery record below, so it leaves no state behind.
+            // dispatchTransitionFired records each action under (entry id, action index), so this row is
+            // not gated by the entry-level dispatched set below.
+            dispatchTransitionFired(scope, entry);
             return;
         }
 
@@ -160,8 +162,8 @@ public final class InProcessAutomationPort implements AutomationPort {
 
     /**
      * Applies each action of a {@code TransitionFired} row, in the automation's order, from the
-     * automation of the ontology version the row was written under. {@link #dispatch} does not reach
-     * this method yet, so for now only a direct call (a test's) runs it.
+     * automation of the ontology version the row was written under. {@link #dispatch} calls this for
+     * every {@code TransitionFired} row.
      *
      * <p>Redelivery is recorded per {@code (entry id, action index)}. A {@link LogAction} is recorded
      * once applied, and a {@link WebhookAction} once its delivery succeeds, so neither repeats on a
