@@ -352,3 +352,23 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
   - Plan line numbers were checked against `origin/main` `aea0161`, and most match. The Opus review of revision 4 found some that do not: the `PostgresOutboxPortIT` citations (lines 63 and 180; line 63 is a TRUNCATE, and the file needs no change), the p2d-6 range (now 301 to 345), and the claim-query line in section 8 (now 84). Revision 5 fixes them.
   - `OutboxRelayTest` line 169 is a `{@code}` reference, so removing `actionRequestPayload` does not break javadoc. The text is still stale.
   - The spec's P2 row says `ActionWorkflow` takes the TransitionFired row. 2c's D5 superseded that, and DR-24 records it.
+
+## 20. Handoff recorded 2026-11-23 (P2d waits on the owner; P2e and P3 plans merged)
+
+- origin/main is faa294d (#171). The three planning docs of this session are on main: #169 (e37baab, P2d status fix), #170 (94ce9ee, `docs/extraction/spec-13-p2e-plan.md`), #171 (faa294d, `docs/extraction/spec-13-p3-plan.md`).
+- PR #168 (spec-13-p2d-flip-impl) is OPEN, head 1a25fd6 (a merge of main into the branch; no Java change since 197e36c). Its checks are 12 pass and 2 skipped, none failing, and mergeStateStatus is CLEAN. Its body says not to merge until the owner has run the mixed-version procedure on the dev stack (plan section 8) and the zero checks pass. That is the only gate on the P2d merge. Confirm with `gh pr view 168 -R sequeless/sequeless-prototype --json state,headRefOid,mergeStateStatus`.
+- The owner's gate, not an agent's: (a) run O-3 on the stopped dev database for every kind the old relay claims, and the running ActionWorkflow check; both must show zero; (b) if not zero, re-arm or hand-stamp per route Q-A; (c) confirm the Q-A acceptance of loss on #41. Then merge #168 (squash, pinned to the reviewed head). Note: plan section 10.1 records Q-A as a mix; section 8 step 4 still marks it OPEN.
+- P2e: plan merged (docs/extraction/spec-13-p2e-plan.md, 196 lines). P2e stacks on the P2d head; code starts only after #168 merges. Its open questions are numbered 1 to 11 in the plan's section 7 (OPEN QUESTIONS FOR THE NAVIGATOR). Do not decide them here.
+- P3: plan merged (docs/extraction/spec-13-p3-plan.md, 180 lines). Its open questions are OQ1 to OQ17 in section 8. The questions that gate code are OQ1, OQ2, OQ3, OQ4, OQ7 and OQ8, as stated in section 9, item 3; OQ11, OQ12 and OQ13 also shape code. Do not decide them here.
+- Navigator session: 69c6f504c96a4ebdb9ddac56522ce7aa (pair mode, plan set, NOT ended). Its decisions this session: P2e stacking on the P2d branch is allowed and required; P3 planning may run before P2 lands (done); P4 and P5b planning may start once the P3 plan is reviewed (it now is); no P2e or P3 code before #168 merges and the questions above are settled.
+- P4 and P5b: no plan yet. Each needs its own plan, a read-only Opus review, then a PR, in the order P4 then P5b. P4 planning may start now.
+- Still held: the V8 index window (owner decision ix; the held branch spec-13-dead-letter-index-v8 renumbers to V9, and V9 is never merged before V8). The migration number for P3, subject to OQ7. B2 route 1 is settled by the Navigator; the owner may confirm it on #41. DR-11 coupled sites (blocked on an ontology-testfixtures release). Mockito 5.14.2 bump (waits for the first Mockito test). Specs 14 to 19 wait on spec 13.
+- Do not touch PR #106 (draft, do-not-merge). Do not reopen PR #137 (closed by the owner). sequeless-kernel #12 is merged; before any kernel release PR, check its label is `autorelease: pending`.
+- Gotchas found this session:
+  - Local main in the primary checkout can be behind origin/main. Work from a worktree created from origin/main.
+  - Use `git merge origin/main` to bring main into a feature branch, not `git rebase`. A rebase of the P2e plan branch stopped on a stale working-tree state and was aborted.
+  - The JDK 25 home is /opt/sdkman/candidates/java/25.0.3-tem; the default java is 21.
+  - Renovate PRs (for example #166 and #167 on 2026-11-23) were opened by Renovate and merged by bbartolome that day; expect main to move while a branch is open.
+- Gate for P2e and P3 code, on JDK 25: `source ~/.bashrc.ext && export JAVA_HOME=/opt/sdkman/candidates/java/25.0.3-tem && mvn spotless:apply && mvn -B -Prelease verify`
+- Next steps, in order: (1) owner runs the #168 procedure and reports; (2) the Navigator settles the gating open questions in the P2e and P3 plans; (3) merge #168; (4) P2e code on a branch from the new main, Haiku implementation, Opus review, gate, PR, merge; (5) P3 code the same way; (6) P4 plan, then P5b plan, each reviewed before code.
+- Worktrees are machine-local and listed by `git worktree list`. Create new ones from origin/main.
