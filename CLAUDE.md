@@ -13,3 +13,7 @@ Hexagonal architecture with minimal, modular, maintainable design open to evolut
 ### Domain docs
 
 Single-context layout: one `GLOSSARY.md` at the repo root and `docs/adr/` for architecture decisions. See `docs/agents/domain.md`.
+
+### Handoff
+
+The current state for resuming work lives in `docs/agents/handoff.md`. Read it first in a new session.
