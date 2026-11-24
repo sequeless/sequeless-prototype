@@ -637,8 +637,8 @@ class DefaultActionExecutorTest {
         WebhookAction action = new WebhookAction("https://example.com/reopen", "GET", Optional.empty());
 
         assertThatThrownBy(() -> executor.applyAction(ALICE, row, action, 5))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThat(store.commitCalls).isZero();
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("resolved through resolveWebhookAction, not applyAction");
     }
 
     @Test

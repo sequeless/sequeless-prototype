@@ -172,7 +172,8 @@ public interface ActionExecutor {
      *     from; must not be {@code null}
      * @param action the pre-built sealed action to apply; must not be {@code null}
      * @param actionIndex the action's 0-based position in the list the automation returns
-     * @throws IllegalArgumentException if action is a WebhookAction; deliver it through resolveWebhookAction instead
+     * @throws IllegalArgumentException if {@code action} is a {@link WebhookAction}; deliver it through
+     *     {@link #resolveWebhookAction} instead
      */
     default void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
         throw new UnsupportedOperationException("applyAction is not implemented by this ActionExecutor");
