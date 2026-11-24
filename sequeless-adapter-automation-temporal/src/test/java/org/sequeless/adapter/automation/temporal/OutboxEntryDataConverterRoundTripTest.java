@@ -38,14 +38,12 @@ class OutboxEntryDataConverterRoundTripTest {
         payload.put("tenantId", "tenant-1");
         payload.put("principalId", "user-1");
         payload.put("transitionName", "activate");
-        payload.put("actionIndex", 1);
-        payload.put("typeIri", "http://example.org/Project");
-        payload.put("state", "Active");
+        payload.put("fromState", "http://example.org/Project#Draft");
+        payload.put("toState", "http://example.org/Project#Active");
+        payload.put("ontologyVersion", 1);
         payload.put("self", self);
-        payload.put("actionKind", "Webhook");
-        payload.put("url", "http://localhost:8089/hook");
-        payload.put("method", "POST");
-        payload.put("body", "templated-body");
+        payload.put("typeIri", "http://example.org/Project");
+        payload.put("machineIri", "http://example.org/ProjectMachine");
 
         OutboxEntry original =
                 new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());

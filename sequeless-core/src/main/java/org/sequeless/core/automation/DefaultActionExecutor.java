@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
  * Reference implementation of {@link ActionExecutor}, called back into by an automation adapter
  * (the in-process relay, or a Temporal activity) once a fired transition's {@code TransitionFired}
  * outbox row has been dispatched. The {@code TransitionFired} row carries the {@code self} map and
- * the transition's keys (its machine IRI, from state and name), and the single-action methods read
+ * the transition's keys (its machine IRI, from state and name), and the per-action methods read
  * them from it. Every mutation this class performs goes through {@link ObjectStorePort#commit}, and
  * every {@code value}/{@code expression}/template field of an action is resolved through {@link
  * ExpressionPort} — never evaluated by hand here — exactly mirroring how {@code
@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
  * ObjectStorePort} at all — they only render templated text through {@link ExpressionPort}, leaving
  * any I/O (an HTTP call, a log sink) to the caller.
  *
- * <p>The write and render logic is shared through private helpers. The single-action methods take
+ * <p>The write and render logic is shared through private helpers. The per-action methods take
  * the typed {@link Action} and read the row's context from a {@code TransitionFired} row.
  */
 public final class DefaultActionExecutor implements ActionExecutor {
@@ -100,7 +100,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
                         () -> resolveTarget(
                                 setProperty.value().orElse(null),
                                 setProperty.expression().orElse(null),
-                                buildContext(row, "toState")));
+                                buildContext(row)));
             }
             case CreateObjectAction createObject ->
                 commitCreateObject(
@@ -108,8 +108,8 @@ public final class DefaultActionExecutor implements ActionExecutor {
                         transitionFired,
                         actionIndex,
                         createObject.typeIri(),
-                        () -> resolveAssignments(createObject.properties(), buildContext(row, "toState")));
-            case LogAction log -> logMessage(buildContext(row, "toState"), log.message());
+                        () -> resolveAssignments(createObject.properties(), buildContext(row)));
+            case LogAction log -> logMessage(buildContext(row), log.message());
             case WebhookAction webhook ->
                 throw new IllegalArgumentException(
                         "A webhook action is resolved through resolveWebhookAction, not applyAction");
@@ -123,8 +123,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
         Objects.requireNonNull(transitionFired, "transitionFired must not be null");
         Objects.requireNonNull(action, "action must not be null");
 
-        return renderWebhook(
-                buildContext(transitionFired.payload(), "toState"), action.url(), action.method(), action.body());
+        return renderWebhook(buildContext(transitionFired.payload()), action.url(), action.method(), action.body());
     }
 
     /**
@@ -260,16 +259,15 @@ public final class DefaultActionExecutor implements ActionExecutor {
     /**
      * Builds the {@link ExpressionContext} every {@code value}/{@code expression}/template field is
      * resolved against: {@code self} decodes directly into {@link ExpressionContext#selfProperties()}
-     * with zero re-keying, since both are keyed by property short name. {@code stateKey} names the
-     * row's state, which the single-action methods pass as {@code "toState"}: the state the
-     * transition moved the object to.
+     * with zero re-keying, since both are keyed by property short name. The state is the row's
+     * {@code toState}: the state the transition moved the object to.
      */
-    private ExpressionContext buildContext(Map<String, Object> row, String stateKey) {
+    private ExpressionContext buildContext(Map<String, Object> row) {
         @SuppressWarnings("unchecked")
         Map<String, Object> self = (Map<String, Object>) row.get("self");
         Map<String, Value> selfProperties = new HashMap<>();
         self.forEach((name, taggedValue) -> selfProperties.put(name, PayloadValueCodec.fromPayload(taggedValue)));
-        Optional<String> selfState = Optional.of((String) row.get(stateKey));
+        Optional<String> selfState = Optional.of((String) row.get("toState"));
         String principalId = (String) row.get("principalId");
         return new ExpressionContext(selfProperties, selfState, principalId);
     }
