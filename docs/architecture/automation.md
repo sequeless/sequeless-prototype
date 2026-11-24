@@ -104,18 +104,19 @@ principal — is baked into the payload the moment the transition commits. A Tem
 (hours later, after a crash) or an in-process relay redispatch therefore never reads the object's
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
 `self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
-re-read" a design property rather than an incidental optimization — `ActionExecutor`'s single-action
-methods need nothing beyond the frozen payload to do their job. A test feeds a real
+re-read" a design property rather than an incidental optimization — `ActionExecutor`'s per-action
+methods need nothing beyond the frozen payload and the one action the adapter passes in. A test feeds a real
 `DefaultTransitionService.fire(...)` call's `TransitionFired` row straight into `DefaultActionExecutor`
 to confirm it (`DefaultActionExecutorTest`).
 
 **What the per-action path reads, and when.** The row names the transition (`machineIri`,
 `fromState`, `transitionName`) and its `ontologyVersion`, but not the actions. Both adapters read the
-actions from the `AutomationSource` for the row's ontology version. `TemporalAutomationPort.dispatch`
-reads them once, to count the workflows to start, and `ActionActivitiesImpl#applyTransitionAction`
-reads them again on each attempt, to pick the action at its index. `InProcessAutomationPort` reads
-them once, at dispatch. A missing `ontologyVersion` stamp, or one that differs from the automation's
-version, throws `IllegalStateException` at dispatch. In the Temporal activity the same checks throw a
+row's actions from the `AutomationSource` for the row's ontology version, and pass each action, with
+its index, to the matching `ActionExecutor` method. `TemporalAutomationPort.dispatch` reads them once, to
+count the workflows to start, and `ActionActivitiesImpl#applyTransitionAction` reads them again on
+each attempt, to pick the action at its index. `InProcessAutomationPort` reads them once, at
+dispatch. A missing `ontologyVersion` stamp, or one that differs from the automation's version,
+throws `IllegalStateException` at dispatch. In the Temporal activity the same checks throw a
 non-retryable `ApplicationFailure`, so Temporal does not retry them.
 
 ## 3. `OutboxRelay`
@@ -209,8 +210,8 @@ Retries are Temporal's own, not a hand-rolled loop: the webhook delivery in
 every activity stub is built with) retry the whole activity invocation. The policy is bound from
 `sequeless.automation.temporal.retry.*` (`TemporalAutomationProperties.Retry`): `initial-interval`
 (default **1s**), `backoff-coefficient` (default **2.0**), `maximum-attempts` (default **5**, including
-the first attempt) — applied uniformly to the activity method. This is the exact mechanism a "500, 500,
-500, 200" acceptance test exercises.
+the first attempt) — applied uniformly to every activity method (`ActionActivities` and
+`TriggerActivities`). This is the exact mechanism a "500, 500, 500, 200" acceptance test exercises.
 
 **Genuine Temporal SDK constraint worth knowing before touching this wiring.** Temporal
 instantiates the workflow implementations itself, reflectively, once per workflow execution — a

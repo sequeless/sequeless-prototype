@@ -31,9 +31,6 @@ public interface ActionExecutor {
      * {@code machineIri}. {@code action} is the pre-built sealed {@link Action}. {@code actionIndex}
      * is the action's 0-based position in the list the automation returns.
      *
-     * <p>The default implementation throws {@link UnsupportedOperationException} until an
-     * implementation overrides this method.
-     *
      * @param scope the tenant and principal to apply the action on behalf of; must not be {@code
      *     null}
      * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates
@@ -43,21 +40,16 @@ public interface ActionExecutor {
      * @throws IllegalArgumentException if {@code action} is a {@link WebhookAction}; deliver it through
      *     {@link #resolveWebhookAction} instead
      */
-    default void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
-        throw new UnsupportedOperationException("applyAction is not implemented by this ActionExecutor");
-    }
+    void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex);
 
     /**
      * Resolves one webhook action that an adapter has already built from the automation of the
      * {@code TransitionFired} row's ontology version, into a fully-rendered {@link
-     * ResolvedWebhookRequest}. The {@code url}, {@code method} and {@code body} are rendered against
-     * the row's {@code self}, {@code toState} and {@code principalId}. This method performs no HTTP
+     * ResolvedWebhookRequest}. The {@code url} and {@code body} are rendered against
+     * the row's {@code self}, {@code toState} and {@code principalId}; {@code method} is used as written. This method performs no HTTP
      * I/O: the calling adapter delivers the returned request.
      *
      * <p>{@code transitionFired} and {@code actionIndex} are as described for {@link #applyAction}.
-     *
-     * <p>The default implementation throws {@link UnsupportedOperationException} until an
-     * implementation overrides this method.
      *
      * @param scope the tenant and principal to render the templates on behalf of; must not be {@code
      *     null}
@@ -67,8 +59,6 @@ public interface ActionExecutor {
      * @param actionIndex the action's 0-based position in the list the automation returns
      * @return the fully-rendered request, ready for the caller to issue over HTTP
      */
-    default ResolvedWebhookRequest resolveWebhookAction(
-            Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
-        throw new UnsupportedOperationException("resolveWebhookAction is not implemented by this ActionExecutor");
-    }
+    ResolvedWebhookRequest resolveWebhookAction(
+            Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex);
 }
