@@ -8,13 +8,10 @@ import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link TriggerActivities} implementation: four pure pass-throughs to the injected
- * {@link TriggerEvaluator}/{@link DerivationRecomputer}, exactly mirroring {@link
- * ActionActivitiesImpl}'s pattern. Any {@code StaleObjectException} {@link
- * DerivationRecomputer#recompute} lets propagate (after its own intra-call retry loop is
- * exhausted) simply propagates out of this activity method too, letting Temporal's configured
- * {@code RetryOptions} retry the activity invocation as a whole — the same "core retries first,
- * Temporal retries the activity as a whole on top" layering {@link ActionActivitiesImpl#applyTransitionAction}
- * already relies on.
+ * {@link TriggerEvaluator}/{@link DerivationRecomputer}. A {@code StaleObjectException} that
+ * {@link DerivationRecomputer#recompute} throws, after its own intra-call retry loop is exhausted,
+ * propagates out of this activity method unchanged, so Temporal's configured {@code RetryOptions}
+ * retry the activity invocation as a whole.
  */
 public final class TriggerActivitiesImpl implements TriggerActivities {
 

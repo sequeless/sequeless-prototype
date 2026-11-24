@@ -56,9 +56,8 @@ import org.slf4j.LoggerFactory;
  * ObjectStorePort} at all — they only render templated text through {@link ExpressionPort}, leaving
  * any I/O (an HTTP call, a log sink) to the caller.
  *
- * <p>The write and render logic is shared through private helpers, so the two entry points cannot
- * drift apart. The single-action methods take the typed {@link Action} and read the row's context
- * from a {@code TransitionFired} row.
+ * <p>The write and render logic is shared through private helpers. The single-action methods take
+ * the typed {@link Action} and read the row's context from a {@code TransitionFired} row.
  */
 public final class DefaultActionExecutor implements ActionExecutor {
 
