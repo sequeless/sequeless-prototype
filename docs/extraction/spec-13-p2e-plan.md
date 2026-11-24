@@ -168,7 +168,7 @@ Proof, by change:
 5. A public SPI break. Removing the four drain methods from `ActionExecutor` (Q3) breaks any implementer outside this repository. The repository does not show whether one exists.
 6. Rollback. A rollback to P2d after P2e is safe, because P2d writes and drains no ActionRequest rows. A rollback to a version before P2d is not. That is already true at P2d, and `docs/architecture/automation.md:88-92` describes the same case.
 7. Lost coverage. Converting a drain test to the per-action form can drop a case that only the drain test covers. The derived-id idempotency case is covered at `DefaultActionExecutorTest.java:604-613` and `237-242`. If the per-action tests stay, converting or deleting the drain test at `400-437` does not lose that case (Q5).
-8. Sequencing. If P2e merges before the P2d hold is met, V8 may not have stamped the ActionRequest rows. They would stay unprocessed, with no constant left to name them. Section 8 blocks this.
+8. Sequencing. If P2e merges before section 8, step 3 (a) is met, the first start of main on dev runs V8, which stamps every undrained ActionRequest row as processed, so their actions are lost (`spec-13-p2d-plan.md` section 8, step 5). Section 8, step 3 blocks this; V8 being applied is not itself a gate.
 
 ## 7. OPEN QUESTIONS FOR THE NAVIGATOR
 
@@ -176,7 +176,7 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 
 1. Q-D: is `OutboxEntry.KIND_ACTION_REQUEST` (`OutboxEntry.java:73-74`) deleted in P2e, or kept `@Deprecated`? The javadoc says "Removed in P2e" (`OutboxEntry.java:64-72`). `docs/architecture/automation.md:46` says "deprecated". The decision record (DR-24, `docs/architecture/02-decision-records.md:172`) says deprecated in P2d and removed in P2e. The Navigator decided in P2d to keep it `@Deprecated` until P2e (`docs/extraction/spec-13-p2d-plan.md` line 224 at `197e36c`); what P2e does with it is still open. There are 45 test uses (section 2.3) and no main-code use. Whether anything outside this repository reads the constant is not visible in the repo.
 
-   **Decided:** Delete `OutboxEntry.KIND_ACTION_REQUEST` in P2e. Recorded as DR-24 (`docs/architecture/02-decision-records.md`, the DR-24 heading).
+   **Decided:** Delete `OutboxEntry.KIND_ACTION_REQUEST` in P2e. Already recorded in DR-24 (line 172).
 
 2. Where does the `ACTIVITY_OPTIONS` holder go? Options: a new holder class in `T/`, a static on `TransitionActionWorkflowImpl`, or a static on `TemporalAutomationAutoConfiguration`. The four readers and three test writers change with the choice.
 
@@ -228,7 +228,7 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 
 14. Testkit `METHOD_*` constants (`sequeless-spi-testkit` `RecordingActionExecutor`).
 
-   **Decided:** Delete `METHOD_APPLY_SET_PROPERTY`, `METHOD_APPLY_CREATE_OBJECT`, `METHOD_RESOLVE_WEBHOOK` and `METHOD_APPLY_LOG`, with the drain overrides that record them. Rewrite the javadoc `@param` list of the `Call` record so it names only `METHOD_APPLY_ACTION` and `METHOD_RESOLVE_WEBHOOK_ACTION`. Record the removal in the P2e PR body with the one-way-door note. Reason: no in-repo reader survives P2e, and a 0.1.0-SNAPSHOT module has no "one release" to deprecate across. Also delete `record(...)` and `NO_ACTION_INDEX` in the same class, because they have no caller once the drain overrides go; rewrite the `@param actionIndex` and `@param action` text of the Call record, and the javadoc link to `{@link #resolveWebhook}` in the constructor, so they no longer name a removed method (item 10 covers the same javadoc rule).
+   **Decided:** Delete `METHOD_APPLY_SET_PROPERTY`, `METHOD_APPLY_CREATE_OBJECT`, `METHOD_RESOLVE_WEBHOOK` and `METHOD_APPLY_LOG`, with the drain overrides that record them. Rewrite the javadoc `@param` list of the `Call` record so it names only `METHOD_APPLY_ACTION` and `METHOD_RESOLVE_WEBHOOK_ACTION`. Record the removal in the P2e PR body with the one-way-door note. Reason: no in-repo reader survives P2e, and a 0.1.0-SNAPSHOT module has no "one release" to deprecate across. Also delete `record(...)` and `NO_ACTION_INDEX` in the same class, because they have no caller once the drain overrides go; rewrite the `@param actionIndex` and `@param action` text of the Call record, and the javadoc links to `{@link #resolveWebhook}` in the constructors (lines 66 and 72), so they no longer name a removed method (item 10 covers the same javadoc rule).
 
 ## 8. Gate and merge order
 
