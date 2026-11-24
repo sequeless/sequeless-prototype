@@ -43,9 +43,9 @@ adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depen
 - `OutboxEntry.KIND_TRANSITION_FIRED = "TransitionFired"` — one per fired transition, carrying the
   transition's actions (the payload is described below). The relay claims it like every other kind,
   and both automation adapters apply its actions.
-- `OutboxEntry.KIND_ACTION_REQUEST = "ActionRequest"` — deprecated. No code writes an `ActionRequest`
-  row any more, and the relay no longer claims one. Rows written before the flip still exist until
-  the V8 migration stamps them processed (see "Rows written before the flip" below).
+- The `ActionRequest` kind has no constant any more: P2e removed `OutboxEntry.KIND_ACTION_REQUEST`.
+  No code writes an `ActionRequest` row, and the relay does not claim one. Rows written before the
+  flip were stamped processed by the V8 migration (see "Rows written before the flip" below).
 
 Phase 6 (DR-12) adds three more constants, all documented directly on `OutboxEntry` itself (the
 authoritative list — this document doesn't repeat their payload shapes beyond what's useful here;
