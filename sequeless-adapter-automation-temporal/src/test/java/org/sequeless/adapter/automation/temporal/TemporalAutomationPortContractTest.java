@@ -135,7 +135,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         env = TestWorkflowEnvironment.newInstance();
         Worker worker = env.newWorker(TASK_QUEUE);
         worker.registerWorkflowImplementationTypes(
-                ActionWorkflowImpl.class,
                 TransitionActionWorkflowImpl.class,
                 ChangeEventWorkflowImpl.class,
                 TimerWorkflowImpl.class,

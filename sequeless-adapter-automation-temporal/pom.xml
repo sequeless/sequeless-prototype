@@ -12,9 +12,9 @@
   <artifactId>sequeless-adapter-automation-temporal</artifactId>
 
   <name>sequeless-adapter-automation-temporal</name>
-  <description>The default, durable AutomationPort adapter: the Temporal Java SDK drives an ActionWorkflow per
-    ActionRequest outbox entry, dispatching to ActionExecutor-backed activities with configurable
-    retry.</description>
+  <description>The default, durable AutomationPort adapter: the Temporal Java SDK drives one
+    TransitionActionWorkflow per action of each TransitionFired outbox entry, dispatching to
+    ActionExecutor-backed activities with configurable retry.</description>
 
   <dependencies>
     <dependency>

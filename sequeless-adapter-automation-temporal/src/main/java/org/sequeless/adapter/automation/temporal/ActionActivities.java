@@ -7,45 +7,13 @@ import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The five Temporal activity methods of this interface. Four are the {@code ActionRequest}
- * activities {@link ActionWorkflowImpl} calls, one per {@code sq:} action kind. The fifth, {@link
+ * The Temporal activity interface of the per-action path. Its one method, {@link
  * #applyTransitionAction}, applies one action of a {@code TransitionFired} row, and only {@link
- * TransitionActionWorkflowImpl} calls it.
- *
- * <p>Deliberately five methods rather than one internally-dispatching method, so each could later
- * be given its own {@code ActivityOptions} (timeout, {@code RetryOptions}) without touching the
- * others — today all five share the single {@code ActivityOptions} {@link
- * TemporalAutomationAutoConfiguration} builds from {@code sequeless.automation.temporal.retry.*}.
- *
- * <p>Every {@code ActionRequest} method is a thin wrapper over the matching {@link ActionExecutor}
- * method, except {@link #executeWebhook}, which additionally performs the real HTTP call (via
- * {@link java.net.http.HttpClient}) after resolving the request through {@link
- * ActionExecutor#resolveWebhook} — see {@link ActionActivitiesImpl} for why that HTTP call throws
- * on a non-2xx status rather than retrying itself. {@link #applyTransitionAction} is not a thin
- * wrapper: it reads the automation and checks the row's stamp and index before it applies anything.
+ * TransitionActionWorkflowImpl} calls it. The method is not a thin wrapper: it reads the automation
+ * and checks the row's stamp and index before it applies anything.
  */
 @ActivityInterface
 public interface ActionActivities {
-
-    /** Applies a {@code sq:SetProperty} action. See {@link ActionExecutor#applySetProperty}. */
-    @ActivityMethod
-    void applySetProperty(Scope scope, OutboxEntry entry);
-
-    /** Applies a {@code sq:CreateObject} action. See {@link ActionExecutor#applyCreateObject}. */
-    @ActivityMethod
-    void applyCreateObject(Scope scope, OutboxEntry entry);
-
-    /** Applies a {@code sq:Log} action. See {@link ActionExecutor#applyLog}. */
-    @ActivityMethod
-    void applyLog(Scope scope, OutboxEntry entry);
-
-    /**
-     * Resolves and delivers a {@code sq:Webhook} action's HTTP request, throwing on a non-2xx
-     * status (or a transport failure) so the workflow's configured {@code RetryOptions} retries the
-     * activity as a whole.
-     */
-    @ActivityMethod
-    void executeWebhook(Scope scope, OutboxEntry entry);
 
     /**
      * Applies the one action at {@code actionIndex} of a {@code TransitionFired} row, from the

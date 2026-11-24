@@ -204,33 +204,26 @@ soon as the workflows durably **start**, not when they complete. `TransitionActi
 a `Webhook` action. The workflow input is the raw `OutboxEntry` with no bespoke DTO, which Temporal's
 default Jackson-based `DataConverter` round-trips natively.
 
-`ActionWorkflow` (`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry)`) is still
-registered on the worker, but nothing starts it: `dispatch` no longer routes `ActionRequest` rows to
-it. It is deleted in a later phase (spec 13, P2e). Its activity methods are the drain path's four
-`ActionRequest` methods (`applySetProperty`/`applyCreateObject`/`applyLog`, thin pass-throughs to
-`ActionExecutor`, and `executeWebhook`, which additionally performs the real HTTP call and throws
-`WebhookActivityException` on a non-2xx status or transport failure).
-
-Retries are Temporal's own, not a hand-rolled loop: `ActionActivitiesImpl.executeWebhook`
-deliberately does **not** retry — it throws once, letting Temporal's `RetryOptions` (attached to
-the `ActivityOptions` every activity stub is built with) retry the whole activity invocation. The
-policy is bound from `sequeless.automation.temporal.retry.*`
-(`TemporalAutomationProperties.Retry`): `initial-interval` (default **1s**), `backoff-coefficient`
-(default **2.0**), `maximum-attempts` (default **5**, including the first attempt) — applied
-uniformly to all five activity methods. This is the exact mechanism a "500, 500, 500, 200" acceptance
-test exercises.
+Retries are Temporal's own, not a hand-rolled loop: the webhook delivery in
+`ActionActivitiesImpl.applyTransitionAction` deliberately does **not** retry — it throws
+`WebhookActivityException` once, letting Temporal's `RetryOptions` (attached to the `ActivityOptions`
+every activity stub is built with) retry the whole activity invocation. The policy is bound from
+`sequeless.automation.temporal.retry.*` (`TemporalAutomationProperties.Retry`): `initial-interval`
+(default **1s**), `backoff-coefficient` (default **2.0**), `maximum-attempts` (default **5**, including
+the first attempt) — applied uniformly to the activity method. This is the exact mechanism a "500, 500,
+500, 200" acceptance test exercises.
 
 **Genuine Temporal SDK constraint worth knowing before touching this wiring.** Temporal
-instantiates `ActionWorkflowImpl` itself, reflectively, once per workflow execution — a workflow
-implementation must have a public no-arg constructor, so `ActivityOptions` (and the `RetryOptions`
-it carries) cannot be constructor-injected the way `ActionActivitiesImpl` takes its
+instantiates the workflow implementations itself, reflectively, once per workflow execution — a
+workflow implementation must have a public no-arg constructor, so `ActivityOptions` (and the
+`RetryOptions` it carries) cannot be constructor-injected the way `ActionActivitiesImpl` takes its
 `ActionExecutor`. The chosen workaround is a `static volatile ActivityOptions ACTIVITY_OPTIONS`
-field on `ActionWorkflowImpl`, published exactly once by
+field on the package-private `TemporalActivityOptions` class, published exactly once by
 `TemporalAutomationAutoConfiguration.workerFactory` **before** `WorkerFactory.start()` is called;
-every subsequent workflow execution (a fresh `ActionWorkflowImpl` instance each time) reads the
-same already-published value. `execute()` throws `IllegalStateException` if this field is still
-`null` when read — a loud failure for the wiring bug of starting a worker without the
-auto-configuration having run, rather than a silent `NullPointerException` deep in workflow logic.
+every subsequent workflow execution (a fresh workflow instance each time) reads the same
+already-published value. Each reader throws `IllegalStateException` if this field is still `null`
+when read — a loud failure for the wiring bug of starting a worker without the auto-configuration
+having run, rather than a silent `NullPointerException` deep in workflow logic.
 
 ## 5. Idempotency
 

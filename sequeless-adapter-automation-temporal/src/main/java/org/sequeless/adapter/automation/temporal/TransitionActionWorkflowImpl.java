@@ -32,8 +32,8 @@ public final class TransitionActionWorkflowImpl implements TransitionActionWorkf
 
     /**
      * Reconstructs a {@link Scope} from {@code entry.payload()}'s own {@code tenantId}/{@code
-     * principalId} fields, following the same convention {@link ActionWorkflowImpl} uses: the
-     * principal is rebuilt from its id alone.
+     * principalId} fields, following the same convention {@code
+     * org.sequeless.testkit.Fixtures#scope} uses: the principal is rebuilt from its id alone.
      */
     private static Scope scopeFrom(OutboxEntry entry) {
         Map<String, Object> payload = entry.payload();

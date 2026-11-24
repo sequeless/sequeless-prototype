@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Binds the {@code sequeless.automation.temporal.*} configuration namespace this adapter reads at
- * startup: which task queue {@link ActionWorkflow} executions run on, an optional Temporal server
+ * startup: which task queue the workflows run on, an optional Temporal server
  * {@code target} to connect to (host:port, e.g. for a future Testcontainers-backed acceptance
  * test), and the {@link Retry} policy mapped onto every activity's {@code RetryOptions} (see {@link
  * TemporalActivityOptions}' static {@code ACTIVITY_OPTIONS} holder).
@@ -19,7 +19,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class TemporalAutomationProperties {
 
     /**
-     * The task queue {@link ActionWorkflow} executions are started on, and that {@link
+     * The task queue the workflows are started on, and that {@link
      * TemporalAutomationAutoConfiguration}'s worker polls. Defaults to {@code "sequeless-actions"}.
      */
     private String taskQueue = "sequeless-actions";
@@ -35,12 +35,12 @@ public class TemporalAutomationProperties {
 
     private final Retry retry = new Retry();
 
-    /** @return the task queue name {@link ActionWorkflow} executions are started/polled on */
+    /** @return the task queue name the workflows are started and polled on */
     public String getTaskQueue() {
         return taskQueue;
     }
 
-    /** @param taskQueue the task queue name to start/poll {@link ActionWorkflow} executions on */
+    /** @param taskQueue the task queue name to start and poll the workflows on */
     public void setTaskQueue(String taskQueue) {
         this.taskQueue = taskQueue;
     }
