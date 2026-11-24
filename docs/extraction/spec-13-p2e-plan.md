@@ -1,15 +1,15 @@
 # Spec 13, P2e: delete ActionWorkflow and the section 17 items (plan)
 
-- Status: Rev 2, 2026-11-24: questions 1 to 11 decided (section 7); PR #168 merged as d577b20; P2e code waits on the owner's zero check (item 8).
+- Status: Rev 2, 2026-11-24: questions 1 to 11 decided (section 7). PR #168 merged as d577b20, so P2e code can start. The P2e merge waits on the owner's zero check of running `ActionWorkflow` executions (Q8) and on V8 recorded as applied (section 8, step 3).
 - Rev 1: plan only, docs only. Recorded 2026-11-23. Not reviewed.
-- Base: P2d flip head `197e36c` (PR #168, branch `spec-13-p2d-flip-impl`, OPEN). This plan's own branch is `docs/spec-13-p2e-plan`, cut from `origin/main` `da3c08d`.
+- Base: `origin/main` `d577b20` (PR #168 squash-merged). Rev 1 cited `197e36c`; no Java file changed between `197e36c` and `d577b20`, so the citations hold.
 - Citations are `path:line` at `197e36c`, repo-relative. Shorthand: `T/` is `sequeless-adapter-automation-temporal/src/main/java/org/sequeless/adapter/automation/temporal/`, and `TT/` is the same path under `src/test/java`.
 
 ## 1. Scope and base
 
-- P2e stacks on the P2d flip head `197e36c`. No P2e code starts until PR #168 merges. This document is the only file changed on its branch. The plan cites code at `197e36c`; the P2d branch head is now `1a25fd6`, with no Java change since `197e36c`.
+- P2e is cut from `origin/main` `d577b20` (PR #168 merged). This document is the only file changed on its branch.
 - P2e does three things. (a) It deletes `ActionWorkflow` and its impl, and moves the `ACTIVITY_OPTIONS` holder, because nothing starts `ActionWorkflow` after the flip. The flip removed its only starter: `T/TemporalAutomationPort.java` has no `ActionWorkflow` reference, and the decision is in `docs/extraction/spec-13-p2d-plan.md` section 10.1 (lines 184 to 192). (b) It does section 17 items 1 to 8 of `docs/extraction/resume-plan-spec13.md` (lines 298 to 305). (c) It converts or deletes the ActionRequest-form tests that P2d kept on purpose (Q-E: P2d deletes none).
-- Q-D, the fate of `OutboxEntry.KIND_ACTION_REQUEST`, is open. See section 7.
+- Q-D is decided: `OutboxEntry.KIND_ACTION_REQUEST` is deleted in P2e (section 7, item 1).
 - Not in P2e: any migration. The V3, V4, V5 and V8 SQL files under `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`, and their frozen copies under `src/test/resources/frozen-migrations/`, are not edited. Applied migrations are never edited.
 - Not in P2e: P3, P4 and P5b.
 
@@ -75,7 +75,7 @@ Javadoc-only mentions of the drain path: `sequeless-adapter-automation-inprocess
 
 ## 3. Change list, file by file
 
-Tags: [M] depends on the owner's mixed-version procedure (section 6, risk 1; section 8, step 3). [D n] depends on open question n in section 7. Nothing here is decided by this plan; the tags say what waits.
+Tags: [M] depends on the owner's mixed-version procedure (section 6, risk 1; section 8, step 3). Every question is decided in section 7; [D n] names the decision that governs the row. Nothing here is decided by this plan; the tags say what waits.
 
 **Delete**
 
@@ -86,7 +86,7 @@ Tags: [M] depends on the owner's mixed-version procedure (section 6, risk 1; sec
 5. `TT/TemporalAutomationPortContractTest.java:138`: remove the same registration. [M]
 6. `T/ActionActivities.java:31-32, 35-36, 39-40, 41-48`, and the implementations `T/ActionActivitiesImpl.java:58-75`. Keep `applyTransitionAction` (67-68, 97-101) and `deliver` (142). [M] [D 3]
 7. The drain path in the SPI and in core: `ActionExecutor.java:81, 108, 134, 153` with its drain javadoc (25-52); `DefaultActionExecutor.java:90-137`; the private helpers that only those methods call (the compiler lists them, this plan does not); and the five implementers in section 2.2 (`DefaultActionExecutor` and the four others named there). [D 3]
-8. `OutboxEntry.java:64-74`, if Q1 says delete. [D 1] No database effect if V8 has stamped every ActionRequest row, which needs the P2d hold met (section 8, step 3).
+8. `OutboxEntry.java:64-74`, deleted (Q1). [D 1] No database effect if V8 has stamped every ActionRequest row, which needs the P2d hold met (section 8, step 3).
 
 **Convert or delete (tests)**
 
@@ -105,7 +105,7 @@ A dangling `{@link}` fails `javadoc:jar` under `-Prelease`, so every javadoc row
 16. Javadoc in section 2.1 and 2.2: `T/package-info.java:13-14,30,37`; `T/TimerWorkflow.java:16,23`; `T/ChangeEventWorkflow.java:12`; `T/ChangeEventWorkflowImpl.java:10`; `T/SignalEventWorkflow.java:11`; `T/TimerWorkflowImpl.java:10-12,25`; `T/TransitionActionWorkflow.java:8`; `T/TransitionActionWorkflowImpl.java:16,35`; `T/WebhookActivityException.java:8`; `T/TemporalAutomationProperties.java:8,11,22,38,43` (the task queue is still used by `TransitionActionWorkflow`, so only the wording changes); `T/TemporalAutomationAutoConfiguration.java:97-99`; `T/ActionActivitiesImpl.java:24-37`; `T/ActionActivities.java:9-25`.
 17. `sequeless-adapter-automation-temporal/pom.xml:15-16`: the description says the adapter "drives an ActionWorkflow per ActionRequest outbox entry". Reword it to the per-action path.
 18. `sequeless-spi/pom.xml:15-19`: add automation-contract to the description (section 4, item 5).
-19. Docs: `docs/architecture/automation.md:46` (the deprecated constant), `:207-212` (ActionWorkflow registered, never started), `:111` (the drain path, removed in P2e), `:214-220` (`executeWebhook`, and "all five activity methods"), `:267` (`applySetProperty` retry idempotency), `:224-230` (the holder). `docs/architecture/02-decision-records.md:164-182` (DR-24; see Q11). Do not rewrite `docs/extraction/resume-plan-spec13.md` or `docs/extraction/spec-13-p2c-plan.md`. They are history, as `docs/extraction/spec-13-p2d-plan.md` p2d-7 (line 208) also says.
+19. Docs: `docs/architecture/automation.md:46` (the deprecated constant), `:207-212` (ActionWorkflow registered, never started), `:111` (the drain path, removed in P2e), `:214-220` (`executeWebhook`, and "all five activity methods"), `:267` (`applySetProperty` retry idempotency), `:224-230` (the holder). DR-24 (`docs/architecture/02-decision-records.md:164-182`) is not edited (Q11). Do not rewrite `docs/extraction/resume-plan-spec13.md` or `docs/extraction/spec-13-p2c-plan.md`. They are history, as `docs/extraction/spec-13-p2d-plan.md` p2d-7 (line 208) also says.
 
 **Not changed by P2e**
 
@@ -139,7 +139,7 @@ Each item is quoted from `docs/extraction/resume-plan-spec13.md`, with its statu
    Status: DONE by the flip. `docs/architecture/automation.md` lines 84 to 86 already list `machineIri`, `typeIri`, `ontologyVersion` and `self`. Change: none. Re-read it and record it in the PR body.
 
 8. Quote: "Core tests for the derived create id under the TransitionFired id: the review said the id differs from the ActionRequest id, which is safe only because of the drain gate. Record it in the 2d PR body."
-   Status: coverage exists; the note is not yet recorded. The derived-id checks at DefaultActionExecutorTest lines 594 to 615 and 228 to 242 already cover TransitionFired rows, including the replay (assertion at 611 to 613). What remains open is the note: the PR #168 body does not contain it, so it must be recorded in the P2e PR body. Change: open. The text says "record it in the 2d PR body" but sits under step 2e. Whether this is a test or a PR-body note is Q6.
+   Status: DONE. Coverage is at `DefaultActionExecutorTest` 594-615 and 228-242, and the note is in the PR #168 body (Q6). Change: none; no new test.
 
 ## 5. Proof and tests
 
@@ -157,11 +157,11 @@ Proof, by change:
 - Registration: `TT/TemporalAutomationAutoConfigurationTest.java` exists. It was not read for this plan, so read it before deciding whether it asserts the registration list. After the change, `git grep -n -w 'ActionWorkflow\|ActionWorkflowImpl' -- '*.java'` must print nothing. Compilation proves the deletion; the grep catches dangling javadoc links.
 - Drain deletion (if Q3 deletes it): `DefaultActionExecutorTest`, `OutboxRelayTest`, `PostgresOutboxPortIT`, `PostgresOutboxDecodeFailureIT`, `OutboxEntryDataConverterRoundTripTest` and `TransitionsEndToEndTest` must still pass. Each converted or deleted drain test names the per-action test that replaces it, so no case is lost silently (risk 7).
 - Constant (if Q1 deletes it): `PostgresOutboxPortIT`, which runs against Postgres through Testcontainers, proves the claim, dead-letter and concurrency behaviour under the new kind. `git grep -n 'KIND_ACTION_REQUEST' -- '*.java'` must print nothing.
-- Section 17: item 2 is a new test, and it must fail under a mutation of `InProcessAutomationPort.java:160` (the `instanceof Number` check replaced by a cast). Item 3's message assertion must fail when the message is changed. Item 8, once Q6 decides it, is a test with the assertion that Q6 names.
+- Section 17: item 2 is a new test, and it must fail under a mutation of `InProcessAutomationPort.java:160` (the `instanceof Number` check replaced by a cast). Item 3's message assertion must fail when the message is changed. Item 8 needs no new test (Q6).
 
 ## 6. Risks
 
-1. A running `ActionWorkflow` during the deploy. Since P2d nothing starts it, so only executions started before the flip can still be open. An open execution waiting on a webhook retry, for example, is stuck once its activity methods (`ActionActivities.java:31-48`) or its type are gone. Before the P2e worker starts, the running `ActionWorkflow` executions on the dev stack must be handled. PENDING Q8; neither option is decided here: (a) a zero check of running `ActionWorkflow` executions only; (b) a full stop-and-drain step, in which the running executions are terminated first, with the owner's written acceptance of the loss, the same pattern as the O-4 step in `docs/extraction/spec-13-prototype-stage4-prepare.md` (lines 104 to 106). [M]
+1. A running `ActionWorkflow` during the deploy. Since P2d nothing starts it, so only executions started before the flip can still be open. An open execution waiting on a webhook retry, for example, is stuck once its activity methods (`ActionActivities.java:31-48`) or its type are gone. Before the P2e worker starts, the running `ActionWorkflow` executions on the dev stack must be handled. Decided (Q8): a zero check of running `ActionWorkflow` executions only; the owner runs it before the P2e merge. [M]
 2. Replay of an old history. A worker replays an open execution's history when it picks up a task. After the type is deleted, replaying an open `ActionWorkflow` fails its workflow task on every retry. Closed executions are not replayed in normal flow. Risk 1 covers open executions only. [M]
 3. A holder reader or writer is missed. A reader throws `IllegalStateException` on a null holder (for example `T/ChangeEventWorkflowImpl.java:19`). It throws at workflow run time, not at startup. Keep the order: the holder is set in `T/TemporalAutomationAutoConfiguration.java:141`, before the worker starts (the holder's javadoc says so at `ActionWorkflowImpl.java:21-22`).
 4. A dangling `{@link}`. `javadoc:jar` runs under `-Prelease` and fails on a dangling link. Every javadoc row in section 3 is required for the gate.
@@ -172,7 +172,7 @@ Proof, by change:
 
 ## 7. OPEN QUESTIONS FOR THE NAVIGATOR
 
-These are not decided here. Each lists the facts from the repo.
+Each question keeps its Rev 1 text; the **Decided:** line under it is the Navigator's answer.
 
 1. Q-D: is `OutboxEntry.KIND_ACTION_REQUEST` (`OutboxEntry.java:73-74`) deleted in P2e, or kept `@Deprecated`? The javadoc says "Removed in P2e" (`OutboxEntry.java:64-72`). `docs/architecture/automation.md:46` says "deprecated". The decision record (DR-24, `docs/architecture/02-decision-records.md:172`) says deprecated in P2d and removed in P2e. The Navigator decided in P2d to keep it `@Deprecated` until P2e (`docs/extraction/spec-13-p2d-plan.md` line 224 at `197e36c`); what P2e does with it is still open. There are 45 test uses (section 2.3) and no main-code use. Whether anything outside this repository reads the constant is not visible in the repo.
 
@@ -220,10 +220,10 @@ These are not decided here. Each lists the facts from the repo.
 
 ## 8. Gate and merge order
 
-1. P2d first. PR #168 must merge before any P2e code starts. Per `docs/extraction/spec-13-p2d-plan.md` section 10.4, #168 merges only after the owner confirms the mixed-version procedure on the dev stack. P2e waits for both: #168 merged, and that confirmation.
+1. P2d first. Done: PR #168 merged as d577b20. Only the P2e merge is gated (step 3).
 2. Cut the P2e branch from the new `origin/main` (PR #168 is merged as d577b20). Do not rebase. The `--match-head-commit` pin in the P2d plan (section 10.4) applies to the P2e merge too.
-3. Pre-merge checks on the dev stack (operational, not part of the PR): PENDING Q8, one of: (a) a zero check of running `ActionWorkflow` executions only, or (b) a full stop-and-drain step (risk 1); and V8 recorded as applied (`sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/V8__outbox_actions_drained.sql`).
+3. Pre-merge checks on the dev stack (operational, not part of the PR): the owner's zero check of running `ActionWorkflow` executions (Q8, risk 1); and V8 recorded as applied (`sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/V8__outbox_actions_drained.sql`).
 4. The gate runs on the final head with the command in section 5. Then open the PR, with the section 4 statuses in its body.
 5. Merge: squash, pinned to the reviewed head. An `--admin` merge only under the standing owner approval for a PR blocked only by the update rule, with required checks green, and recorded.
-6. Commit order in the PR, one commit per group, as P2d did: (a) holder move; (b) `ActionWorkflow` and its registration deleted; (c) section 17 items; (d) test conversions; (e) the constant, if Q1 deletes it; (f) the SPI drain removal, if Q3 deletes it.
+6. Commit order in the PR, one commit per group, as P2d did: (a) holder move; (b) `ActionWorkflow` and its registration deleted; (c) section 17 items; (d) test conversions; (e) the constant deleted (Q1); (f) the SPI drain removal (Q3).
 7. After P2e: P3, then P4 and P5b. P3 needs P2 on main.
