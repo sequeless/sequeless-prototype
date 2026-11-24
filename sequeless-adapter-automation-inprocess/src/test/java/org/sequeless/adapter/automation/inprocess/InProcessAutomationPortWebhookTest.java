@@ -9,6 +9,7 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,7 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
@@ -35,6 +39,10 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 class InProcessAutomationPortWebhookTest {
 
     private static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", java.util.Set.of()));
+    private static final String MACHINE_IRI = "http://example.org/ProjectLifecycle";
+    private static final String DRAFT_IRI = "http://example.org/Draft";
+    private static final String ACTIVE_IRI = "http://example.org/Active";
+    private static final String TRANSITION_NAME = "activate";
 
     private HttpServer server;
 
@@ -70,7 +78,7 @@ class InProcessAutomationPortWebhookTest {
         InProcessAutomationProperties properties = new InProcessAutomationProperties();
         properties.setRetryAttempts(3);
         properties.setRetryDelay(Duration.ofMillis(10));
-        InProcessAutomationPort port = newPort(recorder, properties);
+        InProcessAutomationPort port = newPort(recorder, properties, url);
 
         OutboxEntry entry = webhookEntry();
         port.dispatch(SCOPE, entry);
@@ -99,7 +107,7 @@ class InProcessAutomationPortWebhookTest {
         InProcessAutomationProperties properties = new InProcessAutomationProperties();
         properties.setRetryAttempts(3);
         properties.setRetryDelay(Duration.ofMillis(10));
-        InProcessAutomationPort port = newPort(recorder, properties);
+        InProcessAutomationPort port = newPort(recorder, properties, url);
 
         OutboxEntry entry = webhookEntry();
 
@@ -107,30 +115,40 @@ class InProcessAutomationPortWebhookTest {
         assertThat(requestCount.get()).isEqualTo(3);
     }
 
+    /**
+     * Builds the port over an automation whose single transition holds one {@link WebhookAction} aimed
+     * at {@code url}, the test's local HTTP server. The recorder's own resolved request carries the same
+     * URL, so the delivery goes to that server.
+     */
     private static InProcessAutomationPort newPort(
-            RecordingActionExecutor recorder, InProcessAutomationProperties properties) {
+            RecordingActionExecutor recorder, InProcessAutomationProperties properties, String url) {
         RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+        Automation automation = new Automation(
+                new OntologyVersion(1),
+                Map.of(
+                        new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME),
+                        List.<Action>of(new WebhookAction(url, "POST", Optional.empty()))));
         return new InProcessAutomationPort(
                 recorder,
                 properties,
                 triggerEvaluator,
                 new InProcessTimerScheduler(java.time.Clock.systemUTC(), triggerEvaluator),
-                tenant -> new Automation(new OntologyVersion(1), Map.of()));
+                tenant -> automation);
     }
 
+    /** A {@code TransitionFired} row carrying the keys {@code DefaultTransitionService} writes on one. */
     private static OutboxEntry webhookEntry() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
         payload.put("principalId", SCOPE.principal().id());
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", "http://example.org/Project");
-        payload.put("state", "Active");
+        payload.put("transitionName", TRANSITION_NAME);
+        payload.put("fromState", DRAFT_IRI);
+        payload.put("toState", ACTIVE_IRI);
+        payload.put("ontologyVersion", 1);
         payload.put("self", Map.of());
-        payload.put("actionKind", "Webhook");
-        payload.put("url", "http://example.invalid/hook");
-        payload.put("method", "POST");
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+        payload.put("typeIri", "http://example.org/Project");
+        payload.put("machineIri", MACHINE_IRI);
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
     }
 }

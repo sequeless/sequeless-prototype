@@ -5,6 +5,10 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -15,8 +19,18 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.BusinessObjectResponse;
 import org.sequeless.app.rest.TransitionResponse;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.ResolvedWebhookRequest;
+import org.sequeless.spi.outbox.OutboxEntry;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -42,11 +56,13 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * pre-existing core/reference-ontology behaviour from earlier phase-5 tasks, not something this
  * task's REST-layer scope changes; this test asserts the actual rendered literal.
  *
- * <p>Deliberately does not assert anything about the transition's {@code sq:Webhook} action: it
- * targets a hardcoded external URL ({@code https://example.org/hooks/project-activated}) with no
- * local interception mechanism today. In this sandbox that URL fails DNS resolution in
- * milliseconds, so it does not meaningfully slow down the relay, but a later task that wants to
- * assert webhook delivery/retry behaviour will need a locally-reachable stand-in (e.g. WireMock).
+ * <p>The transition's {@code sq:Webhook} action targets a hardcoded external URL ({@code
+ * https://example.org/hooks/project-activated}) that this sandbox cannot resolve. The activate
+ * row's actions commit together, so that failure would roll back the kickoff Task too. The webhook
+ * is therefore redirected to a local stand-in at the {@link ActionExecutor} seam:
+ * {@link WebhookStandInConfiguration} registers a {@code @Primary} decorator that delegates to the
+ * real executor and rewrites only the resolved webhook URL to a localhost {@code HttpServer}. The
+ * production URL and the reference ontology are unchanged. This test asserts the kickoff {@code Task}.
  *
  * <p>{@code sequeless.automation.relay.poll-interval-ms=50} keeps the bounded-retry wait for the
  * async kickoff-Task side effect fast; the whole {@code properties} set differs from every other
@@ -65,6 +81,87 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
 
     private static final String GUARD_MESSAGE = "Project must have an owner before it can be activated";
+
+    /**
+     * Registers the test-only {@code @Primary} {@link ActionExecutor} that redirects the activate
+     * webhook to a local stand-in. Spring Boot picks up this single nested {@code @TestConfiguration}
+     * automatically. The decorator wraps the real {@code actionExecutor} bean by name, so the context
+     * has no cycle: the real bean never depends on the decorator.
+     */
+    @TestConfiguration
+    static class WebhookStandInConfiguration {
+
+        @Bean(destroyMethod = "close")
+        @Primary
+        ActionExecutor webhookStandInActionExecutor(@Qualifier("actionExecutor") ActionExecutor delegate)
+                throws IOException {
+            return new WebhookStandInActionExecutor(delegate);
+        }
+    }
+
+    /**
+     * Delegates every {@link ActionExecutor} call to the real executor, except that {@link
+     * #resolveWebhookAction} returns the same method and body with the URL replaced by this class's
+     * localhost stand-in, which answers 204 to any request. The stand-in is started when the bean is
+     * created and stopped when the context closes.
+     */
+    static final class WebhookStandInActionExecutor implements ActionExecutor, AutoCloseable {
+
+        private final ActionExecutor delegate;
+        private final HttpServer standIn;
+
+        WebhookStandInActionExecutor(ActionExecutor delegate) throws IOException {
+            this.delegate = delegate;
+            this.standIn = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            standIn.createContext("/hook", WebhookStandInActionExecutor::acknowledge);
+            standIn.start();
+        }
+
+        private static void acknowledge(HttpExchange exchange) throws IOException {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        }
+
+        @Override
+        public void close() {
+            standIn.stop(0);
+        }
+
+        @Override
+        public void applySetProperty(Scope scope, OutboxEntry entry) {
+            delegate.applySetProperty(scope, entry);
+        }
+
+        @Override
+        public void applyCreateObject(Scope scope, OutboxEntry entry) {
+            delegate.applyCreateObject(scope, entry);
+        }
+
+        @Override
+        public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
+            return delegate.resolveWebhook(scope, entry);
+        }
+
+        @Override
+        public void applyLog(Scope scope, OutboxEntry entry) {
+            delegate.applyLog(scope, entry);
+        }
+
+        @Override
+        public void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
+            delegate.applyAction(scope, transitionFired, action, actionIndex);
+        }
+
+        @Override
+        public ResolvedWebhookRequest resolveWebhookAction(
+                Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
+            ResolvedWebhookRequest resolved =
+                    delegate.resolveWebhookAction(scope, transitionFired, action, actionIndex);
+            String standInUrl = "http://localhost:" + standIn.getAddress().getPort() + "/hook";
+            return new ResolvedWebhookRequest(standInUrl, resolved.method(), resolved.body());
+        }
+    }
 
     @LocalServerPort
     private int port;
@@ -195,9 +292,9 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
         assertThat(activated.state()).isEqualTo("Active");
         assertThat(activated.version()).isEqualTo(3L);
 
-        // The kickoff Task is created asynchronously by OutboxRelay draining the ActionRequest
-        // outbox row this transition wrote, not synchronously by the POST above — see this class's
-        // javadoc for why the title is "Kickoff: [Launch rocket]", brackets included.
+        // The kickoff Task is one action of the activate TransitionFired row, applied by the
+        // in-process automation adapter after the POST above returns. See this class's javadoc for
+        // why the title is "Kickoff: [Launch rocket]", brackets included.
         awaitKickoffTask("Kickoff: [" + projectTitle + "]");
     }
 

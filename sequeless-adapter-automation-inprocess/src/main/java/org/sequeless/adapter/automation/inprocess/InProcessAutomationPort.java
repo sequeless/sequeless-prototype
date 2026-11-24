@@ -27,8 +27,8 @@ import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The test/dev {@link AutomationPort} adapter: {@link #dispatch} runs an {@code ActionRequest}
- * outbox entry's action synchronously, to completion, on the calling (relay) thread, by invoking
+ * The test/dev {@link AutomationPort} adapter: {@link #dispatch} runs a {@code TransitionFired}
+ * outbox entry's actions synchronously, to completion, on the calling (relay) thread, by invoking
  * the matching {@link ActionExecutor} method directly — no separate durable engine to hand off to,
  * unlike a future Temporal adapter.
  *
@@ -38,7 +38,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * A Temporal adapter gets this for free from workflow-id semantics ({@code
  * WorkflowExecutionAlreadyStarted}); this adapter has no such built-in mechanism, so it keeps an
  * in-memory, thread-safe set of every {@link OutboxEntry#id()} it has already dispatched and
- * short-circuits a repeat as a no-op. This set grows unbounded for the process's lifetime and is
+ * short-circuits a repeat as a no-op. The exception is a {@code TransitionFired} row, which is keyed
+ * by entry id and action index. This set grows unbounded for the process's lifetime and is
  * <b>not crash-safe</b> — a process restart forgets every id it ever saw. Both are accepted
  * limitations, not bugs: durability across restarts is Temporal's job, not this adapter's, which
  * exists only for tests and local development.
@@ -55,11 +56,12 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * InProcessAutomationProperties#getRetryAttempts()} total attempts, each separated by {@link
  * InProcessAutomationProperties#getRetryDelay()} — deliberately dumb, in contrast to a future
  * Temporal activity's configurable, exponential-backoff {@code RetryOptions}. Only the HTTP call
- * itself is retried: {@link ActionExecutor#resolveWebhook}'s own template-resolution failures (a
- * malformed {@code ${expr}}) propagate immediately, on the first and only attempt, since retrying
+ * itself is retried: {@link ActionExecutor#resolveWebhookAction}'s own template-resolution
+ * failures (a malformed {@code ${expr}}) propagate immediately, on the first and only attempt, since
+ * retrying
  * a deterministic template error can never succeed.
  *
- * <p><b>Kind routing beyond {@code ActionRequest}.</b> {@link #dispatch} routes the three
+ * <p><b>Kind routing.</b> {@link #dispatch} routes the three
  * object-lifecycle kinds ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}) to
  * {@link TriggerEvaluator#onChange}. The application's outbox relay runs {@link
  * org.sequeless.spi.automation.DerivationRecomputer#recompute} for the same row before it calls this
@@ -67,16 +69,11 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that is already
  * fresh. This port makes no recompute call of its own. {@code TimerScheduled}/{@code
  * TimerCancelled} go to {@link InProcessTimerScheduler}, and {@code SignalReceived} to {@link
- * TriggerEvaluator#onSignal}. {@code TransitionFired} is accepted and does nothing here:
- * {@link #dispatchTransitionFired} can already apply a fired transition's actions from its own row,
- * but {@link #dispatch} does not route to it yet, so this port's behaviour for that kind is unchanged.
+ * TriggerEvaluator#onSignal}. {@code TransitionFired} is applied per action: {@link #dispatch} routes
+ * each such row to {@link #dispatchTransitionFired}, which applies the row's actions in order from the
+ * automation of the row's ontology version.
  */
 public final class InProcessAutomationPort implements AutomationPort {
-
-    private static final String ACTION_KIND_SET_PROPERTY = "SetProperty";
-    private static final String ACTION_KIND_CREATE_OBJECT = "CreateObject";
-    private static final String ACTION_KIND_WEBHOOK = "Webhook";
-    private static final String ACTION_KIND_LOG = "Log";
 
     private final ActionExecutor actionExecutor;
     private final InProcessAutomationProperties properties;
@@ -124,7 +121,9 @@ public final class InProcessAutomationPort implements AutomationPort {
         Objects.requireNonNull(entry, "entry must not be null");
 
         if (OutboxEntry.KIND_TRANSITION_FIRED.equals(entry.kind())) {
-            // Accepted as a no-op, before the redelivery record below, so it leaves no state behind.
+            // dispatchTransitionFired records each action under (entry id, action index), so this row is
+            // not gated by the entry-level dispatched set below.
+            dispatchTransitionFired(scope, entry);
             return;
         }
 
@@ -133,7 +132,6 @@ public final class InProcessAutomationPort implements AutomationPort {
         }
 
         switch (entry.kind()) {
-            case OutboxEntry.KIND_ACTION_REQUEST -> dispatchActionRequest(scope, entry);
             case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
                 triggerEvaluator.onChange(scope, entry);
             case OutboxEntry.KIND_TIMER_SCHEDULED -> timerScheduler.schedule(scope, entry);
@@ -143,25 +141,10 @@ public final class InProcessAutomationPort implements AutomationPort {
         }
     }
 
-    private void dispatchActionRequest(Scope scope, OutboxEntry entry) {
-        String actionKind = (String) entry.payload().get("actionKind");
-        switch (actionKind) {
-            case ACTION_KIND_SET_PROPERTY -> actionExecutor.applySetProperty(scope, entry);
-            case ACTION_KIND_CREATE_OBJECT -> actionExecutor.applyCreateObject(scope, entry);
-            case ACTION_KIND_LOG -> actionExecutor.applyLog(scope, entry);
-            case ACTION_KIND_WEBHOOK -> {
-                ResolvedWebhookRequest resolved = actionExecutor.resolveWebhook(scope, entry);
-                deliver(resolved);
-            }
-            default ->
-                throw new IllegalArgumentException("Unrecognized ActionRequest payload actionKind: " + actionKind);
-        }
-    }
-
     /**
      * Applies each action of a {@code TransitionFired} row, in the automation's order, from the
-     * automation of the ontology version the row was written under. {@link #dispatch} does not reach
-     * this method yet, so for now only a direct call (a test's) runs it.
+     * automation of the ontology version the row was written under. {@link #dispatch} calls this for
+     * every {@code TransitionFired} row.
      *
      * <p>Redelivery is recorded per {@code (entry id, action index)}. A {@link LogAction} is recorded
      * once applied, and a {@link WebhookAction} once its delivery succeeds, so neither repeats on a

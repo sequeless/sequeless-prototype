@@ -18,13 +18,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — {@link
- * OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, {@link
- * OutboxEntry#KIND_TRANSITION_FIRED}, and the three automation kinds ({@link
- * OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, {@link
+ * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — the three
+ * object-lifecycle kinds, {@link OutboxEntry#KIND_TRANSITION_FIRED}, and the three automation kinds
+ * ({@link OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, {@link
  * OutboxEntry#KIND_SIGNAL_RECEIVED}) — one row at a time, into whichever {@link AutomationPort}
- * adapter is currently configured. The automation adapters accept {@link
- * OutboxEntry#KIND_TRANSITION_FIRED} as a no-op until it carries actions and timers.
+ * adapter is currently configured.
  *
  * <p><b>Recompute before the ingress.</b> For each object-lifecycle row ({@link
  * OutboxEntry#KIND_OBJECT_CREATED}, {@link OutboxEntry#KIND_OBJECT_UPDATED}, {@link
@@ -53,7 +51,6 @@ public class OutboxRelay {
     private static final Logger LOG = LoggerFactory.getLogger(OutboxRelay.class);
 
     private static final Set<String> DISPATCHABLE_KINDS = Set.of(
-            OutboxEntry.KIND_ACTION_REQUEST,
             OutboxEntry.KIND_OBJECT_CREATED,
             OutboxEntry.KIND_OBJECT_UPDATED,
             OutboxEntry.KIND_OBJECT_DELETED,

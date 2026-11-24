@@ -17,8 +17,9 @@ import org.sequeless.spi.object.Update;
  * notified of these rows independently of the object store's own read path.
  *
  * <p>{@code kind} is one of {@link #KIND_OBJECT_CREATED}, {@link #KIND_OBJECT_UPDATED}, or {@link
- * #KIND_OBJECT_DELETED} for the mutations this SPI defines, {@link #KIND_TRANSITION_FIRED} or
- * {@link #KIND_ACTION_REQUEST} for a fired state-machine transition and the actions it dispatches,
+ * #KIND_OBJECT_DELETED} for the mutations this SPI defines, {@link #KIND_TRANSITION_FIRED} for a
+ * fired state-machine transition, whose row names the transition and its ontology version, and from
+ * which the automation port applies the actions,
  * or {@link #KIND_TIMER_SCHEDULED}, {@link #KIND_TIMER_CANCELLED}, or {@link
  * #KIND_SIGNAL_RECEIVED} for the automation events introduced alongside {@code
  * org.sequeless.ontology.behaviour.api.TriggerSpec} — though the type itself does not restrict {@code kind} to
@@ -52,23 +53,24 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     public static final String KIND_OBJECT_DELETED = "ObjectDeleted";
 
     /**
-     * The event kind recorded once, as an audit trail, for each fired state-machine transition,
-     * alongside any {@link #KIND_ACTION_REQUEST} rows it produces. The outbox relay claims these
-     * rows and dispatches them
-     * to the automation port, whose adapters accept them as a no-op until they carry actions and
-     * timers.
+     * The event kind recorded once for each fired state-machine transition. The row names the
+     * transition and its ontology version. The outbox relay claims each such row and dispatches it to
+     * the automation port, whose adapters read the transition's actions from the automation and apply
+     * them by action index: the in-process adapter applies them in index order, and the Temporal
+     * adapter starts one workflow per action.
      */
     public static final String KIND_TRANSITION_FIRED = "TransitionFired";
 
     /**
      * The event kind recorded once per {@code sq:action} a fired state-machine transition defines,
-     * carrying a self-contained payload (frozen at transition-fire time) that a durable automation
-     * adapter dispatches. Deliberately declared here, beside {@link #KIND_OBJECT_CREATED} and its
-     * siblings, rather than on the core use case that produces it: an adapter that consumes these
-     * rows (a relay, an automation port) must be able to filter on this constant without depending
-     * on {@code sequeless-core}, which the {@code noAdapterDependsOnCore} architecture rule
-     * forbids.
+     * carrying a self-contained payload (frozen at transition-fire time). Deliberately declared here,
+     * beside {@link #KIND_OBJECT_CREATED} and its siblings, rather than on the core use case that
+     * produces it: an adapter that consumes these rows (a relay, an automation port) must be able to
+     * filter on this constant without depending on {@code sequeless-core}, which the {@code
+     * noAdapterDependsOnCore} architecture rule forbids. No longer written or dispatched. Removed in
+     * P2e (spec 13).
      */
+    @Deprecated
     public static final String KIND_ACTION_REQUEST = "ActionRequest";
 
     /**

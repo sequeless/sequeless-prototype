@@ -9,9 +9,6 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * applies the one action at a given index of the row's transition, through {@link
  * ActionActivities#applyTransitionAction}. The port starts one execution per action index, with
  * workflow id {@code "<entryId>:<index>"}, so each index gets its own run and its own idempotency.
- *
- * <p>Nothing starts this workflow yet. The port's per-action entry point is not reached from {@code
- * dispatch} until the dispatch flip.
  */
 @WorkflowInterface
 public interface TransitionActionWorkflow {

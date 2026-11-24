@@ -6,8 +6,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
 /**
  * The outbound port a relay (the in-process poller, or a future Temporal-backed one) calls to
  * durably start — or, for a synchronous adapter, fully complete — the handling of one outbox row,
- * whatever its kind: an {@link OutboxEntry#KIND_ACTION_REQUEST} applies a fired transition's
- * action, the three object-lifecycle kinds trigger a recompute and then trigger-evaluation pass,
+ * whatever its kind: an {@link OutboxEntry#KIND_TRANSITION_FIRED} row applies the fired
+ * transition's actions, the three object-lifecycle kinds trigger a recompute and then trigger-evaluation pass,
  * and the three automation kinds introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec}
  * drive a timer or a signal. Exactly one implementation is wired into the running application at a
  * time, selected by configuration property, the same way every other outbound port in this SPI
@@ -28,18 +28,23 @@ public interface AutomationPort {
      * Durably starts (or, for a synchronous adapter, completes) the handling of {@code entry},
      * dispatched by kind to the appropriate inbound port. A second call whose {@code entry.id()}
      * matches a previously dispatched entry must not cause the underlying inbound-port method to
-     * be invoked a second time.
+     * be invoked a second time. The carve-out is {@code TransitionFired}, whose key is the entry id
+     * and the action index together: the in-process adapter runs {@code SetProperty} and {@code
+     * CreateObject} actions again on a repeat call.
+     *
+     * <p>A {@link OutboxEntry#KIND_TRANSITION_FIRED} entry applies the transition's actions.
      *
      * @param scope the tenant and principal to dispatch the action on behalf of; must not be
      *     {@code null}
      * @param entry the outbox entry describing the work to dispatch; must not be {@code null}
      * @throws NullPointerException if either argument is {@code null}
      * @throws IllegalArgumentException if {@code entry.kind()} is not one of {@link
-     *     OutboxEntry#KIND_ACTION_REQUEST}, {@link OutboxEntry#KIND_OBJECT_CREATED}, {@link
+     *     OutboxEntry#KIND_TRANSITION_FIRED}, {@link OutboxEntry#KIND_OBJECT_CREATED}, {@link
      *     OutboxEntry#KIND_OBJECT_UPDATED}, {@link OutboxEntry#KIND_OBJECT_DELETED}, {@link
      *     OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, or {@link
-     *     OutboxEntry#KIND_SIGNAL_RECEIVED}. An {@link OutboxEntry#KIND_TRANSITION_FIRED} entry is
-     *     accepted and does nothing
+     *     OutboxEntry#KIND_SIGNAL_RECEIVED}
+     * @throws IllegalStateException if a {@code TransitionFired} entry's {@code ontologyVersion}
+     *     stamp is missing or does not match the automation's ontology version
      */
     void dispatch(Scope scope, OutboxEntry entry);
 }

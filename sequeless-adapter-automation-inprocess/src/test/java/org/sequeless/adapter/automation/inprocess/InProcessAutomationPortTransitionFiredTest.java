@@ -32,11 +32,12 @@ import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
- * Covers {@link InProcessAutomationPort#dispatchTransitionFired}, the dormant per-action path for a
- * {@code TransitionFired} row: a {@code Log} action is applied once and not again on redelivery, a
- * {@code SetProperty} action is applied again on every delivery, a {@code Webhook} action is recorded
- * only once its delivery succeeds, and a row that is unstamped or written at another ontology version
- * is refused rather than skipped.
+ * Covers the applied {@code TransitionFired} path through {@link InProcessAutomationPort}:
+ * {@link InProcessAutomationPort#dispatch} hands each such row to {@link
+ * InProcessAutomationPort#dispatchTransitionFired}, which applies the row's actions. A {@code Log}
+ * action is applied once and not again on redelivery, a {@code SetProperty} action is applied again on
+ * every delivery, a {@code Webhook} action is recorded only once its delivery succeeds, and a row that
+ * is unstamped or written at another ontology version is refused rather than skipped.
  */
 class InProcessAutomationPortTransitionFiredTest {
 
@@ -136,6 +137,22 @@ class InProcessAutomationPortTransitionFiredTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void dispatchAppliesTheSingleActionOfAStampedTransitionFiredRowOnce() {
+        Automation automation = new Automation(
+                new OntologyVersion(1),
+                Map.of(
+                        new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME),
+                        List.<Action>of(new LogAction("project activated"))));
+        RecordingActionExecutor recorder = new RecordingActionExecutor();
+        InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
+
+        port.dispatch(SCOPE, transitionFired(1));
+
+        assertThat(recorder.countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
+                .isEqualTo(1);
     }
 
     @Test

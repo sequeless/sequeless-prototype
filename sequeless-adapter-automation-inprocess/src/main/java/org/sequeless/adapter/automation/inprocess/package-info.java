@@ -1,8 +1,10 @@
 /**
  * The test/dev {@code AutomationPort} adapter, used in place of Temporal for tests and local
- * development: {@link org.sequeless.adapter.automation.inprocess.InProcessAutomationPort} routes
- * an {@code ActionRequest} outbox entry to the matching {@code ActionExecutor} method
- * synchronously, on the calling (relay) thread, including a small fixed retry loop around a {@code
+ * development: {@link org.sequeless.adapter.automation.inprocess.InProcessAutomationPort} applies
+ * a {@code TransitionFired} outbox entry action by action, synchronously, on the calling (relay)
+ * thread, in the automation's index order, through the matching {@code ActionExecutor} method. An
+ * {@code ActionRequest} entry is rejected as an unsupported kind. The adapter also includes a small
+ * fixed retry loop around a {@code
  * sq:Webhook} action's actual HTTP call (via the JDK's own {@code java.net.http.HttpClient}, no
  * new dependency). Unlike a future Temporal adapter, this one owns idempotency itself — an
  * in-memory, process-lifetime {@code Set} of already-dispatched {@code OutboxEntry} ids — since it

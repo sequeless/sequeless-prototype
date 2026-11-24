@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,15 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.CreateObjectAction;
+import org.sequeless.ontology.automation.api.PropertyAssignment;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
@@ -37,7 +47,10 @@ import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -53,19 +66,20 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * relay crashed between committing an outbox row and finishing its dispatch, then redispatched the
  * same row after restart."
  *
- * <p><b>Deliberately hand-builds its own {@code ActionRequest} {@link OutboxEntry} payloads rather
- * than going through {@code sq:CreateObject}/{@code sq:Webhook} actions declared in {@code
- * reference.ttl}.</b> {@link OutboxEntry#id()} is caller-assigned, {@link ChangeSet} accepts any
- * caller-built {@link OutboxEntry} list alongside a non-empty {@link Mutation} list, and {@link
- * ObjectStorePort#commit} persists both atomically for real — so this test attaches a
- * hand-built, {@code Webhook}- or {@code CreateObject}-kind {@code ActionRequest} row to a
- * legitimate {@link Update} mutation (bumping an already-created {@code Project}'s version) and
- * commits through the real {@link ObjectStorePort} bean. This exercises the exact production path
- * (a real {@code OutboxRelay} tick &rarr; the real {@link AutomationPort} bean &rarr; a real
- * Temporal workflow/activity &rarr; the real {@code ActionExecutor} &rarr; a real HTTP call for
- * the webhook test) without touching {@code reference.ttl} or its {@code sq:ProjectLifecycle}
- * transitions at all — see {@code DefaultTransitionService}'s exact payload shape (finding F23)
- * that this class's payload-building helpers mirror field for field.
+ * <p><b>Deliberately hand-builds its own {@code TransitionFired} {@link OutboxEntry} rows rather
+ * than running a real transition of {@code reference.ttl}.</b> {@link OutboxEntry#id()} is
+ * caller-assigned, {@link ChangeSet} accepts any caller-built {@link OutboxEntry} list alongside a
+ * non-empty {@link Mutation} list, and {@link ObjectStorePort#commit} persists both atomically for
+ * real — so this test attaches a hand-built {@code TransitionFired} row to a legitimate {@link
+ * Update} mutation (bumping an already-created {@code Project}'s version) and commits through the
+ * real {@link ObjectStorePort} bean. The row's transitions ({@code webhookRetries} and {@code
+ * createIdempotent}) are not in {@code reference.ttl}, so their actions come from a test-only
+ * {@code @Primary} {@link AutomationSource} ({@link AutomationSourceTestConfiguration}) that this
+ * class's tests set per test. This exercises the production path (a real {@code OutboxRelay} tick
+ * &rarr; the real {@link AutomationPort} bean &rarr; a real Temporal workflow/activity &rarr; the
+ * real {@code ActionExecutor} &rarr; a real HTTP call for the webhook test) without touching {@code
+ * reference.ttl} or any production class. The row's payload mirrors the keys {@code
+ * DefaultTransitionService} writes on a {@code TransitionFired} row, field for field.
  *
  * <p>Retry properties are overridden to keep this test fast: 50ms initial interval, 1.0 backoff
  * coefficient (no exponential growth), 5 max attempts.
@@ -86,6 +100,48 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     private static final Scope SCOPE = new Scope(TenantId.DEFAULT, Principal.ANONYMOUS);
     private static final String TASK_TYPE_IRI = "https://sequeless.dev/ns/ref#Task";
     private static final String TITLE_PROPERTY_IRI = "https://sequeless.dev/ns/ref#title";
+    private static final int ONTOLOGY_VERSION = 1;
+    private static final String MACHINE_IRI = "https://sequeless.dev/ns/test#TestLifecycle";
+    private static final String FROM_STATE_IRI = "https://sequeless.dev/ns/test#Draft";
+    private static final String TO_STATE_IRI = "https://sequeless.dev/ns/test#Active";
+
+    /**
+     * Registers the test-only {@code @Primary} {@link AutomationSource} this class's rows resolve their
+     * actions from. The reference ontology declares neither {@code webhookRetries} nor {@code
+     * createIdempotent}, so the Jena source the application would otherwise use serves no actions for
+     * them. This is the same {@code @Primary} override shape {@code AutomationEndToEndTest} uses for its
+     * {@link java.time.Clock}. Spring Boot picks up this single nested {@code @TestConfiguration}
+     * automatically.
+     */
+    @TestConfiguration
+    static class AutomationSourceTestConfiguration {
+
+        @Bean
+        @Primary
+        ServedAutomationSource servedAutomationSource() {
+            return new ServedAutomationSource();
+        }
+    }
+
+    /**
+     * An {@link AutomationSource} that serves whatever automation the test last handed to {@link
+     * #serve(Automation)}. Every row this class commits is stamped with {@link #ONTOLOGY_VERSION}, so the
+     * automation served must carry that version too.
+     */
+    static final class ServedAutomationSource implements AutomationSource {
+
+        private final AtomicReference<Automation> served =
+                new AtomicReference<>(new Automation(new OntologyVersion(ONTOLOGY_VERSION), Map.of()));
+
+        void serve(Automation automation) {
+            served.set(automation);
+        }
+
+        @Override
+        public Automation automation(TenantId tenantId) {
+            return served.get();
+        }
+    }
 
     @LocalServerPort
     private int port;
@@ -98,6 +154,9 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
 
     @Autowired
     private AutomationPort automationPort;
+
+    @Autowired
+    private ServedAutomationSource servedAutomationSource;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -131,15 +190,17 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         });
         webhookServer.start();
         String webhookUrl = "http://localhost:" + webhookServer.getAddress().getPort() + "/hook";
+        servedAutomationSource.serve(
+                automation("webhookRetries", new WebhookAction(webhookUrl, "POST", Optional.of("delivered"))));
 
         BusinessObjectResponse project = createProject("Webhook retry project");
         BusinessObject existing =
                 objectStorePort.find(SCOPE, new ObjectId(project.id())).orElseThrow();
 
         Update touch = touch(existing);
-        OutboxEntry actionRequest = webhookActionRequestEntry(existing, "webhookRetries", webhookUrl);
+        OutboxEntry transitionFired = transitionFiredEntry(UUID.randomUUID(), existing, "webhookRetries");
 
-        objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(actionRequest)));
+        objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(transitionFired)));
 
         awaitRequestCount(requestCount, 4);
         assertThat(requestCount.get()).as("total webhook requests observed").isEqualTo(4);
@@ -150,6 +211,12 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     @Test
     void dispatchingSameActionTwiceCreatesOnlyOneTask() {
         String uniqueTitle = "Idempotency Task " + UUID.randomUUID();
+        servedAutomationSource.serve(automation(
+                "createIdempotent",
+                new CreateObjectAction(
+                        TASK_TYPE_IRI,
+                        List.of(new PropertyAssignment(
+                                TITLE_PROPERTY_IRI, Optional.of(Value.text(uniqueTitle)), Optional.empty())))));
 
         BusinessObjectResponse project = createProject("Idempotency project");
         BusinessObject existing =
@@ -157,15 +224,15 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
 
         Update touch = touch(existing);
         UUID entryId = UUID.randomUUID();
-        OutboxEntry actionRequest = createObjectActionRequestEntry(entryId, existing, uniqueTitle);
+        OutboxEntry transitionFired = transitionFiredEntry(entryId, existing, "createIdempotent");
 
-        objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(actionRequest)));
+        objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(transitionFired)));
 
         // Simulates "the relay crashed between committing this row and finishing its dispatch,
         // then redispatched the identical row after restart": call dispatch() directly, twice,
         // bypassing OutboxPort's own claim mechanism (already covered by T8's contract tests).
-        automationPort.dispatch(SCOPE, actionRequest);
-        automationPort.dispatch(SCOPE, actionRequest);
+        automationPort.dispatch(SCOPE, transitionFired);
+        automationPort.dispatch(SCOPE, transitionFired);
 
         awaitExactlyOneTaskTitled(uniqueTitle);
     }
@@ -189,35 +256,26 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         return new Update(candidate, existing.version());
     }
 
-    private static OutboxEntry webhookActionRequestEntry(BusinessObject existing, String transitionName, String url) {
-        Map<String, Object> payload = commonPayload(existing, transitionName);
-        payload.put("actionKind", "Webhook");
-        payload.put("url", url);
-        payload.put("method", "POST");
-        payload.put("body", "delivered");
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+    /** Serves {@code action} as the only action of {@code transitionName} in this class's automation. */
+    private static Automation automation(String transitionName, Action action) {
+        TransitionRef transition = new TransitionRef(MACHINE_IRI, FROM_STATE_IRI, transitionName);
+        return new Automation(new OntologyVersion(ONTOLOGY_VERSION), Map.of(transition, List.of(action)));
     }
 
-    private static OutboxEntry createObjectActionRequestEntry(UUID entryId, BusinessObject existing, String title) {
-        Map<String, Object> payload = commonPayload(existing, "createIdempotent");
-        payload.put("actionKind", "CreateObject");
-        payload.put("createType", TASK_TYPE_IRI);
-        Map<String, Object> titleAssignment = Map.of("value", Map.of("text", title));
-        payload.put("createProperties", Map.of(TITLE_PROPERTY_IRI, titleAssignment));
-        return new OutboxEntry(entryId, OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
-    }
-
-    private static Map<String, Object> commonPayload(BusinessObject existing, String transitionName) {
+    /** A {@code TransitionFired} row carrying the keys {@code DefaultTransitionService} writes on one. */
+    private static OutboxEntry transitionFiredEntry(UUID id, BusinessObject existing, String transitionName) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
         payload.put("principalId", SCOPE.principal().id());
         payload.put("transitionName", transitionName);
-        payload.put("actionIndex", 0);
+        payload.put("fromState", FROM_STATE_IRI);
+        payload.put("toState", TO_STATE_IRI);
+        payload.put("ontologyVersion", ONTOLOGY_VERSION);
+        payload.put("machineIri", MACHINE_IRI);
         payload.put("typeIri", existing.type().iri());
-        payload.put("state", existing.state().orElse("Active"));
         payload.put("self", Map.of());
-        return payload;
+        return new OutboxEntry(id, OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
     }
 
     private void awaitRequestCount(AtomicInteger requestCount, int expected) {
@@ -231,13 +289,14 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         Optional<Boolean> claimed;
         do {
-            claimed = outboxPort.claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> Boolean.TRUE);
+            claimed =
+                    outboxPort.claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> Boolean.TRUE);
             if (claimed.isPresent()) {
                 sleep(Duration.ofMillis(100));
             }
         } while (claimed.isPresent() && Instant.now().isBefore(deadline));
         assertThat(claimed)
-                .as("no unprocessed ActionRequest outbox rows remain")
+                .as("no unprocessed TransitionFired outbox rows remain")
                 .isEmpty();
     }
 

@@ -1,18 +1,28 @@
 package org.sequeless.testkit.automation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.api.CreateObjectAction;
+import org.sequeless.ontology.automation.api.LogAction;
+import org.sequeless.ontology.automation.api.SetPropertyAction;
+import org.sequeless.ontology.automation.api.TransitionRef;
+import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
@@ -44,7 +54,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  *
  * <p><b>What this contract deliberately does not check.</b> {@link
  * #dispatchRoutesWebhookToResolveWebhook()} asserts only that {@link
- * org.sequeless.spi.automation.ActionExecutor#resolveWebhook} was invoked — it makes no assertion
+ * org.sequeless.spi.automation.ActionExecutor#resolveWebhookAction} was invoked — it makes no assertion
  * about any HTTP call an adapter might go on to make with the resolved request, since HTTP retry
  * policy genuinely differs between adapters (the in-process adapter's fixed retry loop vs. a
  * Temporal activity's {@code RetryOptions}) and is tested separately, per adapter.
@@ -53,6 +63,15 @@ public abstract class AutomationContract {
 
     /** The scope every test in this contract dispatches under; also reused by subclasses' own tests. */
     protected static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
+
+    private static final String MACHINE_IRI = "http://example.org/ProjectLifecycle";
+    private static final String DRAFT_IRI = "http://example.org/Draft";
+    private static final String ACTIVE_IRI = "http://example.org/Active";
+    private static final String STATUS_IRI = "http://example.org/status";
+    private static final String TRANSITION_NAME = "activate";
+
+    /** The transition every {@code TransitionFired} row this contract dispatches names. */
+    private static final TransitionRef TRANSITION = new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME);
 
     /**
      * @return the {@link AutomationPort} implementation under test, wired with {@link
@@ -100,63 +119,76 @@ public abstract class AutomationContract {
      */
     protected abstract void advanceTime(Duration by);
 
+    /**
+     * Makes the automation source this port reads from serve one {@link Automation} at ontology version
+     * 1, holding {@code actionsByTransition} and nothing else. A {@code TransitionFired} row this contract
+     * builds is stamped with version 1, so {@code dispatch} applies these actions. Every test that
+     * dispatches such a row calls this first.
+     *
+     * @param actionsByTransition the actions each transition holds, in order; must not be {@code null}
+     */
+    protected abstract void serveAutomationWithActions(Map<TransitionRef, List<Action>> actionsByTransition);
+
     @Test
-    void dispatchRoutesSetPropertyToApplySetProperty() {
-        OutboxEntry entry = actionRequestEntry(
-                "SetProperty", Map.of("property", "http://example.org/owner", "expression", "'user-2'"));
+    void dispatchRoutesSetPropertyActionToApplyAction() {
+        serveAutomationWithActions(Map.of(
+                TRANSITION,
+                List.<Action>of(new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner")))));
 
-        port().dispatch(SCOPE, entry);
+        port().dispatch(SCOPE, transitionFiredEntry());
 
-        assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_SET_PROPERTY))
-                .isEqualTo(1);
+        RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_APPLY_ACTION);
+        assertThat(call.action()).isInstanceOf(SetPropertyAction.class);
     }
 
     @Test
-    void dispatchRoutesCreateObjectToApplyCreateObject() {
-        OutboxEntry entry = actionRequestEntry(
-                "CreateObject", Map.of("createType", "http://example.org/Task", "createProperties", Map.of()));
+    void dispatchRoutesCreateObjectActionToApplyAction() {
+        serveAutomationWithActions(
+                Map.of(TRANSITION, List.<Action>of(new CreateObjectAction("http://example.org/Task", List.of()))));
 
-        port().dispatch(SCOPE, entry);
+        port().dispatch(SCOPE, transitionFiredEntry());
 
-        assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_CREATE_OBJECT))
-                .isEqualTo(1);
+        RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_APPLY_ACTION);
+        assertThat(call.action()).isInstanceOf(CreateObjectAction.class);
     }
 
     @Test
     void dispatchRoutesWebhookToResolveWebhook() {
-        OutboxEntry entry =
-                actionRequestEntry("Webhook", Map.of("url", "http://example.invalid/hook", "method", "POST"));
+        serveAutomationWithActions(Map.of(
+                TRANSITION,
+                List.<Action>of(new WebhookAction("http://example.invalid/hook", "POST", Optional.empty()))));
 
-        port().dispatch(SCOPE, entry);
+        port().dispatch(SCOPE, transitionFiredEntry());
 
-        assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_RESOLVE_WEBHOOK))
-                .isEqualTo(1);
+        RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_RESOLVE_WEBHOOK_ACTION);
+        assertThat(call.action()).isInstanceOf(WebhookAction.class);
     }
 
     @Test
-    void dispatchRoutesLogToApplyLog() {
-        OutboxEntry entry = actionRequestEntry("Log", Map.of("message", "hello"));
+    void dispatchRoutesLogActionToApplyAction() {
+        serveAutomationWithActions(Map.of(TRANSITION, List.<Action>of(new LogAction("hello"))));
 
-        port().dispatch(SCOPE, entry);
+        port().dispatch(SCOPE, transitionFiredEntry());
 
-        assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_LOG))
-                .isEqualTo(1);
+        RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_APPLY_ACTION);
+        assertThat(call.action()).isInstanceOf(LogAction.class);
     }
 
     @Test
     void redispatchWithSameEntryIdIsIdempotent() {
-        OutboxEntry entry = actionRequestEntry("Log", Map.of("message", "hello"));
+        serveAutomationWithActions(Map.of(TRANSITION, List.<Action>of(new LogAction("hello"))));
+        OutboxEntry entry = transitionFiredEntry();
 
         port().dispatch(SCOPE, entry);
         port().dispatch(SCOPE, entry);
 
-        assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_LOG))
+        assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
                 .isEqualTo(1);
     }
 
     @Test
     void dispatchRejectsNullScope() {
-        OutboxEntry entry = actionRequestEntry("Log", Map.of("message", "hello"));
+        OutboxEntry entry = transitionFiredEntry();
         assertThatNullPointerException().isThrownBy(() -> port().dispatch(null, entry));
     }
 
@@ -165,8 +197,12 @@ public abstract class AutomationContract {
         assertThatNullPointerException().isThrownBy(() -> port().dispatch(SCOPE, null));
     }
 
+    /**
+     * A {@code TransitionFired} row with no {@code ontologyVersion} stamp is rejected: {@code dispatch}
+     * throws {@link IllegalStateException} and starts nothing for that row.
+     */
     @Test
-    void dispatchAcceptsTransitionFiredAsANoOp() {
+    void dispatchRejectsTransitionFiredWithoutOntologyVersionStamp() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
@@ -177,11 +213,8 @@ public abstract class AutomationContract {
         OutboxEntry entry =
                 new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
-        port().dispatch(SCOPE, entry);
-
+        assertThatIllegalStateException().isThrownBy(() -> port().dispatch(SCOPE, entry));
         assertThat(recordingExecutor().calls()).isEmpty();
-        assertThat(recordingTriggerEvaluator().calls()).isEmpty();
-        assertThat(recordingDerivationRecomputer().calls()).isEmpty();
     }
 
     @Test
@@ -344,22 +377,43 @@ public abstract class AutomationContract {
     }
 
     /**
-     * Builds a valid {@code ActionRequest} {@link OutboxEntry} payload matching the exact shape
-     * {@code org.sequeless.core.usecase.DefaultTransitionService} produces: the fields common to
-     * every action kind, plus whatever {@code extra} kind-specific fields the caller supplies.
+     * Builds a {@code TransitionFired} {@link OutboxEntry} for {@link #TRANSITION}, carrying the keys
+     * {@code DefaultTransitionService} writes on one and stamped with ontology version 1.
      */
-    private static OutboxEntry actionRequestEntry(String actionKind, Map<String, Object> extra) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", UUID.randomUUID().toString());
-        payload.put("tenantId", SCOPE.tenantId().value());
-        payload.put("principalId", SCOPE.principal().id());
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", "http://example.org/Project");
-        payload.put("state", "Active");
-        payload.put("self", Map.of());
-        payload.put("actionKind", actionKind);
-        payload.putAll(extra);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+    private static OutboxEntry transitionFiredEntry() {
+        Map<String, Object> payload = Map.of(
+                "objectId",
+                UUID.randomUUID().toString(),
+                "tenantId",
+                SCOPE.tenantId().value(),
+                "principalId",
+                SCOPE.principal().id(),
+                "transitionName",
+                TRANSITION_NAME,
+                "fromState",
+                DRAFT_IRI,
+                "toState",
+                ACTIVE_IRI,
+                "ontologyVersion",
+                1,
+                "self",
+                Map.of(),
+                "typeIri",
+                "http://example.org/Project",
+                "machineIri",
+                MACHINE_IRI);
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+    }
+
+    /**
+     * Asserts that exactly one call was recorded and that it has {@code method}, then returns it.
+     *
+     * @param method one of the {@code METHOD_*} constants of {@link RecordingActionExecutor}
+     */
+    private RecordingActionExecutor.Call onlyCallOf(String method) {
+        List<RecordingActionExecutor.Call> calls = recordingExecutor().calls();
+        assertThat(calls).hasSize(1);
+        assertThat(calls.get(0).method()).isEqualTo(method);
+        return calls.get(0);
     }
 }

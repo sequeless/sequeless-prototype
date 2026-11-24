@@ -9,15 +9,12 @@ import org.sequeless.spi.object.ObjectStorePort;
  * The outbound port a relay polls to claim one unprocessed outbox row of a caller-chosen kind at a
  * time, hand it to a handler, and mark it processed — all inside one short transaction, so a slow
  * action never blocks other rows and a crash mid-dispatch simply releases the row's lock for the
- * next poll. Originally shaped around {@link OutboxEntry#KIND_ACTION_REQUEST} alone, this port now
- * claims across whatever set of kinds the caller names — {@code OutboxRelay} passes the full
- * dispatchable set ({@link OutboxEntry#KIND_ACTION_REQUEST}, the three object-lifecycle kinds, {@link
- * OutboxEntry#KIND_TRANSITION_FIRED}, and the three automation kinds introduced alongside {@code
- * org.sequeless.ontology.behaviour.api.TriggerSpec}) —
- * because a single relay now fans one polling loop out to several inbound ports rather than always
- * calling {@code ActionExecutor}. {@link OutboxEntry#KIND_TRANSITION_FIRED} is claimable: the relay
- * hands it to the automation port, whose adapters accept it as a no-op until it carries actions and
- * timers.
+ * next poll. This port claims across whatever set of kinds the caller names, because one relay
+ * fans its polling loop out to several inbound ports rather than always calling {@code
+ * ActionExecutor}. {@code OutboxRelay} passes the dispatchable set: the three object-lifecycle
+ * kinds, {@link OutboxEntry#KIND_TRANSITION_FIRED}, and the timer and signal kinds introduced
+ * alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec}. A {@code TransitionFired}
+ * row is handed to the automation port, whose adapters apply its actions.
  *
  * <p>Deliberately a sibling port to {@link ObjectStorePort}, not a method added to it: {@code
  * ObjectStorePort} has many implementers (the postgres adapter and several in-memory test doubles)

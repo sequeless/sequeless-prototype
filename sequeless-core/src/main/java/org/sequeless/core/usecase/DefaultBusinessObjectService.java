@@ -690,7 +690,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     /**
      * Encodes {@code object}'s stored properties, keyed by their <b>full IRI</b> (not short name),
      * into the tagged, JSON-compatible shape {@link PayloadValueCodec#toPayload} produces — the same
-     * scheme {@code DefaultTransitionService.selfPayload} uses for an {@code ActionRequest}'s {@code
+     * scheme {@code DefaultTransitionService.selfPayload} uses for a {@code TransitionFired} row's {@code
      * self} map, except keyed differently on purpose: {@code self} is short-name-keyed because it
      * feeds an {@link org.sequeless.expression.api.ExpressionContext}, whereas this snapshot is
      * consulted by {@code DefaultTriggerEvaluator}/{@code DefaultDerivationRecomputer} matching

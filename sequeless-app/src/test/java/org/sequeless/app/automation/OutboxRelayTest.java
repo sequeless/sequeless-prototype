@@ -45,9 +45,9 @@ class OutboxRelayTest {
     @Test
     void multipleQueuedRowsAllDrainWithinOnePollOnceCall() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
         OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
@@ -60,9 +60,9 @@ class OutboxRelayTest {
     @Test
     void dispatchExceptionStopsDrainAndLeavesRemainingRowsUnclaimed() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
         automationPort.throwOnCall(2); // the second dispatched row fails
 
@@ -80,7 +80,7 @@ class OutboxRelayTest {
     @Test
     void pollOnceMakesNoOutboxCallsWhenNoAutomationPortIsAvailable() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
-        outboxPort.enqueue("tenant-a", actionRequest("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         OutboxRelay relay = new OutboxRelay(outboxPort, unavailableProvider(), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
@@ -92,7 +92,7 @@ class OutboxRelayTest {
     @Test
     void scopeHandedToDispatchReconstructsTenantAndPrincipalFromPayload() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
-        outboxPort.enqueue("acme-tenant", actionRequest("acme-tenant", "alice"));
+        outboxPort.enqueue("acme-tenant", transitionFired("acme-tenant", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
         OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
@@ -117,6 +117,23 @@ class OutboxRelayTest {
         assertThat(automationPort.dispatchedEntries).hasSize(1);
         assertThat(automationPort.dispatchedEntries.get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
         assertThat(outboxPort.isEmpty()).isTrue();
+    }
+
+    /**
+     * The relay claims only its dispatchable kinds. An {@code ActionRequest} row is not one of them,
+     * so it stays unprocessed and nothing is dispatched for it.
+     */
+    @Test
+    void relayDoesNotClaimActionRequestRows() {
+        InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
+        outboxPort.enqueue("tenant-a", actionRequest());
+        RecordingAutomationPort automationPort = new RecordingAutomationPort();
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+
+        relay.pollOnce();
+
+        assertThat(automationPort.dispatchedEntries).isEmpty();
+        assertThat(outboxPort.remaining()).isEqualTo(1);
     }
 
     /**
@@ -164,25 +181,13 @@ class OutboxRelayTest {
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
     }
 
-    /**
-     * Builds an {@code ActionRequest}-kind {@link OutboxEntry} matching the payload shape {@code
-     * DefaultTransitionService#actionRequestPayload} produces for a {@code Log} action — the
-     * simplest of the four action kinds, sufficient here since this test only exercises {@link
-     * OutboxRelay}'s own {@code buildScope} logic, never actually resolving the payload through an
-     * {@link org.sequeless.spi.automation.ActionExecutor}.
-     */
-    private static OutboxEntry actionRequest(String tenantId, String principalId) {
+    /** Builds a legacy {@code ActionRequest}-kind {@link OutboxEntry}, which the relay must not claim. */
+    @SuppressWarnings("deprecation")
+    private static OutboxEntry actionRequest() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
-        payload.put("tenantId", tenantId);
-        payload.put("principalId", principalId);
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", "https://example.com/ns#Project");
-        payload.put("state", "https://example.com/ns#Active");
-        payload.put("self", Map.of());
-        payload.put("actionKind", "Log");
-        payload.put("message", "project activated");
+        payload.put("tenantId", "tenant-a");
+        payload.put("principalId", "alice");
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
     }
 
