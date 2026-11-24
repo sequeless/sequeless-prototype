@@ -157,7 +157,11 @@ class InProcessAutomationPortTransitionFiredTest {
 
     @Test
     void dispatchTransitionFiredRefusesARowWithNoOntologyVersionStampAndNamesTheRow() {
-        Automation automation = new Automation(new OntologyVersion(1), Map.of());
+        Automation automation = new Automation(
+                new OntologyVersion(1),
+                Map.of(
+                        new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME),
+                        List.<Action>of(new LogAction("project activated"))));
         RecordingActionExecutor recorder = new RecordingActionExecutor();
         InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
         OutboxEntry unstamped = unstampedTransitionFired();
@@ -165,6 +169,23 @@ class InProcessAutomationPortTransitionFiredTest {
         assertThatThrownBy(() -> port.dispatchTransitionFired(SCOPE, unstamped))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(unstamped.id().toString());
+        assertThat(recorder.calls()).isEmpty();
+    }
+
+    @Test
+    void dispatchTransitionFiredRefusesANonNumberStampAndNamesTheRow() {
+        Automation automation = new Automation(
+                new OntologyVersion(1),
+                Map.of(
+                        new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME),
+                        List.<Action>of(new LogAction("project activated"))));
+        RecordingActionExecutor recorder = new RecordingActionExecutor();
+        InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
+        OutboxEntry textStamped = transitionFiredWithStamp("1");
+
+        assertThatThrownBy(() -> port.dispatchTransitionFired(SCOPE, textStamped))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(textStamped.id().toString());
         assertThat(recorder.calls()).isEmpty();
     }
 
@@ -177,6 +198,14 @@ class InProcessAutomationPortTransitionFiredTest {
                 triggerEvaluator,
                 new InProcessTimerScheduler(Clock.systemUTC(), triggerEvaluator),
                 tenant -> automation);
+    }
+
+    /** The row {@link #transitionFired(int)} builds, with {@code stamp} in place of its {@code ontologyVersion}. */
+    private static OutboxEntry transitionFiredWithStamp(Object stamp) {
+        Map<String, Object> payload = new HashMap<>(transitionFired(1).payload());
+        payload.put("ontologyVersion", stamp);
+        return new OutboxEntry(
+                UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.parse("2026-01-01T00:00:00Z"));
     }
 
     /** The row {@link #transitionFired(int)} builds, minus the {@code ontologyVersion} stamp. */

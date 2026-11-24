@@ -31,8 +31,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * JsonNode}.
  *
  * <p>{@link #toPayload(Value)} is used by {@code DefaultTransitionService} to build the {@code self}
- * map of each {@code TransitionFired} {@link OutboxEntry}. The writer no longer writes {@code
- * ActionRequest} rows, so it builds no {@code value} field;
+ * map of each {@code TransitionFired} {@link OutboxEntry}.
  * {@link #fromPayload(Object)} is the symmetric decode a later {@code
  * org.sequeless.core.automation.ActionExecutor} implementation uses to read them back.
  *

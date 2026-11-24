@@ -126,8 +126,8 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         automationSource = new SwappableAutomationSource();
 
         // Published before env.start(), mirroring TemporalAutomationAutoConfiguration's own
-        // ordering requirement (see ActionWorkflowImpl's javadoc for why this must happen first).
-        ActionWorkflowImpl.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
+        // ordering requirement (see TemporalActivityOptions' javadoc for why this must happen first).
+        TemporalActivityOptions.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofSeconds(10))
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build();
@@ -135,7 +135,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         env = TestWorkflowEnvironment.newInstance();
         Worker worker = env.newWorker(TASK_QUEUE);
         worker.registerWorkflowImplementationTypes(
-                ActionWorkflowImpl.class,
                 TransitionActionWorkflowImpl.class,
                 ChangeEventWorkflowImpl.class,
                 TimerWorkflowImpl.class,
@@ -428,26 +427,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
 
         void setDelegate(ActionExecutor delegate) {
             this.delegate = delegate;
-        }
-
-        @Override
-        public void applySetProperty(Scope scope, OutboxEntry entry) {
-            delegate.applySetProperty(scope, entry);
-        }
-
-        @Override
-        public void applyCreateObject(Scope scope, OutboxEntry entry) {
-            delegate.applyCreateObject(scope, entry);
-        }
-
-        @Override
-        public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
-            return delegate.resolveWebhook(scope, entry);
-        }
-
-        @Override
-        public void applyLog(Scope scope, OutboxEntry entry) {
-            delegate.applyLog(scope, entry);
         }
 
         @Override

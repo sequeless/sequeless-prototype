@@ -292,7 +292,7 @@ class DefaultTransitionServiceTest {
                 false);
     }
 
-    // --- happy path: guard passes, state moves, one TransitionFired row and no ActionRequest ---
+    // --- happy path: guard passes, state moves, one TransitionFired row ---
 
     @Test
     void fireThrowsIllegalStateWhenAutomationIsAtAnotherOntologyVersionAndCommitsNothing() {
@@ -310,7 +310,7 @@ class DefaultTransitionServiceTest {
     }
 
     @Test
-    void fireCommitsUpdateMovingStateAndDispatchesOneTransitionFiredRowAndNoActionRequest() {
+    void fireCommitsUpdateMovingStateAndDispatchesOneTransitionFiredRow() {
         ObjectId id = ObjectId.random();
         Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
         BusinessObject existing = project(id, 5, DRAFT_IRI, properties);
@@ -343,8 +343,6 @@ class DefaultTransitionServiceTest {
                 .containsEntry("fromState", DRAFT_IRI)
                 .containsEntry("toState", ACTIVE_IRI)
                 .containsEntry("ontologyVersion", 1);
-
-        assertThat(changeSet.outbox()).extracting(OutboxEntry::kind).doesNotContain(OutboxEntry.KIND_ACTION_REQUEST);
     }
 
     @Test

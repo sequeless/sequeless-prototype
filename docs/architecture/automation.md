@@ -43,9 +43,9 @@ adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depen
 - `OutboxEntry.KIND_TRANSITION_FIRED = "TransitionFired"` — one per fired transition, carrying the
   transition's actions (the payload is described below). The relay claims it like every other kind,
   and both automation adapters apply its actions.
-- `OutboxEntry.KIND_ACTION_REQUEST = "ActionRequest"` — deprecated. No code writes an `ActionRequest`
-  row any more, and the relay no longer claims one. Rows written before the flip still exist until
-  the V8 migration stamps them processed (see "Rows written before the flip" below).
+- The `ActionRequest` kind has no constant any more: P2e removed `OutboxEntry.KIND_ACTION_REQUEST`.
+  No code writes an `ActionRequest` row, and the relay does not claim one. Rows written before the
+  flip were stamped processed by the V8 migration (see "Rows written before the flip" below).
 
 Phase 6 (DR-12) adds three more constants, all documented directly on `OutboxEntry` itself (the
 authoritative list — this document doesn't repeat their payload shapes beyond what's useful here;
@@ -104,11 +104,10 @@ principal — is baked into the payload the moment the transition commits. A Tem
 (hours later, after a crash) or an in-process relay redispatch therefore never reads the object's
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
 `self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
-re-read" a design property rather than an incidental optimization — `ActionExecutor`'s four
-ActionRequest methods need nothing beyond the frozen payload to do their job. A test feeds a real
+re-read" a design property rather than an incidental optimization — `ActionExecutor`'s single-action
+methods need nothing beyond the frozen payload to do their job. A test feeds a real
 `DefaultTransitionService.fire(...)` call's `TransitionFired` row straight into `DefaultActionExecutor`
-to confirm it (`DefaultActionExecutorTest`). The hand-built `ActionRequest` tests in that class
-exercise the drain path, which is removed in P2e.
+to confirm it (`DefaultActionExecutorTest`).
 
 **What the per-action path reads, and when.** The row names the transition (`machineIri`,
 `fromState`, `transitionName`) and its `ontologyVersion`, but not the actions. Both adapters read the
@@ -204,33 +203,26 @@ soon as the workflows durably **start**, not when they complete. `TransitionActi
 a `Webhook` action. The workflow input is the raw `OutboxEntry` with no bespoke DTO, which Temporal's
 default Jackson-based `DataConverter` round-trips natively.
 
-`ActionWorkflow` (`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry)`) is still
-registered on the worker, but nothing starts it: `dispatch` no longer routes `ActionRequest` rows to
-it. It is deleted in a later phase (spec 13, P2e). Its activity methods are the drain path's four
-`ActionRequest` methods (`applySetProperty`/`applyCreateObject`/`applyLog`, thin pass-throughs to
-`ActionExecutor`, and `executeWebhook`, which additionally performs the real HTTP call and throws
-`WebhookActivityException` on a non-2xx status or transport failure).
-
-Retries are Temporal's own, not a hand-rolled loop: `ActionActivitiesImpl.executeWebhook`
-deliberately does **not** retry — it throws once, letting Temporal's `RetryOptions` (attached to
-the `ActivityOptions` every activity stub is built with) retry the whole activity invocation. The
-policy is bound from `sequeless.automation.temporal.retry.*`
-(`TemporalAutomationProperties.Retry`): `initial-interval` (default **1s**), `backoff-coefficient`
-(default **2.0**), `maximum-attempts` (default **5**, including the first attempt) — applied
-uniformly to all five activity methods. This is the exact mechanism a "500, 500, 500, 200" acceptance
-test exercises.
+Retries are Temporal's own, not a hand-rolled loop: the webhook delivery in
+`ActionActivitiesImpl.applyTransitionAction` deliberately does **not** retry — it throws
+`WebhookActivityException` once, letting Temporal's `RetryOptions` (attached to the `ActivityOptions`
+every activity stub is built with) retry the whole activity invocation. The policy is bound from
+`sequeless.automation.temporal.retry.*` (`TemporalAutomationProperties.Retry`): `initial-interval`
+(default **1s**), `backoff-coefficient` (default **2.0**), `maximum-attempts` (default **5**, including
+the first attempt) — applied uniformly to the activity method. This is the exact mechanism a "500, 500,
+500, 200" acceptance test exercises.
 
 **Genuine Temporal SDK constraint worth knowing before touching this wiring.** Temporal
-instantiates `ActionWorkflowImpl` itself, reflectively, once per workflow execution — a workflow
-implementation must have a public no-arg constructor, so `ActivityOptions` (and the `RetryOptions`
-it carries) cannot be constructor-injected the way `ActionActivitiesImpl` takes its
+instantiates the workflow implementations itself, reflectively, once per workflow execution — a
+workflow implementation must have a public no-arg constructor, so `ActivityOptions` (and the
+`RetryOptions` it carries) cannot be constructor-injected the way `ActionActivitiesImpl` takes its
 `ActionExecutor`. The chosen workaround is a `static volatile ActivityOptions ACTIVITY_OPTIONS`
-field on `ActionWorkflowImpl`, published exactly once by
+field on the package-private `TemporalActivityOptions` class, published exactly once by
 `TemporalAutomationAutoConfiguration.workerFactory` **before** `WorkerFactory.start()` is called;
-every subsequent workflow execution (a fresh `ActionWorkflowImpl` instance each time) reads the
-same already-published value. `execute()` throws `IllegalStateException` if this field is still
-`null` when read — a loud failure for the wiring bug of starting a worker without the
-auto-configuration having run, rather than a silent `NullPointerException` deep in workflow logic.
+every subsequent workflow execution (a fresh workflow instance each time) reads the same
+already-published value. Each reader throws `IllegalStateException` if this field is still `null`
+when read — a loud failure for the wiring bug of starting a worker without the auto-configuration
+having run, rather than a silent `NullPointerException` deep in workflow logic.
 
 ## 5. Idempotency
 
@@ -260,14 +252,14 @@ relay retry, which has no equivalent guard of its own — see (c)) cannot produc
 side-effect, because `DefaultActionExecutor` (`sequeless-core`,
 `org.sequeless.core.automation.DefaultActionExecutor`) is idempotent by construction:
 
-- `applyCreateObject` derives the new object's id deterministically —
-  `UUID.nameUUIDFromBytes((entry.id() + ":" + actionIndex).getBytes(UTF_8))` — rather than
+- `applyAction`'s `CreateObject` case derives the new object's id deterministically —
+  `UUID.nameUUIDFromBytes((row.id() + ":" + actionIndex).getBytes(UTF_8))` — rather than
   generating one randomly, and checks `ObjectStorePort#find` at that derived id first. A retried
   call finds the object already exists and returns immediately without creating a duplicate.
-- `applySetProperty` resolves the target value, then compares it against the property's *current*
-  value and only calls `commit` if they differ — a no-op write on retry. It is also a safe no-op
-  (never `ObjectNotFoundException`) if the target object has since been deleted, since a retry must
-  always be able to succeed.
+- `applyAction`'s `SetProperty` case resolves the target value, then compares it against the
+  property's *current* value and only calls `commit` if they differ — a no-op write on retry. It is
+  also a safe no-op (never `ObjectNotFoundException`) if the target object has since been deleted,
+  since a retry must always be able to succeed.
 
 **(c) The in-process adapter's own weaker, process-lifetime-only guard.**
 `InProcessAutomationPort` keeps an in-memory `ConcurrentHashMap`-backed `Set<UUID>` of every

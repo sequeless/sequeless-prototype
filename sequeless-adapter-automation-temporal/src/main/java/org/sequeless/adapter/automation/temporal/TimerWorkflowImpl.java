@@ -7,11 +7,8 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The real {@link TimerWorkflow} implementation. Like {@link ActionWorkflowImpl}, Temporal
- * instantiates this reflectively per execution, so it cannot take constructor-injected
- * dependencies; it reads the same published {@link ActionWorkflowImpl#ACTIVITY_OPTIONS} static
- * field {@link TemporalAutomationAutoConfiguration} assigns once before worker start (there is no
- * reason to duplicate a second static field for the same value).
+ * The real {@link TimerWorkflow} implementation. It reads {@link TemporalActivityOptions#ACTIVITY_OPTIONS},
+ * which explains why.
  */
 public final class TimerWorkflowImpl implements TimerWorkflow {
 
@@ -20,9 +17,9 @@ public final class TimerWorkflowImpl implements TimerWorkflow {
 
     @Override
     public void run(OutboxEntry entry, Scope scope) {
-        ActivityOptions activityOptions = ActionWorkflowImpl.ACTIVITY_OPTIONS;
+        ActivityOptions activityOptions = TemporalActivityOptions.ACTIVITY_OPTIONS;
         if (activityOptions == null) {
-            throw new IllegalStateException("ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
+            throw new IllegalStateException("TemporalActivityOptions.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         TriggerActivities activities = Workflow.newActivityStub(TriggerActivities.class, activityOptions);

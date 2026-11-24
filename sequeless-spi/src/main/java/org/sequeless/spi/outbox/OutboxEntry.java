@@ -62,18 +62,6 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     public static final String KIND_TRANSITION_FIRED = "TransitionFired";
 
     /**
-     * The event kind recorded once per {@code sq:action} a fired state-machine transition defines,
-     * carrying a self-contained payload (frozen at transition-fire time). Deliberately declared here,
-     * beside {@link #KIND_OBJECT_CREATED} and its siblings, rather than on the core use case that
-     * produces it: an adapter that consumes these rows (a relay, an automation port) must be able to
-     * filter on this constant without depending on {@code sequeless-core}, which the {@code
-     * noAdapterDependsOnCore} architecture rule forbids. No longer written or dispatched. Removed in
-     * P2e (spec 13).
-     */
-    @Deprecated
-    public static final String KIND_ACTION_REQUEST = "ActionRequest";
-
-    /**
      * The event kind recorded when a transition whose {@code org.sequeless.ontology.behaviour.api.TriggerSpec}
      * is a {@code org.sequeless.ontology.behaviour.api.TimerTrigger} is entered — that is, when the object
      * transitions into that timer transition's {@code fromStateIri} — exactly as entering {@code

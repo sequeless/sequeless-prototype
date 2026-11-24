@@ -20,7 +20,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  *
  * <p>This is deliberately the first thing this module's test suite checks: if it ever regresses
  * (e.g. after a Temporal SDK upgrade changes the default {@code ObjectMapper}'s record handling),
- * {@link ActionWorkflow}/{@link ActionActivities} would fail in a much more confusing way — a
+ * {@link TransitionActionWorkflowImpl}/{@link ActionActivities} would fail in a much more confusing way — a
  * workflow that silently loses data, or a worker that never starts — so this test fails fast and
  * explains exactly what broke instead.
  */
@@ -48,7 +48,7 @@ class OutboxEntryDataConverterRoundTripTest {
         payload.put("body", "templated-body");
 
         OutboxEntry original =
-                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
 
         DataConverter converter = DataConverter.getDefaultInstance();
         Optional<Payload> encoded = converter.toPayload(original);

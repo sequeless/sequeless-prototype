@@ -8,10 +8,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
 /**
  * The Temporal workflow that durably drives one {@code ObjectCreated}/{@code ObjectUpdated}/{@code
  * ObjectDeleted} outbox entry's recompute-then-onChange pair to completion. Workflow id is {@code
- * entry.id().toString()} with {@code WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE}, exactly {@link
- * ActionWorkflow}'s own idempotency mechanism — a redispatch of the identical entry raises {@code
- * WorkflowExecutionAlreadyStarted}, which {@link TemporalAutomationPort#dispatch} treats as a
- * successful no-op.
+ * entry.id().toString()} with {@code WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE}, so a redispatch of
+ * the identical entry raises {@code WorkflowExecutionAlreadyStarted}, which {@link
+ * TemporalAutomationPort#dispatch} treats as a successful no-op.
  *
  * <p><b>Ordering.</b> {@link ChangeEventWorkflowImpl#run} calls {@link TriggerActivities#recompute}
  * THEN {@link TriggerActivities#onChange}, in that order: {@code ex:ProjectLifecycle}'s {@code

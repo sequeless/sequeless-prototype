@@ -86,7 +86,7 @@ class ArchitectureTest {
     /**
      * {@code org.slf4j} (the facade, not any concrete provider) is allowed alongside the JDK: it is
      * a logging API with no implementation of its own and no adapter-specific technology behind it
-     * — {@code org.sequeless.core.automation.DefaultActionExecutor#applyLog} is the first, but not
+     * — {@code org.sequeless.core.automation.DefaultActionExecutor#applyAction} is the first, but not
      * necessarily the last, direct SLF4J usage in {@code sequeless-core}. This is narrower than the
      * blanket {@code java..} exemption: only the {@code org.slf4j} package itself is allowed, so a
      * concrete logging backend (Logback, Log4j2, ...) pulled in transitively would still violate

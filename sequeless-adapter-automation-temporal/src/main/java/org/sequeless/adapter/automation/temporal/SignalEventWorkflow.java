@@ -8,8 +8,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
 /**
  * The Temporal workflow that durably drives one {@code SignalReceived} outbox entry's {@link
  * TriggerActivities#onSignal} call to completion. Workflow id is {@code entry.id().toString()}
- * with {@code WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE}, exactly {@link ActionWorkflow}'s and
- * {@link ChangeEventWorkflow}'s own idempotency mechanism.
+ * with {@code WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE}, exactly {@link ChangeEventWorkflow}'s own
+ * idempotency mechanism.
  */
 @WorkflowInterface
 public interface SignalEventWorkflow {

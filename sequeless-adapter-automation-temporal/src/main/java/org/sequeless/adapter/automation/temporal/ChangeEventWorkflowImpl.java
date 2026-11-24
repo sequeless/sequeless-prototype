@@ -6,17 +6,16 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The real {@link ChangeEventWorkflow} implementation. See {@link TimerWorkflowImpl}'s javadoc for
- * why this reads {@link ActionWorkflowImpl#ACTIVITY_OPTIONS} rather than taking its own
- * constructor-injected copy.
+ * The real {@link ChangeEventWorkflow} implementation. It reads {@link
+ * TemporalActivityOptions#ACTIVITY_OPTIONS}, which explains why.
  */
 public final class ChangeEventWorkflowImpl implements ChangeEventWorkflow {
 
     @Override
     public void run(OutboxEntry entry, Scope scope) {
-        ActivityOptions activityOptions = ActionWorkflowImpl.ACTIVITY_OPTIONS;
+        ActivityOptions activityOptions = TemporalActivityOptions.ACTIVITY_OPTIONS;
         if (activityOptions == null) {
-            throw new IllegalStateException("ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
+            throw new IllegalStateException("TemporalActivityOptions.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         TriggerActivities activities = Workflow.newActivityStub(TriggerActivities.class, activityOptions);

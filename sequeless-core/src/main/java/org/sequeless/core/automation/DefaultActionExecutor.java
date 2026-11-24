@@ -41,28 +41,24 @@ import org.slf4j.LoggerFactory;
 /**
  * Reference implementation of {@link ActionExecutor}, called back into by an automation adapter
  * (the in-process relay, or a Temporal activity) once a fired transition's {@code TransitionFired}
- * outbox row has been dispatched. The writer no longer writes {@code ActionRequest} rows: the
- * {@code TransitionFired} row carries the {@code self} map and the transition's keys (its machine
- * IRI, from state and name), and the single-action methods read them from it. Every mutation this
- * class performs goes through {@link
- * ObjectStorePort#commit}, and every {@code value}/{@code expression}/template field an {@code
- * ActionRequest} payload carries is resolved through {@link ExpressionPort} — never evaluated by
- * hand here — exactly mirroring how {@code DefaultBusinessObjectService} and {@code
- * DefaultTransitionService} apply every other write.
+ * outbox row has been dispatched. The {@code TransitionFired} row carries the {@code self} map and
+ * the transition's keys (its machine IRI, from state and name), and the single-action methods read
+ * them from it. Every mutation this class performs goes through {@link ObjectStorePort#commit}, and
+ * every {@code value}/{@code expression}/template field of an action is resolved through {@link
+ * ExpressionPort} — never evaluated by hand here — exactly mirroring how {@code
+ * DefaultBusinessObjectService} and {@code DefaultTransitionService} apply every other write.
  *
- * <p>Both {@link #applySetProperty} and {@link #applyCreateObject} are designed to be safely
- * retried: {@link #applySetProperty} only commits when the target value actually differs from the
- * property's current value, and is a silent no-op if the target object no longer exists; {@link
- * #applyCreateObject} derives the new object's id deterministically from {@code entry.id()} and
- * {@code actionIndex} and is a no-op if an object already exists at that id. Neither {@link
- * #resolveWebhook} nor {@link #applyLog} touches {@link ObjectStorePort} at all — they only
- * render templated text through {@link ExpressionPort}, leaving any I/O (an HTTP call, a log
- * sink) to the caller.
+ * <p>{@link #applyAction} is designed to be safely retried. A {@code SetProperty} action only commits
+ * when the target value actually differs from the property's current value, and is a silent no-op if
+ * the target object no longer exists. A {@code CreateObject} action derives the new object's id
+ * deterministically from the row's id and the action's index, and is a no-op if an object already
+ * exists at that id. {@link #resolveWebhookAction} and a {@code Log} action do not touch {@link
+ * ObjectStorePort} at all — they only render templated text through {@link ExpressionPort}, leaving
+ * any I/O (an HTTP call, a log sink) to the caller.
  *
- * <p>The {@code ActionRequest} methods above and the single-action methods ({@link #applyAction}
- * and {@link #resolveWebhookAction}) share their write and render logic through private helpers,
- * so the two entry points cannot drift apart. The single-action methods take the typed {@link
- * Action} and read the row's context from a {@code TransitionFired} row.
+ * <p>The write and render logic is shared through private helpers, so the two entry points cannot
+ * drift apart. The single-action methods take the typed {@link Action} and read the row's context
+ * from a {@code TransitionFired} row.
  */
 public final class DefaultActionExecutor implements ActionExecutor {
 
@@ -85,55 +81,6 @@ public final class DefaultActionExecutor implements ActionExecutor {
         this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
         this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
-    }
-
-    @Override
-    public void applySetProperty(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-
-        Map<String, Object> payload = entry.payload();
-        ObjectId objectId = ObjectId.parse((String) payload.get("objectId"));
-        String property = (String) payload.get("property");
-        commitSetProperty(
-                scope, objectId, property, entry, () -> resolveTargetValue(payload, buildContext(payload, "state")));
-    }
-
-    @Override
-    public void applyCreateObject(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-
-        Map<String, Object> payload = entry.payload();
-        int actionIndex = ((Number) payload.get("actionIndex")).intValue();
-        commitCreateObject(
-                scope,
-                entry,
-                actionIndex,
-                (String) payload.get("createType"),
-                () -> resolvePayloadAssignments(payload, buildContext(payload, "state")));
-    }
-
-    @Override
-    public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-
-        Map<String, Object> payload = entry.payload();
-        return renderWebhook(
-                buildContext(payload, "state"),
-                (String) payload.get("url"),
-                (String) payload.get("method"),
-                Optional.ofNullable((String) payload.get("body")));
-    }
-
-    @Override
-    public void applyLog(Scope scope, OutboxEntry entry) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-
-        Map<String, Object> payload = entry.payload();
-        logMessage(buildContext(payload, "state"), (String) payload.get("message"));
     }
 
     @Override
@@ -182,7 +129,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
     }
 
     /**
-     * The one SetProperty write both {@link #applySetProperty} and {@link #applyAction} make. Does
+     * The one SetProperty write {@link #applyAction} makes. Does
      * nothing if the target object no longer exists. Otherwise resolves {@code target} (only now,
      * once the object is known to exist) and commits an update only if the value differs from the
      * property's current value.
@@ -230,7 +177,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
     }
 
     /**
-     * The one CreateObject write both {@link #applyCreateObject} and {@link #applyAction} make.
+     * The one CreateObject write {@link #applyAction} makes.
      * Derives the new object's id from {@code sourceRow}'s id and {@code actionIndex}, and does
      * nothing if an object already exists at that id. Otherwise resolves {@code properties} (only
      * now, once that check has passed) and creates the object.
@@ -283,23 +230,8 @@ public final class DefaultActionExecutor implements ActionExecutor {
     }
 
     /**
-     * The {@code ActionRequest}-payload form of {@link #resolveAssignments}: {@code createProperties}
-     * is keyed by property IRI, and each value is a {@code value}-or-{@code expression} map.
-     */
-    @SuppressWarnings("unchecked")
-    private Map<PropertyRef, Value> resolvePayloadAssignments(Map<String, Object> payload, ExpressionContext context) {
-        Map<String, Object> createProperties = (Map<String, Object>) payload.get("createProperties");
-        Map<PropertyRef, Value> properties = new HashMap<>();
-        for (Map.Entry<String, Object> entry : createProperties.entrySet()) {
-            Map<String, Object> valueOrExpression = (Map<String, Object>) entry.getValue();
-            properties.put(new PropertyRef(entry.getKey()), resolveTargetValue(valueOrExpression, context));
-        }
-        return properties;
-    }
-
-    /**
      * Renders a webhook's url, and its body if one is present, against {@code context}. {@code
-     * method} is used verbatim. Shared by {@link #resolveWebhook} and {@link #resolveWebhookAction}.
+     * method} is used verbatim. Used by {@link #resolveWebhookAction}.
      */
     private ResolvedWebhookRequest renderWebhook(
             ExpressionContext context, String urlTemplate, String method, Optional<String> bodyTemplate) {
@@ -309,8 +241,8 @@ public final class DefaultActionExecutor implements ActionExecutor {
     }
 
     /**
-     * Renders a {@code Log} action's message against {@code context} and logs it. Shared by {@link
-     * #applyLog} and {@link #applyAction}.
+     * Renders a {@code Log} action's message against {@code context} and logs it. Used by {@link
+     * #applyAction}.
      */
     private void logMessage(ExpressionContext context, String messageTemplate) {
         String message = expressionPort.renderTemplate(messageTemplate, context);
@@ -327,21 +259,11 @@ public final class DefaultActionExecutor implements ActionExecutor {
     }
 
     /**
-     * The {@code ActionRequest}-payload form of {@link #resolveTarget}: a tagged {@code value} is
-     * decoded via {@link PayloadValueCodec#fromPayload} before it is used.
-     */
-    private Value resolveTargetValue(Map<String, Object> valueOrExpression, ExpressionContext context) {
-        Object value = valueOrExpression.get("value");
-        Value decoded = value != null ? PayloadValueCodec.fromPayload(value) : null;
-        return resolveTarget(decoded, (String) valueOrExpression.get("expression"), context);
-    }
-
-    /**
      * Builds the {@link ExpressionContext} every {@code value}/{@code expression}/template field is
      * resolved against: {@code self} decodes directly into {@link ExpressionContext#selfProperties()}
      * with zero re-keying, since both are keyed by property short name. {@code stateKey} names the
-     * row's state: {@code "state"} on an {@code ActionRequest} row, {@code "toState"} on a {@code
-     * TransitionFired} row.
+     * row's state, which the single-action methods pass as {@code "toState"}: the state the
+     * transition moved the object to.
      */
     private ExpressionContext buildContext(Map<String, Object> row, String stateKey) {
         @SuppressWarnings("unchecked")
@@ -374,7 +296,7 @@ public final class DefaultActionExecutor implements ActionExecutor {
      * (a {@code SetProperty} or {@code CreateObject}) would silently fail to retrigger automation.
      *
      * <p>The {@code ontologyVersion} is copied from {@code sourceRow}, the row this action was
-     * applied from (an {@code ActionRequest} or a {@code TransitionFired} row), which carries the
+     * applied from (a {@code TransitionFired} row), which carries the
      * version its transition fired under. This executor reads no ontology snapshot of its own. A
      * row written before the stamp existed has no version, so the key is left out for it.
      */

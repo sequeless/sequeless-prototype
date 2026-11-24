@@ -68,7 +68,7 @@ class TemporalAutomationPortTransitionFiredTest {
     @BeforeAll
     static void startEnvironment() {
         // Published before env.start(), as TemporalAutomationAutoConfiguration does.
-        ActionWorkflowImpl.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
+        TemporalActivityOptions.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofSeconds(10))
                 .setRetryOptions(RetryOptions.newBuilder()
                         .setMaximumAttempts(3)

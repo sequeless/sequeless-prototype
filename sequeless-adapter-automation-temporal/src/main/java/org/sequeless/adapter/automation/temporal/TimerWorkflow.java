@@ -13,14 +13,15 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * nothing if a {@link #cancel} signal arrives first.
  *
  * <p><b>Workflow id is the payload's {@code timerKey}, deliberately NOT {@code entry.id()}</b> —
- * unlike {@link ActionWorkflow}/{@link ChangeEventWorkflow}/{@link SignalEventWorkflow}, all three
- * of which key on the outbox entry's own id. Keying on {@code timerKey} (stable across the
+ * unlike {@link ChangeEventWorkflow} and {@link SignalEventWorkflow}, both of which key on the outbox
+ * entry's own id. Keying on {@code timerKey} (stable across the
  * schedule/cancel pair — see {@code OutboxEntry#KIND_TIMER_SCHEDULED}'s javadoc for its {@code
  * objectId|stateIri|transitionName} shape) is what lets a later {@code TimerCancelled} dispatch
  * find and signal the exact right running workflow by recomputing the same key, and what makes
  * redispatching an identical {@code TimerScheduled} entry naturally idempotent: the second {@code
  * dispatch} call's attempt to start a workflow with the same id raises {@code
- * WorkflowExecutionAlreadyStarted}, exactly like {@link ActionWorkflow}'s own id-based idempotency.
+ * WorkflowExecutionAlreadyStarted}, exactly like the id-based idempotency of the change and signal
+ * workflows.
  */
 @WorkflowInterface
 public interface TimerWorkflow {

@@ -22,15 +22,15 @@ import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The real {@link ActionActivities} implementation: three of its four ActionRequest methods are pure
- * pass-throughs to the injected {@link ActionExecutor}; {@link #executeWebhook} additionally
- * issues the resolved request's actual HTTP call via the JDK's own {@link HttpClient} (no new
- * dependency, matching {@code InProcessAutomationPort}'s choice).
+ * The real {@link ActionActivities} implementation. {@link #applyTransitionAction} checks the row,
+ * then applies one action through the injected {@link ActionExecutor}, or delivers a webhook action
+ * over the JDK's own {@link HttpClient} (no new dependency, matching {@code InProcessAutomationPort}'s
+ * choice).
  *
- * <p><b>No retry loop here, unlike the in-process adapter.</b> {@link #executeWebhook} throws a
- * {@link WebhookActivityException} on any non-2xx status or transport failure, letting the
- * exception propagate out of the activity method. Retrying is deliberately not this class's job:
- * the workflow's activity stub is built (see {@link ActionWorkflowImpl}) with an {@code
+ * <p><b>No retry loop here, unlike the in-process adapter.</b> The webhook delivery throws a {@link
+ * WebhookActivityException} on any non-2xx status or transport failure, letting the exception
+ * propagate out of the activity method. Retrying is deliberately not this class's job: the
+ * workflow's activity stub is built (see {@link TransitionActionWorkflowImpl}) with an {@code
  * ActivityOptions} carrying the {@code RetryOptions} {@link TemporalAutomationAutoConfiguration}
  * assembles from {@code sequeless.automation.temporal.retry.*}, so Temporal itself retries the
  * whole activity invocation — this is the entire point of using Temporal for this adapter, in
@@ -52,27 +52,6 @@ public final class ActionActivitiesImpl implements ActionActivities {
         this.actionExecutor = Objects.requireNonNull(actionExecutor, "actionExecutor must not be null");
         this.automationSource = Objects.requireNonNull(automationSource, "automationSource must not be null");
         this.httpClient = HttpClient.newHttpClient();
-    }
-
-    @Override
-    public void applySetProperty(Scope scope, OutboxEntry entry) {
-        actionExecutor.applySetProperty(scope, entry);
-    }
-
-    @Override
-    public void applyCreateObject(Scope scope, OutboxEntry entry) {
-        actionExecutor.applyCreateObject(scope, entry);
-    }
-
-    @Override
-    public void applyLog(Scope scope, OutboxEntry entry) {
-        actionExecutor.applyLog(scope, entry);
-    }
-
-    @Override
-    public void executeWebhook(Scope scope, OutboxEntry entry) {
-        ResolvedWebhookRequest resolved = actionExecutor.resolveWebhook(scope, entry);
-        deliver(resolved);
     }
 
     /**

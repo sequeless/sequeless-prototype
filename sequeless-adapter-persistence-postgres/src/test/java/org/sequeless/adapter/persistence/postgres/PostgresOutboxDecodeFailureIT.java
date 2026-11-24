@@ -41,7 +41,7 @@ class PostgresOutboxDecodeFailureIT {
     private static final String UNDECODABLE_PAYLOAD = "[1, 2, 3]";
 
     private static final Set<String> CLAIMABLE_KINDS =
-            Set.of(OutboxEntry.KIND_ACTION_REQUEST, OutboxEntry.KIND_TIMER_SCHEDULED);
+            Set.of(OutboxEntry.KIND_TRANSITION_FIRED, OutboxEntry.KIND_TIMER_SCHEDULED);
 
     private static final Instant BASE = Instant.parse("2026-11-01T00:00:00Z");
 
@@ -144,14 +144,14 @@ class PostgresOutboxDecodeFailureIT {
         return "{\"objectId\": \"" + UUID.randomUUID() + "\"}";
     }
 
-    /** Inserts one unprocessed {@code ActionRequest} row carrying {@code payload} as its JSON text. */
+    /** Inserts one unprocessed {@code TransitionFired} row carrying {@code payload} as its JSON text. */
     private static void insertOutboxRow(UUID id, String payload, Instant occurredAt) {
         JdbcClient.create(dataSource)
                 .sql("INSERT INTO sq_outbox (id, tenant_id, object_id, kind, payload, occurred_at, attempts) "
                         + "VALUES (:id, 'tenant-1', :objectId, :kind, CAST(:payload AS jsonb), :occurredAt, 0)")
                 .param("id", id)
                 .param("objectId", UUID.randomUUID())
-                .param("kind", OutboxEntry.KIND_ACTION_REQUEST)
+                .param("kind", OutboxEntry.KIND_TRANSITION_FIRED)
                 .param("payload", payload)
                 .param("occurredAt", Timestamp.from(occurredAt))
                 .update();

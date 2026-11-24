@@ -94,10 +94,10 @@ public class TemporalAutomationAutoConfiguration {
     }
 
     /**
-     * Publishes {@link ActionWorkflowImpl#ACTIVITY_OPTIONS} (see that class's javadoc for why a
+     * Publishes {@link TemporalActivityOptions#ACTIVITY_OPTIONS} (see that class's javadoc for why a
      * Temporal-instantiated workflow implementation cannot receive this via constructor injection)
-     * and starts a worker polling {@code props.getTaskQueue()} for both {@link ActionWorkflow} and
-     * {@link ActionActivities} work.
+     * and starts a worker polling {@code props.getTaskQueue()} for the workflows and activities
+     * registered below.
      *
      * <p><b>Empirically verified finding, unlike {@link #workflowServiceStubs}/{@link
      * #workflowClient}: {@code WorkerFactory.start()} is NOT lazy.</b> It issues a blocking {@code
@@ -138,12 +138,11 @@ public class TemporalAutomationAutoConfiguration {
             DerivationRecomputer derivationRecomputer,
             AutomationSource automationSource,
             TemporalAutomationProperties props) {
-        ActionWorkflowImpl.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
+        TemporalActivityOptions.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
 
         WorkerFactory factory = WorkerFactory.newInstance(client);
         Worker worker = factory.newWorker(props.getTaskQueue());
         worker.registerWorkflowImplementationTypes(
-                ActionWorkflowImpl.class,
                 TransitionActionWorkflowImpl.class,
                 ChangeEventWorkflowImpl.class,
                 TimerWorkflowImpl.class,
