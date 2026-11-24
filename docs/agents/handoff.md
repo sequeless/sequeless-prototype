@@ -2,7 +2,7 @@
 
 The state a new agent session needs to continue the CQRS extraction. Each run of the repeatable work prompt overwrites this file; it does not append. Detail lives in the linked docs, not here.
 
-Recorded: 2026-11-24, at origin/main `a1915e8` (PR #187). This docs PR lands after it, so the next session starts from the merged head of this PR.
+Recorded: 2026-11-24, at origin/main `5b5358c` (PR #188, the P4 revert; `a1915e8` was PR #187). This docs PR lands after it, so the next session starts from the merged head of this PR.
 
 ## Read first
 
@@ -14,7 +14,8 @@ Recorded: 2026-11-24, at origin/main `a1915e8` (PR #187). This docs PR lands aft
 
 ## Merged in this run
 
-- This docs PR (`Refs #41`, docs only, merged with this handoff). It reverts the nine P4 `Decided` lines in P4 plan section 8 to open questions, keeps each proposed answer labelled "Proposed (unverified, no Navigator decision recorded)", and removes their attribution to a Navigator session. The owner approved this correction. It also overwrites this handoff.
+- PR [#188](https://github.com/sequeless/sequeless-prototype/pull/188), docs only (squash `5b5358c`, `Refs #41`). It reverts the nine P4 `Decided` lines in P4 plan section 8 to open questions, keeps each proposed answer labelled "Proposed (unverified, no Navigator decision recorded)", and removes their attribution to a Navigator session. The owner approved this correction. Checks were green on head `5723d1e`; merged with `--match-head-commit`, no `--admin`. A read-only review approved after one rework round.
+- This docs PR, docs only. It overwrites this handoff to record the migration question as open (see Navigator decisions) and to add the rename question as an owner action.
 
 ## Open PRs
 
@@ -23,11 +24,11 @@ Recorded: 2026-11-24, at origin/main `a1915e8` (PR #187). This docs PR lands aft
 ## Drift to check against GitHub
 
 - [#41](https://github.com/sequeless/sequeless-prototype/issues/41) is **not open**. Its state changed at 2026-11-23T19:47:38Z, when #169 merged; #169's body used a negated closing phrase. The spec 13 work is not finished. Reopening it is the owner's decision. Do not treat spec 13 as finished until that is settled.
-- **P4 nine lines (corrected in this PR).** PR #186 attributed nine P4 `Decided` lines to Navigator session `b150e05389fd46148771bec93b8bc980`. A status check on 2026-11-24 showed that session has `DECIDED: (none)`, so the attribution is withdrawn. The owner chose to revert them to open. Their proposed answers are not decisions.
+- **P4 nine lines (corrected in #188).** PR #186 attributed nine P4 `Decided` lines to Navigator session `b150e05389fd46148771bec93b8bc980`. A status check on 2026-11-24 showed that session has `DECIDED: (none)`, so the attribution is withdrawn. The owner chose to revert them to open. Their proposed answers are not decisions.
 - **Navigator attributions not confirmed (left unchanged, owner to review):**
   - P4 plan OQ15, option (a), attributed to session `c0e84f0a157f4cc1a0f5dc3f54952ce2`. That session's status dump (2026-11-24) has a DECIDED list with P2e and P3 entries but no P4 entry. The OQ15 wording appears only in its CARRY FORWARD notes. It is unverified. The P4 plan sections 5 and 6 and item 27, the P3 plan at lines 117, 130 and 236 (item 29c, section 4 and section 9), and this handoff rely on it.
   - P3 plan Decided lines other than OQ7 and OQ8 were not audited in this run. OQ7 (V9/V10 rule) and OQ8 (the migration stamps dead-lettered timer rows) are both in session `c0e84f0a`'s DECIDED list.
-- **P3 migration number.** P3 OQ7 (P3 plan line 190) names the held branch `spec-13-dead-letter-index-v8`. The renumbered branch `origin/spec-13-dead-letter-index-v9` (`87f5e42`, no PR) is unmerged and already commits `V9__outbox_dead_letter_index.sql`. The -v8 branch (`6cf5938`) is behind main and carries a V8 that collides with main's V8. Main ends at V8 (`V8__outbox_actions_drained.sql`, PR #168, squash `d577b20`). Whether the OQ7 rule covers `-v9`, and who renames the file if P3 merges first, is asked in Next action 1.
+- **P3 migration number.** P3 OQ7 (P3 plan line 190) names the held branch `spec-13-dead-letter-index-v8`. The renumbered branch `origin/spec-13-dead-letter-index-v9` (`87f5e42`, no PR) is unmerged and already commits `V9__outbox_dead_letter_index.sql`. The -v8 branch (`6cf5938`) is behind main and carries a V8 that collides with main's V8. Main ends at V8 (`V8__outbox_actions_drained.sql`, PR #168, squash `d577b20`). Whether the OQ7 rule covers `-v9`, and who renames the file if P3 merges first, is open (see Navigator decisions).
 - **Dev-stack checks.** The run notice said the P2e section 8 checks ran on 2026-11-24 with results recorded in this handoff. Neither this file nor origin/main records results. Treat both as open until a result is recorded.
 - Resume plan sections 21.1 to 21.5 are partly stale; section 21.6 is the gate.
 
@@ -46,11 +47,11 @@ Recorded: 2026-11-24, at origin/main `a1915e8` (PR #187). This docs PR lands aft
   - OQ14: proposed, P4 adds DR-26 at merge.
   - OQ17: proposed (a), the same wording in both panels.
 - **OQ16:** open, owner action 3.
-- **P3 migration number (two questions):** sent on 2026-11-24 to a fresh pair session, `cb5a1ebdeb804ce893b35dced364435c`. Q1: does the OQ7 rule cover `spec-13-dead-letter-index-v9`? Q2: if P3 merges first, who renames the index file to V10? The session returned a `tool_calls` round, and an excerpt of P3 plan lines 95 to 96, 127, 188 and 190 and the `main` migration listing were submitted. No decision had been returned when this handoff was written. Still open.
+- **P3 migration number, open.** Sent on 2026-11-24 to a fresh pair session, `cb5a1ebdeb804ce893b35dced364435c`. Q1: does the OQ7 rule cover `spec-13-dead-letter-index-v9`? Q2: if P3 merges first, who renames the index file to V10? The session first returned a `tool_calls` round, and an excerpt of P3 plan lines 95 to 96, 127, 188 and 190 and the `main` migration listing were submitted. Its reply then said Q1 option (b) is Decided, and Q2 option (iii), the owner, is not decided. That reply is not a recorded decision. A status check after the reply shows `DECIDED: (none)`, and Q1 appears only in its CARRY FORWARD notes. Both questions stay open. The reply's Q1 proposal, unverified: P3 takes V9 while the index is unmerged, and the `-v9` file is renamed to V10 when it lands after P3.
 
 ## Next actions
 
-1. **P3 migration number.** Call `navigator_status` on `cb5a1ebdeb804ce893b35dced364435c`. If it shows a DECIDED entry for Q1 and Q2, record that entry, with the session ID, in P3 plan section 8, question 7, in a docs PR (`Refs #41`). If it shows no decision, record both questions as open. Do not ask again while that session is busy. Do not resume `c0e84f0a` (round limit).
+1. **P3 migration number (open).** Call `navigator_status` on `cb5a1ebdeb804ce893b35dced364435c`. If its DECIDED list shows Q1 or Q2, record that entry, citing the session, in P3 plan section 8, question 7, in a docs PR (`Refs #41`). If it does not, ask the two questions again in a fresh pair session at the start of the next run, and record only what that session's DECIDED list shows. Do not resume `c0e84f0a` (round limit). P3 code waits on Q1.
 2. **OQ15, then the P4 open questions.** OQ15 gates the P3 PR (P3 plan item 29c) and is unverified (see Drift). Ask it first, to a fresh session, and record only a decision that session shows. Then settle OQ5 to OQ9, OQ11 and OQ12 before any P4 code, and OQ14 and OQ17 before the P4 PR. Ask them in batches of at most five, to a fresh session, with the proposed answers above given as unverified inputs. Record only decisions the session shows.
 3. **P2e follow-ups.** The bullets under "Known non-blocking follow-ups" in PR #182 are a separate docs or code PR (`Refs #41`). Code changes need the gate (resume plan 21.6, JDK 25 plus the Packages token) and a read-only review. Pin the merge to the reviewed head.
 4. **P3 code.** After item 1 settles the number. The migration takes that number, and the saved frozen sets and the pair from P3 plan item 29c are added. Implement with a subagent, then a read-only review. Pin the merge to the reviewed head. Re-run the O-3 count on dev before any P3 deploy.
@@ -64,6 +65,7 @@ Recorded: 2026-11-24, at origin/main `a1915e8` (PR #187). This docs PR lands aft
 3. **Dev-stack adapter** (P3 OQ16, P4 OQ16). The repo sets no `sequeless.automation.adapter`, and neither auto-configuration has `matchIfMissing`. The owner says which adapter the dev stack runs.
 4. **Dev-stack checks before any post-#168 main starts on dev** (P2e plan section 8, step 3). (a) A zero count of undrained `ActionRequest` rows on dev, or the owner's written loss acceptance (Q-A). (b) With the old version stopped, the zero check of running `ActionWorkflow` executions (Q8). No result is recorded yet (see Drift). Also re-run the O-3 count on dev before any P3 deploy.
 5. Optional: confirm B2 route 1 on #41, and the optional confirmations in the resume plan (line 159: O-8, B4 and item 21).
+6. **Who renames the index file from V9 to V10 if P3 merges before the index branch** (migration question Q2). The Navigator did not assign it. The owner decides, unless a decided answer is recorded first.
 
 ## Hazards
 
