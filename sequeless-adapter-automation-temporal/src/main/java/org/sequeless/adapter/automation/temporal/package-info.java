@@ -1,15 +1,18 @@
 /**
  * The default, durable {@code AutomationPort} adapter, backed by the Temporal Java SDK: {@link
- * org.sequeless.adapter.automation.temporal.TemporalAutomationPort#dispatch} durably starts one
- * {@link org.sequeless.adapter.automation.temporal.ActionWorkflow} execution per {@code
- * ActionRequest} outbox entry (workflow id = {@code entry.id().toString()}, giving idempotent
- * redispatch for free via Temporal's own {@code WorkflowExecutionAlreadyStarted} semantics), which
- * in turn calls exactly one of {@link
- * org.sequeless.adapter.automation.temporal.ActionActivities}' four activities — thin wrappers over
- * an injected {@code ActionExecutor}, except {@link
- * org.sequeless.adapter.automation.temporal.ActionActivities#executeWebhook}, which also performs
- * the real HTTP call and lets Temporal's own configurable {@code RetryOptions} retry it, rather
- * than hand-rolling a retry loop the way the in-process adapter does.
+ * org.sequeless.adapter.automation.temporal.TemporalAutomationPort#dispatch} durably starts, for
+ * each {@code TransitionFired} outbox entry, one {@link
+ * org.sequeless.adapter.automation.temporal.TransitionActionWorkflow} execution per action of the
+ * fired transition, keyed {@code "<entryId>:<index>"}, so each action has its own run and its own
+ * idempotency (Temporal's own {@code WorkflowExecutionAlreadyStarted} semantics). Each execution
+ * calls {@link org.sequeless.adapter.automation.temporal.ActionActivities#applyTransitionAction},
+ * a thin wrapper over an injected {@code ActionExecutor}. The exception is a webhook action, which
+ * also performs the real HTTP call and lets Temporal's own configurable {@code RetryOptions} retry
+ * it, rather than hand-rolling a retry loop the way the in-process adapter does.
+ *
+ * <p>{@link org.sequeless.adapter.automation.temporal.ActionWorkflow} is registered on the worker
+ * and never started, because dispatch no longer routes {@code ActionRequest} rows to it. P2e
+ * deletes it.
  *
  * <p><b>This module deliberately depends on {@code io.temporal:temporal-sdk} directly, never
  * {@code temporal-spring-boot-starter}.</b> The starter was evaluated and rejected: it transitively

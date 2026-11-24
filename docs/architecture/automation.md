@@ -12,28 +12,27 @@ this document starts where a transition has already been decided available and i
 
 `DefaultTransitionService.fire` (`sequeless-core`, `org.sequeless.core.usecase`) moves an object's
 `state` and, in the same `ChangeSet`/`ObjectStorePort#commit` call, writes one `TransitionFired`
-outbox event plus one `ActionRequest` outbox event per `sq:action` the fired transition defines —
-all committed atomically with the state change, so there is no window where the state has moved
+outbox event that names the fired transition and its ontology version, from which the adapters apply its actions by index — all committed atomically with the state change, so there is no window where the state has moved
 but the record of what should happen next has not been durably written (or vice versa). `sq_outbox`
 is the same transactional-outbox table `ObjectCreated`/`ObjectUpdated`/`ObjectDeleted` events have
 used since DR-12; Phase 5 adds two new `kind` values to it and a `processed_at` marker column.
-Phase 6 (DR-11) adds three more `kind` values (§2), for a total of eight. The relay claims all eight
-for dispatch (§2's "dispatchable set"); `TransitionFired` is claimed too, and both automation
-adapters accept it as a no-op.
+Phase 6 (DR-12) adds three more `kind` values (§2). The relay claims seven kinds for dispatch (§2's
+"dispatchable set"), `TransitionFired` included, and both automation adapters apply the actions of a
+`TransitionFired` row.
 
 `OutboxRelay` (`sequeless-app`, `org.sequeless.app.automation`) is a `@Scheduled` poller that
 drains the full **dispatchable** outbox kind set, one row at a time, into whichever
 `AutomationPort` adapter is currently configured via `sequeless.automation.adapter` — `inprocess`
 (synchronous, in the relay's own thread; for tests and local development) or `temporal` (durable,
 retried, the production default per DR-09). Both adapters call back into the same `ActionExecutor`
-implementation (`DefaultActionExecutor` in `sequeless-core`) to actually apply an `ActionRequest`;
+implementation (`DefaultActionExecutor` in `sequeless-core`) to apply a `TransitionFired` row's actions;
 the other dispatchable kinds route to `TriggerEvaluator`/`DerivationRecomputer` instead — see §9.
 
-Phase 6 (DR-11) widens this considerably: what was originally a single `ActionRequest`-only queue
-is now an 8-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
+Phase 6 (DR-12) widens this considerably: what was originally a single `ActionRequest`-only queue
+is now a seven-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
 `kind()`, not a single hard-coded call.
 
-## 2. The outbox and the `ActionRequest` payload shape
+## 2. The outbox and the `TransitionFired` payload shape
 
 `OutboxEntry` (`sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxEntry.java`) is the one
 record type every outbox row uses, keyed by a `kind` string. Phase 5 adds two constants to it,
@@ -41,14 +40,14 @@ deliberately declared on `OutboxEntry` itself rather than on `DefaultTransitionS
 adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depend on
 `sequeless-core`, and the `noAdapterDependsOnCore` ArchUnit rule forbids it from trying.
 
-- `OutboxEntry.KIND_TRANSITION_FIRED = "TransitionFired"` — an audit event, one per fired
-  transition. The relay claims it like every other kind, and both automation adapters accept it as
-  a no-op until it carries actions or timers (§2's dispatchable set).
-- `OutboxEntry.KIND_ACTION_REQUEST = "ActionRequest"` — one per `sq:action` in the fired
-  transition's action list, carrying a payload that is fully self-contained and frozen at
-  transition-fire time.
+- `OutboxEntry.KIND_TRANSITION_FIRED = "TransitionFired"` — one per fired transition, carrying the
+  transition's actions (the payload is described below). The relay claims it like every other kind,
+  and both automation adapters apply its actions.
+- `OutboxEntry.KIND_ACTION_REQUEST = "ActionRequest"` — deprecated. No code writes an `ActionRequest`
+  row any more, and the relay no longer claims one. Rows written before the flip still exist until
+  the V8 migration stamps them processed (see "Rows written before the flip" below).
 
-Phase 6 (DR-11) adds three more constants, all documented directly on `OutboxEntry` itself (the
+Phase 6 (DR-12) adds three more constants, all documented directly on `OutboxEntry` itself (the
 authoritative list — this document doesn't repeat their payload shapes beyond what's useful here;
 see the javadoc for the exact field list of each):
 
@@ -61,9 +60,9 @@ see the javadoc for the exact field list of each):
   /api/objects/{type}/{id}/signals/{name}` is called (§12).
 
 Together with the three pre-existing object-lifecycle kinds (`ObjectCreated`/`ObjectUpdated`/
-`ObjectDeleted`, in use since DR-12) and `ActionRequest`, that makes seven kinds besides
-`TransitionFired`, eight in all. `OutboxRelay` claims across all eight in one poll loop (§3), and
-the automation adapters treat `TransitionFired` as a no-op.
+`ObjectDeleted`, in use since DR-12), that makes six kinds besides `TransitionFired`, seven in all.
+`OutboxRelay` claims across all seven in one poll loop (§3), and the automation adapters apply the
+actions of each `TransitionFired` row (§4).
 
 `OutboxEntry`'s constructor enforces the payload is JSON-compatible end to end (`String`,
 `Number`, `Boolean`, or nested `List`/`Map` of the same; no `null` anywhere) and contains a
@@ -72,38 +71,27 @@ here, not deep inside a codec.
 
 ### `TransitionFired` payload (built by `DefaultTransitionService.transitionFiredEntry`)
 
-All `String`: `objectId`, `tenantId`, `principalId`, `transitionName`, `fromState`, `toState`
-(the transition's `fromStateIri`/`toStateIri`, i.e. full state IRIs).
-
-### `ActionRequest` payload (built by `DefaultTransitionService.actionRequestPayload`)
-
-Fields common to every action kind:
+The row carries no per-action fields. Its actions are read from the automation of the row's
+`ontologyVersion`, for the transition named by `machineIri`, `fromState` and `transitionName`, and
+each one is applied by its 0-based index. The fields are:
 
 | Field | Type | Meaning |
 |---|---|---|
 | `objectId` | `String` | the transitioning object's id (also required by `OutboxEntry` itself) |
-| `tenantId`, `principalId` | `String` | reconstruct a `Scope` for the `ActionExecutor` callback |
-| `transitionName` | `String` | provenance |
-| `actionIndex` | `Integer`, 0-based | provenance, and (with `objectId`/`entry.id()`) the seed `applyCreateObject`'s idempotent id derivation uses (§5) |
-| `typeIri` | `String` | the transitioning object's type |
-| `state` | `String` | the object's **new** state — the transition's `toStateIri` — not its state before the transition |
+| `tenantId`, `principalId` | `String` | reconstruct the `Scope` the actions are applied on behalf of |
+| `transitionName` | `String` | the transition's name |
+| `fromState`, `toState` | `String` | the transition's `fromStateIri`/`toStateIri`, i.e. full state IRIs; `toState` is the object's new state |
+| `machineIri`, `typeIri` | `String` | the state machine's IRI, and the transitioning object's type IRI |
+| `ontologyVersion` | `Integer` | the schema's ontology version at fire time; an adapter throws `IllegalStateException` if it is missing or differs from the automation's version |
 | `self` | `Map<String, Object>` | a snapshot of the transitioning object's own properties, keyed by property **short name** (not IRI), each value tagged per `PayloadValueCodec`'s scheme |
-| `actionKind` | `String` | one of `"SetProperty"`, `"CreateObject"`, `"Webhook"`, `"Log"` |
 
-Kind-specific fields, each present only when the underlying `sq:` node defines it (an absent
-optional field is omitted from the map entirely — never a `null` placeholder, since `OutboxEntry`
-rejects `null` anywhere in the payload):
+**Rows written before the flip.** `ActionRequest` rows still exist until the V8 migration
+(`V8__outbox_actions_drained.sql`) has run. The old version drains them before the flip. V8 then
+stamps, at app start, every `ActionRequest` row still unprocessed, dead-lettered rows included. V8
+also stamps a `TransitionFired` row that has no `self` key (one written before that key existed),
+because its actions were drained as `ActionRequest` rows.
 
-- **`SetProperty`**: `property` (full property IRI) plus exactly one of `value` (a
-  `PayloadValueCodec`-tagged map) or `expression` (bare JEXL source, no `${}`).
-- **`CreateObject`**: `createType` (full type IRI to create), `createProperties`
-  (`Map<String, Object>` keyed by full property IRI, each value itself a nested map holding
-  exactly one of `value`/`expression`, same shape as `SetProperty`'s pair).
-- **`Webhook`**: `url` (JXLT `${expr}` template), `method` (literal HTTP method string), `body`
-  (JXLT template, present iff the `sq:Webhook` node defined one).
-- **`Log`**: `message` (JXLT `${expr}` template).
-
-`self`'s values, and every `value`/tagged-value field, are encoded by
+`self`'s values are encoded by
 `org.sequeless.core.statemachine.PayloadValueCodec` as single-key tagged maps: `{text: String}`,
 `{integer: Long}`, `{decimal: BigDecimal}`, `{bool: Boolean}`, `{dateTime: String}` (via
 `Instant.toString()`), `{date: String}` (via `LocalDate.toString()`), `{ref: String}` (a UUID),
@@ -117,9 +105,19 @@ principal — is baked into the payload the moment the transition commits. A Tem
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
 `self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
 re-read" a design property rather than an incidental optimization — `ActionExecutor`'s four
-methods need nothing beyond the frozen payload to do their job, confirmed by a test that feeds a
-real `DefaultTransitionService.fire(...)` call's genuine `OutboxEntry` list straight into
-`DefaultActionExecutor`.
+ActionRequest methods need nothing beyond the frozen payload to do their job. A test feeds a real
+`DefaultTransitionService.fire(...)` call's `TransitionFired` row straight into `DefaultActionExecutor`
+to confirm it (`DefaultActionExecutorTest`). The hand-built `ActionRequest` tests in that class
+exercise the drain path, which is removed in P2e.
+
+**What the per-action path reads, and when.** The row names the transition (`machineIri`,
+`fromState`, `transitionName`) and its `ontologyVersion`, but not the actions. Both adapters read the
+actions from the `AutomationSource` for the row's ontology version. `TemporalAutomationPort.dispatch`
+reads them once, to count the workflows to start, and `ActionActivitiesImpl#applyTransitionAction`
+reads them again on each attempt, to pick the action at its index. `InProcessAutomationPort` reads
+them once, at dispatch. A missing `ontologyVersion` stamp, or one that differs from the automation's
+version, throws `IllegalStateException` at dispatch. In the Temporal activity the same checks throw a
+non-retryable `ApplicationFailure`, so Temporal does not retry them.
 
 ## 3. `OutboxRelay`
 
@@ -130,12 +128,12 @@ plain `@Component` with one `@Scheduled(fixedDelayString =
 **Claim → dispatch → mark processed, in one short transaction.** `OutboxRelay` doesn't touch SQL
 itself; it calls `OutboxPort#claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T>
 handler)` (`sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxPort.java`) — Phase 6
-(DR-11) widened this from the original `claimNextActionRequest()` (no `kinds` parameter, hardcoded
+(DR-12) widened this from the original `claimNextActionRequest()` (no `kinds` parameter, hardcoded
 to `ActionRequest` alone) to take an explicit, caller-chosen kind set, because a single relay now
 fans its one polling loop out to several inbound ports (`ActionExecutor`, `TriggerEvaluator`,
 `DerivationRecomputer`), not just `ActionExecutor`. `OutboxRelay` builds the set it passes,
 `DISPATCHABLE_KINDS`, once as a `static final Set<String>` field (not reconstructed per poll) —
-see §2 for the eight kinds it contains. The sole implementation (the postgres adapter)
+see §2 for the seven kinds it contains. The sole implementation (the postgres adapter)
 runs `SELECT ... FROM sq_outbox WHERE kind IN (:kinds) AND processed_at IS NULL AND
 dead_lettered_at IS NULL ORDER BY occurred_at LIMIT 1 FOR UPDATE SKIP LOCKED` against that set
 (`:kinds` bound as a named IN list), calls `handler` once with the claimed row's raw `tenantId`
@@ -181,29 +179,37 @@ its own `@AutoConfiguration` gated with `@ConditionalOnProperty(name =
 
 ### In-process (`sequeless.automation.adapter=inprocess`)
 
-`InProcessAutomationPort` (`sequeless-adapter-automation-inprocess`) runs an `ActionRequest`'s
-action synchronously, to completion, on `OutboxRelay`'s own calling thread, by invoking the
-matching `ActionExecutor` method directly — there is no separate durable engine to hand off to.
+`InProcessAutomationPort` (`sequeless-adapter-automation-inprocess`) applies a `TransitionFired` row's
+actions synchronously, to completion, on `OutboxRelay`'s own calling thread, in index order: it calls
+`ActionExecutor#applyAction` for each action, or `resolveWebhookAction` for a `sq:Webhook` action, and
+delivers the resolved request itself. There is no separate durable engine to hand off to.
 A `sq:Webhook` action's HTTP call (via the JDK's own `HttpClient`, no new dependency) is wrapped in
 a small **fixed** retry loop, configured by `InProcessAutomationProperties`
 (`sequeless.automation.inprocess.*`): `retryAttempts` (default **3**, total attempts including the
 first) and `retryDelay` (default **200ms**, fixed — not exponential — between attempts). Only the
-HTTP call itself is retried; `ActionExecutor#resolveWebhook`'s own template-resolution failures (a
+HTTP call itself is retried; `ActionExecutor#resolveWebhookAction`'s own template-resolution failures (a
 malformed `${expr}`) propagate immediately on the first attempt, since retrying a deterministic
 template error can never succeed.
 
 ### Temporal (`sequeless.automation.adapter=temporal`)
 
-`TemporalAutomationPort.dispatch` is fire-and-forget: it calls `WorkflowClient.start(workflow::execute,
-entry)` — the async start call, not the blocking `execute()` — so the outbox row is marked
-processed as soon as the `ActionWorkflow` execution durably **starts**, not when it completes.
-`ActionWorkflow` (`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry)`) takes the
-raw `OutboxEntry` as its workflow input with no bespoke DTO — it's a plain record of
-JSON-compatible types, which Temporal's default Jackson-based `DataConverter` round-trips natively.
-`ActionWorkflowImpl.execute` reads `payload.actionKind` and calls exactly one of
-`ActionActivities`' four methods (`applySetProperty`/`applyCreateObject`/`applyLog`, thin
-pass-throughs to `ActionExecutor`, or `executeWebhook`, which additionally performs the real HTTP
-call and throws `WebhookActivityException` on a non-2xx status or transport failure).
+`TemporalAutomationPort.dispatch` is fire-and-forget. For a `TransitionFired` row it calls
+`startTransitionFiredActions`, which starts one `TransitionActionWorkflow` per action of the row's
+transition, in index order, with workflow id `<entryId>:<index>`. Each start is the async
+`WorkflowClient.start` call, not the blocking `execute()`, so the outbox row is marked processed as
+soon as the workflows durably **start**, not when they complete. `TransitionActionWorkflow`
+(`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry, int actionIndex)`) calls
+`ActionActivities#applyTransitionAction`, which applies that one action: `applyAction` for a
+`SetProperty`, `CreateObject` or `Log` action, and `resolveWebhookAction` plus the real HTTP call for
+a `Webhook` action. The workflow input is the raw `OutboxEntry` with no bespoke DTO, which Temporal's
+default Jackson-based `DataConverter` round-trips natively.
+
+`ActionWorkflow` (`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry)`) is still
+registered on the worker, but nothing starts it: `dispatch` no longer routes `ActionRequest` rows to
+it. It is deleted in a later phase (spec 13, P2e). Its activity methods are the drain path's four
+`ActionRequest` methods (`applySetProperty`/`applyCreateObject`/`applyLog`, thin pass-throughs to
+`ActionExecutor`, and `executeWebhook`, which additionally performs the real HTTP call and throws
+`WebhookActivityException` on a non-2xx status or transport failure).
 
 Retries are Temporal's own, not a hand-rolled loop: `ActionActivitiesImpl.executeWebhook`
 deliberately does **not** retry — it throws once, letting Temporal's `RetryOptions` (attached to
@@ -211,7 +217,7 @@ the `ActivityOptions` every activity stub is built with) retry the whole activit
 policy is bound from `sequeless.automation.temporal.retry.*`
 (`TemporalAutomationProperties.Retry`): `initial-interval` (default **1s**), `backoff-coefficient`
 (default **2.0**), `maximum-attempts` (default **5**, including the first attempt) — applied
-uniformly to all four activities. This is the exact mechanism a "500, 500, 500, 200" acceptance
+uniformly to all five activity methods. This is the exact mechanism a "500, 500, 500, 200" acceptance
 test exercises.
 
 **Genuine Temporal SDK constraint worth knowing before touching this wiring.** Temporal
@@ -229,14 +235,16 @@ auto-configuration having run, rather than a silent `NullPointerException` deep 
 ## 5. Idempotency
 
 `AutomationPort#dispatch`'s contract requires that a second call for an already-dispatched
-`entry.id()` must not invoke the underlying `ActionExecutor` method a second time. Three
+`entry.id()` must not invoke the underlying `ActionExecutor` method a second time. For a
+`TransitionFired` row the key is the entry id and the action index (see (a) and (c)). Three
 independent mechanisms, at three different layers, jointly guarantee this — deliberately
 independent, so a gap in one does not silently break the guarantee.
 
 **(a) Temporal workflow-id reuse policy (dispatch layer).**
 `TemporalAutomationPort.dispatch` uses `entry.id().toString()`, exactly, as the workflow id, and
 explicitly sets `WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE` on the
-`WorkflowOptions` it builds. This was a real bug caught during implementation via a failing
+`WorkflowOptions` it builds. A `TransitionFired` row uses `<entryId>:<index>` as its workflow id
+instead, one per action, with the same options. This was a real bug caught during implementation via a failing
 `TestWorkflowEnvironment` contract test, not a hypothetical: the Temporal SDK's **default** reuse
 policy is `ALLOW_DUPLICATE`, under which starting a workflow whose previous run with the same id
 had already *completed* silently starts a brand-new execution instead of raising
@@ -263,8 +271,12 @@ side-effect, because `DefaultActionExecutor` (`sequeless-core`,
 
 **(c) The in-process adapter's own weaker, process-lifetime-only guard.**
 `InProcessAutomationPort` keeps an in-memory `ConcurrentHashMap`-backed `Set<UUID>` of every
-`entry.id()` it has already dispatched, short-circuiting a repeat call as a no-op — it has no
+`entry.id()` it has already dispatched, short-circuiting a repeat call as a no-op. It has no
 Temporal-style durable-engine mechanism to lean on for free, so it tracks dispatched ids itself.
+A `TransitionFired` row is the exception: it is tracked per `(entry id, action index)` in a second
+set. A `Log` action is recorded once applied, and a `Webhook` action once its delivery succeeds, so
+neither repeats on a retry. A `SetProperty` or `CreateObject` action is never recorded, because its
+write commits with the claim transaction and rolls back with it, so it runs again on a retry.
 This set grows unbounded for the process's lifetime and is explicitly **not crash-safe**: a process
 restart forgets every id it ever saw, so a redispatch after a restart would fall through to (b) as
 the only remaining guard. This is an accepted limitation, not a bug — durability across restarts is
@@ -290,8 +302,12 @@ gap doesn't matter.
   this way. A dead-lettered row keeps
   `processed_at` NULL and stays in `sq_outbox`. Nothing retries it; recovery is manual (reset
   `dead_lettered_at`, `fail_count` and `error`). During a systemic outage, for example Temporal down,
-  healthy rows can be dead-lettered too. A payload that fails to decode counts as a failed
-  dispatch and is dead-lettered at the third failure, like any other failure.
+  healthy rows can be dead-lettered too. Any `RuntimeException` or `Error`, other than a
+  `VirtualMachineError`, thrown inside the claim transaction after the row id is read counts as a
+  failed dispatch and is dead-lettered at the third failure: a payload that fails to decode, an
+  `OutboxEntry` validation failure, a handler exception, or a failed `processed_at` update or
+  commit. A failure before the id is read (the query or the connection) names no row and is not
+  counted.
 - **No secondary sort key beyond `occurred_at`.** When a single transition fires multiple actions
   (e.g. `activate`'s `CreateObject` then `Webhook`), every row that transition produces shares the
   exact same commit timestamp. Their relative dispatch order relative to each other is therefore
@@ -381,9 +397,16 @@ transition includes a `sq:Webhook` action targeting `https://example.org/hooks/p
 a hardcoded, unreachable external URL (fails DNS resolution fast, ~10ms, in a sandboxed
 environment, so it doesn't stall the relay, but it obviously can't be asserted against). Any test
 that needs to assert webhook delivery/retry semantics therefore does **not** fire a transition
-through the reference ontology; it constructs its own `ActionRequest` `OutboxEntry` directly (via a
-real `ObjectStorePort#commit` call, bypassing `TransitionService`/the ontology entirely) pointing
-at a local JDK `HttpServer` stub instead.
+through the reference ontology; it constructs its own `TransitionFired` `OutboxEntry` directly (via a
+real `ObjectStorePort#commit` call, bypassing `TransitionService`/the ontology entirely), with a test
+automation that holds the webhook action, pointing at a local JDK `HttpServer` stub instead.
+
+The in-process adapter makes this caveat stricter. A failing webhook throws `WebhookDeliveryException`
+out of `dispatchTransitionFired`, which rolls back the claim transaction for the whole fired row. No
+action of that row takes effect, including the kickoff `CreateObject`, and the row is dead-lettered
+after three polls. `TransitionsEndToEndTest` therefore redirects the webhook to a local stand-in at the
+`ActionExecutor` seam (`WebhookStandInConfiguration`), so that the `activate` row's kickoff `Task` is
+created.
 
 **Testcontainers gotcha from the acceptance-test task.** Two `@SpringBootTest` classes that both
 extend `TemporalTestcontainersSupport`/`PostgresTestcontainersSupport` must **not** use
@@ -408,7 +431,7 @@ The full acceptance picture is green under `mvn verify` for both adapters: `Tran
 Kickoff Task titles render bracketed identically under both adapters (see §6) — not an
 adapter-specific quirk.
 
-## 9. Trigger semantics (Phase 6 / DR-11)
+## 9. Trigger semantics (Phase 6 / DR-09)
 
 Through Phase 5, `sq:trigger` accepted exactly one legal value (`sq:UserAction`) and a transition
 could only ever fire from `POST /api/objects/{type}/{id}/transitions/{name}`. Phase 6 widens this to a
@@ -443,8 +466,8 @@ stale — the object may have moved on, been deleted, or the guard may no longer
 automation hint is the normal case, not an error condition. `fireAutomated` performs no
 authorization check either (no `Operation.TRANSITION`); it is system-triggered, not
 user-triggered. When a transition *does* fire this way, it shares the exact same private commit
-path `fire()` (the REST path) uses — guard, state move, `TransitionFired`, one `ActionRequest` per
-`sq:action` — so an automated transition is indistinguishable, in the audit trail and in its
+path `fire()` (the REST path) uses — guard, state move, and one `TransitionFired` row that names the
+transition, whose actions the adapters apply — so an automated transition is indistinguishable, in the audit trail and in its
 side-effects, from one a user fired directly.
 
 **The `timerKey` scheme.** Every successful transition, automated or user-fired, additionally
@@ -504,23 +527,23 @@ sequenceDiagram
         Relay->>Port: dispatch(scope, entry)
         Port->>Trig: onChange(scope, entry)
         Trig->>TS: fireAutomated(Project, "autoClose", ON_CHANGE)
-        TS->>DB: guard true (openTaskCount == 0, already fresh) →<br/>commit state move + TransitionFired + ActionRequest(s)<br/>+ TimerCancelled/TimerScheduled as applicable
+        TS->>DB: guard true (openTaskCount == 0, already fresh) →<br/>commit state move + TransitionFired (with its actions)<br/>+ TimerCancelled/TimerScheduled as applicable
         DB-->>Relay: row marked processed_at
     end
 
     loop next poll tick(s)
         Relay->>DB: claimNext — drains the rows fireAutomated just wrote
-        Note over Relay,Port: ActionRequest → ActionExecutor;<br/>ObjectUpdated(Project, again) → recompute finds<br/>nothing changed → loop terminates (§11)
+        Note over Relay,Port: TransitionFired → actions applied by index;<br/>ObjectUpdated(Project, again) → recompute finds<br/>nothing changed → loop terminates (§11)
     end
 ```
 
 A `TimerScheduled`/`TimerCancelled`/`SignalReceived` row follows the same claim → dispatch shape,
 just routed to `onTimerElapsed`/(cancel by `timerKey`)/`onSignal` instead of `onChange`; each
-adapter's `dispatch` switches on `kind()` to route them. `TransitionFired` rows are written for audit
-alongside every fired transition, and the relay claims them like any other kind. Both adapters
-accept them as a no-op.
+adapter's `dispatch` switches on `kind()` to route them. A `TransitionFired` row is written alongside
+every fired transition and names the transition and its ontology version. The relay claims it like
+any other kind, and both adapters apply its actions by index (§4).
 
-## 11. Materialised derivations (Phase 6 / DR-11)
+## 11. Materialised derivations (Phase 6 / DR-08)
 
 A derived property (`sq-vocabulary.md`'s `sq:derivedBy`, Phase 4/DR-08) is, through Phase 5, always
 computed fresh on every read and never stored — so it can never appear in a `filter[...]`/`sort=`

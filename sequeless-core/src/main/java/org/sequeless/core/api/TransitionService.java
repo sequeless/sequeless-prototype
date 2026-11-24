@@ -36,10 +36,10 @@ public interface TransitionService {
      * org.sequeless.core.statemachine.StateMachineInterpreter#availableTransitions} — then, in one
      * {@link org.sequeless.spi.object.ChangeSet}, commits an {@link
      * org.sequeless.spi.object.Update} moving {@code state} to the transition's target state (every
-     * other property is left exactly as it was), a {@code TransitionFired} outbox event, and one
-     * {@code ActionRequest} outbox event per action the transition defines, in order. No action is
-     * ever applied inline to the transitioning object itself; every action, including a {@code
-     * SetProperty} that targets the same object, is dispatched uniformly as an async outbox row.
+     * other property is left exactly as it was) and one {@code TransitionFired} outbox event that
+     * carries the data of the actions the transition defines. No action is ever applied inline to
+     * the transitioning object itself; every action, including a {@code SetProperty} that targets
+     * the same object, is applied asynchronously by the automation adapters from that outbox event.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}

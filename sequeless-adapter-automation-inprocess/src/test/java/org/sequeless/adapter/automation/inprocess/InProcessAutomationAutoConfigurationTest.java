@@ -2,7 +2,11 @@ package org.sequeless.adapter.automation.inprocess;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.sequeless.ontology.automation.api.Automation;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.TriggerEvaluator;
@@ -24,7 +28,8 @@ class InProcessAutomationAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(InProcessAutomationAutoConfiguration.class))
             .withBean(ActionExecutor.class, RecordingActionExecutor::new)
-            .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new);
+            .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
+            .withBean(AutomationSource.class, () -> tenant -> new Automation(new OntologyVersion(1), Map.of()));
 
     @Test
     void wiresAutomationPortWhenAdapterPropertySetAndActionExecutorPresent() {

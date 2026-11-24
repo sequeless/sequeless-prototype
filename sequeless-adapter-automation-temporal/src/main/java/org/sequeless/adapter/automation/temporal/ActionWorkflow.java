@@ -5,13 +5,10 @@ import io.temporal.workflow.WorkflowMethod;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The Temporal workflow that durably drives one {@code ActionRequest} outbox entry's action to
- * completion. {@link TemporalAutomationPort#dispatch} starts exactly one execution of this
- * workflow per {@link OutboxEntry#id()}, using that id (stringified) as the workflow id, which is
- * what gives {@link org.sequeless.spi.automation.AutomationPort#dispatch}'s idempotent-redispatch
- * requirement to Temporal's own workflow-id semantics for free: a second {@code start} call for an
- * already-started (or already-completed, within the workflow id reuse window) workflow id raises
- * {@code io.temporal.client.WorkflowExecutionAlreadyStarted}, which the caller treats as success.
+ * The Temporal workflow for the pre-flip {@code ActionRequest} drain path. It is registered on the
+ * worker and never started: {@link TemporalAutomationPort#dispatch} no longer routes {@code
+ * ActionRequest} rows to it. The per-action path for {@code TransitionFired} rows is {@link
+ * TransitionActionWorkflow}. P2e deletes this workflow.
  *
  * <p>{@code OutboxEntry} itself is the workflow input — no bespoke DTO — because it is a plain
  * record of JSON-compatible types, which Temporal's default Jackson-based {@code DataConverter}
@@ -21,9 +18,10 @@ import org.sequeless.spi.outbox.OutboxEntry;
 public interface ActionWorkflow {
 
     /**
-     * Reads {@code entry.payload()}'s {@code actionKind} and dispatches to exactly one of {@link
-     * ActionActivities}' four methods, having first reconstructed a {@link org.sequeless.kernel.identity.Scope}
-     * from the payload's own {@code tenantId}/{@code principalId} fields.
+     * Reads {@code entry.payload()}'s {@code actionKind} and dispatches to exactly one of the four
+     * ActionRequest activity methods of {@link ActionActivities}; {@code applyTransitionAction} is the
+     * fifth. Before dispatching, it reconstructs a {@link org.sequeless.kernel.identity.Scope} from the
+     * payload's own {@code tenantId}/{@code principalId} fields.
      *
      * @param entry the {@code ActionRequest}-kind outbox entry describing the action to run
      */

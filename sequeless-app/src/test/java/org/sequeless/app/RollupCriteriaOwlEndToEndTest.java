@@ -2,7 +2,6 @@ package org.sequeless.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -22,11 +21,12 @@ import org.sequeless.spi.query.Operator;
 
 /**
  * Runs the criteria bridge end to end against the released loader under the OWL reasoner, the
- * prototype's default. A rollup whose {@code sq:filter} compares an {@code xsd:integer} property with
- * the integer 3 goes through the released {@link JenaOntologyPort}. The bridge then converts the
- * filter the loader hands over. Under OWL the loader writes a decimal node for an {@code xsd:integer}
- * property, so the criterion's value must be the decimal 3, not an integer. This is the check that
- * the bridge's decimal conversion relies on.
+ * prototype's default. The rollup's {@code sq:filter} compares an {@code xsd:integer} property with
+ * the integer 3, and the criteria bridge converts the filter that the released {@link
+ * JenaOntologyPort} hands over. The released loader ({@code ontology-jena-adapter} 0.1.1, from
+ * sequeless-ontology commit 10f5a57, PR #15) coerces {@code sq:value} to the most specific range, the
+ * same selection the snapshot's {@code mostSpecificXsdIri} makes, so the criterion's value is the
+ * integer 3.
  *
  * <p>It lives in {@code sequeless-app} because that is the only module that sees core, the released
  * loader and the Jena wiring together. {@code sequeless-adapter-ontology-jena} may not depend on core.
@@ -83,7 +83,7 @@ class RollupCriteriaOwlEndToEndTest {
             """;
 
     @Test
-    void owlLoaderFilterBecomesOneGreaterThanCriterionOverTheDecimalThree() {
+    void owlLoaderFilterBecomesOneGreaterThanCriterionOverTheIntegerThree() {
         JenaOntologyPort port = JenaOntologyPort.fromDocument(
                 new OntologyDocument(TURTLE, OntologyFormat.TURTLE), ReasonerSetting.OWL, () -> Set.of());
         Schema schema = port.schema(TenantId.DEFAULT);
@@ -100,6 +100,8 @@ class RollupCriteriaOwlEndToEndTest {
         Criterion criterion = criteria.get(0);
         assertThat(criterion.property()).isEqualTo(PRIORITY);
         assertThat(criterion.operator()).isEqualTo(Operator.GT);
-        assertThat(criterion.value()).contains(Value.decimal(new BigDecimal("3")));
+        // The value is an integer because the released loader coerces to the most specific range (sequeless-ontology
+        // 10f5a57, #15), which agrees with the snapshot.
+        assertThat(criterion.value()).contains(Value.integer(3));
     }
 }

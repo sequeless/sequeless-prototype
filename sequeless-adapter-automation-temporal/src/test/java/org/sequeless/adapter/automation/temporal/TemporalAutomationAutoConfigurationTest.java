@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.temporal.client.WorkflowClient;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.WorkerFactory;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
@@ -57,7 +59,13 @@ class TemporalAutomationAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(TemporalAutomationAutoConfiguration.class))
             .withBean(ActionExecutor.class, RecordingActionExecutor::new)
             .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
-            .withBean(DerivationRecomputer.class, RecordingDerivationRecomputer::new);
+            .withBean(DerivationRecomputer.class, RecordingDerivationRecomputer::new)
+            .withBean(AutomationSource.class, SwappableAutomationSource::new);
+
+    @BeforeEach
+    void resetAutomationSource() {
+        SwappableAutomationSource.reset();
+    }
 
     @Test
     void wiresAutomationPortWhenAdapterPropertySetAndActionExecutorPresent() {

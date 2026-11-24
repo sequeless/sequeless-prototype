@@ -155,7 +155,7 @@ Notes:
 
 ## Terms in use (phase 6)
 
-Phase 6 (event-driven automation and materialised derivations, DR-11) widens `sq:trigger` from its
+Phase 6 (event-driven automation, DR-09, and materialised derivations, DR-08) widens `sq:trigger` from its
 phase-5 single legal value to a four-way enumeration, so a `sq:Transition` can fire from something
 other than a REST caller, and adds `sq:materialised` so a derived property's value can be kept
 correct in `sq_object.props` from domain events instead of only ever being computed on read.

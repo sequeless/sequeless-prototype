@@ -160,3 +160,23 @@ queue. The main cost: during a systemic failure (for example, the Temporal serve
 row fails on every poll, so a healthy row is dead-lettered every three polls. Nothing retries a
 dead-lettered row; recovery is manual: reset `dead_lettered_at`, `fail_count` and `error`.
 Reversibility: moderate (three V7 columns are added; the claim query changes).
+
+### DR-24 Actions travel on the TransitionFired row
+Context: spec 13 P2d flips the automation dispatch from `ActionRequest` rows, one per `sq:action`, to one
+`TransitionFired` row per fired transition that carries the actions. Spec line 91 said `ActionWorkflow`
+takes the `TransitionFired` row. Step P2c's decision D5 made a separate `TransitionActionWorkflow`, keyed
+`<entryId>:<index>`, instead. No document recorded that change until this entry.
+Decision: (a) P2d removes the `ActionRequest` writer and its dispatch cases in both adapters, and removes
+`ActionRequest` from the relay's dispatchable set. The `TransitionFired` row carries what the adapters need
+to apply its actions by index: `ontologyVersion`, `self`, `typeIri` and `machineIri`.
+`OutboxEntry.KIND_ACTION_REQUEST` is deprecated in P2d and removed in P2e. (b) Deviation from spec line 91:
+the per-action path uses `TransitionActionWorkflow`, keyed `<entryId>:<index>`, not `ActionWorkflow`.
+`ActionWorkflow` stays registered on the worker and is never started; P2e deletes it.
+Alternatives: one workflow per row, keyed by the entry id. Rejected, because a row carries several actions,
+and the workflow-id reuse policy would start only the first one.
+Consequences: an `ActionRequest` row that the old version did not drain before the flip is no longer claimed,
+so the owner's mixed-version procedure (docs/extraction/spec-13-p2d-plan.md, section 8) drains them before the P2d PR merges.
+V8 (`V8__outbox_actions_drained.sql`) then stamps any remaining `ActionRequest` row, and any `TransitionFired`
+row with no `self` key, as processed, so neither is dispatched. The drain methods of `ActionExecutor`
+(`applySetProperty` and the others) have no caller in the running application, and are removed in P2e.
+Reversibility: moderate. V8 marks rows processed, and reverting the code does not unmark them.

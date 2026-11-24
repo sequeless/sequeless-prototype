@@ -24,3 +24,6 @@ node_modules/
 .claude
 skills-lock.json
 /agents
+
+# Local agent prompt (not shared)
+prompt.md

@@ -49,17 +49,13 @@ import org.sequeless.spi.query.Operator;
  * element values, not a scalar. The cut-over PR must render it as a list.
  *
  * <p>Values convert by the property's {@link Datatype} as the {@link Schema} gives it, with one
- * exception for the integer kinds. The Schema keeps one datatype per attribute, the most specific range,
- * while the released loader writes a value using the first range IRI in sorted order. Under the OWL
- * reasoner (the prototype's default), an {@code xsd:integer} property also gets the entailed range
- * {@code xsd:decimal}, which sorts first, so the loader writes a {@code DecimalNode} for it. The bridge
- * therefore converts a {@code DecimalNode} on an INTEGER or LONG property to {@code Value.decimal},
- * matching the loader under OWL. An integral node that fits a long converts to {@code Value.integer},
- * matching the loader under NONE. An integral node that does not fit a long is rejected. Every other
- * kind uses the Schema datatype. This is the one place the bridge follows the loader's first sorted
- * range. It was checked by a probe under OWL, a throwaway test: OWL gives {@code DecimalValue} and NONE
- * gives {@code IntegerValue}, for the number 3 and for the literal "3". The cut-over must verify the
- * behaviour end to end before the bridge is wired into {@code DerivationPlanner.resolveRollup}.
+ * exception for the integer kinds. The released loader (ontology-jena-adapter 0.1.1,
+ * sequeless-ontology 10f5a57) coerces a value to the most specific range, so an {@code xsd:integer}
+ * property gets an integer value under both OWL and NONE. The bridge's rule for the integer kinds:
+ * an integral node that fits a long converts to {@code Value.integer}; a {@code DecimalNode} on an
+ * INTEGER or LONG property converts to {@code Value.decimal};
+ * an integral node that does not fit a long is rejected. Every other kind uses the Schema datatype.
+ * The end-to-end contract is in {@code RollupCriteriaOwlEndToEndTest}.
  */
 public final class FilterNodeToCriterion {
 
@@ -225,9 +221,9 @@ public final class FilterNodeToCriterion {
     }
 
     /**
-     * An integer-kind value. An integral node that fits a long is an integer, matching the released
-     * loader under NONE. Any other number is a decimal, matching the loader under OWL, which writes a
-     * DecimalNode for an xsd:integer property. An integral number that does not fit a long is rejected.
+     * An integer-kind value. An integral node that fits a long is an integer, as the released
+     * loader writes under both reasoners. Any other number is a decimal. An integral number that
+     * does not fit a long is rejected.
      */
     private static Optional<Value> integerKind(JsonNode node) {
         if (node.isIntegralNumber()) {

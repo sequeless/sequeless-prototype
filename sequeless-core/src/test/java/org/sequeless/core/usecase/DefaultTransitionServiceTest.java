@@ -292,7 +292,7 @@ class DefaultTransitionServiceTest {
                 false);
     }
 
-    // --- happy path: guard passes, state moves, one TransitionFired + one ActionRequest per action ---
+    // --- happy path: guard passes, state moves, one TransitionFired row and no ActionRequest ---
 
     @Test
     void fireThrowsIllegalStateWhenAutomationIsAtAnotherOntologyVersionAndCommitsNothing() {
@@ -310,7 +310,7 @@ class DefaultTransitionServiceTest {
     }
 
     @Test
-    void fireCommitsUpdateMovingStateAndDispatchesTransitionFiredPlusOneActionRequestPerAction() {
+    void fireCommitsUpdateMovingStateAndDispatchesOneTransitionFiredRowAndNoActionRequest() {
         ObjectId id = ObjectId.random();
         Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
         BusinessObject existing = project(id, 5, DRAFT_IRI, properties);
@@ -332,7 +332,7 @@ class DefaultTransitionServiceTest {
         assertThat(update.object().state()).contains(ACTIVE_IRI);
         assertThat(update.object().properties()).isEqualTo(properties);
 
-        assertThat(changeSet.outbox()).hasSize(5);
+        assertThat(changeSet.outbox()).hasSize(1);
         OutboxEntry transitionFired = changeSet.outbox().get(0);
         assertThat(transitionFired.kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
         assertThat(transitionFired.payload())
@@ -344,79 +344,26 @@ class DefaultTransitionServiceTest {
                 .containsEntry("toState", ACTIVE_IRI)
                 .containsEntry("ontologyVersion", 1);
 
-        List<OutboxEntry> actionRequests = changeSet.outbox().subList(1, 5);
-        for (int i = 0; i < actionRequests.size(); i++) {
-            OutboxEntry entry = actionRequests.get(i);
-            assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
-            assertThat(entry.payload()).containsEntry("ontologyVersion", 1);
-            assertThat(entry.payload())
-                    .containsEntry("objectId", id.value().toString())
-                    .containsEntry("tenantId", "acme")
-                    .containsEntry("principalId", "alice")
-                    .containsEntry("transitionName", "activate")
-                    .containsEntry("actionIndex", i)
-                    .containsEntry("typeIri", PROJECT_IRI)
-                    .containsEntry("state", ACTIVE_IRI);
-            // The single most important assertion: self is keyed by SHORT NAME ("owner"), not IRI.
-            @SuppressWarnings("unchecked")
-            Map<String, Object> self = (Map<String, Object>) entry.payload().get("self");
-            assertThat(self).containsOnlyKeys("owner");
-            assertThat(self.get("owner")).isEqualTo(Map.of("text", "alice"));
-            assertThat(self).doesNotContainKey(OWNER_IRI);
-        }
-
-        // actionIndex 0: SetProperty — value present, expression absent.
-        Map<String, Object> setPropertyPayload = actionRequests.get(0).payload();
-        assertThat(setPropertyPayload.get("actionKind")).isEqualTo("SetProperty");
-        assertThat(setPropertyPayload.get("property")).isEqualTo(STATUS_IRI);
-        assertThat(setPropertyPayload.get("value")).isEqualTo(Map.of("text", "kicked-off"));
-        assertThat(setPropertyPayload).doesNotContainKey("expression");
-
-        // actionIndex 1: CreateObject.
-        Map<String, Object> createObjectPayload = actionRequests.get(1).payload();
-        assertThat(createObjectPayload.get("actionKind")).isEqualTo("CreateObject");
-        assertThat(createObjectPayload.get("createType")).isEqualTo(TASK_IRI);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> createProperties = (Map<String, Object>) createObjectPayload.get("createProperties");
-        assertThat(createProperties).containsOnlyKeys(TITLE_IRI);
-        assertThat(createProperties.get(TITLE_IRI)).isEqualTo(Map.of("value", Map.of("text", "Kickoff")));
-
-        // actionIndex 2: Webhook — url/method/body all present.
-        Map<String, Object> webhookPayload = actionRequests.get(2).payload();
-        assertThat(webhookPayload.get("actionKind")).isEqualTo("Webhook");
-        assertThat(webhookPayload.get("url")).isEqualTo("https://example.com/hook");
-        assertThat(webhookPayload.get("method")).isEqualTo("POST");
-        assertThat(webhookPayload.get("body")).isEqualTo("${self.owner}");
-
-        // actionIndex 3: Log.
-        Map<String, Object> logPayload = actionRequests.get(3).payload();
-        assertThat(logPayload.get("actionKind")).isEqualTo("Log");
-        assertThat(logPayload.get("message")).isEqualTo("Activated by ${self.owner}");
+        assertThat(changeSet.outbox()).extracting(OutboxEntry::kind).doesNotContain(OutboxEntry.KIND_ACTION_REQUEST);
     }
 
     @Test
-    void fireActionRequestOmitsAbsentOptionalFieldsRatherThanNull() {
+    void fireTransitionFiredCarriesSelfTypeIriAndMachineIri() {
         ObjectId id = ObjectId.random();
-        BusinessObject existing = project(id, 1, CLOSED_IRI, Map.of());
+        Map<PropertyRef, Value> properties = Map.of(new PropertyRef(OWNER_IRI), Value.text("alice"));
         FakeObjectStorePort store = new FakeObjectStorePort();
-        store.seed(existing);
+        store.seed(project(id, 5, DRAFT_IRI, properties));
         DefaultTransitionService service = service(store, permitAll());
 
-        service.fire(ALICE, "Project", id, "reopen", 1);
+        service.fire(ALICE, "Project", id, "activate", 5);
 
-        ChangeSet changeSet = store.commits.get(0);
-        List<OutboxEntry> actionRequests =
-                changeSet.outbox().subList(1, changeSet.outbox().size());
-        assertThat(actionRequests).hasSize(2);
-
-        Map<String, Object> setPropertyPayload = actionRequests.get(0).payload();
-        assertThat(setPropertyPayload.get("actionKind")).isEqualTo("SetProperty");
-        assertThat(setPropertyPayload.get("expression")).isEqualTo("self.status");
-        assertThat(setPropertyPayload).doesNotContainKey("value");
-
-        Map<String, Object> webhookPayload = actionRequests.get(1).payload();
-        assertThat(webhookPayload.get("actionKind")).isEqualTo("Webhook");
-        assertThat(webhookPayload).doesNotContainKey("body");
+        OutboxEntry transitionFired = store.commits.get(0).outbox().get(0);
+        assertThat(transitionFired.kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+        assertThat(transitionFired.payload())
+                .containsEntry("typeIri", PROJECT_IRI)
+                .containsEntry("machineIri", PROJECT_LIFECYCLE.iri());
+        // self is keyed by SHORT NAME ("owner"), not IRI.
+        assertThat(transitionFired.payload().get("self")).isEqualTo(Map.of("owner", Map.of("text", "alice")));
     }
 
     @Test
@@ -698,7 +645,7 @@ class DefaultTransitionServiceTest {
     }
 
     @Test
-    void fireAutomatedFiresNormallyMovingStateAndDispatchingTransitionFiredPlusActionRequest() {
+    void fireAutomatedFiresNormallyMovingStateAndDispatchingTransitionFiredOnly() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = timerWidget(id, 3, START_IRI);
         FakeObjectStorePort store = new FakeObjectStorePort();
@@ -716,9 +663,8 @@ class DefaultTransitionServiceTest {
         Update update = (Update) changeSet.mutations().get(0);
         assertThat(update.expectedVersion()).isEqualTo(3); // fireAutomated reads the version itself.
 
-        assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + one ActionRequest (Log).
+        assertThat(changeSet.outbox()).hasSize(1); // TransitionFired only; the Log action is applied from that row.
         assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
-        assertThat(changeSet.outbox().get(1).kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
     }
 
     // --- signal ---

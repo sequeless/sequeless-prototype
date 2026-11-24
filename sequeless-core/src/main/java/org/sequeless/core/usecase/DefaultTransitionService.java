@@ -27,12 +27,7 @@ import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.Automation;
-import org.sequeless.ontology.automation.api.CreateObjectAction;
-import org.sequeless.ontology.automation.api.LogAction;
-import org.sequeless.ontology.automation.api.PropertyAssignment;
 import org.sequeless.ontology.automation.api.SetPropertyAction;
-import org.sequeless.ontology.automation.api.TransitionRef;
-import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
@@ -69,10 +64,11 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * StateMachineInterpreter#availableTransitions}, never re-implemented here, so the write path and a
  * later REST read path can never disagree about which transitions are available.
  *
- * <p>All four {@link Action} kinds are dispatched uniformly as async {@code ActionRequest} outbox
- * rows — never applied inline to the object being transitioned, even a {@link SetPropertyAction}
- * that targets that same object — because the design treats every action as outbox-dispatched
- * without exception; see {@code plan.md} §4's interpretation note.
+ * <p>A fire writes one {@code TransitionFired} outbox row that carries the actions' data: the frozen
+ * {@code self} snapshot, {@code typeIri}, the machine IRI and the Ontology version. The four {@link
+ * Action} kinds are applied by the automation adapters from that row, never inline to the object
+ * being transitioned, even a {@link SetPropertyAction} that targets that same object; see {@code
+ * plan.md} §4's interpretation note.
  */
 public final class DefaultTransitionService implements TransitionService {
 
@@ -302,9 +298,9 @@ public final class DefaultTransitionService implements TransitionService {
 
     /**
      * The single commit path shared by {@link #fire} and {@link #fireAutomated}: builds the moved-state
-     * {@code candidate}, the {@code TransitionFired} entry, one {@code ActionRequest} entry per
-     * action the transition's {@link Automation} defines, the {@code TimerScheduled}/{@code
-     * TimerCancelled} entries for every timer transition entered or departed by this move (see {@link
+     * {@code candidate}, the one {@code TransitionFired} entry that carries the actions' data, the
+     * {@code TimerScheduled}/{@code TimerCancelled} entries for every timer transition entered or
+     * departed by this move (see {@link
      * #addTimerOutboxEntries}), and commits all of it as one {@link ChangeSet} — so the two callers
      * can never disagree about what a successful transition commits.
      *
@@ -346,13 +342,7 @@ public final class DefaultTransitionService implements TransitionService {
 
         int ontologyVersion = halves.schema().ontologyVersion().value();
         List<OutboxEntry> outbox = new ArrayList<>();
-        outbox.add(transitionFiredEntry(scope, existing, transition, ontologyVersion, now));
-        List<Action> actions =
-                automation.actions(new TransitionRef(machine.iri(), transition.fromStateIri(), transition.name()));
-        for (int i = 0; i < actions.size(); i++) {
-            outbox.add(
-                    actionRequestEntry(scope, resolved, existing, transition, i, actions.get(i), ontologyVersion, now));
-        }
+        outbox.add(transitionFiredEntry(scope, existing, resolved, machine, transition, ontologyVersion, now));
         addTimerOutboxEntries(scope, resolved, machine, existing, transition, ontologyVersion, now, outbox);
 
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
@@ -452,7 +442,13 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     private OutboxEntry transitionFiredEntry(
-            Scope scope, BusinessObject existing, Transition transition, int ontologyVersion, Instant now) {
+            Scope scope,
+            BusinessObject existing,
+            TypeDefinition resolved,
+            StateMachineDefinition machine,
+            Transition transition,
+            int ontologyVersion,
+            Instant now) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
@@ -461,84 +457,10 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("fromState", transition.fromStateIri());
         payload.put("toState", transition.toStateIri());
         payload.put("ontologyVersion", ontologyVersion);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, now);
-    }
-
-    private OutboxEntry actionRequestEntry(
-            Scope scope,
-            TypeDefinition resolved,
-            BusinessObject existing,
-            Transition transition,
-            int actionIndex,
-            Action action,
-            int ontologyVersion,
-            Instant now) {
-        Map<String, Object> payload = actionRequestPayload(scope, resolved, existing, transition, actionIndex, action);
-        payload.put("ontologyVersion", ontologyVersion);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, now);
-    }
-
-    /**
-     * Builds one {@code ActionRequest} payload: the fields common to every action kind (including
-     * {@code self}, a short-name-keyed snapshot of {@code existing}'s properties — see {@code
-     * ExpressionContext#selfProperties()} for why short names, not IRIs, are used there), plus the
-     * fields specific to {@code action}'s kind. Every optional field (a {@code SetProperty}'s {@code
-     * value} vs {@code expression}, a {@code Webhook}'s {@code body}) is included only when present —
-     * {@link OutboxEntry}'s constructor rejects a {@code null} anywhere in the payload, so "one of two
-     * mutually exclusive keys" is expressed by omission, never a null placeholder.
-     */
-    private Map<String, Object> actionRequestPayload(
-            Scope scope,
-            TypeDefinition resolved,
-            BusinessObject existing,
-            Transition transition,
-            int actionIndex,
-            Action action) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", existing.id().value().toString());
-        payload.put("tenantId", scope.tenantId().value());
-        payload.put("principalId", scope.principal().id());
-        payload.put("transitionName", transition.name());
-        payload.put("actionIndex", actionIndex);
-        payload.put("typeIri", resolved.iri());
-        payload.put("state", transition.toStateIri());
         payload.put("self", selfPayload(existing));
-
-        switch (action) {
-            case SetPropertyAction setProperty -> {
-                payload.put("actionKind", "SetProperty");
-                payload.put("property", setProperty.propertyIri());
-                setProperty.value().ifPresent(v -> payload.put("value", PayloadValueCodec.toPayload(v)));
-                setProperty.expression().ifPresent(e -> payload.put("expression", e));
-            }
-            case CreateObjectAction createObject -> {
-                payload.put("actionKind", "CreateObject");
-                payload.put("createType", createObject.typeIri());
-                payload.put("createProperties", createPropertiesPayload(createObject));
-            }
-            case WebhookAction webhook -> {
-                payload.put("actionKind", "Webhook");
-                payload.put("url", webhook.url());
-                payload.put("method", webhook.method());
-                webhook.body().ifPresent(b -> payload.put("body", b));
-            }
-            case LogAction log -> {
-                payload.put("actionKind", "Log");
-                payload.put("message", log.message());
-            }
-        }
-        return payload;
-    }
-
-    private static Map<String, Object> createPropertiesPayload(CreateObjectAction action) {
-        Map<String, Object> createProperties = new HashMap<>();
-        for (PropertyAssignment assignment : action.properties()) {
-            Map<String, Object> entry = new HashMap<>();
-            assignment.value().ifPresent(v -> entry.put("value", PayloadValueCodec.toPayload(v)));
-            assignment.expression().ifPresent(e -> entry.put("expression", e));
-            createProperties.put(assignment.propertyIri(), entry);
-        }
-        return createProperties;
+        payload.put("typeIri", resolved.iri());
+        payload.put("machineIri", machine.iri());
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, now);
     }
 
     private static Map<String, Object> selfPayload(BusinessObject object) {

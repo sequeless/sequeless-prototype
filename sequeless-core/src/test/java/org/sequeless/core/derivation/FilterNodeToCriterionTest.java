@@ -188,7 +188,7 @@ class FilterNodeToCriterionTest {
 
     @Test
     void convertsDecimalNodeOnIntegerKindAsDecimal() {
-        // The OWL loader writes a DecimalNode for an xsd:integer property (sorted-first decimal range).
+        // The bridge keeps a DecimalNode on an integer kind as a decimal.
         assertThat(valueOf(COUNT, DecimalNode.valueOf(new BigDecimal("3.0"))))
                 .isEqualTo(Value.decimal(new BigDecimal("3.0")));
         assertThat(valueOf(BIG, DecimalNode.valueOf(new BigDecimal("3.5"))))
@@ -196,9 +196,9 @@ class FilterNodeToCriterionTest {
     }
 
     @Test
-    void decimalNodeForIntegerKindMatchesOwlLoaderForLexicalThree() {
-        // Under OWL the loader coerces the literal "3" to Value.decimal(new BigDecimal("3")) and writes
-        // it as DecimalNode.valueOf(that BigDecimal). The bridge must read the same value back.
+    void decimalNodeOnIntegerKindConvertsToDecimal() {
+        // This test builds its own DecimalNode, so it covers only the bridge's conversion; the
+        // released loader now coerces an integer property to an integer (sequeless-ontology 10f5a57).
         assertThat(valueOf(COUNT, DecimalNode.valueOf(new BigDecimal("3"))))
                 .isEqualTo(Value.decimal(new BigDecimal("3")));
     }

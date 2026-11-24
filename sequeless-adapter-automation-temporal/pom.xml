@@ -26,6 +26,14 @@
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
+    </dependency>
 
     <!-- Version comes from the root dependencyManagement (${temporal.version}). This adapter's own
          core library, declared non-optionally exactly like commons-jexl3 in the Jexl adapter -
@@ -65,7 +73,8 @@
 
     <!--
       TestWorkflowEnvironment: an in-memory Temporal test service, no live server or Testcontainers
-      required, used by TemporalAutomationPortContractTest.
+      required, used by TemporalAutomationPortContractTest, TransitionActionWorkflowTest and
+      TemporalAutomationPortTransitionFiredTest.
     -->
     <dependency>
       <groupId>io.temporal</groupId>
