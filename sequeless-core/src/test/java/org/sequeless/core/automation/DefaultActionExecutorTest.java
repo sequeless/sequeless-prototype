@@ -473,6 +473,10 @@ class DefaultActionExecutorTest {
         executor.applyAction(ALICE, row, action, 2);
 
         assertThat(store.commitCalls).isEqualTo(1);
+        assertThat(store.commits.get(0).outbox()).anySatisfy(entry -> {
+            assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_CREATED);
+            assertThat(entry.payload()).containsEntry("typeIri", TASK_IRI);
+        });
         BusinessObject created = store.store.get(expectedId);
         assertThat(created.type()).isEqualTo(new TypeRef(TASK_IRI));
         assertThat(created.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("Kickoff"));
