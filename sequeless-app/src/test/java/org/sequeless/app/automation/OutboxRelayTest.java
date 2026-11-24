@@ -181,14 +181,16 @@ class OutboxRelayTest {
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
     }
 
-    /** Builds a legacy {@code ActionRequest}-kind {@link OutboxEntry}, which the relay must not claim. */
-    @SuppressWarnings("deprecation")
+    /**
+     * Builds a legacy {@code ActionRequest}-kind {@link OutboxEntry}, which the relay must not claim.
+     * The kind is the literal string: the constant it once named is gone.
+     */
     private static OutboxEntry actionRequest() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", "tenant-a");
         payload.put("principalId", "alice");
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, Instant.now());
+        return new OutboxEntry(UUID.randomUUID(), "ActionRequest", payload, Instant.now());
     }
 
     private static ObjectProvider<AutomationPort> providerOf(AutomationPort port) {

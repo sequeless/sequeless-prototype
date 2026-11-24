@@ -82,7 +82,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * {@link FakeExpressionPort}, {@link FakeOntology}).
  *
  * <p>{@link #applyingEveryActionKindProducedByARealFireCallAppliesThemCorrectly()} is the single
- * most important test here: rather than hand-building {@code ActionRequest} payloads and hoping
+ * most important test here: rather than hand-building {@code TransitionFired} payloads and hoping
  * they match what {@link DefaultTransitionService} actually emits, it calls {@code
  * DefaultTransitionService#fire} for real and feeds its genuine {@link OutboxEntry} output
  * straight into {@link DefaultActionExecutor}, proving both sides of the outbox payload format
@@ -274,39 +274,36 @@ class DefaultActionExecutorTest {
                 .containsEntry("owner", Value.text("alice"));
     }
 
-    // --- applySetProperty ---
+    // --- applyAction, SetProperty ---
 
     @Test
-    void applySetPropertyIsANoOpWhenValueAlreadyMatchesValueVariant() {
+    void applyActionIsANoOpWhenValueAlreadyMatchesValueVariant() {
         ObjectId id = ObjectId.random();
         BusinessObject existing =
                 project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("kicked-off")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        OutboxEntry row = transitionFiredRow(id, Map.of("owner", tag(Value.text("alice"))));
+        SetPropertyAction action =
+                new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("kicked-off")), Optional.empty());
 
-        OutboxEntry entry = setPropertyEntry(id, "kicked-off-transition", 0, Map.of("owner", tag(Value.text("alice"))))
-                .valueVariant(Value.text("kicked-off"))
-                .build();
-
-        executor.applySetProperty(ALICE, entry);
+        executor.applyAction(ALICE, row, action, 0);
 
         assertThat(store.commitCalls).isZero();
     }
 
     @Test
-    void applySetPropertyCommitsExactlyOneUpdateWithObjectUpdatedOutboxWhenValueDiffersValueVariant() {
+    void applyActionCommitsExactlyOneUpdateWithObjectUpdatedOutboxWhenValueDiffersValueVariant() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        OutboxEntry row = transitionFiredRow(id, Map.of("owner", tag(Value.text("alice"))));
+        SetPropertyAction action = new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("new")), Optional.empty());
 
-        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
-                .valueVariant(Value.text("new"))
-                .build();
-
-        executor.applySetProperty(ALICE, entry);
+        executor.applyAction(ALICE, row, action, 0);
 
         assertThat(store.commitCalls).isEqualTo(1);
         ChangeSet changeSet = store.commits.get(0);
@@ -324,225 +321,97 @@ class DefaultActionExecutorTest {
     }
 
     @Test
-    void objectUpdatedFromAnActionRowWrittenBeforeTheStampLeavesTheVersionOut() {
+    void applyActionLeavesTheVersionOutOfTheOutboxOfAnUnstampedRow() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        // A row written before the stamp existed has no ontologyVersion key.
+        Map<String, Object> payload = new HashMap<>(transitionFiredRow(id, Map.of("owner", tag(Value.text("alice"))))
+                .payload());
+        payload.remove("ontologyVersion");
+        OutboxEntry unstamped = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, NOW);
+        SetPropertyAction action = new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("new")), Optional.empty());
 
-        // This builder sets no ontologyVersion, which is how a row written before the stamp looks.
-        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
-                .valueVariant(Value.text("new"))
-                .build();
-
-        executor.applySetProperty(ALICE, entry);
+        executor.applyAction(ALICE, unstamped, action, 0);
 
         assertThat(store.commitCalls).isEqualTo(1);
         assertThat(store.commits.get(0).outbox().get(0).payload()).doesNotContainKey("ontologyVersion");
     }
 
     @Test
-    void applySetPropertyIsANoOpWhenValueAlreadyMatchesExpressionVariant() {
+    void applyActionIsANoOpWhenValueAlreadyMatchesExpressionVariant() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("alice")));
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        OutboxEntry row = transitionFiredRow(id, Map.of("owner", tag(Value.text("alice"))));
+        SetPropertyAction action = new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner"));
 
-        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
-                .expressionVariant("self.owner")
-                .build();
-
-        executor.applySetProperty(ALICE, entry);
+        executor.applyAction(ALICE, row, action, 0);
 
         assertThat(store.commitCalls).isZero();
     }
 
     @Test
-    void applySetPropertyCommitsWhenValueDiffersExpressionVariant() {
-        ObjectId id = ObjectId.random();
-        BusinessObject existing = project(id, 3, ACTIVE_IRI, Map.of(new PropertyRef(STATUS_IRI), Value.text("old")));
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        store.seed(existing);
-        DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
-
-        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
-                .expressionVariant("self.owner")
-                .build();
-
-        executor.applySetProperty(ALICE, entry);
-
-        assertThat(store.commitCalls).isEqualTo(1);
-        Update update = (Update) store.commits.get(0).mutations().get(0);
-        assertThat(update.object().properties().get(new PropertyRef(STATUS_IRI)))
-                .isEqualTo(Value.text("alice"));
-    }
-
-    @Test
-    void applySetPropertyIsASafeNoOpWhenTargetObjectNoLongerExists() {
+    void applyActionIsASafeNoOpWhenTargetObjectNoLongerExists() {
         ObjectId id = ObjectId.random();
         FakeObjectStorePort store = new FakeObjectStorePort(); // nothing seeded
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        OutboxEntry row = transitionFiredRow(id, Map.of("owner", tag(Value.text("alice"))));
+        SetPropertyAction action = new SetPropertyAction(STATUS_IRI, Optional.of(Value.text("new")), Optional.empty());
 
-        OutboxEntry entry = setPropertyEntry(id, "activate", 0, Map.of("owner", tag(Value.text("alice"))))
-                .valueVariant(Value.text("new"))
-                .build();
-
-        executor.applySetProperty(ALICE, entry); // must not throw
+        executor.applyAction(ALICE, row, action, 0); // must not throw
 
         assertThat(store.commitCalls).isZero();
     }
 
-    // --- applyCreateObject ---
+    // --- applyAction, CreateObject ---
 
     @Test
-    void applyCreateObjectDerivesIdFromEntryIdAndActionIndexAndIsIdempotent() {
+    void applyActionCreateObjectSupportsExpressionVariantProperties() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        OutboxEntry row = transitionFiredRow(ObjectId.random(), Map.of("owner", tag(Value.text("alice"))));
+        CreateObjectAction action = new CreateObjectAction(
+                TASK_IRI, List.of(new PropertyAssignment(TITLE_IRI, Optional.empty(), Optional.of("self.owner"))));
 
-        UUID entryId = UUID.randomUUID();
-        int actionIndex = 2;
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", ObjectId.random().value().toString());
-        payload.put("tenantId", "acme");
-        payload.put("principalId", "alice");
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", actionIndex);
-        payload.put("typeIri", PROJECT_IRI);
-        payload.put("state", ACTIVE_IRI);
-        payload.put("self", Map.of("owner", tag(Value.text("alice"))));
-        payload.put("actionKind", "CreateObject");
-        payload.put("createType", TASK_IRI);
-        payload.put("createProperties", Map.of(TITLE_IRI, Map.of("value", tag(Value.text("Kickoff")))));
-        OutboxEntry entry = new OutboxEntry(entryId, OutboxEntry.KIND_ACTION_REQUEST, payload, NOW);
-
-        executor.applyCreateObject(ALICE, entry);
-
-        ObjectId expectedId = new ObjectId(UUID.nameUUIDFromBytes(
-                (entryId + ":" + actionIndex).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        assertThat(store.commitCalls).isEqualTo(1);
-        BusinessObject created = store.store.get(expectedId);
-        assertThat(created).isNotNull();
-        assertThat(created.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("Kickoff"));
-        assertThat(created.state()).isEmpty();
-
-        OutboxEntry objectCreated = store.commits.get(0).outbox().get(0);
-        assertThat(objectCreated.kind()).isEqualTo(OutboxEntry.KIND_OBJECT_CREATED);
-        assertThat(objectCreated.payload()).containsEntry("typeIri", TASK_IRI);
-
-        // Idempotent retry: the derived id already exists, so no second Create is committed.
-        executor.applyCreateObject(ALICE, entry);
-        assertThat(store.commitCalls).isEqualTo(1);
-    }
-
-    @Test
-    void applyCreateObjectSupportsExpressionVariantProperties() {
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
-
-        UUID entryId = UUID.randomUUID();
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", ObjectId.random().value().toString());
-        payload.put("tenantId", "acme");
-        payload.put("principalId", "alice");
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", PROJECT_IRI);
-        payload.put("state", ACTIVE_IRI);
-        payload.put("self", Map.of("owner", tag(Value.text("alice"))));
-        payload.put("actionKind", "CreateObject");
-        payload.put("createType", TASK_IRI);
-        payload.put("createProperties", Map.of(TITLE_IRI, Map.of("expression", "self.owner")));
-        OutboxEntry entry = new OutboxEntry(entryId, OutboxEntry.KIND_ACTION_REQUEST, payload, NOW);
-
-        executor.applyCreateObject(ALICE, entry);
+        executor.applyAction(ALICE, row, action, 0);
 
         ObjectId expectedId = new ObjectId(
-                UUID.nameUUIDFromBytes((entryId + ":0").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                UUID.nameUUIDFromBytes((row.id() + ":0").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         BusinessObject created = store.store.get(expectedId);
         assertThat(created.properties().get(new PropertyRef(TITLE_IRI))).isEqualTo(Value.text("alice"));
     }
 
-    // --- resolveWebhook ---
+    // --- resolveWebhookAction ---
 
     @Test
-    void resolveWebhookRendersUrlAndBodyAndMakesNoObjectStoreCalls() {
+    void resolveWebhookActionBodyIsAbsentWhenTheActionHasNoBody() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
+        OutboxEntry row = transitionFiredRow(ObjectId.random(), Map.of("owner", tag(Value.text("alice"))));
+        WebhookAction action = new WebhookAction("https://example.com/reopen", "GET", Optional.empty());
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", ObjectId.random().value().toString());
-        payload.put("tenantId", "acme");
-        payload.put("principalId", "alice");
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", PROJECT_IRI);
-        payload.put("state", ACTIVE_IRI);
-        payload.put("self", Map.of("owner", tag(Value.text("alice"))));
-        payload.put("actionKind", "Webhook");
-        payload.put("url", "https://example.com/hook?owner=${self.owner}");
-        payload.put("method", "POST");
-        payload.put("body", "${self.owner}");
-        OutboxEntry entry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, NOW);
-
-        ResolvedWebhookRequest resolved = executor.resolveWebhook(ALICE, entry);
-
-        assertThat(resolved.url()).isEqualTo("https://example.com/hook?owner=alice");
-        assertThat(resolved.method()).isEqualTo("POST");
-        assertThat(resolved.body()).contains("alice");
-        assertThat(store.findCalls).isZero();
-        assertThat(store.commitCalls).isZero();
-    }
-
-    @Test
-    void resolveWebhookBodyIsAbsentWhenPayloadHasNoBodyKey() {
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        DefaultActionExecutor executor = new DefaultActionExecutor(new FakeExpressionPort(), store, CLOCK);
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", ObjectId.random().value().toString());
-        payload.put("tenantId", "acme");
-        payload.put("principalId", "alice");
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", PROJECT_IRI);
-        payload.put("state", ACTIVE_IRI);
-        payload.put("self", Map.of("owner", tag(Value.text("alice"))));
-        payload.put("actionKind", "Webhook");
-        payload.put("url", "https://example.com/reopen");
-        payload.put("method", "GET");
-        OutboxEntry entry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, NOW);
-
-        ResolvedWebhookRequest resolved = executor.resolveWebhook(ALICE, entry);
+        ResolvedWebhookRequest resolved = executor.resolveWebhookAction(ALICE, row, action, 5);
 
         assertThat(resolved.body()).isEmpty();
         assertThat(store.findCalls).isZero();
         assertThat(store.commitCalls).isZero();
     }
 
-    // --- applyLog ---
+    // --- applyAction, Log ---
 
     @Test
-    void applyLogRendersMessageThroughExpressionPort() {
+    void applyActionLogRendersMessageWithTheToStateAndPrincipalContext() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeExpressionPort expressionPort = new FakeExpressionPort();
         DefaultActionExecutor executor = new DefaultActionExecutor(expressionPort, store, CLOCK);
+        OutboxEntry row = transitionFiredRow(ObjectId.random(), Map.of("owner", tag(Value.text("alice"))));
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", ObjectId.random().value().toString());
-        payload.put("tenantId", "acme");
-        payload.put("principalId", "alice");
-        payload.put("transitionName", "activate");
-        payload.put("actionIndex", 0);
-        payload.put("typeIri", PROJECT_IRI);
-        payload.put("state", ACTIVE_IRI);
-        payload.put("self", Map.of("owner", tag(Value.text("alice"))));
-        payload.put("actionKind", "Log");
-        payload.put("message", "Activated by ${self.owner}");
-        OutboxEntry entry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, NOW);
-
-        executor.applyLog(ALICE, entry);
+        executor.applyAction(ALICE, row, new LogAction("Activated by ${self.owner}"), 6);
 
         assertThat(expressionPort.renderTemplateCalls).hasSize(1);
         assertThat(expressionPort.renderTemplateCalls.get(0).template()).isEqualTo("Activated by ${self.owner}");
@@ -678,42 +547,6 @@ class DefaultActionExecutorTest {
 
     private static Object tag(Value value) {
         return PayloadValueCodec.toPayload(value);
-    }
-
-    private static SetPropertyEntryBuilder setPropertyEntry(
-            ObjectId objectId, String transitionName, int actionIndex, Map<String, Object> self) {
-        return new SetPropertyEntryBuilder(objectId, transitionName, actionIndex, self);
-    }
-
-    private static final class SetPropertyEntryBuilder {
-        private final Map<String, Object> payload = new HashMap<>();
-
-        SetPropertyEntryBuilder(ObjectId objectId, String transitionName, int actionIndex, Map<String, Object> self) {
-            payload.put("objectId", objectId.value().toString());
-            payload.put("tenantId", "acme");
-            payload.put("principalId", "alice");
-            payload.put("transitionName", transitionName);
-            payload.put("actionIndex", actionIndex);
-            payload.put("typeIri", PROJECT_IRI);
-            payload.put("state", ACTIVE_IRI);
-            payload.put("self", self);
-            payload.put("actionKind", "SetProperty");
-            payload.put("property", STATUS_IRI);
-        }
-
-        SetPropertyEntryBuilder valueVariant(Value value) {
-            payload.put("value", tag(value));
-            return this;
-        }
-
-        SetPropertyEntryBuilder expressionVariant(String expression) {
-            payload.put("expression", expression);
-            return this;
-        }
-
-        OutboxEntry build() {
-            return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_ACTION_REQUEST, payload, NOW);
-        }
     }
 
     // --- fakes ---

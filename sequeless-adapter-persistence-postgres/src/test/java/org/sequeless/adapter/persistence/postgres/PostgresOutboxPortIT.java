@@ -27,7 +27,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Proves {@link PostgresOutboxPort} claims one unprocessed {@code ActionRequest} row at a time,
+ * Proves {@link PostgresOutboxPort} claims one unprocessed {@code TransitionFired} row at a time,
  * skips other outbox kinds, marks a claimed row processed, never lets two concurrent claimers
  * take the same row (thanks to {@code SKIP LOCKED}), leaves a row unprocessed when the handler
  * throws, and dead-letters a row after its third failed dispatch (DR-23) — against a real
@@ -67,16 +67,16 @@ class PostgresOutboxPortIT {
     @Test
     void claimReturnsEmptyWhenNothingPending() {
         Optional<UUID> result =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         assertThat(result).isEmpty();
     }
 
     @Test
-    void claimSkipsNonActionRequestKinds() {
+    void claimSkipsNonTransitionFiredKinds() {
         insertOutboxRow(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, UUID.randomUUID(), Instant.now());
 
         Optional<UUID> result =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
 
         assertThat(result).isEmpty();
     }
@@ -86,15 +86,15 @@ class PostgresOutboxPortIT {
         UUID firstId = UUID.randomUUID();
         UUID secondId = UUID.randomUUID();
         Instant now = Instant.now();
-        insertOutboxRow(firstId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now);
-        insertOutboxRow(secondId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now.plusSeconds(1));
+        insertOutboxRow(firstId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), now);
+        insertOutboxRow(secondId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), now.plusSeconds(1));
 
         Optional<UUID> first =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         Optional<UUID> second =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         Optional<UUID> third =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
 
         assertThat(first).contains(firstId);
         assertThat(second).contains(secondId);
@@ -107,9 +107,9 @@ class PostgresOutboxPortIT {
         UUID actionRowId = UUID.randomUUID();
         Instant now = Instant.now();
         insertOutboxRow(timerRowId, OutboxEntry.KIND_TIMER_SCHEDULED, UUID.randomUUID(), now);
-        insertOutboxRow(actionRowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now.plusSeconds(1));
+        insertOutboxRow(actionRowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), now.plusSeconds(1));
 
-        Set<String> kinds = Set.of(OutboxEntry.KIND_TIMER_SCHEDULED, OutboxEntry.KIND_ACTION_REQUEST);
+        Set<String> kinds = Set.of(OutboxEntry.KIND_TIMER_SCHEDULED, OutboxEntry.KIND_TRANSITION_FIRED);
         Optional<UUID> first = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
         Optional<UUID> second = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
         Optional<UUID> third = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
@@ -123,12 +123,12 @@ class PostgresOutboxPortIT {
     void claimHandsHandlerTheRowsRawTenantIdAndReconstructedEntry() {
         UUID rowId = UUID.randomUUID();
         UUID objectId = UUID.randomUUID();
-        insertOutboxRow("tenant-xyz", rowId, OutboxEntry.KIND_ACTION_REQUEST, objectId, Instant.now());
+        insertOutboxRow("tenant-xyz", rowId, OutboxEntry.KIND_TRANSITION_FIRED, objectId, Instant.now());
 
         Optional<String> observedTenantId = freshPort()
-                .claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+                .claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
                     assertThat(entry.id()).isEqualTo(rowId);
-                    assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_ACTION_REQUEST);
+                    assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
                     assertThat(entry.payload()).containsEntry("objectId", objectId.toString());
                     return tenantId;
                 });
@@ -139,13 +139,13 @@ class PostgresOutboxPortIT {
     @Test
     void concurrentClaimersNeverGetTheSameRowThanksToSkipLocked() throws InterruptedException {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         CountDownLatch handlerEntered = new CountDownLatch(1);
         CountDownLatch releaseHandler = new CountDownLatch(1);
 
         Thread firstClaimer =
-                new Thread(() -> freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+                new Thread(() -> freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
                     handlerEntered.countDown();
                     await(releaseHandler);
                     return entry.id();
@@ -156,7 +156,7 @@ class PostgresOutboxPortIT {
         // The row is locked (FOR UPDATE) by the first claimer's still-open transaction; SKIP
         // LOCKED means this second claim must return immediately, empty, rather than block.
         Optional<UUID> second =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         assertThat(second).isEmpty();
 
         releaseHandler.countDown();
@@ -166,9 +166,9 @@ class PostgresOutboxPortIT {
     @Test
     void handlerExceptionLeavesRowUnprocessedAndPropagates() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
-        assertThatThrownBy(() -> freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+        assertThatThrownBy(() -> freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
                     throw new RuntimeException("boom");
                 }))
                 .isInstanceOf(RuntimeException.class)
@@ -184,14 +184,14 @@ class PostgresOutboxPortIT {
         // The row must still be claimable afterwards: the failed transaction released its lock
         // and never stamped processed_at.
         Optional<UUID> retried =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         assertThat(retried).contains(rowId);
     }
 
     @Test
     void rowWhoseHandlerAlwaysThrowsIsDeadLetteredAfterThreeFailedDispatches() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         for (int failure = 0; failure < 3; failure++) {
             assertThatThrownBy(PostgresOutboxPortIT::claimThatThrows).hasMessage("boom");
@@ -199,7 +199,7 @@ class PostgresOutboxPortIT {
 
         AtomicInteger handlerCalls = new AtomicInteger();
         Optional<UUID> claimedAfterThree = freshPort()
-                .claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+                .claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
                     handlerCalls.incrementAndGet();
                     return entry.id();
                 });
@@ -217,8 +217,8 @@ class PostgresOutboxPortIT {
         UUID deadLetteredId = UUID.randomUUID();
         UUID behindId = UUID.randomUUID();
         Instant now = Instant.now();
-        insertOutboxRow(deadLetteredId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now);
-        insertOutboxRow(behindId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), now.plusSeconds(1));
+        insertOutboxRow(deadLetteredId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), now);
+        insertOutboxRow(behindId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), now.plusSeconds(1));
 
         for (int failure = 0; failure < 3; failure++) {
             assertThatThrownBy(PostgresOutboxPortIT::claimThatThrows).hasMessage("boom");
@@ -226,7 +226,7 @@ class PostgresOutboxPortIT {
         assertThat(isDeadLettered(deadLetteredId)).isTrue();
 
         Optional<UUID> next =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
 
         assertThat(next).contains(behindId);
         assertThat(isProcessed(behindId)).isTrue();
@@ -236,14 +236,14 @@ class PostgresOutboxPortIT {
     @Test
     void rowThatFailsTwiceAndThenSucceedsIsProcessedAndNotDeadLettered() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         for (int failure = 0; failure < 2; failure++) {
             assertThatThrownBy(PostgresOutboxPortIT::claimThatThrows).hasMessage("boom");
         }
 
         Optional<UUID> third =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
 
         assertThat(third).contains(rowId);
         assertThat(failCountOf(rowId)).isEqualTo(2);
@@ -254,7 +254,7 @@ class PostgresOutboxPortIT {
     @Test
     void failureToCountADispatchIsSuppressedAndTheHandlerExceptionStillPropagates() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         refuseFailCountWrites();
         Throwable thrown;
@@ -277,14 +277,14 @@ class PostgresOutboxPortIT {
         // The row must still be claimable: the claim and the refused count both rolled back,
         // so the row is neither processed nor counted.
         Optional<UUID> retried =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         assertThat(retried).contains(rowId);
     }
 
     @Test
     void nonVirtualMachineErrorIsCountedLikeARuntimeExceptionAndDeadLettersTheRow() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         for (int failure = 0; failure < 3; failure++) {
             assertThatThrownBy(() -> claimThatThrowsError(new LinkageError("boom")))
@@ -301,7 +301,7 @@ class PostgresOutboxPortIT {
     @Test
     void virtualMachineErrorIsNotCountedSoTheRowStaysClaimable() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         for (int failure = 0; failure < 3; failure++) {
             assertThatThrownBy(() -> claimThatThrowsError(new OutOfMemoryError("boom")))
@@ -315,14 +315,14 @@ class PostgresOutboxPortIT {
         assertThat(isProcessed(rowId)).isFalse();
 
         Optional<UUID> retried =
-                freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> entry.id());
+                freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> entry.id());
         assertThat(retried).contains(rowId);
     }
 
     @Test
     void failureWithNoMessageIsDeadLetteredWithItsClassNameAsTheError() {
         UUID rowId = UUID.randomUUID();
-        insertOutboxRow(rowId, OutboxEntry.KIND_ACTION_REQUEST, UUID.randomUUID(), Instant.now());
+        insertOutboxRow(rowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), Instant.now());
 
         for (int failure = 0; failure < 3; failure++) {
             assertThatThrownBy(PostgresOutboxPortIT::claimThatThrowsWithoutMessage)
@@ -338,19 +338,19 @@ class PostgresOutboxPortIT {
     }
 
     private static void claimThatThrows() {
-        freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+        freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
             throw new RuntimeException("boom");
         });
     }
 
     private static void claimThatThrowsError(Error error) {
-        freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+        freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
             throw error;
         });
     }
 
     private static void claimThatThrowsWithoutMessage() {
-        freshPort().claimNext(Set.of(OutboxEntry.KIND_ACTION_REQUEST), (tenantId, entry) -> {
+        freshPort().claimNext(Set.of(OutboxEntry.KIND_TRANSITION_FIRED), (tenantId, entry) -> {
             throw new IllegalStateException();
         });
     }
