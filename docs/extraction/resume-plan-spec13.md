@@ -352,3 +352,96 @@ Recorded after P5a (the docs change that follows it fixes the two stale-text ite
   - Plan line numbers were checked against `origin/main` `aea0161`, and most match. The Opus review of revision 4 found some that do not: the `PostgresOutboxPortIT` citations (lines 63 and 180; line 63 is a TRUNCATE, and the file needs no change), the p2d-6 range (now 301 to 345), and the claim-query line in section 8 (now 84). Revision 5 fixes them.
   - `OutboxRelayTest` line 169 is a `{@code}` reference, so removing `actionRequestPayload` does not break javadoc. The text is still stale.
   - The spec's P2 row says `ActionWorkflow` takes the TransitionFired row. 2c's D5 superseded that, and DR-24 records it.
+
+## 20. Handoff recorded 2026-11-23 (P2d waits on the owner; P2e and P3 plans merged)
+
+- origin/main is faa294d (#171). The three planning docs of this session are on main: #169 (e37baab, P2d status fix), #170 (94ce9ee, `docs/extraction/spec-13-p2e-plan.md`), #171 (faa294d, `docs/extraction/spec-13-p3-plan.md`).
+- PR #168 (spec-13-p2d-flip-impl) is OPEN, head 1a25fd6 (a merge of main into the branch; no Java change since 197e36c). Its checks are 12 pass and 2 skipped, none failing, and mergeStateStatus is CLEAN. Its body says not to merge until the owner has run the mixed-version procedure on the dev stack (plan section 8) and the zero checks pass. The merge also waits on the owner's Q-A confirmation on #41. Confirm with `gh pr view 168 -R sequeless/sequeless-prototype --json state,headRefOid,mergeStateStatus`.
+- The owner's gate, not an agent's, is plan section 8 of `docs/extraction/spec-13-p2d-plan.md`, in this order:
+  - Step 1: stop writes. Run O-3 first to size the backlog. Check the dev stack's `sequeless.automation.adapter` setting; with no adapter, the owner chooses drain or accept loss in writing. The owner also confirms the Q-A acceptance of loss on #41.
+  - Step 2: stop every old-version process (its relays, its timer sweep and its Temporal workers). In-process timers are lost on stop, so the owner accepts that in writing or waits.
+  - Step 3: run O-3 on the dev database, after every old-version process has stopped, for every claimed kind (zero required), plus the running ActionWorkflow check (zero).
+  - Step 4: if either check is non-zero, restart the old version with writes still stopped, drain, and repeat steps 2 and 3. Use the Q-A mix in plan section 10.1: re-arm all dead-lettered rows with `fail_count` 0 first, and hand-stamp only rows that dead-letter again. Never re-arm a pre-flip TransitionFired row after V8. The #41 confirmation comes before any hand stamp.
+  - After steps 1 to 4 pass, merge with `--squash --match-head-commit` on the current head (1a25fd6, or the new head if main is merged in again and CI is green).
+    - Step 5, after the merge: start the new version from main (V8 runs), only after steps 1 to 4 complete.
+  - Note: plan section 10.1 records Q-A as a mix; section 8 step 4 still marks it OPEN. Section 10 wins where they differ (plan line 182).
+- P2e: plan merged (docs/extraction/spec-13-p2e-plan.md, 196 lines). After #168 squash-merges, cut the P2e branch from the new origin/main. This replaces P2e plan section 8 item 2's rebase. Its open questions are numbered 1 to 11 in the plan's section 7 (OPEN QUESTIONS FOR THE NAVIGATOR). Do not decide them here.
+- P3: plan merged (docs/extraction/spec-13-p3-plan.md, 180 lines). Its open questions are OQ1 to OQ17 in section 8. The questions that gate code are OQ1, OQ2, OQ3, OQ4, OQ7 and OQ8, as stated in section 9, item 3; OQ11, OQ12 and OQ13 also shape code. Do not decide them here.
+- Navigator session: 69c6f504c96a4ebdb9ddac56522ce7aa (pair mode, plan set, NOT ended). Its decisions this session: After #168 squash-merges, cut the P2e branch from the new origin/main. This replaces P2e plan section 8 item 2's rebase. P3 planning may run before P2 lands (done); P4 and P5b planning may start once the P3 plan is reviewed (it now is). P2e code waits for #168 to merge (P2e plan section 1). P3 code waits for the P2e merge (P3 plan section 1).
+- P4 and P5b: no plan yet. Each needs its own plan, a read-only review, then a PR, in the order P4 then P5b. P4 planning may start now.
+- Still held: the V8 index window (owner decision ix; the held branch spec-13-dead-letter-index-v8 renumbers to V9, and V9 is never merged before V8). The migration number for P3, subject to OQ7. DR-11 coupled sites (blocked on an ontology-testfixtures release). Mockito 5.14.2 bump (waits for the first Mockito test). Specs 14 to 19 wait on spec 13.
+- B2 route 1 is settled by the Navigator; the owner may confirm it on #41.
+- Do not touch PR #106 (draft, do-not-merge). Do not reopen PR #137 (closed by the owner). sequeless-kernel #12 is merged; before any kernel release PR, check that the new release PR carries `autorelease: pending`.
+- Gotchas found this session:
+  - Local main in the primary checkout can be behind origin/main. Work from a worktree created from origin/main.
+  - Use `git merge origin/main` to bring main into a feature branch, not `git rebase`. A rebase of the P2e plan branch stopped on a stale working-tree state and was aborted.
+  - The JDK 25 home is /opt/sdkman/candidates/java/25.0.3-tem; the default java is 21.
+  - Renovate PRs (for example #166 and #167 on 2026-11-23) were opened by Renovate and merged by bbartolome that day; expect main to move while a branch is open.
+- Gate for P2e and P3 code, on JDK 25: `source ~/.bashrc.ext && export JAVA_HOME=/opt/sdkman/candidates/java/25.0.3-tem && mvn spotless:apply && mvn -B -Prelease verify`
+- Next steps, in order: (1) the owner runs the #168 procedure (plan section 8, steps 1 to 4), confirms the Q-A acceptance of loss on #41, and reports; (2) the Navigator settles all 11 P2e questions and P3 OQ1, 2, 3, 4, 7 and 8 (OQ11, 12 and 13 shape code); step (2) does not hold up step (3); (3) merge #168; then, after the merge, the owner starts the new version from main on the dev stack (plan section 8 step 5; V8 runs), and not before. Before the P2e merge, the owner runs P2e plan section 8 item 3 (Q8). (4) P2e code on a branch cut from the new origin/main: implementation by a subagent, then read-only review, gate, PR, merge; (5) P3 code the same way, after the P2e merge; at P3 deploy, the owner runs O-3 and O-4 on the stopped dev stack (P3 plan section 9 item 3, OQ9); (6) P4 plan, then P5b plan, each reviewed before code. Step (6) runs in parallel with steps (1) to (5).
+- Worktrees are machine-local and listed by `git worktree list`. Create new ones from origin/main.
+
+## 21. Handoff recorded 2026-11-24 (P2 plans, P4 plan merged; decisions recorded in the Navigator session)
+
+### 21.1 State
+
+- origin/main is `cd82267` (the squash of PR #173, the P4 plan, merged 2026-11-24).
+- Plan PRs on main since section 20: #173 (`docs/extraction/spec-13-p4-plan.md`, merged).
+- PR #168 (P2d, head `1a25fd6`) is OPEN, checks green, mergeStateStatus CLEAN, merge HELD. It waits on the owner's mixed-version procedure (`docs/extraction/spec-13-p2d-plan.md` section 8, steps 1 to 4) and on the Q-A confirmation on #41.
+- PR #106 is a do-not-merge draft. Do not touch it.
+- PR #137 was closed by the owner. Do not reopen it.
+
+### 21.2 Step list
+
+Set by the Navigator, session `c0e84f0a157f4cc1a0f5dc3f54952ce2` (pair mode, NOT ended).
+
+- **S1 HOLD**: the owner runs the #168 procedure and reports. NOT DONE. This is a user action.
+- **S1b MERGE #168**: after S1 reports, squash-merge PR #168 with `--match-head-commit` set to the FULL 40-character head SHA (not the short one). Then the owner starts the new version from main on the dev stack (P2d plan section 8, step 5; V8 runs), and not before. The Navigator questions do not hold this step up.
+- **S2 P2e open questions** (`docs/extraction/spec-13-p2e-plan.md` section 7). Decided: Q1 (delete `KIND_ACTION_REQUEST` in P2e, option A, per DR-24 on the P2d branch); Q2 (new holder class `TemporalActivityOptions`, see 21.3); Q8 (zero check of running ActionWorkflow only, owner runs it before the P2e merge). Pending: Q3 (drain-method scope), Q4, Q5, Q6, Q7, Q9, Q10, Q11. Then a docs PR records every P2e decision in the P2e plan and makes these corrections:
+  - section 8 item 2: the rebase becomes "cut the P2e branch from the new origin/main";
+  - section 7 item 1: the P2e plan's citation of `spec-13-p2d-plan.md` line 224 is right once #168 merges: the P2d branch records Q-D as decided there (keep `KIND_ACTION_REQUEST` `@Deprecated` until P2e), while main still shows it open. The P2e plan's existing citation of `docs/architecture/02-decision-records.md` line 172 must name DR-24 (do not change its line);
+  - collateral doc updates for the Q1 deletion: `docs/architecture/automation.md`, the OutboxRelay javadoc that names the kind, and the "Removed in P2e" javadoc line;
+  - the holder rename: the four readers' javadoc says "See TimerWorkflowImpl" or refers to `ActionWorkflowImpl#ACTIVITY_OPTIONS`, which dangles after the rename.
+- **S3 P3 open questions** (`docs/extraction/spec-13-p3-plan.md` section 8). Decided: OQ7 (the P3 migration takes the next free number at merge time: V9 if the held index branch is unmerged, V10 if merged); OQ11 (add `Workflow.getVersion` to `TimerWorkflowImpl.run`, not drain-or-terminate). Pending, gate or shape code (plan section 9 item 3): OQ1, OQ2, OQ3, OQ4, OQ8, OQ12, OQ13. Pending, not code-gating: OQ5, OQ6, OQ9, OQ10, OQ14, OQ15, OQ16 (owner; see 21.4(e)), OQ17. Then a docs PR records the P3 decisions in the P3 plan.
+- **S4 P4 plan**: plan PR #173 merged. Its open questions are section 8 of `docs/extraction/spec-13-p4-plan.md` on main: OQ5(ii), OQ6, OQ7, OQ8, OQ9, OQ11, OQ12, OQ14, OQ15, OQ16, OQ17. ALL PENDING. Then a docs PR records them.
+- **S5 P2e CODE**: after #168 squash-merges AND S2 is done. Cut the branch from the new origin/main (not a rebase). Implement per the P2e plan, read-only review, full gate, PR, merge on approval. NOT STARTED.
+- **S6 P3 CODE**: after P2e merges and S3 is done. Owner runs O-3 and O-4 on the stopped dev stack at deploy. NOT STARTED.
+- **S7 P4 CODE**: after P3 merges and S4 is done. NOT STARTED.
+- **S8 P5b PLAN**: after S4 is done. Plan drafted by a subagent, then read-only review, Navigator questions, docs PR. NOT STARTED.
+- **S9 P5b CODE**: after P4 merges. NOT STARTED.
+
+### 21.3 Decisions recorded in the Navigator session (do not re-ask)
+
+These decisions are NOT in the repo yet. They live in the Navigator session `c0e84f0a157f4cc1a0f5dc3f54952ce2` until the S2 and S3 docs PRs record them.
+
+- P2e Q8 (a).
+- OQ7: the next free number at merge (V9 or V10).
+- OQ11: `Workflow.getVersion`.
+- P2e Q1: delete `KIND_ACTION_REQUEST` in P2e, per DR-24.
+- P2e Q2: new holder class `TemporalActivityOptions` in `org.sequeless.adapter.automation.temporal`, carrying `static volatile ActivityOptions ACTIVITY_OPTIONS`. The readers, the production writer at `TemporalAutomationAutoConfiguration:141` and the three test writers move to it. Rationale: layering, no peer workflow as holder, single responsibility, evolvability.
+
+Earlier Navigator decisions in other sessions still apply: B2 route 1 is recorded in the repo (`docs/extraction/resume-plan-spec13.md` section 11, line 159, 2026-11-12), not in a session; Q-A, Q-B, Q-C, the ActionWorkflow hold and DR-24 (`cc206f68705e4d93956f7e58ddd8c6e9`). Do not resume those older sessions.
+
+### 21.4 Owner items (not delegated to an agent)
+
+- (a) Run the #168 procedure and report the zero-check results.
+- (b) Confirm the Q-A acceptance of loss on #41. The Navigator recorded it on the owner's behalf, and the hand-stamp fallback needs it in writing.
+- (c) The V8 claim-index window (decision ix). The held index branch (`spec-13-dead-letter-index-v8`, V9 when renumbered) must NOT merge before PR #168 (P2d, which adds V8) is merged; it is never merged before V8 is on main. Its number follows decision OQ7 (P3 takes V9 if the held index branch is unmerged when P3 merges, V10 if merged), so 'V9 when renumbered' holds only if the index branch merges before P3; otherwise it takes V10.
+- (d) Confirm B2 route 1 on #41 (optional).
+- (e) The dev-stack adapter (P4 OQ16 and P3 OQ16). The repo sets no `sequeless.automation.adapter`, and neither automation auto-configuration has `matchIfMissing`, so the owner must say which adapter the dev stack runs.
+
+### 21.5 Known discrepancies to fix in the next docs PRs
+
+1. The P2e plan cites line numbers at its base, the P2d head `197e36c` (P2d branch). Those lines hold once PR #168 merges. On main there are four named ActionExecutor implementers; the fifth, WebhookStandInActionExecutor (sequeless-app `TransitionsEndToEndTest.java:108`), is added by P2d. Do not change the P2e plan's counts or lines before #168 merges.
+2. spec 13 lines 50, 56, 61 and 127 have stale line numbers (see the P4 plan's section 2, 'What moved' at about line 67 (verify with `grep -n 'What moved' docs/extraction/spec-13-p4-plan.md` on origin/main), and it includes spec line 171). Also stale, checked on origin/main on 2026-11-24: spec line 89 (`DefaultTransitionService` line 326, `signal` 297 and the timer builders 398 to 430 hold; `DefaultBusinessObjectService` 266, 312 and 345 do not (the stamp is at 686); `DefaultActionExecutor` 114 and 163 do not (the stamp is at 385); `DefaultDerivationRecomputer` 278 does not (the stamp is at 284); `actionRequestEntry` 458 does not (declared at 476); `OutboxRelay.DISPATCHABLE_KINDS` 46 to 53 does not (declared at 55); `TemporalAutomationPort` 74 to 81 are constructor lines; the other cites on that line are not checked); spec lines 367 and 371 (the agreement check is at 326 to 331, not 325 to 330; the `signal` read at line 272 holds); line 367 also says the relay has no dead-letter, which is stale (`OutboxRelay` line 112 says a persistently failing row is dead-lettered), and its `OutboxRelay` javadoc lines 90 to 96 do not hold (lines 90 to 95 are constructor code and the javadoc starts at 96); `docs/extraction/resume-plan-spec13.md` line 57 (it cites the agreement check at 325 to 330; it is at 326 to 331; the `signal` read at line 272 holds).
+3. `remaining-work.md` Next actions item 1 predates the P2d hold. (Its 'Last updated' line was refreshed by this handoff.)
+4. The P3 plan section 5 conflicts with spec line 128 on settling sets (see P4 OQ15).
+
+### 21.6 Gotchas
+
+- The primary checkout is at origin/main only after a fast-forward pull. Work from a worktree cut from origin/main.
+- Use `git merge origin/main`, not rebase, to bring main into a feature branch.
+- The JDK 25 home is `/opt/sdkman/candidates/java/25.0.3-tem`; the default java is 21.
+- The gate: `source ~/.bashrc.ext && export JAVA_HOME=/opt/sdkman/candidates/java/25.0.3-tem && mvn spotless:apply && mvn -B -Prelease verify`. Maven needs the GitHub Packages token in the same command.
+- `gh pr merge --match-head-commit` needs the FULL 40-character SHA, not the short one.
+- Renovate moves main during a session; re-check origin/main before a merge.
