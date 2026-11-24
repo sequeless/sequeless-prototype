@@ -1,6 +1,6 @@
 # Spec 13, P2e: delete ActionWorkflow and the section 17 items (plan)
 
-- Status: Rev 2, 2026-11-24: questions 1 to 11 decided (section 7). PR #168 merged as d577b20, so P2e code can start. The P2e merge waits on the owner's zero check of running `ActionWorkflow` executions (Q8) and on V8 recorded as applied (section 8, step 3).
+- Status: Rev 2, 2026-11-24: questions 1 to 14 decided (section 7). PR #168 merged as d577b20, so P2e code can start. The P2e merge waits on section 8, step 3.
 - Rev 1: plan only, docs only. Recorded 2026-11-23. Not reviewed.
 - Base: `origin/main` `d577b20` (PR #168 squash-merged). Rev 1 cited `197e36c`; no Java file changed between `197e36c` and `d577b20`, so the citations hold.
 - Citations are `path:line` at `197e36c`, repo-relative. Shorthand: `T/` is `sequeless-adapter-automation-temporal/src/main/java/org/sequeless/adapter/automation/temporal/`, and `TT/` is the same path under `src/test/java`.
@@ -75,7 +75,7 @@ Javadoc-only mentions of the drain path: `sequeless-adapter-automation-inprocess
 
 ## 3. Change list, file by file
 
-Tags: [M] depends on the owner's mixed-version procedure (section 6, risk 1; section 8, step 3). Every question is decided in section 7; [D n] names the decision that governs the row. Every tag refers to a decided item in section 7; the tags say which decision governs each row.
+Tags: [M] waits on the owner's dev-stack checks (section 6, risk 1; section 8, step 3; item 8). [D n] names the section 7 decision that governs the row; every question there is decided.
 
 **Delete**
 
@@ -86,13 +86,13 @@ Tags: [M] depends on the owner's mixed-version procedure (section 6, risk 1; sec
 5. `TT/TemporalAutomationPortContractTest.java:138`: remove the same registration. [M]
 6. `T/ActionActivities.java:31-32, 35-36, 39-40, 41-48`, and the implementations `T/ActionActivitiesImpl.java:58-75`. Keep `applyTransitionAction` (67-68, 97-101) and `deliver` (142). [M] [D 3]
 7. The drain path in the SPI and in core: `ActionExecutor.java:81, 108, 134, 153` with its drain javadoc (25-52); `DefaultActionExecutor.java:90-137`; the private helpers that only those methods call (the compiler lists them, this plan does not); and the five implementers in section 2.2 (`DefaultActionExecutor` and the four others named there). [D 3]
-8. `OutboxEntry.java:64-74`, deleted (Q1). [D 1] No database effect if V8 has stamped every ActionRequest row, which needs the P2d hold met (section 8, step 3).
+8. `OutboxEntry.java:64-74`, deleted (Q1). [D 1] No database effect if V8 has stamped every ActionRequest row, and V8 runs at the first start of main on dev in any case (section 8, step 3).
 
 **Convert or delete (tests)**
 
 9. `DefaultActionExecutorTest.java` drain tests (280-559 and the builder at 683-720) to the per-action form, or delete the ones the per-action tests cover. [D 5]
 10. `PostgresOutboxPortIT.java`, `PostgresOutboxDecodeFailureIT.java`, and `OutboxRelayTest.java:127-131, 184-191`: replace or delete the constant per Q4. [D 4]
-11. `DefaultTransitionServiceTest.java:313` (rename) and `:347` (the `doesNotContain` assertion). [D 1] Line 347 is deleted (item 12).
+11. `DefaultTransitionServiceTest.java:313` (rename) and `:347` (the `doesNotContain` assertion). [D 1] Line 347 is deleted (section 7, item 12).
 12. `TT/OutboxEntryDataConverterRoundTripTest.java:23, 51`: javadoc and kind. [D 1]
 13. `TT/RecordingTransitionExecutor.java:20` (javadoc, and the four methods if Q3 deletes them). [D 3]
 14. `TT/TemporalAutomationPortContractTest.java:425-450` and `TransitionsEndToEndTest.java:108, 133-148`: delegates for the drain methods. Delete with Q3, otherwise keep. [D 3]
@@ -220,21 +220,21 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 
 12. `DefaultTransitionServiceTest` line 347 (the `doesNotContain(OutboxEntry.KIND_ACTION_REQUEST)` assertion, in the test whose name ends `AndNoActionRequest`).
 
-   **Decided:** Delete that assertion. The rename in item 11 still applies, so the test name stops claiming no ActionRequest row. Reason: the same test already asserts the outbox has exactly one row (`hasSize(1)`) and that row's kind is `KIND_TRANSITION_FIRED`, so the deleted assertion adds nothing.
+   **Decided:** Delete that assertion. The rename in section 3, row 11 still applies, so the test name stops claiming no ActionRequest row. Reason: the same test already asserts the outbox has exactly one row (`hasSize(1)`) and that row's kind is `KIND_TRANSITION_FIRED`, so the deleted assertion adds nothing.
 
 13. Null-holder tests (the gap in the section 5 proof list, and risk 3).
 
-   **Decided:** One null-holder test per remaining reader: `ChangeEventWorkflowImpl`, `TimerWorkflowImpl`, `SignalEventWorkflowImpl` and `TransitionActionWorkflowImpl`. Each sets `TemporalActivityOptions.ACTIVITY_OPTIONS` to null, runs the workflow, and asserts `IllegalStateException` with the holder-named message. Reason: the context test runs the holder write (`TemporalAutomationAutoConfiguration.java:141`) but asserts nothing about the holder, so the write is exercised but not verified.
+   **Decided:** One null-holder test per remaining reader: `ChangeEventWorkflowImpl`, `TimerWorkflowImpl`, `SignalEventWorkflowImpl` and `TransitionActionWorkflowImpl`. Each sets `TemporalActivityOptions.ACTIVITY_OPTIONS` to null, runs the workflow, and asserts `IllegalStateException` with the holder-named message. Reason: risk 3; a missed reader fails only at run time.
 
 14. Testkit `METHOD_*` constants (`sequeless-spi-testkit` `RecordingActionExecutor`).
 
-   **Decided:** Delete `METHOD_APPLY_SET_PROPERTY`, `METHOD_APPLY_CREATE_OBJECT`, `METHOD_RESOLVE_WEBHOOK` and `METHOD_APPLY_LOG`, with the drain overrides that record them. Rewrite the javadoc `@param` list of the `Call` record so it names only `METHOD_APPLY_ACTION` and `METHOD_RESOLVE_WEBHOOK_ACTION`. Record the removal in the P2e PR body with the one-way-door note. Reason: no in-repo reader survives P2e, and a 0.1.0-SNAPSHOT module has no "one release" to deprecate across.
+   **Decided:** Delete `METHOD_APPLY_SET_PROPERTY`, `METHOD_APPLY_CREATE_OBJECT`, `METHOD_RESOLVE_WEBHOOK` and `METHOD_APPLY_LOG`, with the drain overrides that record them. Rewrite the javadoc `@param` list of the `Call` record so it names only `METHOD_APPLY_ACTION` and `METHOD_RESOLVE_WEBHOOK_ACTION`. Record the removal in the P2e PR body with the one-way-door note. Reason: no in-repo reader survives P2e, and a 0.1.0-SNAPSHOT module has no "one release" to deprecate across. Also delete `record(...)` and `NO_ACTION_INDEX` in the same class, because they have no caller once the drain overrides go; rewrite the `@param actionIndex` and `@param action` text of the Call record, and the javadoc link to `{@link #resolveWebhook}` in the constructor, so they no longer name a removed method (item 10 covers the same javadoc rule).
 
 ## 8. Gate and merge order
 
 1. P2d first. Done: PR #168 merged as d577b20. Only the P2e merge is gated (step 3).
 2. Cut the P2e branch from the new `origin/main` (PR #168 is merged as d577b20). Do not rebase. The `--match-head-commit` pin in the P2d plan (section 10.4) applies to the P2e merge too.
-3. Pre-merge checks on the dev stack (operational, not part of the PR): the owner's zero check of running `ActionWorkflow` executions (Q8, risk 1); and V8 recorded as applied (`sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/V8__outbox_actions_drained.sql`).
+3. Pre-merge checks on the dev stack (operational, not part of the PR): (a) a zero O-3 count of undrained ActionRequest rows on dev, or the owner's written acceptance of their loss on #41; then (b), with the old version stopped and after any drain, the owner's zero check of running `ActionWorkflow` executions (Q8, risk 1; `spec-13-p2d-plan.md` section 8, steps 2 and 3). V8 being applied is not a gate: P2e ships V8 unchanged.
 4. The gate runs on the final head with the command in section 5. Then open the PR, with the section 4 statuses in its body.
 5. Merge: squash, pinned to the reviewed head. An `--admin` merge only under the standing owner approval for a PR blocked only by the update rule, with required checks green, and recorded.
 6. Commit order in the PR, one commit per group, as P2d did: (a) holder move; (b) `ActionWorkflow` and its registration deleted; (c) section 17 items; (d) test conversions; (e) the constant deleted (Q1); (f) the SPI drain removal (Q3).
@@ -242,10 +242,10 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 
 ## 9. Handoff, 2026-11-24
 
-- PR #168 (P2d, the flip) is merged to main as d577b20. Nothing from P2d is pending.
+- PR #168 (P2d, the flip) is merged to main as d577b20. P2d leaves one condition open: the O-3 count or loss acceptance on #41 (Q-A is still open there).
 - The P2e plan decisions are items 1 to 14 in section 7. This PR records them. It contains no code.
 - P2e code can start from origin/main once this PR merges. Cut a branch from origin/main; do not rebase.
-- The P2e merge waits on two things: the owner's zero check of running `ActionWorkflow` executions (item 8), and either a zero count of undrained ActionRequest rows on dev (O-3) or a written acceptance of the loss on issue #41. Starting the new version on dev runs migration V8, which marks undrained ActionRequest rows as processed.
+- The P2e merge waits on section 8, step 3: the O-3 zero count or a written loss acceptance on #41, then the zero check of running `ActionWorkflow` executions (item 8). The first start of any post-#168 main on dev runs V8, which marks undrained ActionRequest rows as processed.
 - P3 decisions recorded so far (Navigator session c0e84f0a157f4cc1a0f5dc3f54952ce2): OQ1 = accept no cancel, staleness check is the only guard; OQ7 = next free migration number at merge (main ends at V8 after #168, so P3 takes V9 unless the held index branch merges first); OQ11 = add Workflow.getVersion to TimerWorkflowImpl.run. The other P3 gating questions (OQ2, OQ3, OQ4, OQ8, OQ12, OQ13) are not yet decided.
 - P4 and P5b have no decisions recorded yet.
 - Issue #41 holds the owner's merge note for #168.
