@@ -212,19 +212,59 @@ Proof, by layer:
 These are decisions the repo cannot settle, or that the spec leaves to the owner. The plan does not decide them. Sections 3 to 7 refer to them by number. Settled questions are not listed, and the place that settles each one is cited where it arises: OQ1 (section 4, item 7; spec lines 93, 172 and 334), OQ2 (section 5; spec line 127; resume line 261), OQ3 (section 1; spec line 332 and step 3 at line 104), OQ4 (section 3, step 3; spec lines 93, 130 and 137, with R4 at line 461 for owner review), OQ5(i) (section 3, step 2; spec row P4, line 93), and the object-signals.ts wording of OQ13 (section 4, item 29; spec line 93). Numbers are kept so the references stay valid.
 
 **OQ5.** State-less object (OQ5(ii)): today the signal returns 202, and `onSignal` returns at 166-168 for a state-less or missing object. The `fire` path already answers a state-less object with 409: `StateMachineInterpreter.java` lines 98-100 return an empty list when the state is empty, and `DefaultTransitionService.java` lines 141-144 then throw `TransitionNotAvailableException` (the `match.isEmpty()` check is at 143, its throw at 144). C7's "no transition from the current state" reads the same way (section 3, step 3). Options: (a) 409; (b) 202 as a no-op; (c) 400.
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): a state-less object's signal is rejected with 409, as the `fire` path already does (`DefaultTransitionService.java` 139-144).
+
 **OQ6.** Version race: options: (a) keep `existing.version()` and map `StaleObjectException` to 409 `stale-object` (current mapping, `ApiExceptionAdvice` 159); (b) retry the read and commit once inside `signal`; (c) add an `expectedVersion` to the signal request (a wire change, with `index.ts` and UI edits).
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): keep `existing.version()` and map `StaleObjectException` to 409 `stale-object`, as `ApiExceptionAdvice.java` 159-165 does now.
+
 **OQ7.** Signal body: options: (a) drop it (the `body` javadoc in `TransitionService` at 110-111 says it is recorded "for audit"; `ObjectsController` 482-484 and `automation.md` 636 say the same); (b) carry it in the `TransitionFired` payload under a new key (the payload is checked eagerly in `OutboxEntry`); (c) audit it elsewhere (no table exists).
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): drop the body. The `signal` javadoc in `TransitionService.java` 110-111 describes it as recorded for audit, and `ObjectsController.java` 482-484 says the same.
+
 **OQ8.** Automation-version mismatch at signal time: options: (a) let `IllegalStateException` surface, which is HTTP 500 under Spring Boot's default (section 7, risk 3); (b) add an `ApiExceptionAdvice` handler mapping it to 409 or 503; (c) document it. `fire` already throws the same exception (`commitTransition` is shared), so only signals are new.
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): let `IllegalStateException` surface, which is HTTP 500 under Spring Boot's default. `ApiExceptionAdvice.java` has no handler for it.
+
 **OQ9.** Several transitions match one name from the same state. This is the only open part of the lookup: a single failing guard is already a settled 409 (spec line 93; section 3, step 4). Options: (a) first in declaration order, and a failing guard on that first match rejects (409); (b) first in declaration order whose guard passes; (c) reject the ontology as ambiguous (outside spec 13). Today's `onSignal` takes the first match (180-187), and a failing guard on it is a silent no-op (`DefaultTransitionService` 236-237).
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): first in declaration order. A failing guard on that first match rejects with 409, as the `fire` path does (`DefaultTransitionService.java` 142-144).
+
 **OQ11.** Dead-lettered `SignalReceived` rows (V7; DR-23). Resume section 13, step 4 (line 200) says "P2 to P4 drain the dead-lettered rows"; resume section 20 (line 364) describes the re-arm used for P2d. Precedents: the P2d migration (V8, lines 5-9 on the P2d branch) stamps dead-lettered `ActionRequest` rows, as its comment at line 6 says; P3 OQ8 (P3 plan section 8, line 164) asks the same question for timers; and V7's header (lines 5-6) says a dead-lettered row keeps `processed_at` NULL, so it still counts for O-3. Item 25's statement already has the effect of option (b), because its `WHERE` clause does not exclude dead-lettered rows. That is a property of the draft SQL, not a decision: the question stays open. Options: (a) before the old version stops, re-arm them (`fail_count` 0, `dead_lettered_at` and `error` NULL) so the old relay drains them; (b) have the migration stamp them, which drops failed signals silently; (c) hold P4 until the count is zero.
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (b): the migration stamps dead-lettered rows, as `V8__outbox_actions_drained.sql` 7-9 does. P3 OQ8 makes the same choice for timer rows (P3 plan line 193).
+
 **OQ12.** Automation coverage: spec row P4 names only `TransitionsEndToEndTest`. Options: keep `awaitState` (275) in `AutomationEndToEndTest.reopenSignalMovesAClosedProjectBackToActive`; make it a direct assertion; or add a test that a signal's `TransitionFired` row drives actions.
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (i), the first listed: keep `awaitState` (`AutomationEndToEndTest.java` 275) in `reopenSignalMovesAClosedProjectBackToActive`.
+
 **OQ14.** DR: does this step add a DR at all? Spec section 10 adds no ADR (line 294). The DR file `02-decision-records.md` ends at DR-23 (line 145); DR-24 is on the P2d branch, and P3's DR is P3 OQ14 (P3 plan line 170). If a DR is added, which number: the next free one at merge, or another?
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) P4 adds DR-26 at merge. The last DR on main is DR-24 (`02-decision-records.md` 164), and P3 adds DR-25.
+
 **OQ15.** Settling sets: does P4 save a frozen set and add a pair (spec line 128), given that main has no such chain and the P3 plan's section 5 (line 117 when this question was written) said a new migration adds no frozen copy, a sentence PR #183 withdrew? Options: (a) follow the spec and start the chain at P4, which means P2 and P3 also owe sets; (b) follow the P3 plan and correct spec line 128; (c) correct spec line 128 first.
 
 **Decided:** (Navigator, session c0e84f0a157f4cc1a0f5dc3f54952ce2) Option (a). The spec's chain design is sound; starting it at P3 costs one frozen copy of the current main state plus one pair. OQ15 gates the P3 PR, not only P4. The P3 plan's section 4, item 29c records the saved sets that P3 adds.
 
 **OQ16.** Dev-stack adapter: which adapter, if any, does the dev stack run, and so which adapter must the O-3 and O-4 counts cover? Facts on main: (1) no YAML sets `sequeless.automation.adapter`; the only application file is `sequeless-app/src/main/resources/application.yaml`; (2) `docker-compose.yml` has `postgres` (line 16) and `temporal` (line 30) services, no application service, and two volumes (42-43); (3) both adapter auto-configurations are conditional on the property with no `matchIfMissing` (`InProcessAutomationAutoConfiguration.java:35`, `TemporalAutomationAutoConfiguration.java:48`); (4) with no adapter, `OutboxRelay.pollOnce` returns at 121-123; (5) `automation-signals.spec.ts` line 7 says "verified against a live run" (line 34 has no such text), and the repo does not say which adapter that run used; (6) the P2d procedure's step 1 asks the owner to check the setting (resume section 20, line 361). The repo cannot answer the question: the setting, if it is set, is set outside the repo. P3 OQ16 (P3 plan line 172) asks the same question.
 **OQ17.** Live panel wording (new): spec row P4 fixes the new text for `object-signals.ts` only. The live panel, `signals-panel.ts`, is not named in the spec, but its line 61 carries the same stale text ("dispatched — takes effect asynchronously"), for the reason spec line 93 gives for `object-signals.ts`: it is "stale after this step, so it changes here". Options: (a) use the same wording in both panels (the reading this plan takes for section 4, item 28); (b) keep "dispatched" in the live panel, which describes the old asynchronous behaviour and would leave false text there; (c) a different wording for the live panel.
+
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): the same wording in both panels, `signals-panel.ts` 61 and `object-signals.ts` 47.
+
+**Evidence for the decisions above (not decisions).** Checked on `origin/main` `36d713f`, after PR #182 merged. The citations below correct the citations above, where the two differ. The Decided lines for OQ5 to OQ9, OQ11, OQ12, OQ14 and OQ17 were supplied from session b150e05389fd46148771bec93b8bc980's task 4e88dea4. That session's status at check time (2026-11-24) showed no decision recorded, so the attribution rests on that report.
+
+- Signal path, `sequeless-core/src/main/java/org/sequeless/core/usecase/DefaultTransitionService.java` (not `core/automation/`): `fire()` 115; `match.isEmpty()` 139, throw 140; guard reject 142-144; `signal()` 261; `fireAutomated()` 201; its guard no-op 232-234; `commitTransition()` 314, with its `IllegalStateException` at 324 (OQ8).
+- `sequeless-core/src/main/java/org/sequeless/core/automation/DefaultTriggerEvaluator.java`: `onSignal` 157-189; the first-match loop 180-187; no guard check in this file.
+- `sequeless-app/src/main/java/org/sequeless/app/rest/ApiExceptionAdvice.java`: `StaleObjectException` 159-165 (409 `stale-object`); `TransitionNotAvailableException` 204-211 (409); no `IllegalStateException` handler (OQ6, OQ8).
+- `sequeless-core/src/main/java/org/sequeless/core/api/TransitionService.java`: the `signal` javadoc, body "for audit" at 110-111 (OQ7).
+- `sequeless-app/src/test/java/org/sequeless/app/AutomationEndToEndTest.java`: `reopenSignalMovesAClosedProjectBackToActive` 256-276; 202 at 271; `awaitState(..., "Active", 6 s)` at 275 (OQ12).
+- `sequeless-app/src/test/java/org/sequeless/app/TransitionsEndToEndTest.java`: `reopenSignalOnClosedProjectIsAccepted` at 293 on `36d713f` (313 on `f214688`, before PR #182 removed 20 lines above it), not 216 (OQ12).
+- UI, live panel: `sequeless-ui/projects/automation/src/lib/signal-catalogue/signals-panel.ts` (header 22, status 61). Default panel: `sequeless-ui/projects/objects/src/lib/signals/object-signals.ts` (header 18, status 47). Both say "dispatched — takes effect asynchronously" (OQ17).
+- Migrations, `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`: V7 header lines 4-6 (a dead-lettered row keeps `processed_at` NULL); V8 lines 7-9 stamp every `ActionRequest` row, and its comment on line 6 says this includes dead-lettered rows (OQ11).
+- P3 OQ8, Decided, `docs/extraction/spec-13-p3-plan.md` line 193: the P3 migration stamps dead-lettered timer rows, as V8 does. The P2d owner procedure (resume plan line 364) re-arms dead-lettered rows first, as a dev-stack step, not a migration step (OQ11).
+- DR file, `docs/architecture/02-decision-records.md`: the last entry on main is DR-24 (line 164). P3's DR is DR-25 at merge (P3 plan line 211), so a P4 DR would be DR-26 at merge (OQ14).
+- `docs/architecture/automation.md`: section 12 heading at 633; the signal paragraph at 645-652; "recorded verbatim for audit" at 646. The plan's citations of 625-642 and 636 are stale: line 636 is the body's opaque-map sentence, not the audit wording (OQ7).
 
 ## 9. Merge order
 
