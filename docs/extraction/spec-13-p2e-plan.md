@@ -224,7 +224,7 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 
 13. Null-holder tests (the gap in the section 5 proof list, and risk 3).
 
-   **Decided:** One null-holder test per remaining reader: `ChangeEventWorkflowImpl`, `TimerWorkflowImpl`, `SignalEventWorkflowImpl` and `TransitionActionWorkflowImpl`. Each sets `TemporalActivityOptions.ACTIVITY_OPTIONS` to null, runs the workflow, and asserts `IllegalStateException` with the holder-named message. Reason: risk 3; a missed reader fails only at run time.
+   **Decided:** One null-holder test per remaining reader: `ChangeEventWorkflowImpl`, `TimerWorkflowImpl`, `SignalEventWorkflowImpl` and `TransitionActionWorkflowImpl`. Each test calls the reader's run or execute method directly on a plain instance (ChangeEventWorkflowImpl.run, TimerWorkflowImpl.run, SignalEventWorkflowImpl.run, TransitionActionWorkflowImpl.execute), outside any TestWorkflowEnvironment, with TemporalActivityOptions.ACTIVITY_OPTIONS set to null. It asserts IllegalStateException with the holder-named message, and it restores the holder in a finally block, because the writers set it in @BeforeAll. A TestWorkflowEnvironment run would hang: the plain IllegalStateException is retried as a workflow-task failure. Reason: risk 3; a missed reader fails only at run time.
 
 14. Testkit `METHOD_*` constants (`sequeless-spi-testkit` `RecordingActionExecutor`).
 
@@ -242,7 +242,7 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 
 ## 9. Handoff, 2026-11-24
 
-- PR #168 (P2d, the flip) is merged to main as d577b20. P2d leaves one condition open: the O-3 count or loss acceptance on #41 (Q-A is still open there).
+- PR #168 (P2d, the flip) is merged to main as d577b20. P2d leaves one condition open: the O-3 count or loss acceptance on #41 (the acceptance of loss on #41 is still open there).
 - The P2e plan decisions are items 1 to 14 in section 7. This PR records them. It contains no code.
 - P2e code can start from origin/main once this PR merges. Cut a branch from origin/main; do not rebase.
 - The P2e merge waits on section 8, step 3: the O-3 zero count or a written loss acceptance on #41, then the zero check of running `ActionWorkflow` executions (item 8). The first start of any post-#168 main on dev runs V8, which marks undrained ActionRequest rows as processed.
