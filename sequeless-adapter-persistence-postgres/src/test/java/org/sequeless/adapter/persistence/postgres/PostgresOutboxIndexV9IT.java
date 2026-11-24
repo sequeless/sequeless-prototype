@@ -13,7 +13,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Proves migration V8 (spec 13, step 4; DR-23) on the latest schema, against a real PostgreSQL 18
+ * Proves migration V9 (spec 13, step 4; DR-23) on the latest schema, against a real PostgreSQL 18
  * started by Testcontainers. The claim index {@code sq_outbox_unprocessed_dispatchable_idx} keeps its
  * {@code processed_at IS NULL} predicate and adds {@code dead_lettered_at IS NULL}, so a dead-lettered
  * row is not in the index that every claim walks.
@@ -22,7 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * then migrates to the latest schema with {@link PostgresMigrations#migrate}.
  */
 @Testcontainers
-class PostgresOutboxIndexV8IT {
+class PostgresOutboxIndexV9IT {
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:18");
