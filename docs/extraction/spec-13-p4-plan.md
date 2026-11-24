@@ -221,7 +221,7 @@ These are decisions the repo cannot settle, or that the spec leaves to the owner
 
 **OQ7.** Signal body: options: (a) drop it (the `body` javadoc in `TransitionService` at 110-111 says it is recorded "for audit"; `ObjectsController` 482-484 and `automation.md` 636 say the same); (b) carry it in the `TransitionFired` payload under a new key (the payload is checked eagerly in `OutboxEntry`); (c) audit it elsewhere (no table exists).
 
-**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): drop the body. The `signal` javadoc in `TransitionService.java` 110-111 describes it as recorded for audit, and `ObjectsController.java` 482-484 says the same.
+**Decided:** (Navigator, session b150e05389fd46148771bec93b8bc980) Option (a): drop the body. Its "for audit" wording is in `TransitionService.java` 110-111 and `ObjectsController.java` 482-484; section 4, items 15 and 16 reword those javadocs.
 
 **OQ8.** Automation-version mismatch at signal time: options: (a) let `IllegalStateException` surface, which is HTTP 500 under Spring Boot's default (section 7, risk 3); (b) add an `ApiExceptionAdvice` handler mapping it to 409 or 503; (c) document it. `fire` already throws the same exception (`commitTransition` is shared), so only signals are new.
 
@@ -261,7 +261,7 @@ These are decisions the repo cannot settle, or that the spec leaves to the owner
 - `sequeless-app/src/test/java/org/sequeless/app/AutomationEndToEndTest.java`: `reopenSignalMovesAClosedProjectBackToActive` 256-276; 202 at 271; `awaitState(..., "Active", 6 s)` at 275 (OQ12).
 - `sequeless-app/src/test/java/org/sequeless/app/TransitionsEndToEndTest.java`: `reopenSignalOnClosedProjectIsAccepted` at 293 on `36d713f` (313 on `f214688`, before PR #182 removed 20 lines above it), not 216 (OQ12).
 - UI, live panel: `sequeless-ui/projects/automation/src/lib/signal-catalogue/signals-panel.ts` (header 22, status 61). Default panel: `sequeless-ui/projects/objects/src/lib/signals/object-signals.ts` (header 18, status 47). Both say "dispatched — takes effect asynchronously" (OQ17).
-- Migrations, `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`: V7 header lines 4-6 (a dead-lettered row keeps `processed_at` NULL); V8 lines 7-9 stamp every `ActionRequest` row, and its comment on line 6 says this includes dead-lettered rows (OQ11).
+- Migrations, `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres/`: V7 header lines 4-6 (a dead-lettered row keeps `processed_at` NULL); V8 lines 7-9 stamp every unprocessed `ActionRequest` row, and its comment on line 6 says this includes dead-lettered rows (OQ11).
 - P3 OQ8, Decided, `docs/extraction/spec-13-p3-plan.md` line 193: the P3 migration stamps dead-lettered timer rows, as V8 does. The P2d owner procedure (resume plan line 364) re-arms dead-lettered rows first, as a dev-stack step, not a migration step (OQ11).
 - DR file, `docs/architecture/02-decision-records.md`: the last entry on main is DR-24 (line 164). P3's DR is DR-25 at merge (P3 plan line 211), so a P4 DR would be DR-26 at merge (OQ14).
 - `docs/architecture/automation.md`: section 12 heading at 633; the signal paragraph at 645-652; "recorded verbatim for audit" at 646. The plan's citations of 625-642 and 636 are stale: line 636 is the body's opaque-map sentence, not the audit wording (OQ7).
