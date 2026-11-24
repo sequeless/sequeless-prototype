@@ -246,6 +246,6 @@ Each question keeps its Rev 1 text; the **Decided:** line under it is the Naviga
 - The P2e plan decisions are items 1 to 14 in section 7. This PR records them. It contains no code.
 - P2e code can start from origin/main once this PR merges. Cut a branch from origin/main; do not rebase.
 - The P2e merge waits on section 8, step 3: the O-3 zero count or a written loss acceptance on #41, then the zero check of running `ActionWorkflow` executions (item 8). The first start of any post-#168 main on dev runs V8, which marks undrained ActionRequest rows as processed.
-- P3 decisions recorded so far (Navigator session c0e84f0a157f4cc1a0f5dc3f54952ce2): OQ1 = accept no cancel, staleness check is the only guard; OQ7 = next free migration number at merge (main ends at V8 after #168, so P3 takes V9 unless the held index branch merges first); OQ11 = add Workflow.getVersion to TimerWorkflowImpl.run. The other P3 gating questions (OQ2, OQ3, OQ4, OQ8, OQ12, OQ13) are not yet decided.
+- P3 decisions are recorded in the P3 plan, section 8 (`docs/extraction/spec-13-p3-plan.md`), not here.
 - P4 and P5b have no decisions recorded yet.
 - Issue #41 holds the owner's merge note for #168.
