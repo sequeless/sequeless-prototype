@@ -126,8 +126,8 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         automationSource = new SwappableAutomationSource();
 
         // Published before env.start(), mirroring TemporalAutomationAutoConfiguration's own
-        // ordering requirement (see ActionWorkflowImpl's javadoc for why this must happen first).
-        ActionWorkflowImpl.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
+        // ordering requirement (see TemporalActivityOptions' javadoc for why this must happen first).
+        TemporalActivityOptions.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofSeconds(10))
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build();

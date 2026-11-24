@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * startup: which task queue {@link ActionWorkflow} executions run on, an optional Temporal server
  * {@code target} to connect to (host:port, e.g. for a future Testcontainers-backed acceptance
  * test), and the {@link Retry} policy mapped onto every activity's {@code RetryOptions} (see {@link
- * ActionWorkflowImpl}'s static {@code ACTIVITY_OPTIONS} holder).
+ * TemporalActivityOptions}' static {@code ACTIVITY_OPTIONS} holder).
  *
  * <p>Spring Boot 4.1's relaxed binding parses a YAML/properties {@link Duration} value like {@code
  * "1s"} automatically (via {@code DurationStyle}) — no custom {@code Converter} bean is needed for

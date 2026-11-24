@@ -77,7 +77,7 @@ class TransitionActionWorkflowTest {
         // Published before env.start(), as TemporalAutomationAutoConfiguration does. The StartToClose
         // timeout is required: without it the test server refuses the activity, which fails the workflow
         // task and so retries forever, not the workflow.
-        ActionWorkflowImpl.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
+        TemporalActivityOptions.ACTIVITY_OPTIONS = ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofSeconds(10))
                 .setRetryOptions(RetryOptions.newBuilder()
                         .setMaximumAttempts(3)

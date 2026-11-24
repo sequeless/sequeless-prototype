@@ -16,25 +16,11 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * injection the way {@link ActionActivitiesImpl} takes an {@link
  * org.sequeless.spi.automation.ActionExecutor}.
  *
- * <p>Instead, the {@link ActivityOptions} carrying the configured {@code RetryOptions}/timeout
- * (built from {@code sequeless.automation.temporal.retry.*}) is published through {@link
- * #ACTIVITY_OPTIONS}, a {@code static volatile} field {@link TemporalAutomationAutoConfiguration}
- * assigns exactly once, before {@code WorkerFactory.start()} is ever called — so every subsequent
- * workflow execution (which Temporal always runs on a fresh instance of this class) reads the same
- * already-published value. This is the one piece of "configuration injection" a Temporal workflow
- * implementation can use, precisely because it happens once, at start-up, rather than per
- * execution; nothing about a workflow's own deterministic replay depends on when this field was
- * set, only on what it was set to when {@link #execute} runs.
+ * <p>The {@link ActivityOptions} this workflow builds its activity stub with are read from {@link
+ * TemporalActivityOptions#ACTIVITY_OPTIONS}, which explains why a workflow cannot take them through a
+ * constructor.
  */
 public final class ActionWorkflowImpl implements ActionWorkflow {
-
-    /**
-     * The {@link ActivityOptions} every workflow execution's activity stub is built with, published
-     * once by {@link TemporalAutomationAutoConfiguration} before worker start. Must not be read
-     * while still {@code null} — that would mean a worker was started without the auto-configuration
-     * having run, which is itself a wiring bug worth failing loudly on (see {@link #execute}).
-     */
-    static volatile ActivityOptions ACTIVITY_OPTIONS;
 
     private static final String ACTION_KIND_SET_PROPERTY = "SetProperty";
     private static final String ACTION_KIND_CREATE_OBJECT = "CreateObject";
@@ -43,9 +29,9 @@ public final class ActionWorkflowImpl implements ActionWorkflow {
 
     @Override
     public void execute(OutboxEntry entry) {
-        ActivityOptions activityOptions = ACTIVITY_OPTIONS;
+        ActivityOptions activityOptions = TemporalActivityOptions.ACTIVITY_OPTIONS;
         if (activityOptions == null) {
-            throw new IllegalStateException("ActionWorkflowImpl.ACTIVITY_OPTIONS was never set - "
+            throw new IllegalStateException("TemporalActivityOptions.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         ActionActivities activities = Workflow.newActivityStub(ActionActivities.class, activityOptions);
