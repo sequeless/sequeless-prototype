@@ -4,7 +4,7 @@
  * org.sequeless.spi.automation.ActionExecutor}. Sibling to {@code
  * org.sequeless.core.statemachine} (the interpreter and {@code TransitionService} that produce
  * each {@code TransitionFired} outbox row, which carries the {@code self} map and the transition's
- * keys; the writer no longer writes {@code ActionRequest} rows) rather than nested inside it,
+ * keys) rather than nested inside it,
  * because this package's one job — applying an already-fired transition's action, on an automation
  * adapter's callback thread — is a distinct responsibility from computing which transitions are
  * available or firing one.
@@ -22,7 +22,7 @@
  * org.sequeless.core.automation.DefaultActionExecutor} performs — a property update, a new
  * object's creation — goes through it, exactly like {@code DefaultBusinessObjectService}) and
  * {@link org.sequeless.expression.api.ExpressionPort} (every {@code value}/{@code expression}/
- * template field an {@code ActionRequest} payload carries is resolved through it, never evaluated
+ * template field an action carries is resolved through it, never evaluated
  * by hand here).
  */
 package org.sequeless.core.automation;

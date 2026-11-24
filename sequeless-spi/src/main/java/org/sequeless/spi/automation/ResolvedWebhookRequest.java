@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * The fully-rendered HTTP request a {@code sq:Webhook} action describes, as handed back by {@link
- * ActionExecutor#resolveWebhook}: {@code url} and {@code body}'s {@code ${expr}} placeholders have
+ * ActionExecutor#resolveWebhookAction}: {@code url} and {@code body}'s {@code ${expr}} placeholders have
  * already been substituted via the {@code org.sequeless.expression.api.ExpressionPort}, and {@code
  * method} is the literal HTTP verb. This record carries no HTTP I/O of its own — resolving the
  * request and actually issuing it are deliberately separate steps, so the calling automation

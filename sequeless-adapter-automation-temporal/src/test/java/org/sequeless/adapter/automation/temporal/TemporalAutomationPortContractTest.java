@@ -430,26 +430,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         }
 
         @Override
-        public void applySetProperty(Scope scope, OutboxEntry entry) {
-            delegate.applySetProperty(scope, entry);
-        }
-
-        @Override
-        public void applyCreateObject(Scope scope, OutboxEntry entry) {
-            delegate.applyCreateObject(scope, entry);
-        }
-
-        @Override
-        public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
-            return delegate.resolveWebhook(scope, entry);
-        }
-
-        @Override
-        public void applyLog(Scope scope, OutboxEntry entry) {
-            delegate.applyLog(scope, entry);
-        }
-
-        @Override
         public void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
             delegate.applyAction(scope, transitionFired, action, actionIndex);
         }

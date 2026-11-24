@@ -16,9 +16,6 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * An {@link ActionExecutor} test double for the per-action path. It records each {@link
  * #applyAction} and {@link #resolveWebhookAction} call with the action index and the action it was
  * given, so a test can check that the action at each index is the one applied.
- *
- * <p>Its four ActionRequest methods throw {@link UnsupportedOperationException}: the per-action
- * workflow never reaches them.
  */
 final class RecordingTransitionExecutor implements ActionExecutor {
 
@@ -72,25 +69,5 @@ final class RecordingTransitionExecutor implements ActionExecutor {
             Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
         calls.add(new Call(METHOD_RESOLVE_WEBHOOK_ACTION, actionIndex, transitionFired.id(), action));
         return new ResolvedWebhookRequest(webhookUrl, action.method(), Optional.empty());
-    }
-
-    @Override
-    public void applySetProperty(Scope scope, OutboxEntry entry) {
-        throw new UnsupportedOperationException("not used by the per-action workflow");
-    }
-
-    @Override
-    public void applyCreateObject(Scope scope, OutboxEntry entry) {
-        throw new UnsupportedOperationException("not used by the per-action workflow");
-    }
-
-    @Override
-    public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
-        throw new UnsupportedOperationException("not used by the per-action workflow");
-    }
-
-    @Override
-    public void applyLog(Scope scope, OutboxEntry entry) {
-        throw new UnsupportedOperationException("not used by the per-action workflow");
     }
 }

@@ -37,10 +37,10 @@
  * org.sequeless.spi.automation.ActionExecutor}, {@link org.sequeless.spi.automation.TriggerEvaluator},
  * and {@link org.sequeless.spi.automation.DerivationRecomputer}'s own javadoc for the exact
  * payload shape each method expects. {@link org.sequeless.spi.automation.ResolvedWebhookRequest}
- * is the return shape {@link org.sequeless.spi.automation.ActionExecutor#resolveWebhook} hands
+ * is the return shape {@link org.sequeless.spi.automation.ActionExecutor#resolveWebhookAction} hands
  * back once a {@code sq:Webhook} action's templated {@code url}/{@code method}/{@code body}
  * fields have been rendered — this package performs no HTTP I/O itself, leaving the actual call
- * to whichever automation adapter invoked {@code resolveWebhook}.
+ * to whichever automation adapter invoked {@code resolveWebhookAction}.
  *
  * <p>{@link org.sequeless.spi.automation.AutomationPort} is, by contrast, an ordinary
  * <em>outbound</em> port shaped like every other port in this SPI: a relay calls {@link

@@ -25,76 +25,36 @@ import org.sequeless.spi.outbox.OutboxEntry;
  */
 public final class RecordingActionExecutor implements ActionExecutor {
 
-    /** The method name recorded for a call to {@link ActionExecutor#applySetProperty}. */
-    public static final String METHOD_APPLY_SET_PROPERTY = "applySetProperty";
-
-    /** The method name recorded for a call to {@link ActionExecutor#applyCreateObject}. */
-    public static final String METHOD_APPLY_CREATE_OBJECT = "applyCreateObject";
-
-    /** The method name recorded for a call to {@link ActionExecutor#resolveWebhook}. */
-    public static final String METHOD_RESOLVE_WEBHOOK = "resolveWebhook";
-
-    /** The method name recorded for a call to {@link ActionExecutor#applyLog}. */
-    public static final String METHOD_APPLY_LOG = "applyLog";
-
     /** The method name recorded for a call to {@link ActionExecutor#applyAction}. */
     public static final String METHOD_APPLY_ACTION = "applyAction";
 
     /** The method name recorded for a call to {@link ActionExecutor#resolveWebhookAction}. */
     public static final String METHOD_RESOLVE_WEBHOOK_ACTION = "resolveWebhookAction";
 
-    /** The {@link Call#actionIndex()} recorded for a call that carries no action. */
-    private static final int NO_ACTION_INDEX = -1;
-
     /**
      * One recorded {@link ActionExecutor} call.
      *
-     * @param method one of {@link #METHOD_APPLY_SET_PROPERTY}, {@link #METHOD_APPLY_CREATE_OBJECT},
-     *     {@link #METHOD_RESOLVE_WEBHOOK}, {@link #METHOD_APPLY_LOG}, {@link #METHOD_APPLY_ACTION}, or
-     *     {@link #METHOD_RESOLVE_WEBHOOK_ACTION}
-     * @param entryId the {@link OutboxEntry#id()} the call was made with
-     * @param actionIndex the action index a {@link #METHOD_APPLY_ACTION} or {@link
-     *     #METHOD_RESOLVE_WEBHOOK_ACTION} call was made with; {@code -1} for any other method
-     * @param action the action a {@link #METHOD_APPLY_ACTION} or {@link #METHOD_RESOLVE_WEBHOOK_ACTION}
-     *     call was made with, so its type is the action's type; {@code null} for any other method
+     * @param method one of {@link #METHOD_APPLY_ACTION} or {@link #METHOD_RESOLVE_WEBHOOK_ACTION}
+     * @param entryId the {@link OutboxEntry#id()} of the {@code TransitionFired} row the call was made with
+     * @param actionIndex the action index the call was made with
+     * @param action the action the call was made with, so its type is the action's type
      */
     public record Call(String method, UUID entryId, int actionIndex, Action action) {}
 
     private final List<Call> calls = Collections.synchronizedList(new ArrayList<>());
     private final ResolvedWebhookRequest webhookResponse;
 
-    /** Creates a recorder whose {@link #resolveWebhook} returns a default {@link ResolvedWebhookRequest}. */
+    /** Creates a recorder whose {@link #resolveWebhookAction} returns a default {@link ResolvedWebhookRequest}. */
     public RecordingActionExecutor() {
         this(new ResolvedWebhookRequest("http://example.invalid/hook", "POST", Optional.empty()));
     }
 
     /**
-     * @param webhookResponse the {@link ResolvedWebhookRequest} every {@link #resolveWebhook} call
+     * @param webhookResponse the {@link ResolvedWebhookRequest} every {@link #resolveWebhookAction} call
      *     returns; must not be {@code null}
      */
     public RecordingActionExecutor(ResolvedWebhookRequest webhookResponse) {
         this.webhookResponse = Objects.requireNonNull(webhookResponse, "webhookResponse must not be null");
-    }
-
-    @Override
-    public void applySetProperty(Scope scope, OutboxEntry entry) {
-        record(METHOD_APPLY_SET_PROPERTY, entry);
-    }
-
-    @Override
-    public void applyCreateObject(Scope scope, OutboxEntry entry) {
-        record(METHOD_APPLY_CREATE_OBJECT, entry);
-    }
-
-    @Override
-    public ResolvedWebhookRequest resolveWebhook(Scope scope, OutboxEntry entry) {
-        record(METHOD_RESOLVE_WEBHOOK, entry);
-        return webhookResponse;
-    }
-
-    @Override
-    public void applyLog(Scope scope, OutboxEntry entry) {
-        record(METHOD_APPLY_LOG, entry);
     }
 
     @Override
@@ -122,10 +82,6 @@ public final class RecordingActionExecutor implements ActionExecutor {
      */
     public long countOf(String method) {
         return calls().stream().filter(call -> call.method().equals(method)).count();
-    }
-
-    private void record(String method, OutboxEntry entry) {
-        calls.add(new Call(method, entry.id(), NO_ACTION_INDEX, null));
     }
 
     private void recordAction(String method, OutboxEntry transitionFired, Action action, int actionIndex) {

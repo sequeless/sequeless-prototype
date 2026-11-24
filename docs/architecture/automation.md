@@ -104,11 +104,10 @@ principal — is baked into the payload the moment the transition commits. A Tem
 (hours later, after a crash) or an in-process relay redispatch therefore never reads the object's
 *current*, possibly-since-changed, mutable state to reproduce its effect: it always sees the exact
 `self` snapshot as of the moment the transition fired. This is what makes "no ontology port, no
-re-read" a design property rather than an incidental optimization — `ActionExecutor`'s four
-ActionRequest methods need nothing beyond the frozen payload to do their job. A test feeds a real
+re-read" a design property rather than an incidental optimization — `ActionExecutor`'s single-action
+methods need nothing beyond the frozen payload to do their job. A test feeds a real
 `DefaultTransitionService.fire(...)` call's `TransitionFired` row straight into `DefaultActionExecutor`
-to confirm it (`DefaultActionExecutorTest`). The hand-built `ActionRequest` tests in that class
-exercise the drain path, which is removed in P2e.
+to confirm it (`DefaultActionExecutorTest`).
 
 **What the per-action path reads, and when.** The row names the transition (`machineIri`,
 `fromState`, `transitionName`) and its `ontologyVersion`, but not the actions. Both adapters read the
@@ -253,14 +252,14 @@ relay retry, which has no equivalent guard of its own — see (c)) cannot produc
 side-effect, because `DefaultActionExecutor` (`sequeless-core`,
 `org.sequeless.core.automation.DefaultActionExecutor`) is idempotent by construction:
 
-- `applyCreateObject` derives the new object's id deterministically —
-  `UUID.nameUUIDFromBytes((entry.id() + ":" + actionIndex).getBytes(UTF_8))` — rather than
+- `applyAction`'s `CreateObject` case derives the new object's id deterministically —
+  `UUID.nameUUIDFromBytes((row.id() + ":" + actionIndex).getBytes(UTF_8))` — rather than
   generating one randomly, and checks `ObjectStorePort#find` at that derived id first. A retried
   call finds the object already exists and returns immediately without creating a duplicate.
-- `applySetProperty` resolves the target value, then compares it against the property's *current*
-  value and only calls `commit` if they differ — a no-op write on retry. It is also a safe no-op
-  (never `ObjectNotFoundException`) if the target object has since been deleted, since a retry must
-  always be able to succeed.
+- `applyAction`'s `SetProperty` case resolves the target value, then compares it against the
+  property's *current* value and only calls `commit` if they differ — a no-op write on retry. It is
+  also a safe no-op (never `ObjectNotFoundException`) if the target object has since been deleted,
+  since a retry must always be able to succeed.
 
 **(c) The in-process adapter's own weaker, process-lifetime-only guard.**
 `InProcessAutomationPort` keeps an in-memory `ConcurrentHashMap`-backed `Set<UUID>` of every
