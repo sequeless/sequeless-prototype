@@ -15,7 +15,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * entry to {@link TriggerEvaluator#onTimerElapsed} once the timer elapses, so the elapsed-timer call
  * and its staleness check read the same payload the timer was scheduled with.
  *
- * <p>The kind string is {@link #KIND}, the same value as {@code OutboxEntry.KIND_TIMER_SCHEDULED}.
+ * <p>The kind string is {@link #KIND}, the kind that {@code TimerScheduled} rows written before the timer
+ * kinds were removed carry.
  * Payload carries {@code objectId}, {@code tenantId}, {@code principalId}, {@code typeIri}, {@code
  * state}, {@code transitionName}, {@code after} (ISO-8601), {@code timerKey} (stable, derived as
  * {@code objectId|stateIri|transitionName}, see {@link OutboxEntry#timerKey}), and {@code
@@ -23,7 +24,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  */
 public final class TimerScheduledEntry {
 
-    /** The kind string of a timer-scheduled entry; equal to {@code OutboxEntry.KIND_TIMER_SCHEDULED}. */
+    /** The kind string of a timer-scheduled entry, {@code "TimerScheduled"}. */
     public static final String KIND = "TimerScheduled";
 
     private TimerScheduledEntry() {}

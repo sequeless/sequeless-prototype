@@ -29,7 +29,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * migrate to the live set as it now stands. The frozen post-P7 set is the set as it stood at P7; later
  * migrations, starting with V7, may follow it, so the live set can be ahead of the frozen post-P7 set.
  * The pair from after P7 to after P2 (case f) starts at the frozen post-P7 set, migrates to the frozen
- * post-P2 set, and then to the live set.
+ * post-P2 set, and then to the live set. The pair from after P2 to after P3 (case g) starts at the frozen
+ * post-P2 set, migrates to the frozen post-P3 set, and then to the live set.
  */
 @Testcontainers
 class PostgresMigrationsSettlingIT {
@@ -41,12 +42,13 @@ class PostgresMigrationsSettlingIT {
     private static final String FROZEN_FBB82C5 = "classpath:frozen-migrations/fbb82c5";
     private static final String FROZEN_POST_P7 = "classpath:frozen-migrations/post-p7/command";
     private static final String FROZEN_POST_P2 = "classpath:frozen-migrations/post-p2/command";
+    private static final String FROZEN_POST_P3 = "classpath:frozen-migrations/post-p3/command";
     private static final String TENANT = "acme";
     private static final String TITLE_IRI = "https://sequeless.test/settling#title";
 
     /** The Command history of the final set, with no entry for V2, which the final set no longer has. */
-    private static final List<String> FINAL_COMMAND_HISTORY =
-            List.of("1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS");
+    private static final List<String> FINAL_COMMAND_HISTORY = List.of(
+            "1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS", "9 SUCCESS");
 
     private static DataSource dataSource;
 
@@ -82,6 +84,38 @@ class PostgresMigrationsSettlingIT {
         Flyway.configure()
                 .dataSource(dataSource)
                 .locations(FROZEN_POST_P2)
+                .load()
+                .migrate();
+
+        PostgresMigrations.migrate(dataSource);
+
+        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
+                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
+        assertSearchSchemaPresent();
+        assertQueryHistory();
+        assertRowCounts(2, 1);
+    }
+
+    /**
+     * Settling case (g): the pair from after P2 to after P3. A database at the frozen post-P2 set (V1 and V3
+     * to V8, no V2) and the Query set migrates to the frozen post-P3 set (V1 and V3 to V9), and then to the
+     * live set.
+     */
+    @Test
+    void frozenPostP2LayoutMigratesThroughThePostP3Set() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P2)
+                .load()
+                .migrate();
+        // The post-P2 set has the search trigger, which reads sq_searchable_property on every object write.
+        PostgresMigrations.queryFlyway(dataSource).migrate();
+        insertObject(UUID.randomUUID(), "first");
+        insertObject(UUID.randomUUID(), "second");
+        insertSearchableRegistration();
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P3)
                 .load()
                 .migrate();
 
@@ -136,7 +170,8 @@ class PostgresMigrationsSettlingIT {
                         "5 SUCCESS",
                         "6 SUCCESS",
                         "7 SUCCESS",
-                        "8 SUCCESS");
+                        "8 SUCCESS",
+                        "9 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
@@ -166,7 +201,8 @@ class PostgresMigrationsSettlingIT {
                         "5 SUCCESS",
                         "6 SUCCESS",
                         "7 SUCCESS",
-                        "8 SUCCESS");
+                        "8 SUCCESS",
+                        "9 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
