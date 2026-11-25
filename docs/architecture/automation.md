@@ -16,7 +16,7 @@ outbox event that names the fired transition and its ontology version, from whic
 but the record of what should happen next has not been durably written (or vice versa). `sq_outbox`
 is the same transactional-outbox table `ObjectCreated`/`ObjectUpdated`/`ObjectDeleted` events have
 used since DR-12; Phase 5 adds two new `kind` values to it and a `processed_at` marker column.
-Phase 6 (DR-12) adds three more `kind` values (§2). The relay claims seven kinds for dispatch (§2's
+Phase 6 (DR-12) adds three more `kind` values (§2). The relay claims four kinds for dispatch (§2's
 "dispatchable set"), `TransitionFired` included, and both automation adapters apply the actions of a
 `TransitionFired` row.
 
@@ -29,7 +29,7 @@ implementation (`DefaultActionExecutor` in `sequeless-core`) to apply a `Transit
 the other dispatchable kinds route to `TriggerEvaluator`/`DerivationRecomputer` instead — see §9.
 
 Phase 6 (DR-12) widens this considerably: what was originally a single `ActionRequest`-only queue
-is now a seven-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
+is now, after P4, a four-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
 `kind()`, not a single hard-coded call.
 
 ## 2. The outbox and the `TransitionFired` payload shape
@@ -48,19 +48,21 @@ adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depen
   No code writes an `ActionRequest` row, and the relay does not claim one. Rows written before the
   flip were stamped processed by the V8 migration (see "Rows written before the flip" below).
 
-Phase 6 (DR-12) adds one more constant, documented directly on `OutboxEntry` itself (the
+Phase 6 (DR-12) added one more constant, documented directly on `OutboxEntry` itself (the
 authoritative list — this document doesn't repeat its payload shape beyond what's useful here;
-see the javadoc for the exact field list):
+see the javadoc for the exact field list). DR-26 removes it:
 
-- `OutboxEntry.KIND_SIGNAL_RECEIVED = "SignalReceived"` — recorded when `POST
-  /api/objects/{type}/{id}/signals/{name}` is called (§12).
+- `OutboxEntry.KIND_SIGNAL_RECEIVED = "SignalReceived"` is removed. A signal writes no outbox row:
+  `POST /api/objects/{type}/{id}/signals/{name}` runs the transition it names in the request, and
+  that move's `TransitionFired` row carries its actions and timers (§12). V11 stamps any leftover
+  `SignalReceived` row processed.
 
 DR-12 also added `TimerScheduled` and `TimerCancelled` rows. DR-25 removes both: a timer now starts
 from the `TransitionFired` row, and nothing cancels it (see the timer path below).
 
 Together with the three pre-existing object-lifecycle kinds (`ObjectCreated`/`ObjectUpdated`/
-`ObjectDeleted`, in use since DR-12), that makes four kinds besides `TransitionFired`, five in all.
-`OutboxRelay` claims across all five in one poll loop (§3), and the automation adapters apply the
+`ObjectDeleted`, in use since DR-12), that makes three kinds besides `TransitionFired`, four in all.
+`OutboxRelay` claims across all four in one poll loop (§3), and the automation adapters apply the
 actions of each `TransitionFired` row (§4).
 
 `OutboxEntry`'s constructor enforces the payload is JSON-compatible end to end (`String`,
@@ -132,7 +134,7 @@ to `ActionRequest` alone) to take an explicit, caller-chosen kind set, because a
 fans its one polling loop out to several inbound ports (`ActionExecutor`, `TriggerEvaluator`,
 `DerivationRecomputer`), not just `ActionExecutor`. `OutboxRelay` builds the set it passes,
 `DISPATCHABLE_KINDS`, once as a `static final Set<String>` field (not reconstructed per poll) —
-see §2 for the seven kinds it contains. The sole implementation (the postgres adapter)
+see §2 for the four kinds it contains. The sole implementation (the postgres adapter)
 runs `SELECT ... FROM sq_outbox WHERE kind IN (:kinds) AND processed_at IS NULL AND
 dead_lettered_at IS NULL ORDER BY occurred_at LIMIT 1 FOR UPDATE SKIP LOCKED` against that set
 (`:kinds` bound as a named IN list), calls `handler` once with the claimed row's raw `tenantId`
@@ -449,11 +451,12 @@ section covers only the runtime *behaviour* those terms produce.
 
 **`fireAutomated` never throws for a stale trigger.** `TransitionService.fireAutomated(Scope,
 ObjectId, String transitionName, TriggerKind expected)` is the one entry point
-`DefaultTriggerEvaluator` calls for all three automated trigger kinds. It re-reads the object's
+`DefaultTriggerEvaluator` calls, for its two automated trigger kinds, `ON_CHANGE` and `TIMER`. A
+signal does not use it (§12). It re-reads the object's
 *current* version itself, re-checks the named transition both exists and departs the object's
 *current* state, re-checks its guard, and confirms `transition.trigger().kind() == expected` —
 and returns `Optional.empty()`, silently, if any of those checks fails, rather than throwing. This
-is deliberate: the outbox event that prompted the call (a change, a timer, a signal) may by now be
+is deliberate: the outbox event that prompted the call (a change or a timer) may by now be
 stale — the object may have moved on, been deleted, or the guard may no longer hold — and a stale
 automation hint is the normal case, not an error condition. `fireAutomated` performs no
 authorization check either (no `Operation.TRANSITION`); it is system-triggered, not
@@ -506,7 +509,7 @@ sequenceDiagram
     participant Relay as OutboxRelay (poll loop)
     participant Port as AutomationPort.dispatch
     participant Recomp as DerivationRecomputer.recompute
-    participant Trig as TriggerEvaluator<br/>(onChange / onTimerElapsed / onSignal)
+    participant Trig as TriggerEvaluator<br/>(onChange / onTimerElapsed)
     participant TS as TransitionService.fireAutomated
 
     Client->>REST: PUT /api/objects/Task/{id} (status=done)
@@ -533,9 +536,10 @@ sequenceDiagram
     end
 ```
 
-A `SignalReceived` row follows the same claim → dispatch shape, routed to `onSignal` instead of
-`onChange`. A timer has no row of its own: it fires through `onTimerElapsed` when its due time
-passes, and the `TransitionFired` row that started it goes through the same claim → dispatch shape
+A signal has no row and takes no claim → dispatch step: `POST .../signals/{name}` applies its
+transition in the request (§12). A timer has no row of its own: it fires through `onTimerElapsed`
+when its due time passes, and the `TransitionFired` row that started it goes through the same
+claim → dispatch shape
 as any other row. Each adapter's `dispatch` switches on `kind()` to route the rows. A `TransitionFired`
 row is written alongside every fired transition and names the transition and its ontology version.
 The relay claims it like any other kind, and both adapters apply its actions by index (§4) and start
@@ -640,22 +644,33 @@ class-hierarchy domain/range leakage, that prefers the most specific XSD candida
 
 **`POST /api/objects/{type}/{id}/signals/{name}`** accepts an optional, arbitrary JSON request body
 (treated as an opaque map, defaulting to empty if omitted) and returns **`202 Accepted` with no
-response body**. `404` if the object doesn't exist. `400` (`UnknownSignalException`, `ProblemDetail`
-type suffix `unknown-signal`, `typeIri`/`signalName` properties set) if no transition anywhere on
-that type declares an `ExternalSignalTrigger` with that `signalName` — note this check is
-**type-wide**, not scoped to the object's current state: a signal that's structurally valid for the
-type but not applicable from the object's current state is still accepted here and durably
-recorded; rejecting an inapplicable-*right-now* signal is `TriggerEvaluator.onSignal`'s job
-downstream, not this endpoint's.
+response body**, returned only after the transition the signal names has been applied (DR-26). Its
+error responses:
 
-**`signal()` only durably records the event; it does not fire anything itself.** It writes a
-`SignalReceived` outbox row (payload includes the raw request body, recorded verbatim for audit —
-see §11's cross-reference to the "known limitation" that the body is never bound into the guard's
-`ExpressionContext`) and returns. Routing that event to the matching transition — finding the
-transition departing the object's *current* state whose `signalName` matches, and calling
-`fireAutomated` — happens later, downstream, when `OutboxRelay` dispatches the row to
-`TriggerEvaluator.onSignal`. The two-step separation (durably record now, act on it once dispatched)
-is deliberate: it's the same shape every other outbox-driven kind uses.
+- `404` if the object doesn't exist.
+- `400` (`UnknownSignalException`, `ProblemDetail` type suffix `unknown-signal`, `typeIri`/`signalName`
+  properties set) if no transition anywhere on that type declares an `ExternalSignalTrigger` with that
+  `signalName`. This check is **type-wide**, not scoped to the object's current state.
+- `409` (`TransitionNotAvailableException`, type suffix `transition-not-available`) if no transition
+  departing the object's *current* state carries that signal name (a state-less object has none), or
+  the first such transition's guard evaluates `false`. A name the type declares but that no transition
+  departs the current state with is a 409, not a 400, because the client named a real signal.
+- `409` (`StaleObjectException`, type suffix `stale-object`, `expectedVersion` property set) if a
+  concurrent write changes the object between the signal's read and its commit.
+- `500` if the automation half is at a different ontology version from the schema and behaviour halves
+  read for the same request (an ontology reload during the signal): the `IllegalStateException` is not
+  mapped (HTTP 500); the client is expected to retry (DR-26).
+
+When several transitions from the current state match the name, the first in transition order is
+taken. If its guard fails, the request is rejected with 409; there is no fall-through to a later match.
+
+**`signal()` runs the transition in the request.** `TransitionService.signal` (implemented by
+`DefaultTransitionService`) finds the first transition departing the object's *current* state whose
+`signalName` matches, evaluates its guard as `fire()` does, and commits it in one `ChangeSet`, as a
+user `fire()` does: the object's `Update` and one `TransitionFired` row. The adapters apply that row's
+actions and start its timers afterwards, as for any fired transition (§4, §9). No outbox row is written
+for the signal itself, and nothing routes it later: `TriggerEvaluator` has no `onSignal`. The request
+body is validated but not recorded, and it is not bound into any guard's `ExpressionContext`.
 
 **Wire-format convention: `trigger` is the raw `TriggerKind.name()`.** `TransitionSummaryResponse`
 (the DTO both the type descriptor's state-machine section and `GET

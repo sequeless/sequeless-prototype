@@ -55,7 +55,7 @@ class ChangeSetTest {
     void allowsEmptyMutationsWithNonEmptyOutbox() {
         OutboxEntry outboxEntry = new OutboxEntry(
                 UUID.randomUUID(),
-                OutboxEntry.KIND_SIGNAL_RECEIVED,
+                OutboxEntry.KIND_OBJECT_UPDATED,
                 Map.of("objectId", "x"),
                 Instant.parse("2026-09-16T10:00:00Z"));
 

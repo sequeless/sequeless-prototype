@@ -105,7 +105,7 @@ public class InProcessAutomationAutoConfiguration {
      * @param properties the bound {@code sequeless.automation.inprocess.*} webhook retry
      *     configuration
      * @param triggerEvaluator the {@link TriggerEvaluator} bean an object-lifecycle or
-     *     signal entry is routed to
+     *     timer entry is routed to
      * @param timerScheduler the scheduler the timers a {@code TransitionFired} row starts are
      *     scheduled on
      * @param automationSource the {@link AutomationSource} bean (provided by the Jena ontology

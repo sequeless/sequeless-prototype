@@ -203,8 +203,9 @@ class DefaultTransitionServiceTest {
             Optional.of(OWNER_GUARD),
             Optional.empty());
     /**
-     * Departs {@code Done}, not {@code Start} — used to prove {@code signal} validates a signal
-     * name against the whole state machine, not just the object's current state.
+     * Departs {@code Done}, not {@code Start}. A {@code signal} on a {@code Start} object is not
+     * {@code UnknownSignalException}, because the name is declared type-wide; it is
+     * {@code TransitionNotAvailableException}, because no transition from {@code Start} carries it.
      */
     private static final String WAKE_SIGNAL = "wake";
 
@@ -290,6 +291,18 @@ class DefaultTransitionServiceTest {
                 Map.of(),
                 new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
                 false);
+    }
+
+    /** An ontology whose TimerWidget machine has exactly {@code transitions}, for the signal tests. */
+    private static FakeOntology timerWidgetOntology(Transition... transitions) {
+        StateMachineDefinition machine = new StateMachineDefinition(
+                TIMER_WIDGET_LIFECYCLE.iri(),
+                List.of(TW_START, TW_WAITING, TW_ELSEWHERE, TW_DONE),
+                TW_START,
+                List.of(transitions));
+        Behaviour behaviour = new Behaviour(
+                new OntologyVersion(1), Map.of(PROJECT_IRI, PROJECT_LIFECYCLE, TIMER_WIDGET_IRI, machine), Map.of());
+        return new FakeOntology(SCHEMA, behaviour, AUTOMATION);
     }
 
     // --- happy path: guard passes, state moves, one TransitionFired row ---
@@ -650,7 +663,7 @@ class DefaultTransitionServiceTest {
     // --- signal ---
 
     @Test
-    void signalCommitsSignalReceivedEntryWithNoMutations() {
+    void signalCommitsOneUpdateAndOneTransitionFiredRowInTheRequest() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = timerWidget(id, 1, DONE_IRI);
         FakeObjectStorePort store = new FakeObjectStorePort();
@@ -661,31 +674,166 @@ class DefaultTransitionServiceTest {
 
         assertThat(store.commits).hasSize(1);
         ChangeSet changeSet = store.commits.get(0);
-        assertThat(changeSet.mutations()).isEmpty();
+        assertThat(changeSet.mutations()).hasSize(1);
+        Update update = (Update) changeSet.mutations().get(0);
+        assertThat(update.expectedVersion()).isEqualTo(1);
+        assertThat(update.object().state()).contains(START_IRI);
+        assertThat(update.object().version()).isEqualTo(2);
         assertThat(changeSet.outbox()).hasSize(1);
         OutboxEntry entry = changeSet.outbox().get(0);
-        assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
+        assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
         assertThat(entry.payload())
                 .containsEntry("objectId", id.value().toString())
-                .containsEntry("tenantId", "acme")
-                .containsEntry("principalId", "alice")
-                .containsEntry("signalName", WAKE_SIGNAL)
-                .containsEntry("body", Map.of("reason", "manual"));
+                .containsEntry("transitionName", WAKE_SIGNAL)
+                .containsEntry("fromState", DONE_IRI)
+                .containsEntry("toState", START_IRI);
+        assertThat(store.store.get(id).state()).contains(START_IRI);
     }
 
     @Test
-    void signalSucceedsForASignalDeclaredOnATransitionNotDepartingTheCurrentState() {
+    void signalThrowsStaleObjectExceptionWhenTheObjectMovesBeforeTheCommitAndCommitsNothing() {
         ObjectId id = ObjectId.random();
-        // "wake" departs Done, but this object is in Start — signal validation is type-wide.
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(timerWidget(id, 1, DONE_IRI));
+        // Another writer commits version 2 after the signal reads version 1 and before the signal commits.
+        BusinessObject concurrent = timerWidget(id, 2, DONE_IRI);
+        store.writeConcurrentlyAfterRead(concurrent);
+        DefaultTransitionService service = service(store, permitAll());
+
+        assertThatExceptionOfType(StaleObjectException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThat(store.commitCalls).isEqualTo(1);
+        assertThat(store.commits).isEmpty();
+        assertThat(store.store.get(id)).isEqualTo(concurrent);
+    }
+
+    @Test
+    void signalForATransitionNotDepartingTheCurrentStateIsTransitionNotAvailable() {
+        ObjectId id = ObjectId.random();
+        // "wake" departs Done, but this object is in Start: no transition from Start carries the name.
         BusinessObject existing = timerWidget(id, 1, START_IRI);
         FakeObjectStorePort store = new FakeObjectStorePort();
         store.seed(existing);
         DefaultTransitionService service = service(store, permitAll());
 
-        service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of());
+        assertThatExceptionOfType(TransitionNotAvailableException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()))
+                .satisfies(exception -> assertThat(exception.transitionName()).isEqualTo(WAKE_SIGNAL));
+        assertThat(store.commitCalls).isZero();
+    }
 
-        assertThat(store.commits).hasSize(1);
-        assertThat(store.commits.get(0).outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_SIGNAL_RECEIVED);
+    @Test
+    void signalOnAStateLessObjectIsTransitionNotAvailable() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = new BusinessObject(
+                id,
+                new TypeRef(TIMER_WIDGET_IRI),
+                new TenantId("acme"),
+                1,
+                Optional.empty(),
+                Map.of(),
+                new Audit(CREATED_AT, "carol", CREATED_AT, "carol"),
+                false);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        assertThatExceptionOfType(TransitionNotAvailableException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()))
+                .satisfies(exception -> {
+                    assertThat(exception.transitionName()).isEqualTo(WAKE_SIGNAL);
+                    assertThat(exception.reason())
+                            .isEqualTo("No transition for signal '" + WAKE_SIGNAL
+                                    + "' is available from the object's current state");
+                });
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void signalWhoseGuardFailsIsTransitionNotAvailableWithTheGuardReason() {
+        ObjectId id = ObjectId.random();
+        Transition guarded = new Transition(
+                "guardedNudge",
+                START_IRI,
+                DONE_IRI,
+                new ExternalSignalTrigger("nudge"),
+                Optional.of(OWNER_GUARD),
+                Optional.of("A timer widget needs an owner"));
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(timerWidget(id, 1, START_IRI));
+        DefaultTransitionService service = service(store, permitAll(), timerWidgetOntology(guarded));
+
+        assertThatExceptionOfType(TransitionNotAvailableException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, "nudge", Map.of()))
+                .satisfies(exception -> {
+                    assertThat(exception.transitionName()).isEqualTo("guardedNudge");
+                    assertThat(exception.reason()).isEqualTo("A timer widget needs an owner");
+                });
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void signalTakesTheFirstMatchingTransitionInTransitionOrder() {
+        ObjectId id = ObjectId.random();
+        Transition first = new Transition(
+                "first", START_IRI, DONE_IRI, new ExternalSignalTrigger("nudge"), Optional.empty(), Optional.empty());
+        Transition second = new Transition(
+                "second",
+                START_IRI,
+                ELSEWHERE_IRI,
+                new ExternalSignalTrigger("nudge"),
+                Optional.empty(),
+                Optional.empty());
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(timerWidget(id, 1, START_IRI));
+        DefaultTransitionService service = service(store, permitAll(), timerWidgetOntology(first, second));
+
+        service.signal(ALICE, "TimerWidget", id, "nudge", Map.of());
+
+        assertThat(store.store.get(id).state()).contains(DONE_IRI);
+        assertThat(store.commits.get(0).outbox().get(0).payload()).containsEntry("transitionName", "first");
+    }
+
+    @Test
+    void signalDoesNotFallThroughToALaterMatchWhenTheFirstGuardFails() {
+        ObjectId id = ObjectId.random();
+        Transition guardedFirst = new Transition(
+                "first",
+                START_IRI,
+                DONE_IRI,
+                new ExternalSignalTrigger("nudge"),
+                Optional.of(OWNER_GUARD),
+                Optional.of("Needs an owner"));
+        Transition unguardedSecond = new Transition(
+                "second",
+                START_IRI,
+                ELSEWHERE_IRI,
+                new ExternalSignalTrigger("nudge"),
+                Optional.empty(),
+                Optional.empty());
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(timerWidget(id, 1, START_IRI));
+        DefaultTransitionService service =
+                service(store, permitAll(), timerWidgetOntology(guardedFirst, unguardedSecond));
+
+        assertThatExceptionOfType(TransitionNotAvailableException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, "nudge", Map.of()))
+                .satisfies(exception -> assertThat(exception.reason()).isEqualTo("Needs an owner"));
+        assertThat(store.commitCalls).isZero();
+    }
+
+    @Test
+    void signalThrowsIllegalStateWhenAutomationIsAtAnotherOntologyVersionAndCommitsNothing() {
+        ObjectId id = ObjectId.random();
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(timerWidget(id, 1, DONE_IRI));
+        Automation otherVersion = new Automation(new OntologyVersion(2), AUTOMATION.transitionActions());
+        DefaultTransitionService service =
+                service(store, permitAll(), new FakeOntology(SCHEMA, BEHAVIOUR, otherVersion));
+
+        assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThat(store.commits).isEmpty();
     }
 
     @Test
@@ -837,9 +985,15 @@ class DefaultTransitionServiceTest {
         private final List<ChangeSet> commits = new ArrayList<>();
         private int findCalls;
         private int commitCalls;
+        private BusinessObject writtenAfterRead;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
+        }
+
+        /** Models another writer committing {@code object} right after the next read, before the caller commits. */
+        void writeConcurrentlyAfterRead(BusinessObject object) {
+            writtenAfterRead = object;
         }
 
         @Override
@@ -850,6 +1004,10 @@ class DefaultTransitionServiceTest {
             BusinessObject found = store.get(id);
             if (found == null || found.deleted()) {
                 return Optional.empty();
+            }
+            if (writtenAfterRead != null) {
+                store.put(id, writtenAfterRead);
+                writtenAfterRead = null;
             }
             return Optional.of(found);
         }
@@ -864,7 +1022,6 @@ class DefaultTransitionServiceTest {
             Objects.requireNonNull(scope, "scope must not be null");
             Objects.requireNonNull(changeSet, "changeSet must not be null");
             commitCalls++;
-            commits.add(changeSet);
 
             List<BusinessObject> resultObjects = new ArrayList<>();
             for (Mutation mutation : changeSet.mutations()) {
@@ -886,6 +1043,8 @@ class DefaultTransitionServiceTest {
                 }
             }
 
+            // Recorded only once every mutation has passed its check, so a rejected commit records nothing.
+            commits.add(changeSet);
             List<UUID> outboxIds = new ArrayList<>();
             for (OutboxEntry ignored : changeSet.outbox()) {
                 outboxIds.add(UUID.randomUUID());

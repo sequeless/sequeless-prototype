@@ -338,9 +338,9 @@ public class CoreConfiguration {
 
     /**
      * Builds the {@link TriggerEvaluator} implementation an automation adapter calls back into once
-     * an {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event, an elapsed timer,
-     * or a signal might make an {@code OnChange}/{@code Timer}/{@code ExternalSignal}-triggered
-     * transition available. Exactly the same reasoning as {@link #actionExecutor} applies here:
+     * an {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event or an elapsed timer
+     * might make an {@code OnChange}/{@code Timer}-triggered transition available. Exactly the same
+     * reasoning as {@link #actionExecutor} applies here:
      * {@code TriggerEvaluator} is not consumed by a REST controller in this module, it is consumed
      * by whichever automation adapter is configured, and neither adapter module may depend on {@code
      * sequeless-core} — this bean is that unavoidable wiring seam.

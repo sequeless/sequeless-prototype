@@ -77,7 +77,7 @@ compile-time dependencies.
 | `sequeless-adapter-ontology-jena` | Prototype wiring around the released `ontology-jena-adapter`: `JenaOntologyAutoConfiguration`, `JenaOntologyProperties`, `JenaOntologyAdapterDescriptorProvider` and `ShaclValidationAdapterDescriptorProvider` (ServiceLoader descriptors), `ShaclValidationAutoConfiguration`, `ShaclValidationPort` (the SHACL validation adapter) and `ValidationSchemaAdapter`. The Jena 6 ontapi, built-in OWL reasoner, jena-shacl and Turtle import/export are in the released adapter | `kernel-identity`, `kernel-values`, `sequeless-spi`, `ontology-jena-adapter`, `ontology-core`, `schema-contract`, `spring-boot-autoconfigure` (optional), `spring-context`, `spring-beans`, `spring-boot` |
 | `sequeless-adapter-persistence-postgres` | `ObjectStorePort` and `QueryPort` on PostgreSQL 18 JSONB; Flyway migrations; outbox table; hint-driven indexes | `sequeless-spi`, JDBC/Spring JDBC, Flyway, Lombok |
 | `sequeless-adapter-expression-jexl` | `ExpressionPort` via Commons JEXL 3 in a sandboxed, side-effect-free configuration | `sequeless-spi`, JEXL |
-| `sequeless-adapter-automation-temporal` | `AutomationPort` via Temporal Java SDK: outbox relay, action workflows, timers, signals | `sequeless-spi`, Temporal SDK, Spring Boot starter |
+| `sequeless-adapter-automation-temporal` | `AutomationPort` via Temporal Java SDK: outbox relay, action workflows, timers | `sequeless-spi`, Temporal SDK, Spring Boot starter |
 | `sequeless-adapter-automation-inprocess` | `AutomationPort` test/dev adapter: synchronous executor over the outbox | `sequeless-spi` |
 | `sequeless-adapter-authz-permitall` | `AuthorizationPort` that allows everything | `sequeless-spi` |
 | `sequeless-app` | Spring Boot application: REST inbound adapter, wiring, Actuator, OpenAPI, ArchUnit tests, end-to-end tests with Testcontainers | everything above |
@@ -102,7 +102,7 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 | `ObjectStorePort` | Atomic commit of object mutations plus outbox rows; read by id; ontology document storage | `postgres` | `inmemory`, MongoDB, Neo4j | `sequeless.persistence.adapter=postgres` |
 | `ReadPort`, `BrowsePort`, `IndexPreparationPort`, `QueryPort` | Read one object by id; filtered, sorted, paged browse with facet counts and text search; prepare query indexes after an ontology activation; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
 | `ExpressionPort` | Evaluate guard expressions against an object context | `jexl` | SpEL, GraalJS | `sequeless.expression.adapter=jexl` |
-| `AutomationPort` | Durably execute transition actions, timers and external signals from the outbox | `temporal` | `inprocess` | `sequeless.automation.adapter=temporal` |
+| `AutomationPort` | Durably execute transition actions and timers from the outbox (object-lifecycle and `TransitionFired` entries). External signals are applied in the request, not through this port | `temporal` | `inprocess` | `sequeless.automation.adapter=temporal` |
 | `AuthorizationPort` | Decide whether a principal may perform an operation on a type, object or field | `permit-all` | Spring Security + OIDC | `sequeless.authz.adapter=permit-all` |
 | `DerivationPlugin` | Named code derivation used when a rule declares `sq:Plugin` | none (registry) | any | discovered by ServiceLoader, named in ontology |
 | `ClockPort`, `IdGenerator` | Deterministic time and ids for tests | core defaults | — | none |

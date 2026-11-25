@@ -19,8 +19,8 @@ import { SignalCatalogue, signalsForState } from './signal-catalogue';
 
 /**
  * Fires the signals the catalogue says the object's type accepts, the ones valid from its current state enabled
- * and the rest greyed. Signals are handled asynchronously (202), so the object is refetched after a delay
- * and the panel never claims the transition happened.
+ * and the rest greyed. A signal is applied in its request: the 202 comes once the transition is applied.
+ * The object is refetched after a delay to show it, and the status text reports only the dispatch.
  */
 @Component({
   selector: 'sq-automation-signals-panel',

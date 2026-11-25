@@ -44,11 +44,6 @@ class WorkflowHolderNullTest {
     }
 
     @Test
-    void signalEventWorkflowRefusesANullHolder() {
-        assertRefusesANullHolder(() -> new SignalEventWorkflowImpl().run(ENTRY, SCOPE));
-    }
-
-    @Test
     void transitionActionWorkflowRefusesANullHolder() {
         assertRefusesANullHolder(() -> new TransitionActionWorkflowImpl().execute(ENTRY, 0));
     }

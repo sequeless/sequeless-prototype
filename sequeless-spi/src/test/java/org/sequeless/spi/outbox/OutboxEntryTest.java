@@ -127,7 +127,7 @@ class OutboxEntryTest {
     }
 
     @Test
-    void declaresExactlyTheFiveKindConstants() throws IllegalAccessException {
+    void declaresExactlyTheFourKindConstants() throws IllegalAccessException {
         Map<String, Object> kinds = new HashMap<>();
         for (Field field : OutboxEntry.class.getFields()) {
             if (field.getName().startsWith("KIND_")) {
@@ -140,7 +140,6 @@ class OutboxEntryTest {
                         "KIND_OBJECT_CREATED", "ObjectCreated",
                         "KIND_OBJECT_UPDATED", "ObjectUpdated",
                         "KIND_OBJECT_DELETED", "ObjectDeleted",
-                        "KIND_TRANSITION_FIRED", "TransitionFired",
-                        "KIND_SIGNAL_RECEIVED", "SignalReceived"));
+                        "KIND_TRANSITION_FIRED", "TransitionFired"));
     }
 }

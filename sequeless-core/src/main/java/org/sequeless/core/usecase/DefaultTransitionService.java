@@ -164,8 +164,8 @@ public final class DefaultTransitionService implements TransitionService {
     /**
      * The automation counterpart to {@link #fire}, called by {@code DefaultTriggerEvaluator} (an
      * inbound port implemented in this same package, but not depended on here to avoid a cycle) once
-     * a change event, an elapsed timer, or an external signal suggests {@code transitionName} might
-     * now be available on {@code id}. Unlike {@link #fire}, a mismatch of any kind is a silent
+     * a change event or an elapsed timer suggests {@code transitionName} might now be available on
+     * {@code id}. Unlike {@link #fire}, a mismatch of any kind is a silent
      * no-op, never an exception: the event that prompted this call is, by construction, a hint that
      * may already be stale by the time it is acted on — the object may have been deleted, moved to a
      * different state by a race, or have had this exact transition disabled by an ontology edit —
@@ -249,12 +249,20 @@ public final class DefaultTransitionService implements TransitionService {
     }
 
     /**
-     * Records {@code signalName}'s arrival for {@code id} as a durable {@code SignalReceived} outbox
-     * entry, without firing any transition itself — routing that entry to {@code
-     * DefaultTriggerEvaluator.onSignal} (which calls {@link #fireAutomated}) is the automation
-     * adapter's job. Committed via a {@link ChangeSet} with no mutations, only the one outbox entry —
-     * legal because {@link ChangeSet} only rejects a commit whose mutations <em>and</em> outbox are
-     * both empty.
+     * Fires the transition that {@code signalName} names on {@code id}, synchronously, in the request.
+     * The transition is the first, in the machine's transition order, that departs the object's
+     * current state with an {@link ExternalSignalTrigger} of that name. Its guard is evaluated through
+     * {@link StateMachineInterpreter#availableTransitions}, as {@link #fire} evaluates one, and the
+     * transition is committed by {@link #commitTransition} against {@code existing.version()}: one
+     * {@link ChangeSet} carrying the object's {@link Update} and one {@code TransitionFired} row, so
+     * the transition's actions and timers come from that row exactly as they do for a user fire.
+     *
+     * <p>A name no transition declares on the object's type is an {@link UnknownSignalException}. A
+     * declared name with no match from the current state (a state-less object included), or whose
+     * first matching transition's guard evaluates {@code false}, is a {@link
+     * TransitionNotAvailableException}; the guard's reason is carried in the latter case. This method
+     * never calls {@link #fireAutomated}. The request {@code body} is validated for null but not
+     * recorded.
      */
     @Override
     public void signal(Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
@@ -283,22 +291,27 @@ public final class DefaultTransitionService implements TransitionService {
             throw new UnknownSignalException(resolved.iri(), signalName);
         }
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", existing.id().value().toString());
-        payload.put("tenantId", scope.tenantId().value());
-        payload.put("principalId", scope.principal().id());
-        payload.put("signalName", signalName);
-        payload.put("body", body);
-        payload.put("ontologyVersion", halves.schema().ontologyVersion().value());
-        OutboxEntry signalEntry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, payload, now());
+        Transition transition = signalTransition(machine, existing, signalName)
+                .orElseThrow(
+                        () -> new TransitionNotAvailableException(signalName, signalNotAvailableMessage(signalName)));
+        StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
+        TransitionAvailability availability = interpreter.availableTransitions(scope, behaviour, existing).stream()
+                .filter(a -> a.name().equals(transition.name()))
+                .findFirst()
+                .orElseThrow(
+                        () -> new TransitionNotAvailableException(signalName, signalNotAvailableMessage(signalName)));
+        if (!availability.available()) {
+            throw new TransitionNotAvailableException(
+                    transition.name(), availability.reason().orElseThrow());
+        }
 
-        objectStorePort.commit(scope, new ChangeSet(List.of(), List.of(signalEntry)));
+        commitTransition(scope, halves, resolved, existing, transition, existing.version(), now());
     }
 
     /**
-     * The single commit path shared by {@link #fire} and {@link #fireAutomated}: builds the moved-state
-     * {@code candidate} and the one {@code TransitionFired} entry that carries the actions' data, and
-     * commits both as one {@link ChangeSet} — so the two callers can never disagree about what a
+     * The commit path shared by {@link #fire}, {@link #fireAutomated} and {@link #signal}: builds the
+     * moved-state {@code candidate} and the one {@code TransitionFired} entry that carries the actions'
+     * data, and commits both as one {@link ChangeSet} — so the callers can never disagree about what a
      * successful transition commits.
      *
      * <p>Reads {@link Automation} from its {@link AutomationSource} first. If its ontology version
@@ -348,6 +361,28 @@ public final class DefaultTransitionService implements TransitionService {
 
     private static String notAvailableMessage(String transitionName) {
         return "No transition named '" + transitionName + "' is available from the object's current state";
+    }
+
+    private static String signalNotAvailableMessage(String signalName) {
+        return "No transition for signal '" + signalName + "' is available from the object's current state";
+    }
+
+    /**
+     * The first transition, in the machine's transition order, that departs {@code object}'s current
+     * state with an {@link ExternalSignalTrigger} named {@code signalName}. Empty for a state-less
+     * object, which has no current state to depart.
+     */
+    private static Optional<Transition> signalTransition(
+            StateMachineDefinition machine, BusinessObject object, String signalName) {
+        if (object.state().isEmpty()) {
+            return Optional.empty();
+        }
+        String currentState = object.state().get();
+        return machine.transitions().stream()
+                .filter(t -> Objects.equals(t.fromStateIri(), currentState)
+                        && t.trigger() instanceof ExternalSignalTrigger signal
+                        && signal.signalName().equals(signalName))
+                .findFirst();
     }
 
     private OutboxEntry transitionFiredEntry(

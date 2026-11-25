@@ -15,7 +15,10 @@ import { firstValueFrom } from 'rxjs';
 import { ObjectDetailStore } from '../detail/object-detail.store';
 import { knownSignals } from './known-signals';
 
-/** Signals are handled asynchronously (202), so the object is refetched this long after a dispatch. */
+/**
+ * The 202 for a signal comes once its transition is applied. The object is refetched this long after a
+ * dispatch to show it.
+ */
 export const OBJECTS_SIGNAL_REFETCH_DELAY_MS = new InjectionToken<number>(
   'OBJECTS_SIGNAL_REFETCH_DELAY_MS',
   { providedIn: 'root', factory: () => 1500 },
@@ -44,7 +47,9 @@ export const OBJECT_SIGNALS_PANEL = new InjectionToken<Type<unknown>>('OBJECT_SI
       </button>
     }
     @if (dispatched(); as name) {
-      <p role="status">Signal "{{ name }}" dispatched — takes effect asynchronously.</p>
+      <p role="status">
+        Signal "{{ name }}" dispatched — the transition is applied when the request is accepted.
+      </p>
     }
     @if (error(); as error) {
       @if (error.slug === 'unknown-signal') {

@@ -14,7 +14,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * reflectively, once per execution, so it keeps the implicit public no-arg constructor.
  *
  * <p>Its {@link ActivityOptions} are read from {@link TemporalActivityOptions#ACTIVITY_OPTIONS}, the same
- * value {@link SignalEventWorkflowImpl} reads, so every activity this workflow calls shares the
+ * value {@link TimerWorkflowImpl} reads, so every activity this workflow calls shares the
  * retry policy {@link TemporalAutomationAutoConfiguration} builds.
  */
 public final class TransitionActionWorkflowImpl implements TransitionActionWorkflow {

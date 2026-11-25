@@ -10,9 +10,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * or none is.
  *
  * @param mutations the mutations to apply, in order; must not be {@code null}; may be empty only
- *     if {@code outbox} is not — a {@code SignalReceived}-only commit has no mutation to make but
- *     still has something to durably record — but a {@code ChangeSet} with both empty is a caller
- *     bug, not a valid no-op; returned as an unmodifiable copy so callers cannot mutate this
+ *     if {@code outbox} is not — an outbox-only commit has no mutation to make but still has
+ *     something to durably record — but a {@code ChangeSet} with both empty is a caller bug, not a
+ *     valid no-op; returned as an unmodifiable copy so callers cannot mutate this
  *     changeset after construction
  * @param outbox the outbox events to record alongside {@code mutations}; must not be {@code null};
  *     may be empty; returned as an unmodifiable copy so callers cannot mutate this changeset after

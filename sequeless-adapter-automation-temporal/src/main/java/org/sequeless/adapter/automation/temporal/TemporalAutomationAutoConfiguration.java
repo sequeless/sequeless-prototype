@@ -148,10 +148,7 @@ public class TemporalAutomationAutoConfiguration {
         WorkerFactory factory = WorkerFactory.newInstance(client);
         Worker worker = factory.newWorker(props.getTaskQueue());
         worker.registerWorkflowImplementationTypes(
-                TransitionActionWorkflowImpl.class,
-                ChangeEventWorkflowImpl.class,
-                TimerWorkflowImpl.class,
-                SignalEventWorkflowImpl.class);
+                TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(actionExecutor, automationSource),
                 new TriggerActivitiesImpl(triggerEvaluator, derivationRecomputer));

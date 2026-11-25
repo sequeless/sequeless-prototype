@@ -28,13 +28,14 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * End-to-end acceptance coverage (T12) for Phase 6's three automated trigger kinds, all against the
+ * End-to-end acceptance coverage (T12) for Phase 6's two automated trigger kinds, both against the
  * real {@code ex:ProjectLifecycle} state machine in {@code reference.ttl}: {@code autoClose}
- * (OnChange, watching {@code ex:belongsToProject}), {@code expireHold} (Timer, {@code PT72H}), and
- * {@code reopen} (ExternalSignal). Boots the real application on a random port against a real
+ * (OnChange, watching {@code ex:belongsToProject}) and {@code expireHold} (Timer, {@code PT72H}).
+ * Boots the real application on a random port against a real
  * Postgres Testcontainer with the in-process automation adapter draining the outbox, mirroring
  * {@link TransitionsEndToEndTest}'s idiom exactly (same {@code RestTestClient}, same hand-rolled
- * deadline-loop polling style).
+ * deadline-loop polling style). It also covers the {@code reopen} external signal, which applies its
+ * transition in the request, with no relay and no poll ({@code reopenSignalMovesAClosedProjectBackToActive}).
  *
  * <p><b>Fake clock seam.</b> A real {@code PT72H} timer cannot be waited out in a test, so this
  * class registers its own {@code @Primary} {@link Clock} bean — a small mutable fake — overriding
@@ -280,7 +281,8 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .expectBody()
                 .isEmpty();
 
-        awaitState(client, project.id(), "Active", Duration.ofSeconds(6));
+        // The signal applies its transition in the request, so the state is Active at once: no poll.
+        assertThat(currentState(client, project.id())).isEqualTo("Active");
     }
 
     private BusinessObjectResponse setOwnerAndActivate(

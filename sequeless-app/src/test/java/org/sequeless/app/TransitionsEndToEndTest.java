@@ -279,15 +279,13 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     /**
-     * REST-level proof that {@code POST /api/objects/{type}/{id}/signals/{name}} durably records a
-     * structurally valid signal and returns 202, per plan.md §6 ("core writes a {@code
-     * SignalReceived} entry and returns"). Whether the {@code reopen} signal actually moves the
-     * Closed Project back to Active is T12's end-to-end job (it needs the automation adapter to
-     * dispatch the resulting {@code SignalReceived} outbox row to {@code TriggerEvaluator.onSignal})
-     * — this test only proves the REST layer's own contract: 202, no body, and the signal is
-     * accepted for a type-wide-valid signal name regardless of the object's current state (per
-     * {@code TransitionService.signal}'s javadoc, signal validity is checked type-wide, not against
-     * the object's current state).
+     * REST-level proof that {@code POST /api/objects/{type}/{id}/signals/{name}} fires the transition
+     * the signal names in the request: the reply is 202 with no body, and the Project is already
+     * {@code Active} when the reply arrives, because the reopen commits before the reply is sent.
+     * The automation adapter applies the transition's actions afterwards from its {@code
+     * TransitionFired} row; this class does not test those, and {@link AutomationEndToEndTest} covers
+     * the automation path. The 409 for a signal that no transition departing the current state
+     * carries is {@link #reopenSignalOnActiveProjectIs409}.
      */
     @Test
     void reopenSignalOnClosedProjectIsAccepted() {
@@ -323,6 +321,63 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
                 .isEqualTo(HttpStatus.ACCEPTED)
                 .expectBody()
                 .isEmpty();
+
+        BusinessObjectResponse reopened = restTestClient
+                .get()
+                .uri("/api/objects/Project/" + project.id())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(reopened).isNotNull();
+        assertThat(reopened.state()).isEqualTo("Active");
+    }
+
+    /**
+     * A signal whose name the type declares, but that no transition departing the object's current
+     * state carries, is a 409 {@code transition-not-available}, with {@code transitionName} set to the
+     * signal name. The Project here is {@code Active}, and {@code reopen} departs only {@code Closed}.
+     */
+    @Test
+    void reopenSignalOnActiveProjectIs409() {
+        String projectTitle = "Reopen on an active project";
+        BusinessObjectResponse project = createProject(projectTitle);
+        BusinessObjectResponse owner = createPerson("Katherine Johnson");
+
+        restTestClient
+                .put()
+                .uri("/api/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of(
+                                "title", List.of(projectTitle),
+                                "owner", owner.id().toString())))
+                .exchange()
+                .expectStatus()
+                .isOk();
+
+        fireTransition(project.id(), "activate", 2);
+
+        restTestClient
+                .post()
+                .uri("/api/objects/Project/" + project.id() + "/signals/reopen")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of())
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.CONFLICT)
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.type")
+                .value(type -> assertThat(type.toString()).endsWith("transition-not-available"))
+                .jsonPath("$.transitionName")
+                .isEqualTo("reopen");
     }
 
     /**

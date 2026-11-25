@@ -18,12 +18,10 @@ import org.sequeless.spi.object.Update;
  * notified of these rows independently of the object store's own read path.
  *
  * <p>{@code kind} is one of {@link #KIND_OBJECT_CREATED}, {@link #KIND_OBJECT_UPDATED}, or {@link
- * #KIND_OBJECT_DELETED} for the mutations this SPI defines, {@link #KIND_TRANSITION_FIRED} for a
+ * #KIND_OBJECT_DELETED} for the mutations this SPI defines, or {@link #KIND_TRANSITION_FIRED} for a
  * fired state-machine transition, whose row names the transition and its ontology version, and from
- * which the automation port applies the actions, or {@link #KIND_SIGNAL_RECEIVED} for the automation
- * event introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec} — though the
- * type itself does not restrict {@code kind} to those values — a future kind can reuse this record
- * without a new one being minted.
+ * which the automation port applies the actions. The type itself does not restrict {@code kind} to
+ * those values, so a future kind can reuse this record without a new one being minted.
  *
  * <p>{@code payload} must be JSON-compatible end to end: every value, at any depth, is a {@code
  * String}, a {@code Number}, a {@code Boolean}, a {@code List<?>} of such values, or a {@code
@@ -60,17 +58,6 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
      * adapter starts one workflow per action.
      */
     public static final String KIND_TRANSITION_FIRED = "TransitionFired";
-
-    /**
-     * The event kind recorded when a client calls {@code POST
-     * /objects/{type}/{id}/signals/{name}}, for an automation adapter to dispatch to whichever
-     * transition on the object's current state has a matching {@code
-     * org.sequeless.ontology.behaviour.api.ExternalSignalTrigger#signalName()} — exactly as a {@code "reopen"}
-     * signal revives a {@code ex:Closed} {@code ex:Project}. Payload carries {@code objectId},
-     * {@code tenantId}, {@code principalId}, and {@code signalName}; the request body is recorded
-     * for audit but is not bound into the guard's {@code ExpressionContext} this phase.
-     */
-    public static final String KIND_SIGNAL_RECEIVED = "SignalReceived";
 
     private static final String OBJECT_ID_KEY = "objectId";
 

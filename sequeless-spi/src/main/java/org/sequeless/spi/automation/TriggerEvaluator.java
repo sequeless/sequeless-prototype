@@ -6,10 +6,11 @@ import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The inbound port an automation adapter calls back into to evaluate the state machine against a
- * change, a timer, or a signal, and fire at most one available transition per candidate object —
- * exactly the same three ways {@code ex:ProjectLifecycle} reacts without a user's REST request:
- * {@code autoClose} on a {@code ex:Task} change, {@code expireHold} on an elapsed timer, {@code
- * reopen} on a {@code "reopen"} signal. See this package's {@code package-info.java} for why this
+ * change or a timer, and fire at most one available transition per candidate object — exactly the
+ * same two ways {@code ex:ProjectLifecycle} reacts without a user's REST request: {@code autoClose}
+ * on a {@code ex:Task} change, and {@code expireHold} on an elapsed timer. A signal is not one of
+ * them: a client's signal request fires its transition synchronously, through the transition
+ * service. See this package's {@code package-info.java} for why this
  * port's dependency direction is the mirror image of every outbound port in this SPI: {@code
  * sequeless-core} implements this interface ({@code
  * org.sequeless.core.usecase.DefaultTriggerEvaluator}), and an automation adapter (the in-process
@@ -84,19 +85,4 @@ public interface TriggerEvaluator {
      *     differs from the active behaviour's ontology version
      */
     List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired);
-
-    /**
-     * Fires the transition departing the object's current state whose {@code
-     * ExternalSignalTrigger.signalName()} matches the payload's {@code signalName} — exactly as a
-     * {@code "reopen"} signal fires {@code reopen} on a {@code ex:Closed} {@code ex:Project}. A
-     * signal naming no matching transition from the object's current state is a silent no-op.
-     *
-     * <p>Kind-specific payload field, beyond {@code objectId}/{@code tenantId}/{@code
-     * principalId}: {@code signalName}.
-     *
-     * @param scope the tenant and principal to fire on behalf of; must not be {@code null}
-     * @param signalReceived the {@code SignalReceived}-kind outbox entry describing the signal;
-     *     must not be {@code null}
-     */
-    void onSignal(Scope scope, OutboxEntry signalReceived);
 }
