@@ -5,7 +5,7 @@
  * enabled signals are buttons (`[data-signal=name]`), the others are greyed (`[data-signal-disabled=name]`,
  * disabled) with "requires state <label>". A JSON payload textarea is parsed with `parsePayload`; a bad
  * payload shows `[data-payload-error]` and fires nothing. Firing calls `ObjectsClient.signal(type, id, name,
- * payload)`, says "dispatched — takes effect asynchronously", and refetches the object only after
+ * payload)`, says "dispatched — the transition is applied when the request is accepted.", and refetches the object only after
  * OBJECTS_SIGNAL_REFETCH_DELAY_MS (never on the 202 itself). "Refresh" refetches now and refreshes the
  * catalogue. A 400 `unknown-signal` (ApiError.signalName) shows a field error on that signal row
  * (`[data-signal-error=name]`) and refreshes the catalogue; any other failure, and a failed catalogue scan,
@@ -108,7 +108,9 @@ describe('SqAutomationSignalsPanel', () => {
     typePayload('{"reason": "ok"}');
     click('[data-signal="approve"]');
     expect(objects.signal).toHaveBeenCalledWith('Order', 'o-1', 'approve', { reason: 'ok' });
-    expect(host.querySelector('[role="status"]')?.textContent).toContain('dispatched — takes effect asynchronously');
+    expect(host.querySelector('[role="status"]')?.textContent).toContain(
+      'dispatched — the transition is applied when the request is accepted.',
+    );
   });
 
   it('fires with no payload when the textarea is blank', () => {
