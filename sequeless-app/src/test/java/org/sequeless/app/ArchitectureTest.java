@@ -17,6 +17,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.query.IndexPreparationPort;
 
 /**
@@ -50,6 +51,10 @@ class ArchitectureTest {
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
     private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
     private static final String PREPARE = "prepare";
+    private static final String INGEST = "ingest";
+    private static final String RELAY_PACKAGE = "org.sequeless.app.automation..";
+    private static final String RELAY_CLASS = "org.sequeless.app.automation.OutboxRelay";
+    private static final String TESTKIT_AUTOMATION_PACKAGE = "org.sequeless.testkit.automation..";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -264,6 +269,37 @@ class ArchitectureTest {
                     + "store such as PostgresQueryStore is caught too. The testkit's query contract kit "
                     + "(org.sequeless.testkit.query) is excluded: it exercises the port contracts and is not a "
                     + "production caller.");
+
+    /**
+     * Automation's ingress is fed only by the outbox relay (spec 13 P5b, #20 point 4): no class outside
+     * {@code org.sequeless.app.automation} calls {@code AutomationPort#ingest}. The testkit's automation contract
+     * ({@code org.sequeless.testkit.automation}) is excluded: it drives the port from the adapters' contract tests
+     * and is not a production caller. That exclusion is a deviation from spec line 207, which names only the relay
+     * package; the testkit's main code is imported here, so it must be named.
+     */
+    @ArchTest
+    static final ArchRule onlyTheRelayFeedsAutomation = noClasses()
+            .that()
+            .resideOutsideOfPackages(RELAY_PACKAGE, TESTKIT_AUTOMATION_PACKAGE)
+            .should()
+            .callMethodWhere(target(name(INGEST)).and(target(declaredIn(assignableTo(AutomationPort.class)))))
+            .because("the outbox relay is the only feeder of automation's Store-event ingress (spec 13 P5b, #20 "
+                    + "point 4). A second caller would hand automation events the relay never ordered: the relay "
+                    + "runs the recompute before ingest, and automation's guards read the materialised values that "
+                    + "recompute writes. The call is matched on its owner type, so a call through a concrete "
+                    + "adapter is caught too.");
+
+    /**
+     * The positive half of {@link #onlyTheRelayFeedsAutomation}: the relay itself calls {@code AutomationPort#ingest},
+     * so that rule's predicate matches a real call. If the method were renamed, this rule fails, and the negative
+     * rule above does not pass vacuously (spec section 6.2: a new rule must match at least one class).
+     */
+    @ArchTest
+    static final ArchRule theRelayFeedsAutomation = classes()
+            .that()
+            .haveFullyQualifiedName(RELAY_CLASS)
+            .should()
+            .callMethodWhere(target(name(INGEST)).and(target(declaredIn(assignableTo(AutomationPort.class)))));
 
     /**
      * Proves this suite is analyzing real classes from every module rather than passing
