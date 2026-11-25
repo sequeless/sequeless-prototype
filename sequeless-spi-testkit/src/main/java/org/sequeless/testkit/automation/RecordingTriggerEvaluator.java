@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -64,6 +65,12 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
     @Override
     public void onSignal(Scope scope, OutboxEntry signalReceived) {
         record(METHOD_ON_SIGNAL, signalReceived);
+    }
+
+    /** Resolves no timers: this double records only the three inbound calls and never returns timers. */
+    @Override
+    public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
+        return List.of();
     }
 
     /** @return every call recorded so far, in invocation order; a snapshot, not a live view */

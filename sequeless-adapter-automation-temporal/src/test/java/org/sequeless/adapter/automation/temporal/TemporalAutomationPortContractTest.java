@@ -35,6 +35,7 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
@@ -463,6 +464,11 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         @Override
         public void onSignal(Scope scope, OutboxEntry signalReceived) {
             delegate.onSignal(scope, signalReceived);
+        }
+
+        @Override
+        public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
+            return List.of();
         }
     }
 

@@ -405,7 +405,9 @@ public final class DefaultTransitionService implements TransitionService {
         payload.put("state", timerTransition.fromStateIri());
         payload.put("transitionName", timerTransition.name());
         payload.put("after", timer.after().toString());
-        payload.put("timerKey", timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        payload.put(
+                "timerKey",
+                OutboxEntry.timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
         payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED, payload, now);
     }
@@ -413,7 +415,7 @@ public final class DefaultTransitionService implements TransitionService {
     /**
      * Builds one {@code TimerCancelled} entry for {@code timerTransition}, a timer transition
      * departing the state the object just left. {@code timerKey} is computed by the exact same {@link
-     * #timerKey} helper {@link #timerScheduledEntry} uses, keyed the same way (the timer transition's
+     * OutboxEntry#timerKey} helper {@link #timerScheduledEntry} uses, keyed the same way (the timer transition's
      * own {@code fromStateIri}), so a cancel entry always carries the identical key the matching
      * schedule entry carried — the two can never drift apart.
      */
@@ -422,19 +424,11 @@ public final class DefaultTransitionService implements TransitionService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", existing.id().value().toString());
         payload.put("tenantId", scope.tenantId().value());
-        payload.put("timerKey", timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
+        payload.put(
+                "timerKey",
+                OutboxEntry.timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
         payload.put("ontologyVersion", ontologyVersion);
         return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_CANCELLED, payload, now);
-    }
-
-    /**
-     * The one place {@code objectId|stateIri|transitionName} is assembled, used identically by {@link
-     * #timerScheduledEntry} and {@link #timerCancelledEntry} so a scheduled timer and its later
-     * cancellation always carry the exact same key — this is also used directly as the Temporal
-     * workflow id and the in-process scheduler key by a later automation-adapter task.
-     */
-    private static String timerKey(ObjectId objectId, String stateIri, String transitionName) {
-        return objectId.value().toString() + "|" + stateIri + "|" + transitionName;
     }
 
     private static String notAvailableMessage(String transitionName) {

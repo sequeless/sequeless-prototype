@@ -1,5 +1,6 @@
 package org.sequeless.spi.automation;
 
+import java.util.List;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -65,6 +66,26 @@ public interface TriggerEvaluator {
      *     timer; must not be {@code null}
      */
     void onTimerElapsed(Scope scope, OutboxEntry timerScheduled);
+
+    /**
+     * Resolves the timer transitions that a {@code TransitionFired} row starts: one {@link
+     * ResolvedTimer} for every {@code TimerTrigger} transition departing the state the row moved
+     * the object into ({@code toState}), in declaration order. Each carries that timer's key, its
+     * duration, and the state and transition name it waits under. A row whose {@code toState} has
+     * no timer transition resolves to an empty list.
+     *
+     * <p>The lookup reads the active behaviour, so the row's {@code ontologyVersion} stamp must
+     * match that behaviour's version. Unlike the three methods above, this method does not treat a
+     * bad row as a stale trigger: a missing or mismatched stamp is an error, not a silent no-op.
+     *
+     * @param scope the tenant to read the behaviour for; must not be {@code null}
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry describing the move; must
+     *     not be {@code null}
+     * @return the timers the row starts, in declaration order; never {@code null}
+     * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or if the stamp
+     *     differs from the active behaviour's ontology version
+     */
+    List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired);
 
     /**
      * Fires the transition departing the object's current state whose {@code

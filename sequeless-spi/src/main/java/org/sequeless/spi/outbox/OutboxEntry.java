@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
@@ -110,6 +111,23 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
         }
         payload = Map.copyOf(payload);
         Objects.requireNonNull(occurredAt, "occurredAt must not be null");
+    }
+
+    /**
+     * The stable key that names one timer transition's pending wait: {@code
+     * objectId|stateIri|transitionName}, where {@code stateIri} is the state the timer waits in (the
+     * timer transition's {@code fromStateIri}). It is the {@code timerKey} payload value carried by
+     * {@link #KIND_TIMER_SCHEDULED} and {@link #KIND_TIMER_CANCELLED} entries, and is used directly
+     * as the Temporal workflow id and the in-process scheduler key, so every writer and reader of a
+     * timer key must build it here.
+     *
+     * @param objectId the object the timer belongs to; must not be {@code null}
+     * @param stateIri the IRI of the state the timer waits in; must not be {@code null}
+     * @param transitionName the name of the timer transition; must not be {@code null}
+     * @return the timer key for that object, state and transition
+     */
+    public static String timerKey(ObjectId objectId, String stateIri, String transitionName) {
+        return objectId.value().toString() + "|" + stateIri + "|" + transitionName;
     }
 
     /**

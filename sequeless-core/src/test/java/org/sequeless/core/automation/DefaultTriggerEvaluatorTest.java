@@ -1,8 +1,10 @@
 package org.sequeless.core.automation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -44,6 +46,7 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -402,6 +405,64 @@ class DefaultTriggerEvaluatorTest {
         evaluator.onSignal(ALICE, signalReceivedEvent(ObjectId.random(), "reopen"));
 
         assertThat(store.commitCalls).isZero();
+    }
+
+    // --- timersStartedBy ---
+
+    @Test
+    void timersStartedByResolvesTheTimerTheToStateStartsWithItsKeyDurationAndState() {
+        ObjectId projectId = ObjectId.random();
+        DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
+
+        List<ResolvedTimer> timers = evaluator.timersStartedBy(ALICE, transitionFiredEvent(projectId, ON_HOLD_IRI, 1));
+
+        assertThat(timers)
+                .containsExactly(new ResolvedTimer(
+                        projectId.value() + "|" + ON_HOLD_IRI + "|expireHold",
+                        Duration.ofHours(72),
+                        ON_HOLD_IRI,
+                        "expireHold"));
+    }
+
+    @Test
+    void timersStartedByIsEmptyWhenTheToStateHasNoTimerTransitionDepartingIt() {
+        DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
+
+        List<ResolvedTimer> timers =
+                evaluator.timersStartedBy(ALICE, transitionFiredEvent(ObjectId.random(), ACTIVE_IRI, 1));
+
+        assertThat(timers).isEmpty();
+    }
+
+    @Test
+    void timersStartedByThrowsWhenTheStampDiffersFromTheActiveBehaviourVersion() {
+        DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
+        OutboxEntry staleRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, 2);
+
+        assertThatThrownBy(() -> evaluator.timersStartedBy(ALICE, staleRow)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void timersStartedByThrowsWhenTheRowHasNoOntologyVersionStamp() {
+        DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
+        OutboxEntry unstampedRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, null);
+
+        assertThatThrownBy(() -> evaluator.timersStartedBy(ALICE, unstampedRow))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("has no ontologyVersion stamp");
+    }
+
+    /** A {@code TransitionFired} row moving {@code projectId} into {@code toState}; a null stamp omits the key. */
+    private static OutboxEntry transitionFiredEvent(ObjectId projectId, String toState, Integer ontologyVersion) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", projectId.value().toString());
+        payload.put("typeIri", PROJECT_IRI);
+        payload.put("toState", toState);
+        payload.put("transitionName", "move");
+        if (ontologyVersion != null) {
+            payload.put("ontologyVersion", ontologyVersion);
+        }
+        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, NOW);
     }
 
     // --- wiring helper ---
