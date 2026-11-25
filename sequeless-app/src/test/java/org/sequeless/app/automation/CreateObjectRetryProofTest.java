@@ -38,6 +38,7 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
@@ -137,10 +138,12 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
                 });
     }
 
-    /** One claim of the {@code TransitionFired} kind. The handler dispatches the row inside the claim. */
+    /** One claim of the {@code TransitionFired} kind. The handler ingests the row's event inside the claim. */
     private static Optional<UUID> claimOnce(OutboxPort outbox, AutomationPort automation) {
         return outbox.claimNext(CLAIMED_KINDS, (tenantId, entry) -> {
-            automation.dispatch(new Scope(new TenantId(tenantId), new Principal(PRINCIPAL_ID, Set.of())), entry);
+            automation.ingest(
+                    new Scope(new TenantId(tenantId), new Principal(PRINCIPAL_ID, Set.of())),
+                    new TransitionFiredEvent(entry.id(), entry.payload(), entry.occurredAt()));
             return entry.id();
         });
     }

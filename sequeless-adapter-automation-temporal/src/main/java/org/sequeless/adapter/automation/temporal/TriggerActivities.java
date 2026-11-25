@@ -3,6 +3,7 @@ package org.sequeless.adapter.automation.temporal;
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -19,7 +20,7 @@ public interface TriggerActivities {
 
     /** Evaluates on-change triggers. See {@link TriggerEvaluator#onChange}. */
     @ActivityMethod
-    void onChange(Scope scope, OutboxEntry changeEvent);
+    void onChange(Scope scope, ObjectChangedEvent changeEvent);
 
     /** Evaluates an elapsed timer. See {@link TriggerEvaluator#onTimerElapsed}. */
     @ActivityMethod

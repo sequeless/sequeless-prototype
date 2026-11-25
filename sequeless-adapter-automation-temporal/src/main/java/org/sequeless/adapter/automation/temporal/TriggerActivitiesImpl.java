@@ -2,12 +2,13 @@ package org.sequeless.adapter.automation.temporal;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The real {@link TriggerActivities} implementation: two pure pass-throughs to the injected {@link
- * TriggerEvaluator}. The derivation recompute runs in the outbox relay before dispatch, not here.
+ * TriggerEvaluator}. The derivation recompute runs in the outbox relay before ingest, not here.
  */
 public final class TriggerActivitiesImpl implements TriggerActivities {
 
@@ -22,7 +23,7 @@ public final class TriggerActivitiesImpl implements TriggerActivities {
     }
 
     @Override
-    public void onChange(Scope scope, OutboxEntry changeEvent) {
+    public void onChange(Scope scope, ObjectChangedEvent changeEvent) {
         triggerEvaluator.onChange(scope, changeEvent);
     }
 

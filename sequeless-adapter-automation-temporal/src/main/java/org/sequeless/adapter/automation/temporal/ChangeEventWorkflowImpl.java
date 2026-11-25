@@ -3,7 +3,7 @@ package org.sequeless.adapter.automation.temporal;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Workflow;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 
 /**
  * The real {@link ChangeEventWorkflow} implementation. It reads {@link
@@ -12,13 +12,13 @@ import org.sequeless.spi.outbox.OutboxEntry;
 public final class ChangeEventWorkflowImpl implements ChangeEventWorkflow {
 
     @Override
-    public void run(OutboxEntry entry, Scope scope) {
+    public void run(ObjectChangedEvent event, Scope scope) {
         ActivityOptions activityOptions = TemporalActivityOptions.ACTIVITY_OPTIONS;
         if (activityOptions == null) {
             throw new IllegalStateException("TemporalActivityOptions.ACTIVITY_OPTIONS was never set - "
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         TriggerActivities activities = Workflow.newActivityStub(TriggerActivities.class, activityOptions);
-        activities.onChange(scope, entry);
+        activities.onChange(scope, event);
     }
 }

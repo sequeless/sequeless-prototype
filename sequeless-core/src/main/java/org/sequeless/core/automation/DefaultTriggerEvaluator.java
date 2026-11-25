@@ -26,7 +26,9 @@ import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.ResolvedTimer;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
@@ -74,7 +76,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
     }
 
     @Override
-    public void onChange(Scope scope, OutboxEntry changeEvent) {
+    public void onChange(Scope scope, ObjectChangedEvent changeEvent) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(changeEvent, "changeEvent must not be null");
 
@@ -91,7 +93,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
         }
         TypeDefinition changedType = maybeChangedType.get();
 
-        boolean deleted = OutboxEntry.KIND_OBJECT_DELETED.equals(changeEvent.kind());
+        boolean deleted = changeEvent.change() == ObjectChangedEvent.Change.DELETED;
         Map<PropertyRef, Value> changedProperties;
         if (deleted) {
             changedProperties = decodePropertiesSnapshot(payload);
@@ -168,7 +170,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
      *     differs from the active behaviour's ontology version
      */
     @Override
-    public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
+    public List<ResolvedTimer> timersStartedBy(Scope scope, TransitionFiredEvent transitionFired) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(transitionFired, "transitionFired must not be null");
 

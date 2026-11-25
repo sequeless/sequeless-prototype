@@ -31,8 +31,8 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
  * fine for a test double that never actually issues HTTP calls), this class wires {@link
  * #recorder} to a real local {@link HttpServer} that always answers 200: {@link
  * InProcessAutomationPort}, unlike the shared contract's hypothetical adapter, always performs a
- * genuine HTTP delivery inside {@code dispatch}, so {@link
- * AutomationContract#dispatchRoutesWebhookToResolveWebhook} would otherwise fail here not because
+ * genuine HTTP delivery inside {@code ingest}, so {@link
+ * AutomationContract#ingestRoutesWebhookToResolveWebhook} would otherwise fail here not because
  * routing was wrong, but because delivery to an intentionally unresolvable host cannot succeed.
  */
 class InProcessAutomationPortContractTest extends AutomationContract {

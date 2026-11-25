@@ -63,7 +63,7 @@ final class InProcessTimerScheduler {
      *
      * <p>A {@code timerKey} that is already pending is left alone: the map uses {@code putIfAbsent},
      * so the original due instant survives. A {@code TransitionFired} row is redelivered when a retry
-     * re-enters {@link InProcessAutomationPort#dispatchTransitionFired}, and this keeps such a retry
+     * re-enters {@link InProcessAutomationPort#ingest}, and this keeps such a retry
      * from moving the due time. A timer that {@link #sweep()} has already fired and removed is armed
      * again; the staleness check in {@link TriggerEvaluator#onTimerElapsed} makes that second firing
      * a no-op.

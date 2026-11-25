@@ -25,7 +25,7 @@ import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
@@ -80,8 +80,8 @@ class InProcessAutomationPortWebhookTest {
         properties.setRetryDelay(Duration.ofMillis(10));
         InProcessAutomationPort port = newPort(recorder, properties, url);
 
-        OutboxEntry entry = webhookEntry();
-        port.dispatch(SCOPE, entry);
+        TransitionFiredEvent entry = webhookEvent();
+        port.ingest(SCOPE, entry);
 
         assertThat(requestCount.get()).isEqualTo(3);
         synchronized (lastRequestBody) {
@@ -109,9 +109,9 @@ class InProcessAutomationPortWebhookTest {
         properties.setRetryDelay(Duration.ofMillis(10));
         InProcessAutomationPort port = newPort(recorder, properties, url);
 
-        OutboxEntry entry = webhookEntry();
+        TransitionFiredEvent entry = webhookEvent();
 
-        assertThatThrownBy(() -> port.dispatch(SCOPE, entry)).isInstanceOf(WebhookDeliveryException.class);
+        assertThatThrownBy(() -> port.ingest(SCOPE, entry)).isInstanceOf(WebhookDeliveryException.class);
         assertThat(requestCount.get()).isEqualTo(3);
     }
 
@@ -137,7 +137,7 @@ class InProcessAutomationPortWebhookTest {
     }
 
     /** A {@code TransitionFired} row carrying the keys {@code DefaultTransitionService} writes on one. */
-    private static OutboxEntry webhookEntry() {
+    private static TransitionFiredEvent webhookEvent() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
@@ -149,6 +149,6 @@ class InProcessAutomationPortWebhookTest {
         payload.put("self", Map.of());
         payload.put("typeIri", "http://example.org/Project");
         payload.put("machineIri", MACHINE_IRI);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.now());
     }
 }

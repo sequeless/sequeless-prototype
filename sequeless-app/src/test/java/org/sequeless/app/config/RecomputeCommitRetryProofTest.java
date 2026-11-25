@@ -226,7 +226,7 @@ class RecomputeCommitRetryProofTest extends PostgresTestcontainersSupport {
 
         @Bean
         AutomationPort automationPort() {
-            return (scope, entry) -> {
+            return (scope, event) -> {
                 // The ingress is a no-op: the proof is about the recompute and the claim.
             };
         }

@@ -1,7 +1,7 @@
 /**
  * The default, durable {@code AutomationPort} adapter, backed by the Temporal Java SDK: {@link
- * org.sequeless.adapter.automation.temporal.TemporalAutomationPort#dispatch} durably starts, for
- * each {@code TransitionFired} outbox entry, one {@link
+ * org.sequeless.adapter.automation.temporal.TemporalAutomationPort#ingest} durably starts, for
+ * each {@code TransitionFired} Store event, one {@link
  * org.sequeless.adapter.automation.temporal.TransitionActionWorkflow} execution per action of the
  * fired transition, keyed {@code "<entryId>:<index>"}, so each action has its own run and its own
  * idempotency (Temporal's own {@code WorkflowExecutionAlreadyStarted} semantics). Each execution
