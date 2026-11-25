@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.Automation;
 import org.sequeless.ontology.automation.api.CreateObjectAction;
@@ -25,6 +26,7 @@ import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -69,6 +71,9 @@ public abstract class AutomationContract {
     private static final String ACTIVE_IRI = "http://example.org/Active";
     private static final String STATUS_IRI = "http://example.org/status";
     private static final String TRANSITION_NAME = "activate";
+
+    /** The timer transition that waits in {@link #ACTIVE_IRI}; the timer the timer contracts start. */
+    private static final String TIMER_TRANSITION_NAME = "expireHold";
 
     /** The transition every {@code TransitionFired} row this contract dispatches names. */
     private static final TransitionRef TRANSITION = new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME);
@@ -237,14 +242,18 @@ public abstract class AutomationContract {
                 .isEqualTo(1);
     }
 
+    /**
+     * A {@code TransitionFired} row starts its timer: the timer fires only once {@link #advanceTime} has
+     * moved the clock past the timer's duration, not on dispatch.
+     */
     @Test
     void timerFiresOnlyAfterAdvanceTime() {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
-        OutboxEntry entry =
-                timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
+        serveAutomationWithActions(Map.of());
+        recordingTriggerEvaluator().setTimersStartedBy(List.of(expireHoldTimer(objectId, after)));
 
-        port().dispatch(SCOPE, entry);
+        port().dispatch(SCOPE, transitionFiredEntry(objectId));
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
                 .isEqualTo(0);
@@ -253,22 +262,6 @@ public abstract class AutomationContract {
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
                 .isEqualTo(1);
-    }
-
-    @Test
-    void timerCancelledBeforeExpiryPreventsFire() {
-        Duration after = Duration.ofMinutes(30);
-        UUID objectId = UUID.randomUUID();
-        String timerKey = objectId + "|OnHold|expireHold";
-        OutboxEntry scheduled = timerScheduledEntry(objectId, timerKey, "OnHold", "expireHold", after);
-        OutboxEntry cancelled = timerCancelledEntry(objectId, timerKey);
-
-        port().dispatch(SCOPE, scheduled);
-        port().dispatch(SCOPE, cancelled);
-        advanceTime(after);
-
-        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
-                .isEqualTo(0);
     }
 
     @Test
@@ -281,16 +274,40 @@ public abstract class AutomationContract {
                 .isEqualTo(1);
     }
 
+    /** Dispatching the same {@code TransitionFired} row twice starts its timer once, so it fires once. */
     @Test
-    void redispatchOfATimerScheduledEntryIsIdempotent() {
+    void redispatchOfATransitionFiredRowIsIdempotentForItsTimer() {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
-        OutboxEntry entry =
-                timerScheduledEntry(objectId, objectId + "|OnHold|expireHold", "OnHold", "expireHold", after);
+        serveAutomationWithActions(Map.of());
+        recordingTriggerEvaluator().setTimersStartedBy(List.of(expireHoldTimer(objectId, after)));
+        OutboxEntry entry = transitionFiredEntry(objectId);
 
         port().dispatch(SCOPE, entry);
         port().dispatch(SCOPE, entry);
         advanceTime(after);
+
+        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
+    }
+
+    /**
+     * A {@code TransitionFired} row redelivered after the clock has moved on keeps the due instant of its
+     * first delivery. The timer is due 30 minutes after the first dispatch, so the second dispatch, made
+     * 10 minutes later, must not push the firing to 40 minutes.
+     */
+    @Test
+    void redispatchAfterTheClockAdvancesKeepsTheFirstDueInstant() {
+        Duration after = Duration.ofMinutes(30);
+        UUID objectId = UUID.randomUUID();
+        serveAutomationWithActions(Map.of());
+        recordingTriggerEvaluator().setTimersStartedBy(List.of(expireHoldTimer(objectId, after)));
+        OutboxEntry entry = transitionFiredEntry(objectId);
+
+        port().dispatch(SCOPE, entry);
+        advanceTime(Duration.ofMinutes(10));
+        port().dispatch(SCOPE, entry);
+        advanceTime(Duration.ofMinutes(20));
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
                 .isEqualTo(1);
@@ -329,36 +346,13 @@ public abstract class AutomationContract {
     }
 
     /**
-     * Builds a valid {@code TimerScheduled} {@link OutboxEntry} payload matching the exact shape
-     * {@code DefaultTransitionService} produces: {@code objectId}, {@code tenantId}, {@code
-     * principalId}, {@code typeIri}, {@code state}, {@code transitionName}, {@code after}
-     * (ISO-8601), and {@code timerKey}.
+     * Builds the {@link ResolvedTimer} that a {@code TransitionFired} row moving {@code objectId} into
+     * {@link #ACTIVE_IRI} starts: the {@code expireHold} timer, waiting in {@link #ACTIVE_IRI} for {@code
+     * after}. The timer key is built by {@link OutboxEntry#timerKey}, as an adapter builds it.
      */
-    private static OutboxEntry timerScheduledEntry(
-            UUID objectId, String timerKey, String state, String transitionName, Duration after) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", objectId.toString());
-        payload.put("tenantId", SCOPE.tenantId().value());
-        payload.put("principalId", SCOPE.principal().id());
-        payload.put("typeIri", "http://example.org/Project");
-        payload.put("state", state);
-        payload.put("transitionName", transitionName);
-        payload.put("after", after.toString());
-        payload.put("timerKey", timerKey);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED, payload, Instant.now());
-    }
-
-    /**
-     * Builds a valid {@code TimerCancelled} {@link OutboxEntry} payload: {@code objectId}, {@code
-     * tenantId}, and {@code timerKey} — the latter MUST match the paired {@code TimerScheduled}
-     * entry's {@code timerKey} exactly for a cancellation test to be meaningful.
-     */
-    private static OutboxEntry timerCancelledEntry(UUID objectId, String timerKey) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", objectId.toString());
-        payload.put("tenantId", SCOPE.tenantId().value());
-        payload.put("timerKey", timerKey);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_CANCELLED, payload, Instant.now());
+    private static ResolvedTimer expireHoldTimer(UUID objectId, Duration after) {
+        String timerKey = OutboxEntry.timerKey(new ObjectId(objectId), ACTIVE_IRI, TIMER_TRANSITION_NAME);
+        return new ResolvedTimer(timerKey, after, ACTIVE_IRI, TIMER_TRANSITION_NAME);
     }
 
     /**
@@ -377,13 +371,21 @@ public abstract class AutomationContract {
     }
 
     /**
-     * Builds a {@code TransitionFired} {@link OutboxEntry} for {@link #TRANSITION}, carrying the keys
-     * {@code DefaultTransitionService} writes on one and stamped with ontology version 1.
+     * Builds a {@code TransitionFired} {@link OutboxEntry} for a fresh object; see {@link
+     * #transitionFiredEntry(UUID)}.
      */
     private static OutboxEntry transitionFiredEntry() {
+        return transitionFiredEntry(UUID.randomUUID());
+    }
+
+    /**
+     * Builds a {@code TransitionFired} {@link OutboxEntry} for {@link #TRANSITION} on {@code objectId},
+     * carrying the keys {@code DefaultTransitionService} writes on one and stamped with ontology version 1.
+     */
+    private static OutboxEntry transitionFiredEntry(UUID objectId) {
         Map<String, Object> payload = Map.of(
                 "objectId",
-                UUID.randomUUID().toString(),
+                objectId.toString(),
                 "tenantId",
                 SCOPE.tenantId().value(),
                 "principalId",

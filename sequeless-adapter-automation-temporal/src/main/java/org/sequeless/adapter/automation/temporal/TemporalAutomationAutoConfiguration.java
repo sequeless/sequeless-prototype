@@ -85,12 +85,17 @@ public class TemporalAutomationAutoConfiguration {
      * @param automationSource the {@link AutomationSource} bean the per-action path reads the
      *     automation of a {@code TransitionFired} row's ontology version from; required, so it is
      *     injected eagerly
+     * @param triggerEvaluator the {@link TriggerEvaluator} bean whose {@code timersStartedBy} resolves
+     *     the timers a {@code TransitionFired} row starts; required, so it is injected eagerly
      * @return a new {@link TemporalAutomationPort} over these
      */
     @Bean
     public AutomationPort automationPort(
-            WorkflowClient client, TemporalAutomationProperties props, AutomationSource automationSource) {
-        return new TemporalAutomationPort(client, props.getTaskQueue(), automationSource);
+            WorkflowClient client,
+            TemporalAutomationProperties props,
+            AutomationSource automationSource,
+            TriggerEvaluator triggerEvaluator) {
+        return new TemporalAutomationPort(client, props.getTaskQueue(), automationSource, triggerEvaluator);
     }
 
     /**

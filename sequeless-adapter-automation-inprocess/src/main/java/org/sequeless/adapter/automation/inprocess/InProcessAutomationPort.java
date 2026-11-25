@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.Automation;
 import org.sequeless.ontology.automation.api.LogAction;
@@ -22,6 +23,7 @@ import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
@@ -67,11 +69,13 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * org.sequeless.spi.automation.DerivationRecomputer#recompute} for the same row before it calls this
  * method, so {@code
  * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that is already
- * fresh. This port makes no recompute call of its own. {@code TimerScheduled}/{@code
- * TimerCancelled} go to {@link InProcessTimerScheduler}, and {@code SignalReceived} to {@link
+ * fresh. This port makes no recompute call of its own. {@code SignalReceived} goes to {@link
  * TriggerEvaluator#onSignal}. {@code TransitionFired} is applied per action: {@link #dispatch} routes
- * each such row to {@link #dispatchTransitionFired}, which applies the row's actions in order from the
- * automation of the row's ontology version.
+ * each such row to {@link #dispatchTransitionFired}, which starts the timers the row names through
+ * {@link InProcessTimerScheduler} and then applies the row's actions in order from the automation of
+ * the row's ontology version. This adapter has no timer kind of its own: timers are started from the
+ * {@code TransitionFired} row, and an entry of any other kind not listed above is rejected as
+ * unsupported.
  */
 public final class InProcessAutomationPort implements AutomationPort {
 
@@ -94,10 +98,10 @@ public final class InProcessAutomationPort implements AutomationPort {
      * @param actionExecutor the {@link ActionExecutor} this port calls back into to actually apply
      *     each action; must not be {@code null}
      * @param properties this adapter's webhook retry configuration; must not be {@code null}
-     * @param triggerEvaluator the port an object-lifecycle, timer, or signal entry is routed to;
+     * @param triggerEvaluator the port an object-lifecycle or signal entry is routed to;
      *     must not be {@code null}
-     * @param timerScheduler the scheduler {@code TimerScheduled}/{@code TimerCancelled} entries are
-     *     routed to; must not be {@code null}
+     * @param timerScheduler the scheduler the timers a {@code TransitionFired} row starts are scheduled
+     *     on; must not be {@code null}
      * @param automationSource the source a {@code TransitionFired} row's actions are read from; must
      *     not be {@code null}
      */
@@ -134,17 +138,20 @@ public final class InProcessAutomationPort implements AutomationPort {
         switch (entry.kind()) {
             case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
                 triggerEvaluator.onChange(scope, entry);
-            case OutboxEntry.KIND_TIMER_SCHEDULED -> timerScheduler.schedule(scope, entry);
-            case OutboxEntry.KIND_TIMER_CANCELLED -> timerScheduler.cancel(entry);
             case OutboxEntry.KIND_SIGNAL_RECEIVED -> triggerEvaluator.onSignal(scope, entry);
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }
 
     /**
-     * Applies each action of a {@code TransitionFired} row, in the automation's order, from the
-     * automation of the ontology version the row was written under. {@link #dispatch} calls this for
-     * every {@code TransitionFired} row.
+     * Starts the timers, then applies the actions, of a {@code TransitionFired} row. The actions run
+     * in the automation's order, from the automation of the ontology version the row was written
+     * under. {@link #dispatch} calls this for every {@code TransitionFired} row.
+     *
+     * <p>The timers are started before the action loop. {@link TriggerEvaluator#timersStartedBy}
+     * resolves the timers the row starts, and each one is passed to {@link
+     * InProcessTimerScheduler#schedule}. A row with no actions still starts its timers, and an action
+     * that throws does not stop them.
      *
      * <p>Redelivery is recorded per {@code (entry id, action index)}. A {@link LogAction} is recorded
      * once applied, and a {@link WebhookAction} once its delivery succeeds, so neither repeats on a
@@ -152,7 +159,9 @@ public final class InProcessAutomationPort implements AutomationPort {
      * with the claim transaction and rolls back with it, so it must run again on a retry.
      *
      * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or the automation
-     *     is at a different ontology version than the row
+     *     is at a different ontology version than the row, which is a stamp mismatch and is checked
+     *     before any timer starts or action runs; the timer lookup also throws it when the active
+     *     behaviour is at a different version than the row
      */
     void dispatchTransitionFired(Scope scope, OutboxEntry entry) {
         Map<String, Object> payload = entry.payload();
@@ -168,6 +177,12 @@ public final class InProcessAutomationPort implements AutomationPort {
                     + entry.id()
                     + " was written at version "
                     + rowOntologyVersion);
+        }
+
+        ObjectId objectId = ObjectId.parse((String) payload.get("objectId"));
+        String typeIri = (String) payload.get("typeIri");
+        for (ResolvedTimer timer : triggerEvaluator.timersStartedBy(scope, entry)) {
+            timerScheduler.schedule(scope, objectId, typeIri, rowOntologyVersion, timer);
         }
 
         TransitionRef transition =

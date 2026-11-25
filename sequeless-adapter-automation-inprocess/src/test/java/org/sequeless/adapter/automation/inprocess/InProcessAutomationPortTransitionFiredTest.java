@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.Automation;
 import org.sequeless.ontology.automation.api.LogAction;
@@ -26,6 +28,7 @@ import org.sequeless.ontology.automation.api.SetPropertyAction;
 import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
@@ -34,10 +37,11 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 /**
  * Covers the applied {@code TransitionFired} path through {@link InProcessAutomationPort}:
  * {@link InProcessAutomationPort#dispatch} hands each such row to {@link
- * InProcessAutomationPort#dispatchTransitionFired}, which applies the row's actions. A {@code Log}
- * action is applied once and not again on redelivery, a {@code SetProperty} action is applied again on
- * every delivery, a {@code Webhook} action is recorded only once its delivery succeeds, and a row that
- * is unstamped or written at another ontology version is refused rather than skipped.
+ * InProcessAutomationPort#dispatchTransitionFired}, which starts the row's timers and then applies its
+ * actions. A {@code Log} action is applied once and not again on redelivery, a {@code SetProperty} action
+ * is applied again on every delivery, a {@code Webhook} action is recorded only once its delivery succeeds,
+ * and a row that is unstamped or written at another ontology version is refused rather than skipped.
+ * A row starts its timer even with no actions or when an action throws, and a refused row starts none.
  */
 class InProcessAutomationPortTransitionFiredTest {
 
@@ -47,6 +51,9 @@ class InProcessAutomationPortTransitionFiredTest {
     private static final String ACTIVE_IRI = "http://example.org/Active";
     private static final String STATUS_IRI = "http://example.org/status";
     private static final String TRANSITION_NAME = "activate";
+    private static final String TIMER_TRANSITION_NAME = "expireHold";
+    private static final Duration TIMER_AFTER = Duration.ofMinutes(30);
+    private static final Instant CLOCK_START = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void dispatchTransitionFiredAppliesALogOnceAndRefusesAMismatchedOntologyVersion() {
@@ -187,6 +194,147 @@ class InProcessAutomationPortTransitionFiredTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(textStamped.id().toString());
         assertThat(recorder.calls()).isEmpty();
+    }
+
+    /**
+     * A {@code TransitionFired} row with no actions still starts its timer: the timer fires once the
+     * clock passes its duration, and no action runs.
+     */
+    @Test
+    void transitionFiredWithNoActionsStartsItsTimerAndTheTimerFiresWhenDue() {
+        MutableClock clock = new MutableClock(CLOCK_START);
+        RecordingActionExecutor recorder = new RecordingActionExecutor();
+        RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+        triggerEvaluator.setTimersStartedBy(List.of(expireHoldTimer()));
+        InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
+        InProcessAutomationPort port = new InProcessAutomationPort(
+                recorder,
+                new InProcessAutomationProperties(),
+                triggerEvaluator,
+                timerScheduler,
+                tenant -> new Automation(new OntologyVersion(1), Map.of()));
+
+        port.dispatch(SCOPE, transitionFired(1));
+        assertThat(recorder.calls()).isEmpty();
+
+        clock.advance(TIMER_AFTER);
+        timerScheduler.sweep();
+
+        assertThat(triggerEvaluator.countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
+    }
+
+    /**
+     * A {@code TransitionFired} row whose action throws still starts its timer, because the timers start
+     * before the action loop. The webhook delivery fails here, so {@code dispatch} throws.
+     */
+    @Test
+    void transitionFiredWhoseActionThrowsStillStartsItsTimer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/hook", exchange -> {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String url = "http://localhost:" + server.getAddress().getPort() + "/hook";
+            MutableClock clock = new MutableClock(CLOCK_START);
+            RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+            triggerEvaluator.setTimersStartedBy(List.of(expireHoldTimer()));
+            InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
+            Automation automation = new Automation(
+                    new OntologyVersion(1),
+                    Map.of(
+                            new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME),
+                            List.<Action>of(
+                                    new WebhookAction("https://example.invalid/hook", "POST", Optional.empty()))));
+            RecordingActionExecutor recorder =
+                    new RecordingActionExecutor(new ResolvedWebhookRequest(url, "POST", Optional.empty()));
+            InProcessAutomationProperties properties = new InProcessAutomationProperties();
+            properties.setRetryAttempts(1);
+            InProcessAutomationPort port = new InProcessAutomationPort(
+                    recorder, properties, triggerEvaluator, timerScheduler, tenant -> automation);
+
+            assertThatThrownBy(() -> port.dispatch(SCOPE, transitionFired(1)))
+                    .isInstanceOf(WebhookDeliveryException.class);
+
+            clock.advance(TIMER_AFTER);
+            timerScheduler.sweep();
+
+            assertThat(triggerEvaluator.countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                    .isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * A {@code TransitionFired} row redelivered after the clock has moved on keeps its timer's first due
+     * instant. The timer is due 30 minutes after the first dispatch. The redelivery, 10 minutes later,
+     * must not move the due instant to 40 minutes, so the timer fires at 30 minutes and not after.
+     */
+    @Test
+    void redispatchAfterTheClockAdvancesFiresTheTimerAtItsFirstDueInstant() {
+        MutableClock clock = new MutableClock(CLOCK_START);
+        RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+        triggerEvaluator.setTimersStartedBy(List.of(expireHoldTimer()));
+        InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
+        InProcessAutomationPort port = new InProcessAutomationPort(
+                new RecordingActionExecutor(),
+                new InProcessAutomationProperties(),
+                triggerEvaluator,
+                timerScheduler,
+                tenant -> new Automation(new OntologyVersion(1), Map.of()));
+        OutboxEntry entry = transitionFired(1);
+
+        port.dispatch(SCOPE, entry);
+        clock.advance(Duration.ofMinutes(10));
+        port.dispatch(SCOPE, entry);
+        clock.advance(Duration.ofMinutes(10));
+        timerScheduler.sweep();
+        assertThat(triggerEvaluator.countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(0);
+
+        clock.advance(Duration.ofMinutes(10));
+        timerScheduler.sweep();
+        assertThat(triggerEvaluator.countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(1);
+    }
+
+    /**
+     * A {@code TransitionFired} row whose stamp does not match the automation is refused before any timer
+     * starts, so the timer the row would have started never fires.
+     */
+    @Test
+    void transitionFiredWithAMismatchedStampThrowsAndStartsNoTimer() {
+        MutableClock clock = new MutableClock(CLOCK_START);
+        RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
+        triggerEvaluator.setTimersStartedBy(List.of(expireHoldTimer()));
+        InProcessTimerScheduler timerScheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
+        InProcessAutomationPort port = new InProcessAutomationPort(
+                new RecordingActionExecutor(),
+                new InProcessAutomationProperties(),
+                triggerEvaluator,
+                timerScheduler,
+                tenant -> new Automation(new OntologyVersion(1), Map.of()));
+
+        assertThatThrownBy(() -> port.dispatch(SCOPE, transitionFired(2)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("version 2");
+
+        clock.advance(TIMER_AFTER);
+        timerScheduler.sweep();
+        assertThat(triggerEvaluator.countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
+                .isEqualTo(0);
+    }
+
+    /**
+     * The {@code expireHold} timer a row moving the object into {@link #ACTIVE_IRI} starts, due after
+     * {@link #TIMER_AFTER}.
+     */
+    private static ResolvedTimer expireHoldTimer() {
+        String timerKey = OutboxEntry.timerKey(ObjectId.random(), ACTIVE_IRI, TIMER_TRANSITION_NAME);
+        return new ResolvedTimer(timerKey, TIMER_AFTER, ACTIVE_IRI, TIMER_TRANSITION_NAME);
     }
 
     private static InProcessAutomationPort portFor(

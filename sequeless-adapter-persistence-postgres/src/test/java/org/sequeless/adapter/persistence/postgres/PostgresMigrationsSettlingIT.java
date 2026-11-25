@@ -28,6 +28,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * P2a's set (the frozen Command V1 to V5 set, copied from commit {@code fbb82c5}). The two frozen cases
  * migrate to the live set as it now stands. The frozen post-P7 set is the set as it stood at P7; later
  * migrations, starting with V7, may follow it, so the live set can be ahead of the frozen post-P7 set.
+ * The pair from after P7 to after P2 (case f) starts at the frozen post-P7 set, migrates to the frozen
+ * post-P2 set, and then to the live set. The pair from after P2 to after P3 (case g) starts at the frozen
+ * post-P2 set, migrates to the frozen post-P3 set, and then to the live set.
  */
 @Testcontainers
 class PostgresMigrationsSettlingIT {
@@ -37,12 +40,15 @@ class PostgresMigrationsSettlingIT {
 
     private static final String FROZEN_3328993 = "classpath:frozen-migrations/3328993";
     private static final String FROZEN_FBB82C5 = "classpath:frozen-migrations/fbb82c5";
+    private static final String FROZEN_POST_P7 = "classpath:frozen-migrations/post-p7/command";
+    private static final String FROZEN_POST_P2 = "classpath:frozen-migrations/post-p2/command";
+    private static final String FROZEN_POST_P3 = "classpath:frozen-migrations/post-p3/command";
     private static final String TENANT = "acme";
     private static final String TITLE_IRI = "https://sequeless.test/settling#title";
 
     /** The Command history of the final set, with no entry for V2, which the final set no longer has. */
     private static final List<String> FINAL_COMMAND_HISTORY = List.of(
-            "1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS", "10 SUCCESS");
+            "1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS", "9 SUCCESS", "10 SUCCESS");
 
     private static DataSource dataSource;
 
@@ -56,6 +62,70 @@ class PostgresMigrationsSettlingIT {
     void emptyDatabase() {
         JdbcClient.create(dataSource).sql("DROP SCHEMA public CASCADE").update();
         JdbcClient.create(dataSource).sql("CREATE SCHEMA public").update();
+    }
+
+    /**
+     * Settling case (f): the pair from after P7 to after P2. A database at the frozen post-P7 set (V1 and V3
+     * to V6, no V2) migrates to the frozen post-P2 set (V1 and V3 to V8), and then to the live set.
+     */
+    @Test
+    void frozenPostP7LayoutMigratesThroughThePostP2Set() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P7)
+                .load()
+                .migrate();
+        // A database at the post-P7 set has also run the Query set, which creates sq_searchable_property;
+        // V6's trigger reads that table on every object write.
+        PostgresMigrations.queryFlyway(dataSource).migrate();
+        insertObject(UUID.randomUUID(), "first");
+        insertObject(UUID.randomUUID(), "second");
+        insertSearchableRegistration();
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P2)
+                .load()
+                .migrate();
+
+        PostgresMigrations.migrate(dataSource);
+
+        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
+                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
+        assertSearchSchemaPresent();
+        assertQueryHistory();
+        assertRowCounts(2, 1);
+    }
+
+    /**
+     * Settling case (g): the pair from after P2 to after P3. A database at the frozen post-P2 set (V1 and V3
+     * to V8, no V2) and the Query set migrates to the frozen post-P3 set (V1 and V3 to V9), and then to the
+     * live set.
+     */
+    @Test
+    void frozenPostP2LayoutMigratesThroughThePostP3Set() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P2)
+                .load()
+                .migrate();
+        // The post-P2 set has the search trigger, which reads sq_searchable_property on every object write.
+        PostgresMigrations.queryFlyway(dataSource).migrate();
+        insertObject(UUID.randomUUID(), "first");
+        insertObject(UUID.randomUUID(), "second");
+        insertSearchableRegistration();
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P3)
+                .load()
+                .migrate();
+
+        PostgresMigrations.migrate(dataSource);
+
+        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
+                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
+        assertSearchSchemaPresent();
+        assertQueryHistory();
+        assertRowCounts(2, 1);
     }
 
     /** Settling case (a): a fresh database migrates to the final set. */
@@ -101,6 +171,7 @@ class PostgresMigrationsSettlingIT {
                         "6 SUCCESS",
                         "7 SUCCESS",
                         "8 SUCCESS",
+                        "9 SUCCESS",
                         "10 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
@@ -132,6 +203,7 @@ class PostgresMigrationsSettlingIT {
                         "6 SUCCESS",
                         "7 SUCCESS",
                         "8 SUCCESS",
+                        "9 SUCCESS",
                         "10 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();

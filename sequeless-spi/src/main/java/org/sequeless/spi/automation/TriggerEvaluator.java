@@ -1,5 +1,6 @@
 package org.sequeless.spi.automation;
 
+import java.util.List;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -47,13 +48,11 @@ public interface TriggerEvaluator {
     void onChange(Scope scope, OutboxEntry changeEvent);
 
     /**
-     * Fires the timer transition named by a previously scheduled {@code TimerScheduled} entry,
-     * unless the object's current state no longer matches the payload's {@code state} — meaning
-     * the object left that state and a corresponding {@code TimerCancelled} either raced this call
-     * or was missed entirely. That staleness check, not cancellation, is the real safety net
-     * against a timer firing twice or against the wrong state; cancellation (see {@link
-     * org.sequeless.spi.outbox.OutboxEntry#KIND_TIMER_CANCELLED}) is purely the optimisation that
-     * avoids waking a durable timer workflow that both sides already know is moot.
+     * Fires the timer transition named by a previously scheduled {@code TimerScheduled}-shaped
+     * entry, unless the object's current state no longer matches the payload's {@code state},
+     * meaning the object left that state while the timer was pending. No cancel is recorded when an
+     * object leaves a state, so that staleness check is the only guard against a timer firing twice
+     * or against the wrong state.
      *
      * <p>Kind-specific payload fields, beyond {@code objectId}/{@code tenantId}/{@code
      * principalId}: {@code typeIri}, {@code state} (the state the object was in when the timer was
@@ -61,10 +60,30 @@ public interface TriggerEvaluator {
      * {@code timerKey}.
      *
      * @param scope the tenant and principal to fire on behalf of; must not be {@code null}
-     * @param timerScheduled the {@code TimerScheduled}-kind outbox entry describing the elapsed
-     *     timer; must not be {@code null}
+     * @param timerScheduled the {@code TimerScheduled}-shaped entry, built with {@link
+     *     TimerScheduledEntry#of}, describing the elapsed timer; must not be {@code null}
      */
     void onTimerElapsed(Scope scope, OutboxEntry timerScheduled);
+
+    /**
+     * Resolves the timer transitions that a {@code TransitionFired} row starts: one {@link
+     * ResolvedTimer} for every {@code TimerTrigger} transition departing the state the row moved
+     * the object into ({@code toState}), in declaration order. Each carries that timer's key, its
+     * duration, and the state and transition name it waits under. A row whose {@code toState} has
+     * no timer transition resolves to an empty list.
+     *
+     * <p>The lookup reads the active behaviour, so the row's {@code ontologyVersion} stamp must
+     * match that behaviour's version. Unlike the three methods above, this method does not treat a
+     * bad row as a stale trigger: a missing or mismatched stamp is an error, not a silent no-op.
+     *
+     * @param scope the tenant to read the behaviour for; must not be {@code null}
+     * @param transitionFired the {@code TransitionFired}-kind outbox entry describing the move; must
+     *     not be {@code null}
+     * @return the timers the row starts, in declaration order; never {@code null}
+     * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or if the stamp
+     *     differs from the active behaviour's ontology version
+     */
+    List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired);
 
     /**
      * Fires the transition departing the object's current state whose {@code
