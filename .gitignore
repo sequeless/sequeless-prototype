@@ -27,3 +27,7 @@ skills-lock.json
 
 # Local agent prompt (not shared)
 prompt.md
+
+# Local orchestrator prompt and state for the prompt.md cycle loop (not shared)
+orchestrator-prompt.md
+orchestrator-state.md
