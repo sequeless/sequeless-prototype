@@ -51,7 +51,17 @@ class PostgresOutboxIndexV10IT {
                 .query(String.class)
                 .single();
 
-        assertThat(indexdef).contains("processed_at IS NULL").contains("dead_lettered_at IS NULL");
+        assertThat(indexdef)
+                .contains("processed_at IS NULL")
+                .contains("dead_lettered_at IS NULL")
+                .contains("'ActionRequest'")
+                .contains("'ObjectCreated'")
+                .contains("'ObjectUpdated'")
+                .contains("'ObjectDeleted'")
+                .contains("'TransitionFired'")
+                .contains("'TimerScheduled'")
+                .contains("'TimerCancelled'")
+                .contains("'SignalReceived'");
     }
 
     @Test

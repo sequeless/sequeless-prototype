@@ -5,10 +5,12 @@
 
 -- This migration runs outside a transaction so that both statements use CONCURRENTLY and take no
 -- ACCESS EXCLUSIVE lock on sq_outbox: reads and writes continue during the build. The cost is that a
--- claim may scan the table for the length of the build.
+-- claim may scan the table for the length of the build. Both statements also wait for every open
+-- transaction in the database, so one long-running transaction delays startup until it ends.
 --
--- If the CREATE fails, the index may be left INVALID. Flyway then marks this version failed. Before the
--- next start, drop the index with DROP INDEX CONCURRENTLY, repair the history, and run the migration again.
+-- If the CREATE fails, the index may be left INVALID and Flyway marks this version failed. To recover, run
+-- `flyway repair` (or delete the failed V10 history row) and restart. The DROP ... IF EXISTS above removes
+-- an INVALID index on the next run.
 
 DROP INDEX CONCURRENTLY IF EXISTS sq_outbox_unprocessed_dispatchable_idx;
 
