@@ -180,3 +180,24 @@ V8 (`V8__outbox_actions_drained.sql`) then stamps any remaining `ActionRequest` 
 row with no `self` key, as processed, so neither is dispatched. The drain methods of `ActionExecutor`
 (`applySetProperty` and the others) have no caller in the running application, and are removed in P2e.
 Reversibility: moderate. V8 marks rows processed, and reverting the code does not unmark them.
+
+### DR-25 Timers start from the TransitionFired row, and cancellation ends
+Context: spec 13 P3 (`docs/extraction/spec-13-p3-plan.md`) takes timers off the outbox. Until P3,
+`commitTransition` wrote a `TimerScheduled` row for each timer transition the object entered and a
+`TimerCancelled` row for each it left, and the relay dispatched both kinds. Open question 1 of the plan
+asked whether leaving a timer state must still cancel the timer.
+Decision: (a) The `TimerScheduled` and `TimerCancelled` kinds are removed, and the relay stops claiming
+them. V9 marks their remaining rows processed, after their drain. (b) The timer starts from the
+`TransitionFired` row. `TriggerEvaluator.timersStartedBy` resolves the row's timers from the behaviour, and
+it checks the behaviour version against the row's stamp. (c) Leaving a timer state cancels nothing. The
+staleness check in `DefaultTriggerEvaluator.onTimerElapsed` is the only guard. (d) The in-process scheduler
+keeps the first due instant on a redispatch (`putIfAbsent`). (e) `TimerWorkflowImpl.run` is guarded with
+`Workflow.getVersion`, so recorded executions replay on the default branch. No running timer is drained or
+terminated.
+Alternatives: a cancel on leaving the state, which needs a second behaviour lookup on `fromState`; a
+per-row timer key, which changes the workflow-id scheme. That change is outside P3 and needs its own spec row; the timer key stays the workflow id.
+Consequences: a pending timer whose object has left the state fires and no-ops at the staleness check. The
+in-process map can grow with objects that have left the state, with no bound; the adapter exists only for
+tests and local development. A timer can outlive a state change by up to its duration (72 hours for
+`expireHold`).
+Reversibility: moderate. The kinds are gone, and the V9 marks cannot be undone.
