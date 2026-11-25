@@ -39,6 +39,7 @@ import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
+import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
  * Covers {@link TemporalAutomationPort#startTransitionFiredActions}, the per-action entry point that
@@ -86,7 +87,9 @@ class TemporalAutomationPortTransitionFiredTest {
         worker.registerActivitiesImplementations(new ActionActivitiesImpl(executor, automationSource));
         env.start();
 
-        port = new TemporalAutomationPort(env.getWorkflowClient(), TASK_QUEUE, automationSource);
+        // The rows in this class start no timer, so the recording double resolves none.
+        port = new TemporalAutomationPort(
+                env.getWorkflowClient(), TASK_QUEUE, automationSource, new RecordingTriggerEvaluator());
     }
 
     @AfterAll
