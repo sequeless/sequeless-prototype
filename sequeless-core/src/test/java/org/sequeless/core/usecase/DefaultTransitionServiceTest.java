@@ -569,6 +569,20 @@ class DefaultTransitionServiceTest {
     }
 
     @Test
+    void theTimerKeyWrittenOnTimerScheduledIsTheSharedOutboxEntryTimerKey() {
+        ObjectId id = ObjectId.random();
+        BusinessObject existing = timerWidget(id, 1, START_IRI);
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(existing);
+        DefaultTransitionService service = service(store, permitAll());
+
+        service.fire(ALICE, "TimerWidget", id, "enter", 1);
+
+        OutboxEntry scheduled = store.commits.get(0).outbox().get(1);
+        assertThat(scheduled.payload()).containsEntry("timerKey", OutboxEntry.timerKey(id, WAITING_IRI, "expire"));
+    }
+
+    @Test
     void firingATransitionBetweenTwoStatesWithNoTimersWritesNoTimerEntries() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = timerWidget(id, 1, START_IRI);

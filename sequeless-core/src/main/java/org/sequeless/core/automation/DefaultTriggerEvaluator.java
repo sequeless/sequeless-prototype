@@ -1,7 +1,9 @@
 package org.sequeless.core.automation;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,12 +20,14 @@ import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
 import org.sequeless.ontology.behaviour.api.OnChangeTrigger;
 import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TimerTrigger;
 import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
@@ -40,7 +44,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * {@link TransitionService#fireAutomated}, which owns guard evaluation, availability checking, and
  * the shared commit path, and which never throws for a stale hint. Every method here mirrors that
  * silent-no-op contract: a malformed payload missing a required key is the only thing allowed to
- * throw.
+ * throw, apart from {@link #timersStartedBy}, which also throws on a missing or mismatched
+ * ontology version stamp.
  */
 public final class DefaultTriggerEvaluator implements TriggerEvaluator {
 
@@ -186,6 +191,54 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
             }
         }
         // No transition on the object's current state matches this signal name: silent no-op.
+    }
+
+    /**
+     * Mirrors the timer half of the move that wrote {@code transitionFired}: returns one {@link
+     * ResolvedTimer} for every {@code TimerTrigger} transition departing the row's {@code toState},
+     * keyed by {@link OutboxEntry#timerKey} and carrying the timer's own {@code after}. The row's
+     * {@code ontologyVersion} stamp must match the active behaviour's version, so the timers come
+     * from the same ontology the row was written under.
+     *
+     * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or if the stamp
+     *     differs from the active behaviour's ontology version
+     */
+    @Override
+    public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(transitionFired, "transitionFired must not be null");
+
+        Map<String, Object> payload = transitionFired.payload();
+        if (!(payload.get("ontologyVersion") instanceof Number stamp)) {
+            throw new IllegalStateException(
+                    "TransitionFired row " + transitionFired.id() + " has no ontologyVersion stamp");
+        }
+        Behaviour behaviour = behaviourSource.behaviour(scope.tenantId());
+        if (behaviour.ontologyVersion().value() != stamp.intValue()) {
+            throw new IllegalStateException("TransitionFired row " + transitionFired.id()
+                    + " is stamped at ontology version " + stamp.intValue()
+                    + " but the active behaviour is at "
+                    + behaviour.ontologyVersion().value()
+                    + "; the ontology changed before the row's timers were resolved");
+        }
+
+        ObjectId objectId = ObjectId.parse((String) payload.get("objectId"));
+        String typeIri = (String) payload.get("typeIri");
+        String toState = (String) payload.get("toState");
+
+        Optional<StateMachineDefinition> maybeMachine = behaviour.stateMachine(typeIri);
+        if (maybeMachine.isEmpty()) {
+            return List.of();
+        }
+        List<ResolvedTimer> timers = new ArrayList<>();
+        for (Transition candidate : maybeMachine.get().transitions()) {
+            if (candidate.trigger() instanceof TimerTrigger timer
+                    && candidate.fromStateIri().equals(toState)) {
+                String timerKey = OutboxEntry.timerKey(objectId, candidate.fromStateIri(), candidate.name());
+                timers.add(new ResolvedTimer(timerKey, timer.after(), candidate.fromStateIri(), candidate.name()));
+            }
+        }
+        return List.copyOf(timers);
     }
 
     /**
