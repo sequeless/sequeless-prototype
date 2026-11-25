@@ -211,6 +211,22 @@ Proof, by layer:
 
 These are decisions the repo cannot settle, or that the spec leaves to the owner. The plan does not decide them. Sections 3 to 7 refer to them by number. Settled questions are not listed, and the place that settles each one is cited where it arises: OQ1 (section 4, item 7; spec lines 93, 172 and 334), OQ2 (section 5; spec line 127; resume line 261), OQ3 (section 1; spec line 332 and step 3 at line 104), OQ4 (section 3, step 3; spec lines 93, 130 and 137, with R4 at line 461 for owner review), OQ5(i) (section 3, step 2; spec row P4, line 93), and the object-signals.ts wording of OQ13 (section 4, item 29; spec line 93). Numbers are kept so the references stay valid.
 
+**Navigator decisions recorded after this plan was written (verified in each session's DECIDED list; the 'Proposed' lines below are superseded where they differ):**
+
+- **OQ5 (state-less object): 409 under C7.** Session `74165dcd1aef4042872e1eafbcae492b`. The first reply chose 202 with no effect; it conflicted with spec line 93 (C7) and was challenged and rejected. Spec lines 93 and 461.
+- **OQ6 (version race): keep `existing.version()`; the existing `StaleObjectException` mapping (409 `stale-object`).** Session `74165dcd1aef4042872e1eafbcae492b`. The spec is silent on version races; the mapping is `ApiExceptionAdvice.java` 159-166.
+- **OQ7 (signal body): drop it.** Session `74165dcd1aef4042872e1eafbcae492b`. Consequence: the body is no longer recorded for audit (the controller still accepts a body). Owner may revisit.
+- **OQ8 (ontology reload during a signal): leave it unmapped; it surfaces as HTTP 500.** Session `74165dcd1aef4042872e1eafbcae492b`. Consequence: a client retries. Owner may prefer a 409 or 503 mapping later (a new decision).
+- **OQ9 (several transitions match one name): first in transition order; a failing guard is rejected with 409 under C7.** Session `74165dcd1aef4042872e1eafbcae492b`.
+- **OQ11 (dead-lettered `SignalReceived` rows): the P4 migration stamps them processed, as V8 does for dead-lettered `ActionRequest` rows.** Session `b1d038683633493cb43ea6656ffdd217`. DR-23 requires P2 to P4 plans to drain or resolve dead-lettered rows.
+- **OQ12 (automation coverage): replace the `awaitState` poll with a direct state assertion after the 202, once P4 lands.** Session `b1d038683633493cb43ea6656ffdd217`. Spec line 93 (synchronous `ChangeSet`).
+- **OQ14 (decision record): a new entry, DR-26, at merge.** Session `b1d038683633493cb43ea6656ffdd217`. DR-25 is the last entry on main.
+- **OQ17 (live panel wording): change `object-signals.ts` line 47 only, to 'the transition is applied when the request is accepted'.** Session `b1d038683633493cb43ea6656ffdd217`. Consequence: `signals-panel.ts` line 61 keeps 'takes effect asynchronously' after P4. The spec names only object-signals.ts; the same reasoning applies to the live panel. The P4 PR may change it as a follow-up.
+- **OQ16 (dev-stack adapter): temporal.** Owner action 3, not a Navigator decision.
+- **Chain start (spec line 128): P4's PR adds the settling pair from after P3 (the post-P3 frozen set on main) to the final set.** Spec text, not a question.
+
+Rejected claims recorded in those sessions (not relied on): the OQ5 first reply's choice of option (b); the OQ8 first reply (it answered OQ5 again, not the ontology-version question); the OQ11 first reply (a plan step with no option named); the OQ17 reply's quotation of spec line 93 as 'takes effect synchronously' (the spec says 'the transition is applied when the request is accepted').
+
 **OQ5.** State-less object (OQ5(ii)): today the signal returns 202, and `onSignal` returns at 166-168 for a state-less or missing object. The `fire` path already answers a state-less object with 409: `StateMachineInterpreter.java` lines 98-100 return an empty list when the state is empty, and `DefaultTransitionService.java` lines 141-144 then throw `TransitionNotAvailableException` (the `match.isEmpty()` check is at 143, its throw at 144). C7's "no transition from the current state" reads the same way (section 3, step 3). Options: (a) 409; (b) 202 as a no-op; (c) 400.
 
 **Proposed (unverified, no Navigator decision recorded):** Option (a): a state-less object's signal is rejected with 409, as the `fire` path already does (`DefaultTransitionService.java` 139-144). The question is open.
