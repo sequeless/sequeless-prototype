@@ -48,7 +48,15 @@ class PostgresMigrationsSettlingIT {
 
     /** The Command history of the final set, with no entry for V2, which the final set no longer has. */
     private static final List<String> FINAL_COMMAND_HISTORY = List.of(
-            "1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS", "9 SUCCESS", "10 SUCCESS");
+            "1 SUCCESS",
+            "3 SUCCESS",
+            "4 SUCCESS",
+            "5 SUCCESS",
+            "6 SUCCESS",
+            "7 SUCCESS",
+            "8 SUCCESS",
+            "9 SUCCESS",
+            "10 SUCCESS");
 
     private static DataSource dataSource;
 
