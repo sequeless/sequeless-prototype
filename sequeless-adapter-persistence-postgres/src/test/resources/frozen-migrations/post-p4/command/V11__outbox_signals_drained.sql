@@ -1,4 +1,4 @@
--- Marks the signal rows that the drain left unprocessed (spec 13, step P4; DR-26 (written with this change)).
+-- Marks the signal rows that the drain left unprocessed (spec 13, step P4; DR-26).
 -- Flyway applies this once, at app start. It runs after the old version has drained the SignalReceived rows,
 -- and after the owner's O-3 count, the deploy step that must show zero unprocessed rows of each claimed kind
 -- before the new version starts. This statement is the backstop for any row that the count missed.
