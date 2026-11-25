@@ -41,8 +41,8 @@ class PostgresMigrationsSettlingIT {
     private static final String TITLE_IRI = "https://sequeless.test/settling#title";
 
     /** The Command history of the final set, with no entry for V2, which the final set no longer has. */
-    private static final List<String> FINAL_COMMAND_HISTORY =
-            List.of("1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS");
+    private static final List<String> FINAL_COMMAND_HISTORY = List.of(
+            "1 SUCCESS", "3 SUCCESS", "4 SUCCESS", "5 SUCCESS", "6 SUCCESS", "7 SUCCESS", "8 SUCCESS", "10 SUCCESS");
 
     private static DataSource dataSource;
 
@@ -100,7 +100,8 @@ class PostgresMigrationsSettlingIT {
                         "5 SUCCESS",
                         "6 SUCCESS",
                         "7 SUCCESS",
-                        "8 SUCCESS");
+                        "8 SUCCESS",
+                        "10 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
@@ -130,7 +131,8 @@ class PostgresMigrationsSettlingIT {
                         "5 SUCCESS",
                         "6 SUCCESS",
                         "7 SUCCESS",
-                        "8 SUCCESS");
+                        "8 SUCCESS",
+                        "10 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
