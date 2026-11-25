@@ -19,8 +19,8 @@ class TimerScheduledEntryTest {
     private static final Instant NOW = Instant.parse("2026-11-25T10:00:00Z");
 
     @Test
-    void kindIsTheSameStringAsTheTimerScheduledConstant() {
-        assertThat(TimerScheduledEntry.KIND).isEqualTo(OutboxEntry.KIND_TIMER_SCHEDULED);
+    void kindIsTheTimerScheduledString() {
+        assertThat(TimerScheduledEntry.KIND).isEqualTo("TimerScheduled");
     }
 
     @Test
@@ -31,7 +31,7 @@ class TimerScheduledEntryTest {
 
         OutboxEntry entry = TimerScheduledEntry.of(ALICE, objectId, "ex:Project", 1, timer, NOW);
 
-        assertThat(entry.kind()).isEqualTo(OutboxEntry.KIND_TIMER_SCHEDULED);
+        assertThat(entry.kind()).isEqualTo(TimerScheduledEntry.KIND);
         assertThat(entry.occurredAt()).isEqualTo(NOW);
         Map<String, Object> payload = entry.payload();
         assertThat(payload)

@@ -19,9 +19,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — the three
- * object-lifecycle kinds, {@link OutboxEntry#KIND_TRANSITION_FIRED}, and the three automation kinds
- * ({@link OutboxEntry#KIND_TIMER_SCHEDULED}, {@link OutboxEntry#KIND_TIMER_CANCELLED}, {@link
- * OutboxEntry#KIND_SIGNAL_RECEIVED}) — one row at a time, into whichever {@link AutomationPort}
+ * object-lifecycle kinds, {@link OutboxEntry#KIND_TRANSITION_FIRED}, and {@link
+ * OutboxEntry#KIND_SIGNAL_RECEIVED} — one row at a time, into whichever {@link AutomationPort}
  * adapter is currently configured.
  *
  * <p><b>Recompute before the ingress.</b> For each object-lifecycle row ({@link
@@ -55,8 +54,6 @@ public class OutboxRelay {
             OutboxEntry.KIND_OBJECT_UPDATED,
             OutboxEntry.KIND_OBJECT_DELETED,
             OutboxEntry.KIND_TRANSITION_FIRED,
-            OutboxEntry.KIND_TIMER_SCHEDULED,
-            OutboxEntry.KIND_TIMER_CANCELLED,
             OutboxEntry.KIND_SIGNAL_RECEIVED);
 
     private static final Set<String> OBJECT_LIFECYCLE_KINDS =
@@ -147,8 +144,8 @@ public class OutboxRelay {
     /**
      * The placeholder principal id/display name used to dispatch an object-lifecycle
      * ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}) outbox row, whose payload
-     * — unlike {@code ActionRequest}, {@code TimerScheduled}, and {@code SignalReceived} — carries
-     * no {@code principalId} at all (verified against {@code DefaultBusinessObjectService}/{@code
+     * — unlike {@code TransitionFired} and {@code SignalReceived} — carries no {@code principalId}
+     * at all (verified against {@code DefaultBusinessObjectService}/{@code
      * DefaultActionExecutor}'s shared {@code outboxPayload} helper). There is no richer identity to
      * recover from that frozen payload, and {@code Principal}'s compact constructor rejects a
      * blank/{@code null} id outright, so a placeholder is required, not merely convenient. Safe

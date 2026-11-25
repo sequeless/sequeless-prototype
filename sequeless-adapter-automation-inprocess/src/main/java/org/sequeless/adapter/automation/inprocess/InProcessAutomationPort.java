@@ -73,8 +73,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * TriggerEvaluator#onSignal}. {@code TransitionFired} is applied per action: {@link #dispatch} routes
  * each such row to {@link #dispatchTransitionFired}, which starts the timers the row names through
  * {@link InProcessTimerScheduler} and then applies the row's actions in order from the automation of
- * the row's ontology version. This adapter has no timer kinds of its own: a {@code TimerScheduled} or
- * {@code TimerCancelled} entry is rejected as an unsupported kind.
+ * the row's ontology version. This adapter has no timer kind of its own: timers are started from the
+ * {@code TransitionFired} row, and an entry of any other kind not listed above is rejected as
+ * unsupported.
  */
 public final class InProcessAutomationPort implements AutomationPort {
 
@@ -97,7 +98,7 @@ public final class InProcessAutomationPort implements AutomationPort {
      * @param actionExecutor the {@link ActionExecutor} this port calls back into to actually apply
      *     each action; must not be {@code null}
      * @param properties this adapter's webhook retry configuration; must not be {@code null}
-     * @param triggerEvaluator the port an object-lifecycle, timer, or signal entry is routed to;
+     * @param triggerEvaluator the port an object-lifecycle or signal entry is routed to;
      *     must not be {@code null}
      * @param timerScheduler the scheduler the timers a {@code TransitionFired} row starts are scheduled
      *     on; must not be {@code null}

@@ -518,7 +518,7 @@ class DefaultTransitionServiceTest {
         assertThatNullPointerException().isThrownBy(() -> service.fire(ALICE, "Project", id, null, 1));
     }
 
-    // --- timer outbox entries ---
+    // --- moves into and out of timer states ---
 
     @Test
     void firingATransitionIntoAStateWithATimerTransitionWritesOnlyTransitionFired() {

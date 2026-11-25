@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -123,5 +124,23 @@ class OutboxEntryTest {
                 new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_CREATED, payloadWithObjectId("x"), NOW);
 
         assertThatThrownBy(() -> entry.payload().put("k", "v")).isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void declaresExactlyTheFiveKindConstants() throws IllegalAccessException {
+        Map<String, Object> kinds = new HashMap<>();
+        for (Field field : OutboxEntry.class.getFields()) {
+            if (field.getName().startsWith("KIND_")) {
+                kinds.put(field.getName(), field.get(null));
+            }
+        }
+
+        assertThat(kinds)
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        "KIND_OBJECT_CREATED", "ObjectCreated",
+                        "KIND_OBJECT_UPDATED", "ObjectUpdated",
+                        "KIND_OBJECT_DELETED", "ObjectDeleted",
+                        "KIND_TRANSITION_FIRED", "TransitionFired",
+                        "KIND_SIGNAL_RECEIVED", "SignalReceived"));
     }
 }

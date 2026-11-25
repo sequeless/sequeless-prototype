@@ -152,7 +152,7 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
         BusinessObject object = found.get();
         if (object.state().isEmpty() || !object.state().get().equals(state)) {
             // The object left the state the timer was waiting in: stale timer, no-op. This
-            // staleness check, not TimerCancelled, is the real safety net.
+            // staleness check is the only guard: no cancel is recorded when a state is left.
             return;
         }
         transitionService.fireAutomated(scope, objectId, transitionName, TriggerKind.TIMER);

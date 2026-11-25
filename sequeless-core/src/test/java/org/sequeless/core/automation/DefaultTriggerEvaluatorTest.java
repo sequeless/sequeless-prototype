@@ -47,6 +47,7 @@ import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.ResolvedTimer;
+import org.sequeless.spi.automation.TimerScheduledEntry;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -210,11 +211,9 @@ class DefaultTriggerEvaluatorTest {
     }
 
     private static OutboxEntry timerScheduledEvent(ObjectId projectId, String state, String transitionName) {
-        return new OutboxEntry(
-                UUID.randomUUID(),
-                OutboxEntry.KIND_TIMER_SCHEDULED,
-                Map.of("objectId", projectId.value().toString(), "state", state, "transitionName", transitionName),
-                NOW);
+        ResolvedTimer timer = new ResolvedTimer(
+                OutboxEntry.timerKey(projectId, state, transitionName), Duration.ofHours(72), state, transitionName);
+        return TimerScheduledEntry.of(ALICE, projectId, PROJECT_IRI, 1, timer, NOW);
     }
 
     private static OutboxEntry signalReceivedEvent(ObjectId projectId, String signalName) {

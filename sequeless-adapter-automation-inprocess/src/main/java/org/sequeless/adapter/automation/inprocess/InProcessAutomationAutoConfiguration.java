@@ -104,7 +104,7 @@ public class InProcessAutomationAutoConfiguration {
      *     configuration is expected to have already registered on the context
      * @param properties the bound {@code sequeless.automation.inprocess.*} webhook retry
      *     configuration
-     * @param triggerEvaluator the {@link TriggerEvaluator} bean an object-lifecycle, timer, or
+     * @param triggerEvaluator the {@link TriggerEvaluator} bean an object-lifecycle or
      *     signal entry is routed to
      * @param timerScheduler the scheduler the timers a {@code TransitionFired} row starts are
      *     scheduled on
