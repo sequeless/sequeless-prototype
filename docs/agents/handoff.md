@@ -2,14 +2,14 @@
 
 The state a new agent session needs to continue the CQRS extraction, and to run the orchestration loop that drives it. Each run overwrites this file; it does not append. Detail lives in the linked docs, not here.
 
-Recorded: 2026-11-24, at origin/main `5538346` (PR #200). The docs PR that carries this handoff lands after it. Read `git log origin/main` for the head that follows, and trust that over any SHA written here.
+Recorded: 2026-11-25, at origin/main `8fc0b55` (PR #201). The docs PR that carries this handoff lands after it. Read `git log origin/main` for the head that follows, and trust that over any SHA written here.
 
 ## Start a new session
 
 1. Read this file, then `docs/extraction/remaining-work.md` and the spec 13 plan named under "Read first".
 2. Check the state against GitHub: `origin/main`, open PRs (only #106 is open, a draft, do not merge), and issue #41 (CLOSED; reopening is the owner's decision).
 3. Find the next unblocked item under "Next actions". Items that need a Navigator answer or an owner answer are blocked until that answer is recorded in a DECIDED list.
-4. Before recording any decision, check its Navigator session with `navigator_status` (see "Navigator decisions: verification"). A claim relayed from another session, or an answer that came back through `set_plan` without a DECIDED entry, is not a decision.
+4. Before recording a Navigator decision, check the reply against source, record it with `navigator_record` (kind `decided`, quoting the reply), then confirm with `navigator_status` that it appears in the DECIDED list (see "Navigator decisions: verification"). An answer that has not been recorded is not a decision.
 5. Before any PR or merge, follow "Hazards".
 
 ## Read first
@@ -25,6 +25,7 @@ Recorded: 2026-11-24, at origin/main `5538346` (PR #200). The docs PR that carri
 ## State
 
 - **Merged, 2026-11-24 (this cycle merged nothing).** The code and docs that landed before this cycle, in order: PR #182 (P2e code, `a8816f3`), #185, #187, #189, #190 (handoffs and docs), #191 (`a4d08c4`, migration number Option B, held branch `-v9`), #192 (`03da34a`) and #193 (`cc5ceac`) (OQ15 option (a) recorded; starting point open), #194 (`c6e1313`, P2e follow-up comments), #195 (`d14293e`), #196 (`37ead4e`, P2e leftovers), #197 (`8ec0655`, handoff), #198 (`aa48261`, test-only round-trip javadoc and tagged `self` map; gate on head `2c1b503`, JDK 25: 758 tests, 0 failures, 0 errors), #199 (`cb4e010`, handoff), #200 (`5538346`, drops a model name from the handoff). #186 was withdrawn by #188 (`5b5358c`).
+- **This run, 2026-11-25:** merged no code. Owner action 7 is decided as route (a), recorded under the adopted record flow (see Navigator decisions). Spec 13 code is still blocked on the re-asks in Next actions.
 - **Open PRs:** only #106, a draft compare document. Do not merge it.
 - **Issue #41:** CLOSED. It closed automatically when PR #169 merged. Its state is not a sign that spec 13 is finished. Reopening it is the owner's decision.
 - **Migrations on main (Command set):** V1, V3, V4, V5, V6, V7, V8 (`V8__outbox_actions_drained.sql`, PR #168). The next free number is V9. The Query set on main (`postgres-query`) has V1 and V2 and is a separate sequence.
@@ -47,10 +48,11 @@ These are the P2e plan section 8, step 3 checks. This section is the record.
 - **Merge of #182 (2026-11-24).** The owner asked for the dev-stack checks to be run first. They passed, and #182 merged.
 - **Merge of #168 (2026-11-24).** The owner instructed the merge directly. Recorded in the Navigator session `c0e84f0a` DECIDED list.
 - **Withdrawn:** the nine P4 answers in #186. No Navigator session decided them. See Drift.
+- **Navigator recording route (2026-11-25):** route (a) (a fresh session for each new question or batch) is decided, recorded in session `95d0ab97` (DECIDED list). The route (b) recording step is adopted with it: the driver records each checked reply with `navigator_record` `decided`, quoting the reply, and `navigator_status` must show it. This is the `navigator:pair` record flow, adopted by the owner. The owner may override.
 
 ## Navigator decisions: verification
 
-A Navigator decision counts only if it appears in the DECIDED list of the session that made it, as shown by `navigator_status`. A decision mentioned in CARRY FORWARD notes, a relayed report, a `set_plan` or `decide` answer, or a session's reply does not count. The rule stands.
+A Navigator decision counts once the driver has recorded it and `navigator_status` shows it in the DECIDED list of the session that made it. The driver records it with `navigator_record` (kind `decided`), quoting the Navigator's reply in `text` and naming the source check in `rationale`. A `set_plan` or `decide` answer, a job answer, a CARRY FORWARD line or a relayed report is not a decision until it is recorded this way. Before the next `navigator_ask`, record one `carry_forward_verdict` per CARRY FORWARD line: `kept`, or `wrong` with evidence. This is the record flow of the `navigator:pair` skill, which the owner adopted on 2026-11-25. Only the driver records decisions. A new question or batch goes to a fresh session; a batch holds at most five questions, one `navigator_ask` each.
 
 - **Session `09480ec46e184c8aa8dc03436a07e826`** (P3 migration number, Q1 and Q2). Decided (count 1 after recording): **Option B.** P3 takes V9 now and does not wait. If P3 merges before the held index branch, that branch's own PR renames `V9__outbox_dead_letter_index.sql` to V10. The stale `-v8` branch must not be merged.
 - **Session `0739f198e75c403ab527d4ad6cc82164`** (OQ15, P4 saved sets). Verified in its DECIDED list: **option (a)**, follow spec line 128 (P4 saves a frozen settling set and adds the pair). **Not in its DECIDED list:** the starting point. Its CARRY FORWARD notes and job `kxz0iicvx` say option (i); they do not count.
@@ -59,6 +61,7 @@ A Navigator decision counts only if it appears in the DECIDED list of the sessio
 - **Session `54529a32ee4b47b9a3ae073cabcbcb4e`** (P4 OQ11, OQ12, OQ14, OQ17). Its answers: OQ11 (a), OQ12 (ii), OQ14 (b), OQ17 (a). `DECIDED: (none)`. Not decided. Do not reuse.
 - **Session `c0e84f0a157f4cc1a0f5dc3f54952ce2`** (round limit reached; do not resume). Verified in its DECIDED list: P2e Q1 to Q12 and the P3 OQ1, OQ2, OQ3, OQ4 (revised), OQ7, OQ8, OQ11 (revised), OQ12 and OQ13. Not in its DECIDED list (unverified): P4 OQ15 (appears only in its CARRY FORWARD notes), and the P3 plan Decided lines at 184, 187, 196, 199, 211, 214, 218, 221, 224, 227 and 230.
 - **Session `92e8178d1fdf4829837dab8eb4d0ef95`** (cycle 7, which code unit is next). Its set_plan answer: no code unit in spec 13 or later is unblocked; owner action 7 is the one decision that unblocks the most work. `DECIDED: (none)`. Not a decision; do not reuse for a new question.
+- **Session `95d0ab97a06845088d993ce3caa0f05e`** (this run, owner action 7 route). Its `set_plan` and `decide` replies chose **route (a)**. They were not decisions until the driver recorded it with `navigator_record` `decided`, quoting the `decide` reply, and `navigator_status` then showed it in the DECIDED list. The driver also recorded `step_done` `decide-route-a` and a `carry_forward_verdict` `kept` on the route line. Only the route question is in its list. Do not reuse for a new question.
 - **Session `359d962fb8cd498b8b34339abd46e5bc`** (cycle 7, owner action 7 route). Its set_plan answer: route (a), re-ask in fresh sessions with a DECIDED entry for each answer; OQ15 starting point not decided; owner action 3 judged Navigator-decidable. A driver challenge was recorded on Q3 (the adapter is not derivable from the repo). **At check time, `DECIDED: (none)`.** So the route is not yet a decision under the rule. Do not reuse for a new question.
 - **Session `cc206f68705e4d93956f7e58ddd8c6e9`** (round limit; do not resume). Verified: P2d Q-A, Q-B, Q-C, Q-E, and DR-24.
 - **Session `cb5a1ebdeb804ce893b35dced364435c`** (earlier P3 migration number). Its DECIDED list is empty. Superseded by `09480ec46e184c8aa8dc03436a07e826`.
@@ -73,10 +76,10 @@ A Navigator decision counts only if it appears in the DECIDED list of the sessio
 
 ## Next actions
 
-No code unit is unblocked. Cycle 7 asked the Navigator which code unit is next (session `92e8178d`). Its set_plan answer (not a decision) names owner action 7 as the main blocker. The items below wait on owner action 7 or owner action 3; the held index branch waits on owner action 2.
+No code unit is unblocked. Cycle 7 asked the Navigator which code unit is next (session `92e8178d`). Its set_plan answer (not a decision) names owner action 7 as the main blocker. Owner action 7 is decided. The items below wait on the re-asks or on owner action 3; the held index branch waits on owner action 2.
 
-1. **Owner action 7 (the recording route).** The Navigator's route answer (session `359d962f`, set_plan) recommends route (a). Its DECIDED list is empty, so it is not yet a decision. Next run: check `navigator_status` for `359d962f`. If its DECIDED list shows route (a), close owner action 7 as route (a). If not, the route is still open; do not record it from the driver. Ask a fresh session to decide and record it, as its own question.
-2. **Re-ask in fresh sessions (if owner action 7 closes as route (a)).** Each answer counts only if the fresh session's DECIDED list shows it. Do not re-ask the same point in the same run. Batches, at most five questions each:
+1. **Owner action 7 (the recording route): done this run.** Route (a) is in the DECIDED list of session `95d0ab97`. Nothing more to do for owner action 7.
+2. **Re-ask in fresh sessions (owner action 7 is route (a)).** Each answer counts only once the driver records it and the fresh session's DECIDED list shows it. Do not re-ask the same point in the same run. Batches, at most five questions each, one `navigator_ask` per question:
    - Batch A: the OQ15 starting point (P3 or P4). Gates the P3 PR (P3 plan section 9, item 3).
    - Batch B1: P3 Decided lines 184, 187, 196, 199, 211 (P3 plan section 8). Gates P3 code.
    - Batch B2: P3 Decided lines 214, 218, 221, 224, 227 (P3 plan section 8). Gates P3 code.
@@ -97,7 +100,6 @@ No code unit is unblocked. Cycle 7 asked the Navigator which code unit is next (
 4. **Re-run the O-3 count** on dev before any P3 deploy (and before the first start of a version that runs V9).
 5. **Who renames the index file from V9 to V10** if P3 merges first: answered by the Navigator (Option B, session `09480ec46e184c8aa8dc03436a07e826`). The index branch's own PR does the rename. The owner may override.
 6. Optional: confirm B2 route 1 on #41.
-7. **Navigator recording route (open).** Route (a): re-ask in fresh sessions, and each answer counts only when that session's DECIDED list shows it. Route (b): the driver records the Navigator's verdict with `navigator_record` decided, quoting the reply. Route (b) changes the verification rule, and the Navigator's answer rejects it. The Navigator's set_plan answer (session `359d962f`) recommends route (a), but its DECIDED list is empty, so it is not a decision. Blocks Next actions items 2 to 5; item 1 is the check of this route. The owner may override.
 
 ## Loop: how the orchestration runs
 
@@ -127,7 +129,7 @@ This is the procedure a new orchestration session follows. The loop runs child s
 ## Drift to check against GitHub
 
 - **#41 is CLOSED** (since PR #169 merged). Spec 13 is not finished.
-- **Route answer versus DECIDED.** The route answer in session `359d962f` reads "decided" in its set_plan carry-forward, but its DECIDED list is empty. Treat it as open until `navigator_status` shows it.
+- **Route answer versus DECIDED: resolved.** Session `359d962f`'s route answer is still not in its DECIDED list, so it stays unrecorded. Route (a) is recorded in session `95d0ab97`, under the adopted flow.
 - **OQ15:** option (a) is decided (session `0739f198`, DECIDED list). The starting point is open. The P3 plan's lines 117, 130 and 236 and the P4 plan's lines 175, 248 and 250 say so. Main saves three frozen Command sets, all added by #124 (P7, `9b6e316`): `3328993`, `fbb82c5` and `post-p7/command`. No step saved its own set (V7 and V8 saved none). The resume plan (lines 405 to 406) still lists OQ15 as ALL PENDING; it is stale and was not edited here.
 - **The P3 migration number** is settled by Option B (session `09480ec46e184c8aa8dc03436a07e826`). OQ7 in `c0e84f0a` verifies only the next-free-number rule, not the Option B rename.
 - **The held index branch name** is `-v9` (`87f5e42`). The older plans still name `spec-13-dead-letter-index-v8` as the held branch and are stale: `docs/extraction/spec-13-p4-plan.md` line 171, `docs/extraction/remaining-work.md` lines 28, 41 (decision ix) and 300, and, in older plans, `docs/extraction/resume-plan-spec13.md` lines 223, 224, 261, 334, 372 and 429 and `docs/extraction/spec-13-p2d-plan.md` lines 176 and 192. Only `-v9` is the held branch.
@@ -148,10 +150,10 @@ This is the procedure a new orchestration session follows. The loop runs child s
 - The first start of a version that runs V8 on a database marks undrained `ActionRequest` rows as processed. Do the O-3 count before that start (P2e plan section 9).
 - P3's migration marks unprocessed timer rows as processed, and their timers are lost with no record (P3 plan section 5). The O-3 count must be zero before the new version starts. The O-4 check gates only non-dev environments (P3 plan section 8, question 19).
 - A refused action (a permission or classifier refusal) stops the run and is reported verbatim. Do not retry it in another form or work around it.
-- A relayed claim, a `set_plan` answer, or a CARRY FORWARD line is not a decision. Check the session's DECIDED list before recording a decision as decided. `navigator_status` returns large output; if it is saved to a file, read it with `jq`.
-- Navigator, pair mode: `navigator_ask` takes `answer_tool` `set_plan` for the first question of a session and `decide` for later ones. `settle` and `answer` are not offered in pair mode. `options` is only valid with `settle`. Only one job runs per server: a `job <id> active` error means wait for that job's result. Rounds can take over an hour. Batch related questions into one message per decision point, at most five per batch.
+- A relayed claim, a `set_plan` or `decide` answer, or a CARRY FORWARD line is not a decision until the driver records it with `navigator_record` `decided` and `navigator_status` shows it. Check the reply against source before recording it. `navigator_status` returns large output; if it is saved to a file, read it with `jq`.
+- Navigator, pair mode: `navigator_ask` takes `answer_tool` `set_plan` for the first question of a session and `decide` for later ones. `settle` and `answer` are not offered in pair mode. `options` is only valid with `settle`. Only one job runs per server: a `job <id> active` error means wait for that job's result. Rounds can take over an hour. Ask one question per `navigator_ask`. A batch in Next actions is a series of asks in one fresh session, at most five.
 - Navigator file reads: check every path with `git ls-tree origin/main` before submitting an excerpt. Label any partial excerpt with `[...]`. Send corrections in the same submission.
-- Do not reuse these Navigator sessions for a new question: `cc206f68705e4d93956f7e58ddd8c6e9`, `c0e84f0a157f4cc1a0f5dc3f54952ce2`, `cb5a1ebdeb804ce893b35dced364435c`, `b150e05389fd46148771bec93b8bc980`, `c07146c090c444b18302e90478418aa7`, `09480ec46e184c8aa8dc03436a07e826` (decided; no new questions), `0739f198e75c403ab527d4ad6cc82164` (option (a) decided; starting point not in DECIDED), `32ac8aeab08346b6b67e54a49c2e1d44`, `ac015364523740e6b2eba306f8d31515`, `54529a32ee4b47b9a3ae073cabcbcb4e`, `92e8178d1fdf4829837dab8eb4d0ef95` and `359d962fb8cd498b8b34339abd46e5bc`. Ask new questions in fresh sessions.
+- Do not reuse these Navigator sessions for a new question: `cc206f68705e4d93956f7e58ddd8c6e9`, `c0e84f0a157f4cc1a0f5dc3f54952ce2`, `cb5a1ebdeb804ce893b35dced364435c`, `b150e05389fd46148771bec93b8bc980`, `c07146c090c444b18302e90478418aa7`, `09480ec46e184c8aa8dc03436a07e826` (decided; no new questions), `0739f198e75c403ab527d4ad6cc82164` (option (a) decided; starting point not in DECIDED), `32ac8aeab08346b6b67e54a49c2e1d44`, `ac015364523740e6b2eba306f8d31515`, `54529a32ee4b47b9a3ae073cabcbcb4e`, `92e8178d1fdf4829837dab8eb4d0ef95`, `359d962fb8cd498b8b34339abd46e5bc` and `95d0ab97a06845088d993ce3caa0f05e` (route decided; no new questions). Ask new questions in fresh sessions.
 - Do not put model names in commits, PR titles or bodies, or any other pushed artifact. This applies to this handoff too.
 - Machine-local facts (paths, tokens, environment IDs) stay out of the repo.
 
