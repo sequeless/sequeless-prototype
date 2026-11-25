@@ -1,13 +1,13 @@
 /**
  * The test/dev {@code AutomationPort} adapter, used in place of Temporal for tests and local
  * development: {@link org.sequeless.adapter.automation.inprocess.InProcessAutomationPort} applies
- * a {@code TransitionFired} outbox entry action by action, synchronously, on the calling (relay)
- * thread, in the automation's index order, through the matching {@code ActionExecutor} method. An
- * {@code ActionRequest} entry is rejected as an unsupported kind. The adapter also includes a small
+ * a {@code TransitionFired} Store event action by action, synchronously, on the calling (relay)
+ * thread, in the automation's index order, through the matching {@code ActionExecutor} method. The
+ * adapter also includes a small
  * fixed retry loop around a {@code
  * sq:Webhook} action's actual HTTP call (via the JDK's own {@code java.net.http.HttpClient}, no
  * new dependency). Unlike a future Temporal adapter, this one owns idempotency itself — an
- * in-memory, process-lifetime {@code Set} of already-dispatched {@code OutboxEntry} ids — since it
+ * in-memory, process-lifetime {@code Set} of already-ingested Store event ids — since it
  * has no workflow-id mechanism to get that guarantee for free; see that class's own javadoc for
  * the accepted limitations this implies. {@link
  * org.sequeless.adapter.automation.inprocess.InProcessAutomationAutoConfiguration} wires the port

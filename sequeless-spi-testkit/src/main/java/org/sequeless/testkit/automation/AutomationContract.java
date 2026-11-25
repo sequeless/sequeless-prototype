@@ -25,8 +25,9 @@ import org.sequeless.ontology.automation.api.SetPropertyAction;
 import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.ResolvedTimer;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -55,7 +56,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * }</pre>
  *
  * <p><b>What this contract deliberately does not check.</b> {@link
- * #dispatchRoutesWebhookToResolveWebhook()} asserts only that {@link
+ * #ingestRoutesWebhookToResolveWebhook()} asserts only that {@link
  * org.sequeless.spi.automation.ActionExecutor#resolveWebhookAction} was invoked — it makes no assertion
  * about any HTTP call an adapter might go on to make with the resolved request, since HTTP retry
  * policy genuinely differs between adapters (the in-process adapter's fixed retry loop vs. a
@@ -63,7 +64,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  */
 public abstract class AutomationContract {
 
-    /** The scope every test in this contract dispatches under; also reused by subclasses' own tests. */
+    /** The scope every test in this contract ingests under; also reused by subclasses' own tests. */
     protected static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
 
     private static final String MACHINE_IRI = "http://example.org/ProjectLifecycle";
@@ -75,7 +76,7 @@ public abstract class AutomationContract {
     /** The timer transition that waits in {@link #ACTIVE_IRI}; the timer the timer contracts start. */
     private static final String TIMER_TRANSITION_NAME = "expireHold";
 
-    /** The transition every {@code TransitionFired} row this contract dispatches names. */
+    /** The transition every {@code TransitionFired} event this contract ingests names. */
     private static final TransitionRef TRANSITION = new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME);
 
     /**
@@ -88,24 +89,16 @@ public abstract class AutomationContract {
 
     /**
      * @return the same {@link RecordingActionExecutor} spy {@link #port()}'s implementation was
-     *     constructed with, so this contract can observe which method {@code dispatch} routed to
+     *     constructed with, so this contract can observe which method {@code ingest} routed to
      */
     protected abstract RecordingActionExecutor recordingExecutor();
 
     /**
      * @return the same {@link RecordingTriggerEvaluator} spy {@link #port()}'s implementation was
      *     constructed with, so this contract can observe which {@link TriggerEvaluator} method
-     *     {@code dispatch} routed an object-lifecycle or timer entry to
+     *     {@code ingest} routed an object-lifecycle event or a timer entry to
      */
     protected abstract RecordingTriggerEvaluator recordingTriggerEvaluator();
-
-    /**
-     * @return the same {@link RecordingDerivationRecomputer} spy {@link #port()}'s implementation
-     *     was constructed with, so this contract can observe whether {@code dispatch} called {@link
-     *     DerivationRecomputer#recompute}. An adapter whose {@code dispatch} does not recompute may
-     *     return a spy that nothing is wired to; the contract then sees no calls
-     */
-    protected abstract RecordingDerivationRecomputer recordingDerivationRecomputer();
 
     /**
      * Advances this port's notion of "now" by {@code by} and, before returning, synchronously
@@ -126,88 +119,88 @@ public abstract class AutomationContract {
 
     /**
      * Makes the automation source this port reads from serve one {@link Automation} at ontology version
-     * 1, holding {@code actionsByTransition} and nothing else. A {@code TransitionFired} row this contract
-     * builds is stamped with version 1, so {@code dispatch} applies these actions. Every test that
-     * dispatches such a row calls this first.
+     * 1, holding {@code actionsByTransition} and nothing else. A {@code TransitionFired} event this contract
+     * builds is stamped with version 1, so {@code ingest} applies these actions. Every test that
+     * ingests such an event calls this first.
      *
      * @param actionsByTransition the actions each transition holds, in order; must not be {@code null}
      */
     protected abstract void serveAutomationWithActions(Map<TransitionRef, List<Action>> actionsByTransition);
 
     @Test
-    void dispatchRoutesSetPropertyActionToApplyAction() {
+    void ingestRoutesSetPropertyActionToApplyAction() {
         serveAutomationWithActions(Map.of(
                 TRANSITION,
                 List.<Action>of(new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner")))));
 
-        port().dispatch(SCOPE, transitionFiredEntry());
+        port().ingest(SCOPE, transitionFiredEvent());
 
         RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_APPLY_ACTION);
         assertThat(call.action()).isInstanceOf(SetPropertyAction.class);
     }
 
     @Test
-    void dispatchRoutesCreateObjectActionToApplyAction() {
+    void ingestRoutesCreateObjectActionToApplyAction() {
         serveAutomationWithActions(
                 Map.of(TRANSITION, List.<Action>of(new CreateObjectAction("http://example.org/Task", List.of()))));
 
-        port().dispatch(SCOPE, transitionFiredEntry());
+        port().ingest(SCOPE, transitionFiredEvent());
 
         RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_APPLY_ACTION);
         assertThat(call.action()).isInstanceOf(CreateObjectAction.class);
     }
 
     @Test
-    void dispatchRoutesWebhookToResolveWebhook() {
+    void ingestRoutesWebhookToResolveWebhook() {
         serveAutomationWithActions(Map.of(
                 TRANSITION,
                 List.<Action>of(new WebhookAction("http://example.invalid/hook", "POST", Optional.empty()))));
 
-        port().dispatch(SCOPE, transitionFiredEntry());
+        port().ingest(SCOPE, transitionFiredEvent());
 
         RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_RESOLVE_WEBHOOK_ACTION);
         assertThat(call.action()).isInstanceOf(WebhookAction.class);
     }
 
     @Test
-    void dispatchRoutesLogActionToApplyAction() {
+    void ingestRoutesLogActionToApplyAction() {
         serveAutomationWithActions(Map.of(TRANSITION, List.<Action>of(new LogAction("hello"))));
 
-        port().dispatch(SCOPE, transitionFiredEntry());
+        port().ingest(SCOPE, transitionFiredEvent());
 
         RecordingActionExecutor.Call call = onlyCallOf(RecordingActionExecutor.METHOD_APPLY_ACTION);
         assertThat(call.action()).isInstanceOf(LogAction.class);
     }
 
     @Test
-    void redispatchWithSameEntryIdIsIdempotent() {
+    void reingestWithSameEventIdIsIdempotent() {
         serveAutomationWithActions(Map.of(TRANSITION, List.<Action>of(new LogAction("hello"))));
-        OutboxEntry entry = transitionFiredEntry();
+        TransitionFiredEvent event = transitionFiredEvent();
 
-        port().dispatch(SCOPE, entry);
-        port().dispatch(SCOPE, entry);
+        port().ingest(SCOPE, event);
+        port().ingest(SCOPE, event);
 
         assertThat(recordingExecutor().countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
                 .isEqualTo(1);
     }
 
     @Test
-    void dispatchRejectsNullScope() {
-        OutboxEntry entry = transitionFiredEntry();
-        assertThatNullPointerException().isThrownBy(() -> port().dispatch(null, entry));
+    void ingestRejectsNullScope() {
+        TransitionFiredEvent event = transitionFiredEvent();
+        assertThatNullPointerException().isThrownBy(() -> port().ingest(null, event));
     }
 
     @Test
-    void dispatchRejectsNullEntry() {
-        assertThatNullPointerException().isThrownBy(() -> port().dispatch(SCOPE, null));
+    void ingestRejectsNullEntry() {
+        assertThatNullPointerException().isThrownBy(() -> port().ingest(SCOPE, null));
     }
 
     /**
-     * A {@code TransitionFired} row with no {@code ontologyVersion} stamp is rejected: {@code dispatch}
-     * throws {@link IllegalStateException} and starts nothing for that row.
+     * A {@code TransitionFired} event with no {@code ontologyVersion} stamp is rejected: {@code ingest}
+     * throws {@link IllegalStateException} and starts nothing for that event.
      */
     @Test
-    void dispatchRejectsTransitionFiredWithoutOntologyVersionStamp() {
+    void ingestRejectsTransitionFiredWithoutOntologyVersionStamp() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("tenantId", SCOPE.tenantId().value());
@@ -215,36 +208,35 @@ public abstract class AutomationContract {
         payload.put("transitionName", "activate");
         payload.put("fromState", "Draft");
         payload.put("toState", "Active");
-        OutboxEntry entry =
-                new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+        TransitionFiredEvent event = new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.now());
 
-        assertThatIllegalStateException().isThrownBy(() -> port().dispatch(SCOPE, entry));
+        assertThatIllegalStateException().isThrownBy(() -> port().ingest(SCOPE, event));
         assertThat(recordingExecutor().calls()).isEmpty();
     }
 
     @Test
-    void dispatchRoutesObjectLifecycleEventToOnChange() {
-        OutboxEntry entry = objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED);
+    void ingestRoutesObjectChangedToOnChange() {
+        ObjectChangedEvent event = objectChangeEvent(ObjectChangedEvent.Change.UPDATED);
 
-        port().dispatch(SCOPE, entry);
+        port().ingest(SCOPE, event);
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
                 .isEqualTo(1);
     }
 
     @Test
-    void dispatchRoutesObjectDeletedToOnChangeToo() {
-        OutboxEntry entry = objectDeletedEntry();
+    void ingestRoutesObjectDeletedToOnChangeToo() {
+        ObjectChangedEvent event = objectDeletedEvent();
 
-        port().dispatch(SCOPE, entry);
+        port().ingest(SCOPE, event);
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
                 .isEqualTo(1);
     }
 
     /**
-     * A {@code TransitionFired} row starts its timer: the timer fires only once {@link #advanceTime} has
-     * moved the clock past the timer's duration, not on dispatch.
+     * A {@code TransitionFired} event starts its timer: the timer fires only once {@link #advanceTime} has
+     * moved the clock past the timer's duration, not on ingest.
      */
     @Test
     void timerFiresOnlyAfterAdvanceTime() {
@@ -253,7 +245,7 @@ public abstract class AutomationContract {
         serveAutomationWithActions(Map.of());
         recordingTriggerEvaluator().setTimersStartedBy(List.of(expireHoldTimer(objectId, after)));
 
-        port().dispatch(SCOPE, transitionFiredEntry(objectId));
+        port().ingest(SCOPE, transitionFiredEvent(objectId));
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
                 .isEqualTo(0);
@@ -264,17 +256,17 @@ public abstract class AutomationContract {
                 .isEqualTo(1);
     }
 
-    /** Dispatching the same {@code TransitionFired} row twice starts its timer once, so it fires once. */
+    /** Ingesting the same {@code TransitionFired} event twice starts its timer once, so it fires once. */
     @Test
-    void redispatchOfATransitionFiredRowIsIdempotentForItsTimer() {
+    void reingestOfATransitionFiredEventIsIdempotentForItsTimer() {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
         serveAutomationWithActions(Map.of());
         recordingTriggerEvaluator().setTimersStartedBy(List.of(expireHoldTimer(objectId, after)));
-        OutboxEntry entry = transitionFiredEntry(objectId);
+        TransitionFiredEvent event = transitionFiredEvent(objectId);
 
-        port().dispatch(SCOPE, entry);
-        port().dispatch(SCOPE, entry);
+        port().ingest(SCOPE, event);
+        port().ingest(SCOPE, event);
         advanceTime(after);
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
@@ -282,21 +274,21 @@ public abstract class AutomationContract {
     }
 
     /**
-     * A {@code TransitionFired} row redelivered after the clock has moved on keeps the due instant of its
-     * first delivery. The timer is due 30 minutes after the first dispatch, so the second dispatch, made
+     * A {@code TransitionFired} event redelivered after the clock has moved on keeps the due instant of its
+     * first delivery. The timer is due 30 minutes after the first ingest, so the second ingest, made
      * 10 minutes later, must not push the firing to 40 minutes.
      */
     @Test
-    void redispatchAfterTheClockAdvancesKeepsTheFirstDueInstant() {
+    void reingestAfterTheClockAdvancesKeepsTheFirstDueInstant() {
         Duration after = Duration.ofMinutes(30);
         UUID objectId = UUID.randomUUID();
         serveAutomationWithActions(Map.of());
         recordingTriggerEvaluator().setTimersStartedBy(List.of(expireHoldTimer(objectId, after)));
-        OutboxEntry entry = transitionFiredEntry(objectId);
+        TransitionFiredEvent event = transitionFiredEvent(objectId);
 
-        port().dispatch(SCOPE, entry);
+        port().ingest(SCOPE, event);
         advanceTime(Duration.ofMinutes(10));
-        port().dispatch(SCOPE, entry);
+        port().ingest(SCOPE, event);
         advanceTime(Duration.ofMinutes(20));
 
         assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
@@ -304,39 +296,39 @@ public abstract class AutomationContract {
     }
 
     /**
-     * Builds a valid {@code ObjectCreated}/{@code ObjectUpdated} {@link OutboxEntry} payload
-     * matching the exact shape {@code DefaultBusinessObjectService}/{@code DefaultActionExecutor}'s
-     * shared {@code outboxPayload} helper produces: {@code objectId}, {@code version}, {@code
-     * typeIri} — no {@code tenantId}/{@code principalId}, unlike the automation-specific kinds.
+     * Builds an {@link ObjectChangedEvent} for {@code change} whose payload has the shape {@code
+     * DefaultBusinessObjectService}/{@code DefaultActionExecutor}'s shared {@code outboxPayload} helper
+     * produces: {@code objectId}, {@code version}, {@code typeIri} — no {@code tenantId}/{@code
+     * principalId}, unlike a {@code TransitionFired} event.
      */
-    protected static OutboxEntry objectChangeEntry(String kind) {
+    protected static ObjectChangedEvent objectChangeEvent(ObjectChangedEvent.Change change) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("version", 1);
         payload.put("typeIri", "http://example.org/Task");
-        return new OutboxEntry(UUID.randomUUID(), kind, payload, Instant.now());
+        return new ObjectChangedEvent(UUID.randomUUID(), change, payload, Instant.now());
     }
 
     /**
-     * Builds a valid {@code ObjectDeleted} {@link OutboxEntry} payload: the same shape as {@link
-     * #objectChangeEntry(String)} plus a {@code properties} snapshot map, since a soft-deleted
-     * object can no longer be read back via {@code ObjectStorePort.find}. This contract's recording
-     * doubles never decode payload contents beyond what {@code dispatch()} itself uses to route by
-     * kind, so an empty snapshot is sufficient here — a real {@code DerivationRecomputer}/{@code
+     * Builds a {@link ObjectChangedEvent} with {@link ObjectChangedEvent.Change#DELETED}: the same shape as
+     * {@link #objectChangeEvent(ObjectChangedEvent.Change)} plus a {@code properties} snapshot map, since a
+     * soft-deleted object can no longer be read back via {@code ObjectStorePort.find}. This contract's
+     * recording doubles never decode payload contents, and {@code ingest} routes by the sealed event type
+     * alone, so an empty snapshot is sufficient here — a real {@code DerivationRecomputer}/{@code
      * TriggerEvaluator} implementation would need real, IRI-keyed, {@code PayloadValueCodec}-encoded
      * entries, but this contract only proves routing, not decoding.
      */
-    protected static OutboxEntry objectDeletedEntry() {
+    protected static ObjectChangedEvent objectDeletedEvent() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", UUID.randomUUID().toString());
         payload.put("version", 1);
         payload.put("typeIri", "http://example.org/Task");
         payload.put("properties", Map.of());
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED, payload, Instant.now());
+        return new ObjectChangedEvent(UUID.randomUUID(), ObjectChangedEvent.Change.DELETED, payload, Instant.now());
     }
 
     /**
-     * Builds the {@link ResolvedTimer} that a {@code TransitionFired} row moving {@code objectId} into
+     * Builds the {@link ResolvedTimer} that a {@code TransitionFired} event moving {@code objectId} into
      * {@link #ACTIVE_IRI} starts: the {@code expireHold} timer, waiting in {@link #ACTIVE_IRI} for {@code
      * after}. The timer key is built by {@link OutboxEntry#timerKey}, as an adapter builds it.
      */
@@ -346,18 +338,18 @@ public abstract class AutomationContract {
     }
 
     /**
-     * Builds a {@code TransitionFired} {@link OutboxEntry} for a fresh object; see {@link
-     * #transitionFiredEntry(UUID)}.
+     * Builds a {@code TransitionFired} {@link TransitionFiredEvent} for a fresh object; see {@link
+     * #transitionFiredEvent(UUID)}.
      */
-    private static OutboxEntry transitionFiredEntry() {
-        return transitionFiredEntry(UUID.randomUUID());
+    private static TransitionFiredEvent transitionFiredEvent() {
+        return transitionFiredEvent(UUID.randomUUID());
     }
 
     /**
-     * Builds a {@code TransitionFired} {@link OutboxEntry} for {@link #TRANSITION} on {@code objectId},
+     * Builds a {@code TransitionFired} {@link TransitionFiredEvent} for {@link #TRANSITION} on {@code objectId},
      * carrying the keys {@code DefaultTransitionService} writes on one and stamped with ontology version 1.
      */
-    private static OutboxEntry transitionFiredEntry(UUID objectId) {
+    private static TransitionFiredEvent transitionFiredEvent(UUID objectId) {
         Map<String, Object> payload = Map.of(
                 "objectId",
                 objectId.toString(),
@@ -379,7 +371,7 @@ public abstract class AutomationContract {
                 "http://example.org/Project",
                 "machineIri",
                 MACHINE_IRI);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.now());
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.now());
     }
 
     /**

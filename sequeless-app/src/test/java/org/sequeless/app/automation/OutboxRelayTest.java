@@ -19,6 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.ObjectChangedEvent;
+import org.sequeless.spi.automation.StoreEvent;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
 import org.springframework.beans.factory.ObjectProvider;
@@ -29,7 +32,7 @@ import org.springframework.beans.factory.ObjectProvider;
  * InMemoryOutboxPort} is a trivial deque-backed {@link OutboxPort} whose {@code claimNext} pops the
  * first row matching the caller's requested kind set and mirrors the real contract's crucial
  * detail: a handler exception leaves the claimed row unremoved (as if the claiming transaction had
- * rolled back). {@link RecordingAutomationPort} records every {@link AutomationPort#dispatch} call
+ * rolled back). {@link RecordingAutomationPort} records every {@link AutomationPort#ingest} call
  * and can be told to throw on a specific call.
  */
 class OutboxRelayTest {
@@ -42,6 +45,9 @@ class OutboxRelayTest {
         throw new UnsupportedOperationException("recompute must not run for a non-lifecycle row");
     };
 
+    /** The recomputer for the object-lifecycle tests, which do not assert on the recompute itself. */
+    private static final DerivationRecomputer NOOP_RECOMPUTER = (scope, changeEvent) -> {};
+
     @Test
     void multipleQueuedRowsAllDrainWithinOnePollOnceCall() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
@@ -53,7 +59,7 @@ class OutboxRelayTest {
 
         relay.pollOnce();
 
-        assertThat(automationPort.dispatchedEntries).hasSize(3);
+        assertThat(automationPort.ingestedEvents).hasSize(3);
         assertThat(outboxPort.isEmpty()).isTrue();
     }
 
@@ -71,7 +77,7 @@ class OutboxRelayTest {
         relay.pollOnce();
 
         // Only the first row was successfully dispatched; pollOnce() must not rethrow.
-        assertThat(automationPort.dispatchedEntries).hasSize(1);
+        assertThat(automationPort.ingestedEvents).hasSize(1);
         // The second row (whose handler call threw) and the third (never reached) both remain
         // claimable — the queue still holds 2 rows.
         assertThat(outboxPort.remaining()).isEqualTo(2);
@@ -90,7 +96,7 @@ class OutboxRelayTest {
     }
 
     @Test
-    void scopeHandedToDispatchReconstructsTenantAndPrincipalFromPayload() {
+    void scopeHandedToIngestReconstructsTenantAndPrincipalFromPayload() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("acme-tenant", transitionFired("acme-tenant", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
@@ -98,8 +104,8 @@ class OutboxRelayTest {
 
         relay.pollOnce();
 
-        assertThat(automationPort.dispatchedScopes).hasSize(1);
-        Scope scope = automationPort.dispatchedScopes.get(0);
+        assertThat(automationPort.ingestedScopes).hasSize(1);
+        Scope scope = automationPort.ingestedScopes.get(0);
         assertThat(scope.tenantId().value()).isEqualTo("acme-tenant");
         assertThat(scope.principal().id()).isEqualTo("alice");
         assertThat(scope.principal().roles()).isEmpty();
@@ -108,15 +114,36 @@ class OutboxRelayTest {
     @Test
     void transitionFiredRowIsClaimedAndHandedToAutomation() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
-        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        OutboxEntry row = transitionFired("tenant-a", "alice");
+        outboxPort.enqueue("tenant-a", row);
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
         OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
-        assertThat(automationPort.dispatchedEntries).hasSize(1);
-        assertThat(automationPort.dispatchedEntries.get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
+        assertThat(automationPort.ingestedEvents).hasSize(1);
+        StoreEvent event = automationPort.ingestedEvents.get(0);
+        assertThat(event).isInstanceOf(TransitionFiredEvent.class);
+        assertThat(event.id()).as("the event id is the row id").isEqualTo(row.id());
         assertThat(outboxPort.isEmpty()).isTrue();
+    }
+
+    /** An {@code ObjectCreated} row is ingested as a {@code CREATED} {@link ObjectChangedEvent}. */
+    @Test
+    void objectCreatedRowIsIngestedAsCreatedChange() {
+        assertLifecycleRowIngestedAs(OutboxEntry.KIND_OBJECT_CREATED, ObjectChangedEvent.Change.CREATED);
+    }
+
+    /** An {@code ObjectUpdated} row is ingested as an {@code UPDATED} {@link ObjectChangedEvent}. */
+    @Test
+    void objectUpdatedRowIsIngestedAsUpdatedChange() {
+        assertLifecycleRowIngestedAs(OutboxEntry.KIND_OBJECT_UPDATED, ObjectChangedEvent.Change.UPDATED);
+    }
+
+    /** An {@code ObjectDeleted} row is ingested as a {@code DELETED} {@link ObjectChangedEvent}. */
+    @Test
+    void objectDeletedRowIsIngestedAsDeletedChange() {
+        assertLifecycleRowIngestedAs(OutboxEntry.KIND_OBJECT_DELETED, ObjectChangedEvent.Change.DELETED);
     }
 
     /**
@@ -132,7 +159,7 @@ class OutboxRelayTest {
 
         relay.pollOnce();
 
-        assertThat(automationPort.dispatchedEntries).isEmpty();
+        assertThat(automationPort.ingestedEvents).isEmpty();
         assertThat(outboxPort.remaining()).isEqualTo(1);
     }
 
@@ -146,12 +173,33 @@ class OutboxRelayTest {
         outboxPort.enqueue("tenant-a", objectLifecycle(OutboxEntry.KIND_OBJECT_UPDATED));
         List<String> order = new ArrayList<>();
         DerivationRecomputer recomputer = (scope, changeEvent) -> order.add("recompute");
-        AutomationPort automationPort = (scope, entry) -> order.add("dispatch");
+        AutomationPort automationPort = (scope, event) -> order.add("ingest");
         OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), recomputer);
 
         relay.pollOnce();
 
-        assertThat(order).containsExactly("recompute", "dispatch");
+        assertThat(order).containsExactly("recompute", "ingest");
+        assertThat(outboxPort.isEmpty()).isTrue();
+    }
+
+    /**
+     * Relays one object-lifecycle row of {@code kind} and asserts the single event the ingress receives
+     * is an {@link ObjectChangedEvent} with {@code change}, carrying the row's id, payload and
+     * {@code occurredAt}.
+     */
+    private static void assertLifecycleRowIngestedAs(String kind, ObjectChangedEvent.Change change) {
+        InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
+        OutboxEntry row = objectLifecycle(kind);
+        outboxPort.enqueue("tenant-a", row);
+        RecordingAutomationPort automationPort = new RecordingAutomationPort();
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), NOOP_RECOMPUTER);
+
+        relay.pollOnce();
+
+        assertThat(automationPort.ingestedEvents).hasSize(1);
+        StoreEvent event = automationPort.ingestedEvents.get(0);
+        assertThat(event).isEqualTo(new ObjectChangedEvent(row.id(), change, row.payload(), row.occurredAt()));
+        assertThat(event.id()).as("the event id is the row id").isEqualTo(row.id());
         assertThat(outboxPort.isEmpty()).isTrue();
     }
 
@@ -262,11 +310,11 @@ class OutboxRelayTest {
         }
     }
 
-    /** Records every {@link #dispatch} call; can be configured to throw on the Nth call. */
+    /** Records every {@link #ingest} call; can be configured to throw on the Nth call. */
     private static final class RecordingAutomationPort implements AutomationPort {
 
-        final List<OutboxEntry> dispatchedEntries = new ArrayList<>();
-        final List<Scope> dispatchedScopes = new ArrayList<>();
+        final List<StoreEvent> ingestedEvents = new ArrayList<>();
+        final List<Scope> ingestedScopes = new ArrayList<>();
         private int callCount = 0;
         private int throwOnCall = -1;
 
@@ -275,13 +323,13 @@ class OutboxRelayTest {
         }
 
         @Override
-        public void dispatch(Scope scope, OutboxEntry entry) {
+        public void ingest(Scope scope, StoreEvent event) {
             callCount++;
             if (callCount == throwOnCall) {
-                throw new RuntimeException("simulated dispatch failure on call " + callCount);
+                throw new RuntimeException("simulated ingest failure on call " + callCount);
             }
-            dispatchedScopes.add(scope);
-            dispatchedEntries.add(entry);
+            ingestedScopes.add(scope);
+            ingestedEvents.add(event);
         }
     }
 }

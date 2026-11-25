@@ -19,7 +19,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * private commit path {@code sequeless-core} already uses for a user-triggered {@code fire} — the
  * adapters calling these methods stay deliberately dumb.
  *
- * <p>Every method's {@code entry} payload carries {@code objectId}, {@code tenantId}, and {@code
+ * <p>Every method's event or entry payload carries {@code objectId}, {@code tenantId}, and {@code
  * principalId} in every case, reconstructing the {@link Scope} the evaluation runs under exactly
  * as {@link ActionExecutor}'s methods do. A stale trigger — the event that prompted the call no
  * longer describes a transition that is actually available — is always a silent no-op, never an
@@ -43,10 +43,10 @@ public interface TriggerEvaluator {
      *
      * @param scope the tenant and principal to evaluate and fire on behalf of; must not be {@code
      *     null}
-     * @param changeEvent the {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}-kind
-     *     outbox entry describing the change; must not be {@code null}
+     * @param changeEvent the {@link ObjectChangedEvent} describing the object created, updated or
+     *     deleted; must not be {@code null}
      */
-    void onChange(Scope scope, OutboxEntry changeEvent);
+    void onChange(Scope scope, ObjectChangedEvent changeEvent);
 
     /**
      * Fires the timer transition named by a previously scheduled {@code TimerScheduled}-shaped
@@ -73,16 +73,16 @@ public interface TriggerEvaluator {
      * duration, and the state and transition name it waits under. A row whose {@code toState} has
      * no timer transition resolves to an empty list.
      *
-     * <p>The lookup reads the active behaviour, so the row's {@code ontologyVersion} stamp must
-     * match that behaviour's version. Unlike the three methods above, this method does not treat a
-     * bad row as a stale trigger: a missing or mismatched stamp is an error, not a silent no-op.
+     * <p>The lookup reads the active behaviour, so the event's {@code ontologyVersion} stamp must
+     * match that behaviour's version. Unlike the two methods above, this method does not treat a
+     * bad event as a stale trigger: a missing or mismatched stamp is an error, not a silent no-op.
      *
      * @param scope the tenant to read the behaviour for; must not be {@code null}
-     * @param transitionFired the {@code TransitionFired}-kind outbox entry describing the move; must
-     *     not be {@code null}
-     * @return the timers the row starts, in declaration order; never {@code null}
-     * @throws IllegalStateException if the row has no {@code ontologyVersion} stamp, or if the stamp
+     * @param transitionFired the {@link TransitionFiredEvent} describing the move; must not be {@code
+     *     null}
+     * @return the timers the event starts, in declaration order; never {@code null}
+     * @throws IllegalStateException if the event has no {@code ontologyVersion} stamp, or if the stamp
      *     differs from the active behaviour's ontology version
      */
-    List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired);
+    List<ResolvedTimer> timersStartedBy(Scope scope, TransitionFiredEvent transitionFired);
 }

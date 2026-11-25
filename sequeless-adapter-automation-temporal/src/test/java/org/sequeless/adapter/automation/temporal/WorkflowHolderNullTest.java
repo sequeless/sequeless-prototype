@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.TimerScheduledEntry;
 import org.sequeless.spi.outbox.OutboxEntry;
 
@@ -32,10 +33,15 @@ class WorkflowHolderNullTest {
             TimerScheduledEntry.KIND,
             Map.of("objectId", UUID.randomUUID().toString()),
             Instant.parse("2026-01-01T00:00:00Z"));
+    private static final ObjectChangedEvent CHANGE = new ObjectChangedEvent(
+            UUID.randomUUID(),
+            ObjectChangedEvent.Change.CREATED,
+            Map.of("objectId", UUID.randomUUID().toString()),
+            Instant.parse("2026-01-01T00:00:00Z"));
 
     @Test
     void changeEventWorkflowRefusesANullHolder() {
-        assertRefusesANullHolder(() -> new ChangeEventWorkflowImpl().run(ENTRY, SCOPE));
+        assertRefusesANullHolder(() -> new ChangeEventWorkflowImpl().run(CHANGE, SCOPE));
     }
 
     @Test

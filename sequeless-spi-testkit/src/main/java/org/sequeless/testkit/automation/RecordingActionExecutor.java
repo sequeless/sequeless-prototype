@@ -16,7 +16,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
 /**
  * A hand-rolled {@link ActionExecutor} test double (this codebase uses no Mockito) that records
  * every call it receives instead of doing anything else, so a contract test — or an adapter's own
- * test — can assert which method {@link org.sequeless.spi.automation.AutomationPort#dispatch}
+ * test — can assert which method {@link org.sequeless.spi.automation.AutomationPort#ingest}
  * actually invoked, and how many times.
  *
  * <p>Backed by a thread-safe list: a future Temporal activity implementation may call back into

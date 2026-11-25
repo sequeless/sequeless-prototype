@@ -19,15 +19,16 @@ import org.springframework.stereotype.Component;
 
 /**
  * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — the three
- * object-lifecycle kinds and {@link OutboxEntry#KIND_TRANSITION_FIRED} — one row at a time, into
- * whichever {@link AutomationPort} adapter is currently configured.
+ * object-lifecycle kinds and {@link OutboxEntry#KIND_TRANSITION_FIRED} — one row at a time. Each row
+ * is mapped to the Store event it records and ingested by whichever {@link AutomationPort} adapter
+ * is currently configured.
  *
  * <p><b>Recompute before the ingress.</b> For each object-lifecycle row ({@link
  * OutboxEntry#KIND_OBJECT_CREATED}, {@link OutboxEntry#KIND_OBJECT_UPDATED}, {@link
  * OutboxEntry#KIND_OBJECT_DELETED}), {@link #pollOnce()} calls {@link
- * DerivationRecomputer#recompute} synchronously, in the same claim, before it dispatches that row to
- * the {@link AutomationPort}. The automation adapter's change handling therefore reads materialised
- * values that are already fresh.
+ * DerivationRecomputer#recompute} synchronously, in the same claim, before it ingests that row's
+ * Store event into the {@link AutomationPort}. The automation adapter's change handling therefore
+ * reads materialised values that are already fresh.
  *
  * <p><b>Why an {@link ObjectProvider}, not a plain {@code AutomationPort} constructor
  * parameter.</b> {@code AutomationPort} is supplied by an {@code @AutoConfiguration} class ({@code
@@ -69,7 +70,7 @@ public class OutboxRelay {
      *     thing that actually counts them and reports a misconfiguration
      * @param automationPortProvider resolved lazily on every {@link #pollOnce()} call; see this
      *     class's javadoc for why this must not be collapsed into a plain constructor parameter
-     * @param derivationRecomputer the recompute run before each object-lifecycle row is dispatched;
+     * @param derivationRecomputer the recompute run before each object-lifecycle row is ingested;
      *     {@code @Lazy} for the same reason as {@code outboxPort}, so this bean constructs in
      *     Spring's first singleton pass and the bean is resolved only when a row needs it
      * @throws NullPointerException if any argument is {@code null}
@@ -86,8 +87,8 @@ public class OutboxRelay {
     }
 
     /**
-     * Drains {@link #DISPATCHABLE_KINDS}, dispatching one row at a time, until either the queue is
-     * empty or a dispatch fails.
+     * Drains {@link #DISPATCHABLE_KINDS}, ingesting one row at a time, until either the queue is
+     * empty or an ingest fails.
      *
      * <p>Checks {@link ObjectProvider#getIfAvailable()} before touching {@link #outboxPort} at
      * all: a cheap short-circuit so a deployment or test that never configures an automation
@@ -102,10 +103,10 @@ public class OutboxRelay {
      * against the same failure.
      *
      * <p><b>A persistently failing row is dead-lettered.</b> {@link OutboxPort#claimNext} claims the
-     * oldest unprocessed row (among {@link #DISPATCHABLE_KINDS}) first. A row whose recompute or {@link
-     * AutomationPort#dispatch} keeps throwing is retried on later polls until it has failed three times,
-     * and then it is dead-lettered (see DR-23). The adapter then skips it, and the queue continues with
-     * the rows behind it on later polls.
+     * oldest unprocessed row (among {@link #DISPATCHABLE_KINDS}) first. A row whose recompute, Store
+     * event mapping, or {@link AutomationPort#ingest} keeps throwing is retried on later polls until it
+     * has failed three times, and then it is dead-lettered (see DR-23). The adapter then skips it, and
+     * the queue continues with the rows behind it on later polls.
      */
     @Scheduled(fixedDelayString = "${sequeless.automation.relay.poll-interval-ms:1000}")
     public void pollOnce() {
@@ -121,11 +122,11 @@ public class OutboxRelay {
                         // Recompute first, in this same claim, so the ingress below reads fresh values.
                         derivationRecomputer.recompute(scope, entry);
                     }
-                    automationPort.dispatch(scope, entry);
+                    automationPort.ingest(scope, StoreEvents.from(entry));
                     // Non-null sentinel: OutboxPort#claimNext returns
                     // Optional.empty() both when no row was available AND (per its own
                     // javadoc) if handler legitimately returned null, so the handler must
-                    // return a non-null value to make "a row was claimed and dispatched"
+                    // return a non-null value to make "a row was claimed and ingested"
                     // distinguishable from "the queue is empty".
                     return Boolean.TRUE;
                 });
@@ -133,7 +134,7 @@ public class OutboxRelay {
                     break; // queue drained
                 }
             } catch (RuntimeException e) {
-                LOG.warn("Failed to dispatch one outbox action; leaving it for a later poll", e);
+                LOG.warn("Failed to ingest one outbox row; leaving it for a later poll", e);
                 break;
             }
         }

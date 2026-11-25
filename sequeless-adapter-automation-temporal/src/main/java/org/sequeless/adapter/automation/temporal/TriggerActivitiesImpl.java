@@ -2,40 +2,28 @@ package org.sequeless.adapter.automation.temporal;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The real {@link TriggerActivities} implementation: three pure pass-throughs to the injected
- * {@link TriggerEvaluator}/{@link DerivationRecomputer}. A {@code StaleObjectException} that
- * {@link DerivationRecomputer#recompute} throws, after its own intra-call retry loop is exhausted,
- * propagates out of this activity method unchanged, so Temporal's configured {@code RetryOptions}
- * retry the activity invocation as a whole.
+ * The real {@link TriggerActivities} implementation: two pure pass-throughs to the injected {@link
+ * TriggerEvaluator}. The derivation recompute runs in the outbox relay before ingest, not here.
  */
 public final class TriggerActivitiesImpl implements TriggerActivities {
 
     private final TriggerEvaluator triggerEvaluator;
-    private final DerivationRecomputer derivationRecomputer;
 
     /**
      * @param triggerEvaluator the port {@link #onChange}/{@link #onTimerElapsed} forward to; must
      *     not be {@code null}
-     * @param derivationRecomputer the port {@link #recompute} forwards to; must not be {@code null}
      */
-    public TriggerActivitiesImpl(TriggerEvaluator triggerEvaluator, DerivationRecomputer derivationRecomputer) {
+    public TriggerActivitiesImpl(TriggerEvaluator triggerEvaluator) {
         this.triggerEvaluator = Objects.requireNonNull(triggerEvaluator, "triggerEvaluator must not be null");
-        this.derivationRecomputer =
-                Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
     }
 
     @Override
-    public void recompute(Scope scope, OutboxEntry changeEvent) {
-        derivationRecomputer.recompute(scope, changeEvent);
-    }
-
-    @Override
-    public void onChange(Scope scope, OutboxEntry changeEvent) {
+    public void onChange(Scope scope, ObjectChangedEvent changeEvent) {
         triggerEvaluator.onChange(scope, changeEvent);
     }
 

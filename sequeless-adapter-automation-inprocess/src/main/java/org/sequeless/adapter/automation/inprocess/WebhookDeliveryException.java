@@ -9,7 +9,7 @@ package org.sequeless.adapter.automation.inprocess;
  *
  * <p>Deliberately unchecked, for the same reason {@code org.sequeless.expression.api.
  * ExpressionException} is: a delivery failure is a condition the relay that called {@link
- * InProcessAutomationPort#dispatch} is expected to let propagate (and, in a later task, log or
+ * InProcessAutomationPort#ingest} is expected to let propagate (and, in a later task, log or
  * surface as a failed outbox row), not a condition every intermediate signature should have to
  * declare.
  */

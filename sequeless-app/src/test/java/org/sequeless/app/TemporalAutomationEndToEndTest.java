@@ -37,6 +37,7 @@ import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -62,7 +63,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * activity genuinely retries through Temporal's own {@code RetryOptions} until it succeeds, and
  * that {@link org.sequeless.adapter.automation.temporal.TemporalAutomationPort}'s explicit {@code
  * WorkflowIdReusePolicy.REJECT_DUPLICATE} (finding F40 from T10) actually prevents a duplicate
- * side effect when the same {@link OutboxEntry} is dispatched twice — the realistic shape of "the
+ * side effect when the same {@link TransitionFiredEvent} is ingested twice — the realistic shape of "the
  * relay crashed between committing an outbox row and finishing its dispatch, then redispatched the
  * same row after restart."
  *
@@ -229,10 +230,12 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
         objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(transitionFired)));
 
         // Simulates "the relay crashed between committing this row and finishing its dispatch,
-        // then redispatched the identical row after restart": call dispatch() directly, twice,
+        // then redispatched the identical row after restart": call ingest() directly, twice,
         // bypassing OutboxPort's own claim mechanism (already covered by T8's contract tests).
-        automationPort.dispatch(SCOPE, transitionFired);
-        automationPort.dispatch(SCOPE, transitionFired);
+        TransitionFiredEvent fired =
+                new TransitionFiredEvent(transitionFired.id(), transitionFired.payload(), transitionFired.occurredAt());
+        automationPort.ingest(SCOPE, fired);
+        automationPort.ingest(SCOPE, fired);
 
         awaitExactlyOneTaskTitled(uniqueTitle);
     }

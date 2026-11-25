@@ -37,19 +37,20 @@ import org.sequeless.ontology.automation.api.LogAction;
 import org.sequeless.ontology.automation.api.SetPropertyAction;
 import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
- * Covers {@link TemporalAutomationPort#startTransitionFiredActions}, the per-action entry point that
- * {@link TemporalAutomationPort#dispatch} calls for every {@code TransitionFired} row, against real
- * {@link TransitionActionWorkflowImpl} executions in an in-memory {@link
- * TestWorkflowEnvironment}. The port's own checks are tested here: a bad stamp throws before any workflow
- * starts, a transition with no actions starts nothing, and each action index gets its own workflow.
+ * Covers the {@code TransitionFired} branch of {@link TemporalAutomationPort#ingest}, which starts the
+ * per-action workflows through {@link TemporalAutomationPort#startTransitionFiredActions}, against real
+ * {@link TransitionActionWorkflowImpl} executions in an in-memory {@link TestWorkflowEnvironment}. The
+ * port's own checks are tested here: a bad stamp throws before any workflow starts, a transition with no
+ * actions starts nothing, and each action index gets its own workflow.
  *
  * <p>The executor is shared by every test in this class, and workflows from earlier tests are
- * fire-and-forget, so each count filters on the row's id rather than counting every recorded call.
+ * fire-and-forget, so each count filters on the event's id rather than counting every recorded call.
  */
 class TemporalAutomationPortTransitionFiredTest {
 
@@ -106,111 +107,111 @@ class TemporalAutomationPortTransitionFiredTest {
     void refusesEachBadStampBeforeStartingAnyWorkflow() {
         SwappableAutomationSource.current = twoActionAutomation(1);
 
-        for (OutboxEntry entry : List.of(transitionFired(null), transitionFired("1"), transitionFired(2))) {
-            assertThatThrownBy(() -> port.startTransitionFiredActions(SCOPE, entry))
+        for (TransitionFiredEvent event : List.of(transitionFired(null), transitionFired("1"), transitionFired(2))) {
+            assertThatThrownBy(() -> port.ingest(SCOPE, event))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining(entry.id().toString());
-            assertNoWorkflowStarted(entry);
+                    .hasMessageContaining(event.id().toString());
+            assertNoWorkflowStarted(event);
         }
     }
 
     @Test
     void startsNothingAndThrowsForAnAutomationWithNoActionsForTheTransition() {
         SwappableAutomationSource.current = new Automation(new OntologyVersion(1), Map.of());
-        OutboxEntry entry = transitionFired(1);
+        TransitionFiredEvent event = transitionFired(1);
 
-        assertThatCode(() -> port.startTransitionFiredActions(SCOPE, entry)).doesNotThrowAnyException();
-        assertNoWorkflowStarted(entry);
+        assertThatCode(() -> port.ingest(SCOPE, event)).doesNotThrowAnyException();
+        assertNoWorkflowStarted(event);
     }
 
     @Test
     void startsOneWorkflowPerActionAndEachAppliesItsAction() {
         SwappableAutomationSource.current = twoActionAutomation(1);
-        OutboxEntry entry = transitionFired(1);
+        TransitionFiredEvent event = transitionFired(1);
 
-        port.startTransitionFiredActions(SCOPE, entry);
-        awaitClosed(entry, 0);
-        awaitClosed(entry, 1);
+        port.ingest(SCOPE, event);
+        awaitClosed(event, 0);
+        awaitClosed(event, 1);
 
-        assertThat(applyActionCount(entry)).isEqualTo(2);
+        assertThat(applyActionCount(event)).isEqualTo(2);
     }
 
     @Test
     void startsTheRemainingIndexesWhenAnEarlierIndexIsAlreadyStarted() {
         SwappableAutomationSource.current = twoActionAutomation(1);
-        OutboxEntry entry = transitionFired(1);
+        TransitionFiredEvent event = transitionFired(1);
         // Index 0 is started first, as a partial earlier dispatch would have left it, using the same id,
         // task queue and reuse policy the port uses. The port's own options builder is private.
         TransitionActionWorkflow first = env.getWorkflowClient()
                 .newWorkflowStub(
                         TransitionActionWorkflow.class,
                         WorkflowOptions.newBuilder()
-                                .setWorkflowId(entry.id() + ":0")
+                                .setWorkflowId(event.id() + ":0")
                                 .setTaskQueue(TASK_QUEUE)
                                 .setWorkflowIdReusePolicy(
                                         WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE)
                                 .build());
-        WorkflowClient.start(first::execute, entry, 0);
+        WorkflowClient.start(first::execute, rebuiltRow(event), 0);
 
-        port.startTransitionFiredActions(SCOPE, entry);
-        awaitClosed(entry, 0);
-        awaitClosed(entry, 1);
+        port.ingest(SCOPE, event);
+        awaitClosed(event, 0);
+        awaitClosed(event, 1);
 
-        assertThat(applyActionCount(entry)).isEqualTo(2);
+        assertThat(applyActionCount(event)).isEqualTo(2);
     }
 
     @Test
     void redispatchStartsNoIndexAgain() {
         SwappableAutomationSource.current = twoActionAutomation(1);
-        OutboxEntry entry = transitionFired(1);
-        port.startTransitionFiredActions(SCOPE, entry);
-        awaitClosed(entry, 0);
-        awaitClosed(entry, 1);
-        List<String> runIdsBefore = runIds(entry, 2);
-        long appliedBefore = applyActionCount(entry);
+        TransitionFiredEvent event = transitionFired(1);
+        port.ingest(SCOPE, event);
+        awaitClosed(event, 0);
+        awaitClosed(event, 1);
+        List<String> runIdsBefore = runIds(event, 2);
+        long appliedBefore = applyActionCount(event);
 
-        port.startTransitionFiredActions(SCOPE, entry);
+        port.ingest(SCOPE, event);
 
         // The run-id check is the one that fails if the reuse policy regresses. A duplicate run
         // would not have executed yet when this runs, so the apply count alone proves little.
-        assertThat(runIds(entry, 2)).isEqualTo(runIdsBefore);
-        assertThat(applyActionCount(entry)).isEqualTo(appliedBefore);
+        assertThat(runIds(event, 2)).isEqualTo(runIdsBefore);
+        assertThat(applyActionCount(event)).isEqualTo(appliedBefore);
     }
 
-    /** Asserts that no workflow exists for {@code entry}'s first index, which a started row would have. */
-    private static void assertNoWorkflowStarted(OutboxEntry entry) {
+    /** Asserts that no workflow exists for {@code event}'s first index, which a started event would have. */
+    private static void assertNoWorkflowStarted(TransitionFiredEvent event) {
         assertThatThrownBy(() -> env.getWorkflowClient()
-                        .newUntypedWorkflowStub(entry.id() + ":0")
+                        .newUntypedWorkflowStub(event.id() + ":0")
                         .describe())
                 .isInstanceOf(WorkflowNotFoundException.class);
     }
 
-    /** Blocks, bounded, until the workflow for {@code entry} at {@code index} has closed. */
-    private static void awaitClosed(OutboxEntry entry, int index) {
-        WorkflowStub stub = env.getWorkflowClient().newUntypedWorkflowStub(entry.id() + ":" + index);
+    /** Blocks, bounded, until the workflow for {@code event} at {@code index} has closed. */
+    private static void awaitClosed(TransitionFiredEvent event, int index) {
+        WorkflowStub stub = env.getWorkflowClient().newUntypedWorkflowStub(event.id() + ":" + index);
         try {
             stub.getResult(5, TimeUnit.SECONDS, Void.class);
         } catch (TimeoutException e) {
-            throw new AssertionError("Workflow " + entry.id() + ":" + index + " did not close within 5 seconds", e);
+            throw new AssertionError("Workflow " + event.id() + ":" + index + " did not close within 5 seconds", e);
         }
     }
 
-    /** The run id of the latest run of each of {@code entry}'s first {@code count} index workflows. */
-    private static List<String> runIds(OutboxEntry entry, int count) {
+    /** The run id of the latest run of each of {@code event}'s first {@code count} index workflows. */
+    private static List<String> runIds(TransitionFiredEvent event, int count) {
         return IntStream.range(0, count)
                 .mapToObj(index -> env.getWorkflowClient()
-                        .newUntypedWorkflowStub(entry.id() + ":" + index)
+                        .newUntypedWorkflowStub(event.id() + ":" + index)
                         .describe()
                         .getExecution()
                         .getRunId())
                 .toList();
     }
 
-    /** How many {@code applyAction} calls the shared executor recorded for {@code entry}. */
-    private static long applyActionCount(OutboxEntry entry) {
+    /** How many {@code applyAction} calls the shared executor recorded for {@code event}. */
+    private static long applyActionCount(TransitionFiredEvent event) {
         return executor.calls().stream()
                 .filter(call -> call.method().equals(RecordingActionExecutor.METHOD_APPLY_ACTION))
-                .filter(call -> call.entryId().equals(entry.id()))
+                .filter(call -> call.entryId().equals(event.id()))
                 .count();
     }
 
@@ -229,11 +230,16 @@ class TemporalAutomationPortTransitionFiredTest {
                 Map.of(new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME), List.of(actions)));
     }
 
+    /** The {@link OutboxEntry} the action workflows take as input, rebuilt from {@code event} as the port does. */
+    private static OutboxEntry rebuiltRow(TransitionFiredEvent event) {
+        return new OutboxEntry(event.id(), OutboxEntry.KIND_TRANSITION_FIRED, event.payload(), event.occurredAt());
+    }
+
     /**
-     * A {@code TransitionFired} row carrying the keys {@code DefaultTransitionService} writes on one. A
+     * A {@code TransitionFired} event carrying the keys {@code DefaultTransitionService} writes on a row. A
      * {@code null} stamp omits the {@code ontologyVersion} key, because a null payload value is rejected.
      */
-    private static OutboxEntry transitionFired(Object ontologyVersion) {
+    private static TransitionFiredEvent transitionFired(Object ontologyVersion) {
         Map<String, Object> payload = new HashMap<>(Map.of(
                 "objectId",
                 UUID.randomUUID().toString(),
@@ -256,7 +262,6 @@ class TemporalAutomationPortTransitionFiredTest {
         if (ontologyVersion != null) {
             payload.put("ontologyVersion", ontologyVersion);
         }
-        return new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.parse("2026-01-01T00:00:00Z"));
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.parse("2026-01-01T00:00:00Z"));
     }
 }

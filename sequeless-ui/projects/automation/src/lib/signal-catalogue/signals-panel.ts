@@ -58,7 +58,7 @@ import { SignalCatalogue, signalsForState } from './signal-catalogue';
       </div>
     }
     @if (dispatched(); as name) {
-      <p role="status">Signal "{{ name }}" dispatched — takes effect asynchronously.</p>
+      <p role="status">Signal "{{ name }}" dispatched — the transition is applied when the request is accepted.</p>
     }
     @if (error(); as error) {
       <sq-problem-banner [problems]="error" />

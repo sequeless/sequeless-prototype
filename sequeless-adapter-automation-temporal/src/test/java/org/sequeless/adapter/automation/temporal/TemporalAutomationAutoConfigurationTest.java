@@ -10,10 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
-import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -25,8 +23,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
  * InProcessAutomationAutoConfigurationTest}.
  *
  * <p>Registers a {@link RecordingActionExecutor} as the context's {@link ActionExecutor} bean, and
- * likewise a {@link RecordingTriggerEvaluator}/{@link RecordingDerivationRecomputer} pair as the
- * context's {@link TriggerEvaluator}/{@link DerivationRecomputer} beans, in place of the real
+ * likewise a {@link RecordingTriggerEvaluator} as the context's {@link TriggerEvaluator} bean, in place of the real
  * {@code sequeless-core} implementations this adapter module cannot depend on — standing in for
  * the later, application-level task that wires the real beans in.
  *
@@ -59,7 +56,6 @@ class TemporalAutomationAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(TemporalAutomationAutoConfiguration.class))
             .withBean(ActionExecutor.class, RecordingActionExecutor::new)
             .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
-            .withBean(DerivationRecomputer.class, RecordingDerivationRecomputer::new)
             .withBean(AutomationSource.class, SwappableAutomationSource::new);
 
     @BeforeEach

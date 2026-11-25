@@ -1,6 +1,5 @@
 package org.sequeless.adapter.automation.temporal;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.sun.net.httpserver.HttpServer;
@@ -33,14 +32,14 @@ import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.AutomationContract;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
-import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
@@ -50,15 +49,14 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
  * scope for this task; see {@code TemporalTestcontainersSupport} in {@code sequeless-app} for the
  * pattern a Testcontainers-backed acceptance test uses instead).
  *
- * <p><b>{@code dispatch()} only starts (or signals) a workflow — fire-and-forget — so {@link
- * #port()}'s wrapper must itself decide, per kind, how to wait for the effect under test to have
- * actually happened before the contract's assertions run.</b> For {@code TransitionFired},
- * {@link TemporalAutomationPort#dispatch} starts one {@link TransitionActionWorkflow} per action of
- * the transition, with workflow id {@code <entry id>:<action index>}, and the wrapper blocks on each
- * of those ids in turn. For every kind that starts a workflow expected to run to completion quickly
- * ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} via {@link ChangeEventWorkflow}),
- * the wrapper blocks on {@link
- * WorkflowStub#getResult} for the exact workflow id {@link TemporalAutomationPort#dispatch} started
+ * <p><b>{@code ingest()} only starts a workflow — fire-and-forget — so {@link #port()}'s wrapper must
+ * itself decide, per event type, how to wait for the effect under test to have actually happened before
+ * the contract's assertions run.</b> For a {@link TransitionFiredEvent},
+ * {@link TemporalAutomationPort#ingest} starts one {@link TransitionActionWorkflow} per action of
+ * the transition, with workflow id {@code <event id>:<action index>}, and the wrapper blocks on each
+ * of those ids in turn. For every event type that starts a workflow expected to run to completion quickly
+ * ({@link ObjectChangedEvent}, via {@link ChangeEventWorkflow}), the wrapper blocks on {@link
+ * WorkflowStub#getResult} for the exact workflow id {@link TemporalAutomationPort#ingest} started
  * (see the history of this file for why polling a recorder instead of blocking on the workflow result
  * is a genuine race, not just a style choice).
  *
@@ -81,20 +79,18 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     private static TestWorkflowEnvironment env;
     private static SwappableActionExecutor executorHolder;
     private static SwappableTriggerEvaluator triggerEvaluatorHolder;
-    private static SwappableDerivationRecomputer derivationRecomputerHolder;
     private static SwappableAutomationSource automationSource;
     private static AutomationPort port;
 
     private RecordingActionExecutor recorder;
     private RecordingTriggerEvaluator triggerRecorder;
-    private RecordingDerivationRecomputer recomputerRecorder;
 
     /**
      * The due instant, in {@link TestWorkflowEnvironment#currentTimeMillis()} terms, of every timer a
      * {@code TransitionFired} row started during the current {@code @Test} method, keyed by its {@code
      * timerKey} (JUnit 5's default per-method instance lifecycle gives this a fresh, empty map per test,
      * exactly like {@link #recorder} and its siblings). An instant is recorded once, on the first
-     * dispatch, so a redelivered row keeps the due instant of its first delivery, as the port does.
+     * ingest, so a redelivered row keeps the due instant of its first delivery, as the port does.
      * {@link #advanceTime} settles only the timers whose due instant has passed; see its javadoc.
      */
     private final Map<String, Long> dueAtByTimerKey = new ConcurrentHashMap<>();
@@ -112,7 +108,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
 
         executorHolder = new SwappableActionExecutor();
         triggerEvaluatorHolder = new SwappableTriggerEvaluator();
-        derivationRecomputerHolder = new SwappableDerivationRecomputer();
         automationSource = new SwappableAutomationSource();
 
         // Published before env.start(), mirroring TemporalAutomationAutoConfiguration's own
@@ -128,7 +123,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                 TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(executorHolder, automationSource),
-                new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
+                new TriggerActivitiesImpl(triggerEvaluatorHolder));
         env.start();
 
         port = new TemporalAutomationPort(
@@ -147,38 +142,32 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         executorHolder.setDelegate(recorder);
         triggerRecorder = new RecordingTriggerEvaluator();
         triggerEvaluatorHolder.setDelegate(triggerRecorder);
-        recomputerRecorder = new RecordingDerivationRecomputer();
-        derivationRecomputerHolder.setDelegate(recomputerRecorder);
         SwappableAutomationSource.reset();
     }
 
     @Override
     protected AutomationPort port() {
-        return (scope, entry) -> {
-            port.dispatch(scope, entry);
-            switch (entry.kind()) {
-                case OutboxEntry.KIND_OBJECT_CREATED,
-                        OutboxEntry.KIND_OBJECT_UPDATED,
-                        OutboxEntry.KIND_OBJECT_DELETED ->
-                    awaitWorkflowResult(entry.id().toString());
-                default -> {
-                    // dispatch() rejects every kind it does not handle, so only TransitionFired
-                    // reaches this branch.
-                    awaitTransitionFiredTimers(entry);
-                    awaitTransitionFiredActions(entry);
+        return (scope, event) -> {
+            port.ingest(scope, event);
+            switch (event) {
+                case ObjectChangedEvent changed ->
+                    awaitWorkflowResult(changed.id().toString());
+                case TransitionFiredEvent fired -> {
+                    awaitTransitionFiredTimers(fired);
+                    awaitTransitionFiredActions(fired);
                 }
             }
         };
     }
 
     /**
-     * Blocks until each {@link TimerWorkflow} that {@link TemporalAutomationPort#dispatch} started for
-     * {@code entry} has reached its wait, and records its due instant. The timers are the ones the port
-     * received from {@link TriggerEvaluator#timersStartedBy} for this row, read back from the holder, so the
+     * Blocks until each {@link TimerWorkflow} that {@link TemporalAutomationPort#ingest} started for
+     * {@code event} has reached its wait, and records its due instant. The timers are the ones the port
+     * received from {@link TriggerEvaluator#timersStartedBy} for this event, read back from the holder, so the
      * lookup is not made a second time.
      */
-    private void awaitTransitionFiredTimers(OutboxEntry entry) {
-        for (ResolvedTimer timer : triggerEvaluatorHolder.timersResolvedFor(entry.id())) {
+    private void awaitTransitionFiredTimers(TransitionFiredEvent event) {
+        for (ResolvedTimer timer : triggerEvaluatorHolder.timersResolvedFor(event.id())) {
             awaitTimerWorkflowParked(timer.timerKey());
             dueAtByTimerKey.putIfAbsent(
                     timer.timerKey(), env.currentTimeMillis() + timer.after().toMillis());
@@ -199,19 +188,19 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     }
 
     /**
-     * Blocks until every {@link TransitionActionWorkflow} that {@link TemporalAutomationPort#dispatch}
-     * started for {@code entry} has closed, one per action of the row's transition. The action count
-     * comes from the test's automation, read for the transition the row names, as the production path
+     * Blocks until every {@link TransitionActionWorkflow} that {@link TemporalAutomationPort#ingest}
+     * started for {@code event} has closed, one per action of the event's transition. The action count
+     * comes from the test's automation, read for the transition the event names, as the production path
      * reads it.
      */
-    private static void awaitTransitionFiredActions(OutboxEntry entry) {
+    private static void awaitTransitionFiredActions(TransitionFiredEvent event) {
         TransitionRef transition = new TransitionRef(
-                (String) entry.payload().get("machineIri"),
-                (String) entry.payload().get("fromState"),
-                (String) entry.payload().get("transitionName"));
+                (String) event.payload().get("machineIri"),
+                (String) event.payload().get("fromState"),
+                (String) event.payload().get("transitionName"));
         int actionCount = SwappableAutomationSource.current.actions(transition).size();
         for (int i = 0; i < actionCount; i++) {
-            awaitWorkflowResult(entry.id() + ":" + i);
+            awaitWorkflowResult(event.id() + ":" + i);
         }
     }
 
@@ -294,11 +283,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         return triggerRecorder;
     }
 
-    @Override
-    protected RecordingDerivationRecomputer recordingDerivationRecomputer() {
-        return recomputerRecorder;
-    }
-
     /** Serves the actions through {@link SwappableAutomationSource}, the source the activities read from. */
     @Override
     protected void serveAutomationWithActions(Map<TransitionRef, List<Action>> actionsByTransition) {
@@ -306,16 +290,15 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     }
 
     /**
-     * Dispatching a {@code TransitionFired} row starts the per-action workflows. The one for action
-     * index 0 of the row's transition, {@code <entry id>:0}, exists straight after {@code dispatch}
+     * Ingesting a {@link TransitionFiredEvent} starts the per-action workflows. The one for action
+     * index 0 of the event's transition, {@code <event id>:0}, exists straight after {@code ingest}
      * returns, and it runs to completion.
      */
     @Test
-    void dispatchStartsOnePerActionWorkflowPerAction() {
+    void ingestStartsOnePerActionWorkflowPerAction() {
         UUID entryId = UUID.fromString("7d3f2a10-5b8e-4c4d-9a61-2e0f8b6c1d27");
-        OutboxEntry entry = new OutboxEntry(
+        TransitionFiredEvent event = new TransitionFiredEvent(
                 entryId,
-                OutboxEntry.KIND_TRANSITION_FIRED,
                 Map.of(
                         "objectId",
                         UUID.randomUUID().toString(),
@@ -341,58 +324,13 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                                 "http://example.org/ProjectLifecycle", "http://example.org/Draft", "activate"),
                         List.<Action>of(new LogAction("project activated"))));
 
-        port.dispatch(SCOPE, entry);
+        port.ingest(SCOPE, event);
 
         assertThatCode(() -> env.getWorkflowClient()
                         .newUntypedWorkflowStub(entryId + ":0")
                         .describe())
                 .doesNotThrowAnyException();
         awaitWorkflowResult(entryId + ":0");
-    }
-
-    /**
-     * Since P5a the relay runs the recompute before it dispatches an object-lifecycle row, but this
-     * adapter still runs its own recompute, in {@link ChangeEventWorkflowImpl}, before {@code
-     * onChange}. Until that workflow activity is removed (P5b), this test keeps the
-     * recompute-before-onChange order checked for the Temporal adapter, which {@link
-     * AutomationContract} no longer asserts.
-     */
-    @Test
-    void dispatchRunsRecomputeBeforeOnChangeForObjectUpdated() {
-        port().dispatch(SCOPE, objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED));
-
-        assertThat(recomputerRecorder.calls()).hasSize(1);
-        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
-    }
-
-    /** The {@code ObjectDeleted} counterpart of {@link #dispatchRunsRecomputeBeforeOnChangeForObjectUpdated()}. */
-    @Test
-    void dispatchRunsRecomputeBeforeOnChangeForObjectDeleted() {
-        port().dispatch(SCOPE, objectDeletedEntry());
-
-        assertThat(recomputerRecorder.calls()).hasSize(1);
-        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
-    }
-
-    /**
-     * Asserts that the one recompute call recorded for the change event most recently dispatched
-     * happened strictly before the first {@link RecordingTriggerEvaluator#METHOD_ON_CHANGE} call, by
-     * comparing each recorded call's {@code sequenceNanos()}. See {@link RecordingTriggerEvaluator}'s
-     * javadoc for why that field, rather than any state shared between the two doubles, makes this
-     * comparison possible.
-     */
-    private void assertRecomputeRanBeforeOnChange() {
-        long recomputeAt = recomputerRecorder.calls().get(0).sequenceNanos();
-        long onChangeAt = triggerRecorder.calls().stream()
-                .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .findFirst()
-                .orElseThrow()
-                .sequenceNanos();
-        assertThat(recomputeAt).isLessThan(onChangeAt);
     }
 
     /**
@@ -440,7 +378,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         }
 
         @Override
-        public void onChange(Scope scope, OutboxEntry changeEvent) {
+        public void onChange(Scope scope, ObjectChangedEvent changeEvent) {
             delegate.onChange(scope, changeEvent);
         }
 
@@ -450,30 +388,15 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         }
 
         @Override
-        public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
+        public List<ResolvedTimer> timersStartedBy(Scope scope, TransitionFiredEvent transitionFired) {
             List<ResolvedTimer> timers = delegate.timersStartedBy(scope, transitionFired);
             resolvedByRow.put(transitionFired.id(), timers);
             return timers;
         }
 
-        /** @return the timers the port resolved for the {@code TransitionFired} row {@code rowId}, or none */
+        /** @return the timers the port resolved for the {@code TransitionFired} event {@code rowId}, or none */
         List<ResolvedTimer> timersResolvedFor(UUID rowId) {
             return resolvedByRow.getOrDefault(rowId, List.of());
-        }
-    }
-
-    /** Same swap-the-delegate indirection as {@link SwappableActionExecutor}, for {@link DerivationRecomputer}. */
-    private static final class SwappableDerivationRecomputer implements DerivationRecomputer {
-
-        private volatile DerivationRecomputer delegate;
-
-        void setDelegate(DerivationRecomputer delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void recompute(Scope scope, OutboxEntry changeEvent) {
-            delegate.recompute(scope, changeEvent);
         }
     }
 }

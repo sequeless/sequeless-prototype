@@ -102,7 +102,7 @@ for adapter writers; inbound adapters are rarer and may depend on core.
 | `ObjectStorePort` | Atomic commit of object mutations plus outbox rows; read by id; ontology document storage | `postgres` | `inmemory`, MongoDB, Neo4j | `sequeless.persistence.adapter=postgres` |
 | `ReadPort`, `BrowsePort`, `IndexPreparationPort`, `QueryPort` | Read one object by id; filtered, sorted, paged browse with facet counts and text search; prepare query indexes after an ontology activation; aggregations for rollups | `postgres` | OpenSearch, SPARQL endpoint | `sequeless.query.adapter=postgres` |
 | `ExpressionPort` | Evaluate guard expressions against an object context | `jexl` | SpEL, GraalJS | `sequeless.expression.adapter=jexl` |
-| `AutomationPort` | Durably execute transition actions and timers from the outbox (object-lifecycle and `TransitionFired` entries). External signals are applied in the request, not through this port | `temporal` | `inprocess` | `sequeless.automation.adapter=temporal` |
+| `AutomationPort` | Durably execute transition actions and timers, and handle change triggers, from outbox rows ingested as Store events (object-lifecycle and `TransitionFired`). External signals are applied in the request, not through this port | `temporal` | `inprocess` | `sequeless.automation.adapter=temporal` |
 | `AuthorizationPort` | Decide whether a principal may perform an operation on a type, object or field | `permit-all` | Spring Security + OIDC | `sequeless.authz.adapter=permit-all` |
 | `DerivationPlugin` | Named code derivation used when a rule declares `sq:Plugin` | none (registry) | any | discovered by ServiceLoader, named in ontology |
 | `ClockPort`, `IdGenerator` | Deterministic time and ids for tests | core defaults | — | none |
@@ -150,7 +150,7 @@ public interface QueryPort {
 }
 
 public interface AutomationPort {
-    void dispatch(Scope scope, OutboxEntry entry);           // idempotent by entry id
+    void ingest(Scope scope, StoreEvent event);              // idempotent by event id
 }
 ```
 

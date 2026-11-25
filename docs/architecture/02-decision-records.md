@@ -230,3 +230,35 @@ Consequences: a signal rejected with 409 is a client-visible change for the UI's
 panel still says "takes effect asynchronously" (a known follow-up, not decided here). The signal body is
 no longer audited.
 Reversibility: moderate. The kind is gone from the code, and the V11 marks cannot be undone.
+
+### DR-27 Automation ingress takes Store events; the relay maps the outbox row
+Context: spec 13 P5b (`docs/extraction/spec-13-p5b-plan.md`) replaces `AutomationPort.dispatch(Scope, OutboxEntry)`,
+one method whose adapters switched on the kind string, with a typed Store-event ingress. Spec line 94
+(`docs/extraction/spec-13-prototype-stage4-prepare.md`) asked for `onChange` and `onTimerElapsed` to take the
+ingress event. Since P3, an elapsed timer is not an outbox row.
+Decision: (a) The ingress is one method, `ingest(Scope, StoreEvent)`. `StoreEvent` is a sealed interface over two
+records: `ObjectChangedEvent` (with a `Change` enum: CREATED, UPDATED, DELETED) and `TransitionFiredEvent`. Each
+adapter matches on the sealed type with no `default` branch, so the compiler checks the routing. (b) `OutboxRelay`
+maps each row with `StoreEvents.from(row)`. For an object-lifecycle row it runs `DerivationRecomputer.recompute`
+before the ingress (P5a). The event id is the row id, and the payload is unchanged, so workflow ids and redelivery
+keys keep their values. (c) Deviation 1 from spec line 94: `TriggerEvaluator.onTimerElapsed` keeps `OutboxEntry`,
+because an elapsed timer is not a Store event (GLOSSARY lines 77-82; OQ4(a)). (d) Deviation 2 from the spec 5.2
+table: `ActionExecutor` (`applyAction`, `resolveWebhookAction`), the Temporal `TransitionActionWorkflow` and its
+activity keep `OutboxEntry`. The adapters rebuild it from the `TransitionFiredEvent` with kind
+`KIND_TRANSITION_FIRED`, so the kind string stays in the adapters on the action path (OQ3(a)). (e) Decided by the
+Navigator (session 06f6998baaef4a1293463bad7fa0fb07), recorded in `docs/extraction/spec-13-p5b-plan.md` section 8.
+(f) The Temporal `ChangeEventWorkflow` input changed from `OutboxEntry` to `ObjectChangedEvent`, and its recompute
+activity is removed, because the relay now runs the recompute. It is the only Temporal workflow on the O-4 list
+(only dev Temporal state existed, cleared 2026-11-14).
+Alternatives: two port methods, `objectChanged` and `transitionFired`, with the relay routing on the kind string
+(the port widens, and the string match stays in the relay); four records, one per GLOSSARY case (two records that
+every consumer treats alike); typed fields that the relay parses out of the row (a missing ontology-version stamp
+then needs its own rule); a separate timer record (the pre-P3 replay histories would be retired), or a `StoreEvent`
+case for timers (contradicts GLOSSARY line 81); typing `ActionExecutor` and the action workflow with
+`TransitionFiredEvent` too (OQ3(b), the plan's recommendation, not taken).
+Consequences: no row, kind or migration changes. Rows written before the deploy are mapped when the new relay reads
+them. `ChangeEventWorkflow` is the only Temporal workflow whose input changes, so it is the only O-4 item; no non-dev Temporal state exists, so the loss gate is met. The deploy stops the old version before the new one starts, so an
+old worker cannot decode a new-shaped `ChangeEventWorkflow` task. `TimerWorkflow` keeps its input type, and so does
+`TransitionActionWorkflow`.
+Reversibility: moderate. No row, kind or migration changes, but the `ChangeEventWorkflow` input shape is part of a running workflow's history, so a revert must also stop the new worker before the old one
+starts, the same order as the deploy.

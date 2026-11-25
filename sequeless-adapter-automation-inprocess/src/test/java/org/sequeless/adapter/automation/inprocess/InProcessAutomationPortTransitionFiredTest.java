@@ -30,16 +30,17 @@ import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
  * Covers the applied {@code TransitionFired} path through {@link InProcessAutomationPort}:
- * {@link InProcessAutomationPort#dispatch} hands each such row to {@link
- * InProcessAutomationPort#dispatchTransitionFired}, which starts the row's timers and then applies its
- * actions. A {@code Log} action is applied once and not again on redelivery, a {@code SetProperty} action
- * is applied again on every delivery, a {@code Webhook} action is recorded only once its delivery succeeds,
+ * {@link InProcessAutomationPort#ingest} hands each such event to {@code applyTransitionFired}, which
+ * starts the event's timers and then applies its actions. A {@code Log} action is applied once and not
+ * again on redelivery, a {@code SetProperty} action is applied again on every delivery, a {@code
+ * Webhook} action is recorded only once its delivery succeeds,
  * and a row that is unstamped or written at another ontology version is refused rather than skipped.
  * A row starts its timer even with no actions or when an action throws, and a refused row starts none.
  */
@@ -56,7 +57,7 @@ class InProcessAutomationPortTransitionFiredTest {
     private static final Instant CLOCK_START = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
-    void dispatchTransitionFiredAppliesALogOnceAndRefusesAMismatchedOntologyVersion() {
+    void ingestTransitionFiredAppliesALogOnceAndRefusesAMismatchedOntologyVersion() {
         Automation automation = new Automation(
                 new OntologyVersion(1),
                 Map.of(
@@ -70,17 +71,17 @@ class InProcessAutomationPortTransitionFiredTest {
                 triggerEvaluator,
                 new InProcessTimerScheduler(Clock.systemUTC(), triggerEvaluator),
                 tenant -> automation);
-        OutboxEntry entry = transitionFired(1);
+        TransitionFiredEvent entry = transitionFired(1);
 
-        port.dispatchTransitionFired(SCOPE, entry);
+        port.ingest(SCOPE, entry);
         assertThat(recorder.countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
                 .isEqualTo(1);
 
-        port.dispatchTransitionFired(SCOPE, entry);
+        port.ingest(SCOPE, entry);
         assertThat(recorder.countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
                 .isEqualTo(1);
 
-        assertThatThrownBy(() -> port.dispatchTransitionFired(SCOPE, transitionFired(2)))
+        assertThatThrownBy(() -> port.ingest(SCOPE, transitionFired(2)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("version 2");
         assertThat(recorder.countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
@@ -88,7 +89,7 @@ class InProcessAutomationPortTransitionFiredTest {
     }
 
     @Test
-    void dispatchTransitionFiredAppliesAStoreActionOnEveryDeliveryBecauseItIsNotRecorded() {
+    void ingestTransitionFiredAppliesAStoreActionOnEveryDeliveryBecauseItIsNotRecorded() {
         Automation automation = new Automation(
                 new OntologyVersion(1),
                 Map.of(
@@ -97,17 +98,17 @@ class InProcessAutomationPortTransitionFiredTest {
                                 new SetPropertyAction(STATUS_IRI, Optional.empty(), Optional.of("self.owner")))));
         RecordingActionExecutor recorder = new RecordingActionExecutor();
         InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
-        OutboxEntry entry = transitionFired(1);
+        TransitionFiredEvent entry = transitionFired(1);
 
-        port.dispatchTransitionFired(SCOPE, entry);
-        port.dispatchTransitionFired(SCOPE, entry);
+        port.ingest(SCOPE, entry);
+        port.ingest(SCOPE, entry);
 
         assertThat(recorder.countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
                 .isEqualTo(2);
     }
 
     @Test
-    void dispatchTransitionFiredRetriesAWebhookThatFailedOnceAndRecordsItOnlyOnDelivery() throws IOException {
+    void ingestTransitionFiredRetriesAWebhookThatFailedOnceAndRecordsItOnlyOnDelivery() throws IOException {
         AtomicInteger requestCount = new AtomicInteger();
         HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         server.createContext("/hook", exchange -> {
@@ -129,12 +130,11 @@ class InProcessAutomationPortTransitionFiredTest {
             InProcessAutomationProperties properties = new InProcessAutomationProperties();
             properties.setRetryAttempts(1);
             InProcessAutomationPort port = portFor(recorder, automation, properties);
-            OutboxEntry entry = transitionFired(1);
+            TransitionFiredEvent entry = transitionFired(1);
 
-            assertThatThrownBy(() -> port.dispatchTransitionFired(SCOPE, entry))
-                    .isInstanceOf(WebhookDeliveryException.class);
-            port.dispatchTransitionFired(SCOPE, entry);
-            port.dispatchTransitionFired(SCOPE, entry);
+            assertThatThrownBy(() -> port.ingest(SCOPE, entry)).isInstanceOf(WebhookDeliveryException.class);
+            port.ingest(SCOPE, entry);
+            port.ingest(SCOPE, entry);
 
             // The failed first delivery was not recorded, so the second call delivered again; the
             // third call found the action recorded and neither resolved nor delivered it.
@@ -147,7 +147,7 @@ class InProcessAutomationPortTransitionFiredTest {
     }
 
     @Test
-    void dispatchAppliesTheSingleActionOfAStampedTransitionFiredRowOnce() {
+    void ingestAppliesTheSingleActionOfAStampedTransitionFiredRowOnce() {
         Automation automation = new Automation(
                 new OntologyVersion(1),
                 Map.of(
@@ -156,14 +156,14 @@ class InProcessAutomationPortTransitionFiredTest {
         RecordingActionExecutor recorder = new RecordingActionExecutor();
         InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
 
-        port.dispatch(SCOPE, transitionFired(1));
+        port.ingest(SCOPE, transitionFired(1));
 
         assertThat(recorder.countOf(RecordingActionExecutor.METHOD_APPLY_ACTION))
                 .isEqualTo(1);
     }
 
     @Test
-    void dispatchTransitionFiredRefusesARowWithNoOntologyVersionStampAndNamesTheRow() {
+    void ingestTransitionFiredRefusesARowWithNoOntologyVersionStampAndNamesTheEvent() {
         Automation automation = new Automation(
                 new OntologyVersion(1),
                 Map.of(
@@ -171,16 +171,16 @@ class InProcessAutomationPortTransitionFiredTest {
                         List.<Action>of(new LogAction("project activated"))));
         RecordingActionExecutor recorder = new RecordingActionExecutor();
         InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
-        OutboxEntry unstamped = unstampedTransitionFired();
+        TransitionFiredEvent unstamped = unstampedTransitionFired();
 
-        assertThatThrownBy(() -> port.dispatchTransitionFired(SCOPE, unstamped))
+        assertThatThrownBy(() -> port.ingest(SCOPE, unstamped))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(unstamped.id().toString());
         assertThat(recorder.calls()).isEmpty();
     }
 
     @Test
-    void dispatchTransitionFiredRefusesANonNumberStampAndNamesTheRow() {
+    void ingestTransitionFiredRefusesANonNumberStampAndNamesTheEvent() {
         Automation automation = new Automation(
                 new OntologyVersion(1),
                 Map.of(
@@ -188,9 +188,9 @@ class InProcessAutomationPortTransitionFiredTest {
                         List.<Action>of(new LogAction("project activated"))));
         RecordingActionExecutor recorder = new RecordingActionExecutor();
         InProcessAutomationPort port = portFor(recorder, automation, new InProcessAutomationProperties());
-        OutboxEntry textStamped = transitionFiredWithStamp("1");
+        TransitionFiredEvent textStamped = transitionFiredWithStamp("1");
 
-        assertThatThrownBy(() -> port.dispatchTransitionFired(SCOPE, textStamped))
+        assertThatThrownBy(() -> port.ingest(SCOPE, textStamped))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(textStamped.id().toString());
         assertThat(recorder.calls()).isEmpty();
@@ -214,7 +214,7 @@ class InProcessAutomationPortTransitionFiredTest {
                 timerScheduler,
                 tenant -> new Automation(new OntologyVersion(1), Map.of()));
 
-        port.dispatch(SCOPE, transitionFired(1));
+        port.ingest(SCOPE, transitionFired(1));
         assertThat(recorder.calls()).isEmpty();
 
         clock.advance(TIMER_AFTER);
@@ -226,7 +226,7 @@ class InProcessAutomationPortTransitionFiredTest {
 
     /**
      * A {@code TransitionFired} row whose action throws still starts its timer, because the timers start
-     * before the action loop. The webhook delivery fails here, so {@code dispatch} throws.
+     * before the action loop. The webhook delivery fails here, so {@code ingest} throws.
      */
     @Test
     void transitionFiredWhoseActionThrowsStillStartsItsTimer() throws IOException {
@@ -255,7 +255,7 @@ class InProcessAutomationPortTransitionFiredTest {
             InProcessAutomationPort port = new InProcessAutomationPort(
                     recorder, properties, triggerEvaluator, timerScheduler, tenant -> automation);
 
-            assertThatThrownBy(() -> port.dispatch(SCOPE, transitionFired(1)))
+            assertThatThrownBy(() -> port.ingest(SCOPE, transitionFired(1)))
                     .isInstanceOf(WebhookDeliveryException.class);
 
             clock.advance(TIMER_AFTER);
@@ -270,7 +270,7 @@ class InProcessAutomationPortTransitionFiredTest {
 
     /**
      * A {@code TransitionFired} row redelivered after the clock has moved on keeps its timer's first due
-     * instant. The timer is due 30 minutes after the first dispatch. The redelivery, 10 minutes later,
+     * instant. The timer is due 30 minutes after the first ingest. The redelivery, 10 minutes later,
      * must not move the due instant to 40 minutes, so the timer fires at 30 minutes and not after.
      */
     @Test
@@ -285,11 +285,11 @@ class InProcessAutomationPortTransitionFiredTest {
                 triggerEvaluator,
                 timerScheduler,
                 tenant -> new Automation(new OntologyVersion(1), Map.of()));
-        OutboxEntry entry = transitionFired(1);
+        TransitionFiredEvent entry = transitionFired(1);
 
-        port.dispatch(SCOPE, entry);
+        port.ingest(SCOPE, entry);
         clock.advance(Duration.ofMinutes(10));
-        port.dispatch(SCOPE, entry);
+        port.ingest(SCOPE, entry);
         clock.advance(Duration.ofMinutes(10));
         timerScheduler.sweep();
         assertThat(triggerEvaluator.countOf(RecordingTriggerEvaluator.METHOD_ON_TIMER_ELAPSED))
@@ -318,7 +318,7 @@ class InProcessAutomationPortTransitionFiredTest {
                 timerScheduler,
                 tenant -> new Automation(new OntologyVersion(1), Map.of()));
 
-        assertThatThrownBy(() -> port.dispatch(SCOPE, transitionFired(2)))
+        assertThatThrownBy(() -> port.ingest(SCOPE, transitionFired(2)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("version 2");
 
@@ -349,23 +349,21 @@ class InProcessAutomationPortTransitionFiredTest {
     }
 
     /** The row {@link #transitionFired(int)} builds, with {@code stamp} in place of its {@code ontologyVersion}. */
-    private static OutboxEntry transitionFiredWithStamp(Object stamp) {
+    private static TransitionFiredEvent transitionFiredWithStamp(Object stamp) {
         Map<String, Object> payload = new HashMap<>(transitionFired(1).payload());
         payload.put("ontologyVersion", stamp);
-        return new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.parse("2026-01-01T00:00:00Z"));
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.parse("2026-01-01T00:00:00Z"));
     }
 
     /** The row {@link #transitionFired(int)} builds, minus the {@code ontologyVersion} stamp. */
-    private static OutboxEntry unstampedTransitionFired() {
+    private static TransitionFiredEvent unstampedTransitionFired() {
         Map<String, Object> payload = new HashMap<>(transitionFired(1).payload());
         payload.remove("ontologyVersion");
-        return new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.parse("2026-01-01T00:00:00Z"));
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.parse("2026-01-01T00:00:00Z"));
     }
 
     /** A {@code TransitionFired} row carrying the keys {@code DefaultTransitionService} writes on one. */
-    private static OutboxEntry transitionFired(int ontologyVersion) {
+    private static TransitionFiredEvent transitionFired(int ontologyVersion) {
         Map<String, Object> payload = Map.of(
                 "objectId",
                 UUID.randomUUID().toString(),
@@ -387,7 +385,6 @@ class InProcessAutomationPortTransitionFiredTest {
                 "http://example.org/Project",
                 "machineIri",
                 MACHINE_IRI);
-        return new OutboxEntry(
-                UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, Instant.parse("2026-01-01T00:00:00Z"));
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, Instant.parse("2026-01-01T00:00:00Z"));
     }
 }

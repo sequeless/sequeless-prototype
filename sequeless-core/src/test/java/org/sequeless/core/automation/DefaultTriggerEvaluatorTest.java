@@ -46,8 +46,10 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.automation.ObjectChangedEvent;
 import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TimerScheduledEntry;
+import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -184,20 +186,20 @@ class DefaultTriggerEvaluatorTest {
                 false);
     }
 
-    private static OutboxEntry objectUpdatedEvent(ObjectId taskId) {
-        return new OutboxEntry(
+    private static ObjectChangedEvent objectUpdatedEvent(ObjectId taskId) {
+        return new ObjectChangedEvent(
                 UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_UPDATED,
+                ObjectChangedEvent.Change.UPDATED,
                 Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI),
                 NOW);
     }
 
-    private static OutboxEntry objectDeletedEvent(ObjectId taskId, ObjectId belongsToProjectId) {
+    private static ObjectChangedEvent objectDeletedEvent(ObjectId taskId, ObjectId belongsToProjectId) {
         Map<String, Object> properties =
                 Map.of(BELONGS_TO_PROJECT_IRI, PayloadValueCodec.toPayload(Value.ref(belongsToProjectId)));
-        return new OutboxEntry(
+        return new ObjectChangedEvent(
                 UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_DELETED,
+                ObjectChangedEvent.Change.DELETED,
                 Map.of("objectId", taskId.value().toString(), "typeIri", TASK_IRI, "properties", properties),
                 NOW);
     }
@@ -250,9 +252,9 @@ class DefaultTriggerEvaluatorTest {
         store.seed(project(projectId, 1, ACTIVE_IRI));
         DefaultTriggerEvaluator evaluator = evaluator(store);
 
-        OutboxEntry projectChanged = new OutboxEntry(
+        ObjectChangedEvent projectChanged = new ObjectChangedEvent(
                 UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_UPDATED,
+                ObjectChangedEvent.Change.UPDATED,
                 Map.of("objectId", projectId.value().toString(), "typeIri", PROJECT_IRI),
                 NOW);
         evaluator.onChange(ALICE, projectChanged);
@@ -291,9 +293,9 @@ class DefaultTriggerEvaluatorTest {
         // AUTO_CLOSE's own self-candidacy path, which is exercised separately above; here we
         // confirm the *watch* scan does not spuriously match a type that doesn't declare the
         // property, by using a type with no state machine and no relationship of that name.
-        OutboxEntry unrelatedChange = new OutboxEntry(
+        ObjectChangedEvent unrelatedChange = new ObjectChangedEvent(
                 UUID.randomUUID(),
-                OutboxEntry.KIND_OBJECT_UPDATED,
+                ObjectChangedEvent.Change.UPDATED,
                 Map.of("objectId", ObjectId.random().value().toString(), "typeIri", "urn:unknown:Type"),
                 NOW);
 
@@ -369,7 +371,7 @@ class DefaultTriggerEvaluatorTest {
     @Test
     void timersStartedByThrowsWhenTheStampDiffersFromTheActiveBehaviourVersion() {
         DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
-        OutboxEntry staleRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, 2);
+        TransitionFiredEvent staleRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, 2);
 
         assertThatThrownBy(() -> evaluator.timersStartedBy(ALICE, staleRow))
                 .isInstanceOf(IllegalStateException.class)
@@ -379,7 +381,7 @@ class DefaultTriggerEvaluatorTest {
     @Test
     void timersStartedByThrowsWhenTheRowHasNoOntologyVersionStamp() {
         DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
-        OutboxEntry unstampedRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, null);
+        TransitionFiredEvent unstampedRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, null);
 
         assertThatThrownBy(() -> evaluator.timersStartedBy(ALICE, unstampedRow))
                 .isInstanceOf(IllegalStateException.class)
@@ -387,7 +389,8 @@ class DefaultTriggerEvaluatorTest {
     }
 
     /** A {@code TransitionFired} row moving {@code projectId} into {@code toState}; a null stamp omits the key. */
-    private static OutboxEntry transitionFiredEvent(ObjectId projectId, String toState, Integer ontologyVersion) {
+    private static TransitionFiredEvent transitionFiredEvent(
+            ObjectId projectId, String toState, Integer ontologyVersion) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("objectId", projectId.value().toString());
         payload.put("typeIri", PROJECT_IRI);
@@ -396,7 +399,7 @@ class DefaultTriggerEvaluatorTest {
         if (ontologyVersion != null) {
             payload.put("ontologyVersion", ontologyVersion);
         }
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TRANSITION_FIRED, payload, NOW);
+        return new TransitionFiredEvent(UUID.randomUUID(), payload, NOW);
     }
 
     // --- wiring helper ---
