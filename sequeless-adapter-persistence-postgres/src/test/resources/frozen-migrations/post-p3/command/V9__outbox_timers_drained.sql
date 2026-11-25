@@ -4,7 +4,7 @@
 -- before the new version starts. This statement is the backstop for any row that the count missed.
 -- It stamps only those two kinds; the rows of every other kind keep processed_at NULL.
 --
--- Marked, not dispatched: P3 removes both kinds from the code (ac46d8f), so no version that runs this
+-- Marked, not dispatched: P3 removes both kinds from the code (DR-25), so no version that runs this
 -- migration has a handler for them. The P3 code starts a timer from its TransitionFired row instead. A timer
 -- row still unprocessed here is marked without dispatch, so its timer does not run and leaves no record.
 --
