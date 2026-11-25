@@ -1,5 +1,6 @@
 package org.sequeless.adapter.persistence.postgres;
 
+import java.util.Map;
 import java.util.Objects;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -90,12 +91,17 @@ public final class PostgresMigrations {
     /*
      * Validation ignores missing and future entries. A database that applied Command V2 before P7
      * keeps that row, which Flyway reports as MISSING_SUCCESS because V2 is no longer in this set.
+     *
+     * The transactional advisory lock is off. With it on, Flyway holds an open transaction for the whole
+     * run, and CREATE INDEX CONCURRENTLY (Command V10) waits on that transaction and never finishes. The
+     * lock is then a session-level advisory lock, which still serialises concurrent migrations.
      */
     private static FluentConfiguration commandConfiguration(DataSource dataSource) {
         return Flyway.configure()
                 .dataSource(dataSource)
                 .locations(COMMAND_LOCATION)
-                .ignoreMigrationPatterns("*:missing", "*:future");
+                .ignoreMigrationPatterns("*:missing", "*:future")
+                .configuration(Map.of("flyway.postgresql.transactional.lock", "false"));
     }
 
     private static FluentConfiguration queryConfiguration(DataSource dataSource) {
