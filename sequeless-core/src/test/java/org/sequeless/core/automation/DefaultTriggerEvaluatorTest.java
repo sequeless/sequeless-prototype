@@ -439,7 +439,9 @@ class DefaultTriggerEvaluatorTest {
         DefaultTriggerEvaluator evaluator = evaluator(new FakeObjectStorePort());
         OutboxEntry staleRow = transitionFiredEvent(ObjectId.random(), ON_HOLD_IRI, 2);
 
-        assertThatThrownBy(() -> evaluator.timersStartedBy(ALICE, staleRow)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> evaluator.timersStartedBy(ALICE, staleRow))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("stamped at ontology version 2");
     }
 
     @Test
