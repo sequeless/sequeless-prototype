@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -30,7 +31,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * migrations, starting with V7, may follow it, so the live set can be ahead of the frozen post-P7 set.
  * The pair from after P7 to after P2 (case f) starts at the frozen post-P7 set, migrates to the frozen
  * post-P2 set, and then to the live set. The pair from after P2 to after P3 (case g) starts at the frozen
- * post-P2 set, migrates to the frozen post-P3 set, and then to the live set.
+ * post-P2 set, migrates to the frozen post-P3 set, and then to the live set. The pair from after P3 to after
+ * P4 (case h) starts at the frozen post-P3 set, migrates to the frozen post-P4 set, and then to the live set.
  */
 @Testcontainers
 class PostgresMigrationsSettlingIT {
@@ -43,6 +45,7 @@ class PostgresMigrationsSettlingIT {
     private static final String FROZEN_POST_P7 = "classpath:frozen-migrations/post-p7/command";
     private static final String FROZEN_POST_P2 = "classpath:frozen-migrations/post-p2/command";
     private static final String FROZEN_POST_P3 = "classpath:frozen-migrations/post-p3/command";
+    private static final String FROZEN_POST_P4 = "classpath:frozen-migrations/post-p4/command";
     private static final String TENANT = "acme";
     private static final String TITLE_IRI = "https://sequeless.test/settling#title";
 
@@ -56,7 +59,8 @@ class PostgresMigrationsSettlingIT {
             "7 SUCCESS",
             "8 SUCCESS",
             "9 SUCCESS",
-            "10 SUCCESS");
+            "10 SUCCESS",
+            "11 SUCCESS");
 
     private static DataSource dataSource;
 
@@ -136,6 +140,42 @@ class PostgresMigrationsSettlingIT {
         assertRowCounts(2, 1);
     }
 
+    /**
+     * Settling case (h): the pair from after P3 to after P4. A database at the frozen post-P3 set (V1 and V3
+     * to V9, no V10 or V11) and the Query set migrates to the frozen post-P4 set (V1 and V3 to V11), and then
+     * to the live set.
+     */
+    @Test
+    void frozenPostP3LayoutMigratesThroughThePostP4Set() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P3)
+                .load()
+                .migrate();
+        // The post-P3 set has the search trigger, which reads sq_searchable_property on every object write.
+        PostgresMigrations.queryFlyway(dataSource).migrate();
+        insertObject(UUID.randomUUID(), "first");
+        insertObject(UUID.randomUUID(), "second");
+        insertSearchableRegistration();
+        // The post-P4 set ends with V10, CREATE INDEX CONCURRENTLY. With the transactional lock on, Flyway holds
+        // a transaction open for the whole run and V10 waits on it forever, so the lock is off here, as in
+        // PostgresMigrations.
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations(FROZEN_POST_P4)
+                .configuration(Map.of("flyway.postgresql.transactional.lock", "false"))
+                .load()
+                .migrate();
+
+        PostgresMigrations.migrate(dataSource);
+
+        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
+                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
+        assertSearchSchemaPresent();
+        assertQueryHistory();
+        assertRowCounts(2, 1);
+    }
+
     /** Settling case (a): a fresh database migrates to the final set. */
     @Test
     void freshDatabaseMigratesToTheFinalSet() {
@@ -180,7 +220,8 @@ class PostgresMigrationsSettlingIT {
                         "7 SUCCESS",
                         "8 SUCCESS",
                         "9 SUCCESS",
-                        "10 SUCCESS");
+                        "10 SUCCESS",
+                        "11 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
@@ -212,7 +253,8 @@ class PostgresMigrationsSettlingIT {
                         "7 SUCCESS",
                         "8 SUCCESS",
                         "9 SUCCESS",
-                        "10 SUCCESS");
+                        "10 SUCCESS",
+                        "11 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
