@@ -280,7 +280,8 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .expectBody()
                 .isEmpty();
 
-        awaitState(client, project.id(), "Active", Duration.ofSeconds(6));
+        // The signal applies its transition in the request, so the state is Active at once: no poll.
+        assertThat(currentState(client, project.id())).isEqualTo("Active");
     }
 
     private BusinessObjectResponse setOwnerAndActivate(

@@ -37,17 +37,14 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
     /** The method name recorded for a call to {@link TriggerEvaluator#onTimerElapsed}. */
     public static final String METHOD_ON_TIMER_ELAPSED = "onTimerElapsed";
 
-    /** The method name recorded for a call to {@link TriggerEvaluator#onSignal}. */
-    public static final String METHOD_ON_SIGNAL = "onSignal";
-
     /** The method name recorded for a call to {@link TriggerEvaluator#timersStartedBy}. */
     public static final String METHOD_TIMERS_STARTED_BY = "timersStartedBy";
 
     /**
      * One recorded {@link TriggerEvaluator} call.
      *
-     * @param method one of {@link #METHOD_ON_CHANGE}, {@link #METHOD_ON_TIMER_ELAPSED}, {@link
-     *     #METHOD_ON_SIGNAL}, or {@link #METHOD_TIMERS_STARTED_BY}
+     * @param method one of {@link #METHOD_ON_CHANGE}, {@link #METHOD_ON_TIMER_ELAPSED}, or {@link
+     *     #METHOD_TIMERS_STARTED_BY}
      * @param entryId the {@link OutboxEntry#id()} the call was made with
      * @param sequenceNanos a {@link System#nanoTime()} reading taken when the call was recorded,
      *     usable only for relative ordering within a single JVM run, never as a wall-clock value
@@ -67,11 +64,6 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
     @Override
     public void onTimerElapsed(Scope scope, OutboxEntry timerScheduled) {
         record(METHOD_ON_TIMER_ELAPSED, timerScheduled);
-    }
-
-    @Override
-    public void onSignal(Scope scope, OutboxEntry signalReceived) {
-        record(METHOD_ON_SIGNAL, signalReceived);
     }
 
     /**
@@ -103,8 +95,7 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
     }
 
     /**
-     * @param method one of {@link #METHOD_ON_CHANGE}, {@link #METHOD_ON_TIMER_ELAPSED}, or {@link
-     *     #METHOD_ON_SIGNAL}
+     * @param method one of {@link #METHOD_ON_CHANGE} or {@link #METHOD_ON_TIMER_ELAPSED}
      * @return how many recorded calls have {@link Call#method()} equal to {@code method}
      */
     public long countOf(String method) {

@@ -17,7 +17,6 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.behaviour.api.Behaviour;
-import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
 import org.sequeless.ontology.behaviour.api.OnChangeTrigger;
 import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
 import org.sequeless.ontology.behaviour.api.TimerTrigger;
@@ -36,9 +35,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * Reference implementation of {@link TriggerEvaluator}, called back into by an automation adapter
- * (the in-process relay, or a Temporal activity) once a domain-lifecycle change, an elapsed timer,
- * or an external signal might make an {@code OnChange}/{@code Timer}/{@code ExternalSignal}-
- * triggered transition available. Conceptually parallel to {@link DefaultActionExecutor} — both are
+ * (the in-process relay, or a Temporal activity) once a domain-lifecycle change or an elapsed timer
+ * might make an {@code OnChange}/{@code Timer}-triggered transition available. Conceptually parallel
+ * to {@link DefaultActionExecutor} — both are
  * inbound-port implementations an adapter calls, rather than outbound ports this class calls out
  * to — but this class never mutates an object directly: every actual state move goes through
  * {@link TransitionService#fireAutomated}, which owns guard evaluation, availability checking, and
@@ -156,41 +155,6 @@ public final class DefaultTriggerEvaluator implements TriggerEvaluator {
             return;
         }
         transitionService.fireAutomated(scope, objectId, transitionName, TriggerKind.TIMER);
-    }
-
-    @Override
-    public void onSignal(Scope scope, OutboxEntry signalReceived) {
-        Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(signalReceived, "signalReceived must not be null");
-
-        Map<String, Object> payload = signalReceived.payload();
-        ObjectId objectId = ObjectId.parse((String) payload.get("objectId"));
-        String signalName = (String) payload.get("signalName");
-
-        Optional<BusinessObject> found = objectStorePort.find(scope, objectId);
-        if (found.isEmpty() || found.get().state().isEmpty()) {
-            return;
-        }
-        BusinessObject object = found.get();
-
-        Behaviour behaviour = behaviourSource.behaviour(scope.tenantId());
-        Optional<StateMachineDefinition> maybeMachine =
-                behaviour.stateMachine(object.type().iri());
-        if (maybeMachine.isEmpty()) {
-            return;
-        }
-        StateMachineDefinition machine = maybeMachine.get();
-        String currentState = object.state().get();
-
-        for (Transition transition : machine.transitions()) {
-            if (transition.fromStateIri().equals(currentState)
-                    && transition.trigger() instanceof ExternalSignalTrigger signalTrigger
-                    && signalTrigger.signalName().equals(signalName)) {
-                transitionService.fireAutomated(scope, objectId, transition.name(), TriggerKind.EXTERNAL_SIGNAL);
-                return;
-            }
-        }
-        // No transition on the object's current state matches this signal name: silent no-op.
     }
 
     /**

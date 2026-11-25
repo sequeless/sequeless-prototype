@@ -21,9 +21,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
 /**
  * The default, durable {@link AutomationPort} adapter. {@link #dispatch} routes by {@code
  * entry.kind()}: the three object-lifecycle kinds start a {@link ChangeEventWorkflow} (also keyed by
- * {@code entry.id()}) that runs recompute then {@code onChange}, in that order; {@code SignalReceived}
- * starts a {@link SignalEventWorkflow} keyed by {@code entry.id()}. {@code TransitionFired} is routed to
- * {@code startTransitionFiredActions}, which starts one {@link TimerWorkflow} for each timer the row
+ * {@code entry.id()}) that runs recompute then {@code onChange}, in that order. {@code TransitionFired}
+ * is routed to {@code startTransitionFiredActions}, which starts one {@link TimerWorkflow} for each timer the row
  * starts, keyed by the timer's {@code timerKey}, and then one {@link TransitionActionWorkflow} per action
  * of the transition, keyed by {@code entry.id()} and the action index. Every case is fire-and-forget —
  * {@link #dispatch} never waits for a started workflow to complete. Any other unrecognised kind is
@@ -94,7 +93,6 @@ public final class TemporalAutomationPort implements AutomationPort {
         switch (entry.kind()) {
             case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
                 startChangeEventWorkflow(scope, entry);
-            case OutboxEntry.KIND_SIGNAL_RECEIVED -> startSignalEventWorkflow(scope, entry);
             case OutboxEntry.KIND_TRANSITION_FIRED -> startTransitionFiredActions(scope, entry);
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
@@ -103,16 +101,6 @@ public final class TemporalAutomationPort implements AutomationPort {
     private void startChangeEventWorkflow(Scope scope, OutboxEntry entry) {
         ChangeEventWorkflow workflow = workflowClient.newWorkflowStub(
                 ChangeEventWorkflow.class, workflowOptions(entry.id().toString()));
-        try {
-            WorkflowClient.start(workflow::run, entry, scope);
-        } catch (WorkflowExecutionAlreadyStarted e) {
-            // Idempotent no-op: this entry's workflow already exists (started or completed).
-        }
-    }
-
-    private void startSignalEventWorkflow(Scope scope, OutboxEntry entry) {
-        SignalEventWorkflow workflow = workflowClient.newWorkflowStub(
-                SignalEventWorkflow.class, workflowOptions(entry.id().toString()));
         try {
             WorkflowClient.start(workflow::run, entry, scope);
         } catch (WorkflowExecutionAlreadyStarted e) {

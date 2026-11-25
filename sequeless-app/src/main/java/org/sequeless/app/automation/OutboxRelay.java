@@ -19,9 +19,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * A thin {@code @Scheduled} poller that drains the full dispatchable outbox kind set — the three
- * object-lifecycle kinds, {@link OutboxEntry#KIND_TRANSITION_FIRED}, and {@link
- * OutboxEntry#KIND_SIGNAL_RECEIVED} — one row at a time, into whichever {@link AutomationPort}
- * adapter is currently configured.
+ * object-lifecycle kinds and {@link OutboxEntry#KIND_TRANSITION_FIRED} — one row at a time, into
+ * whichever {@link AutomationPort} adapter is currently configured.
  *
  * <p><b>Recompute before the ingress.</b> For each object-lifecycle row ({@link
  * OutboxEntry#KIND_OBJECT_CREATED}, {@link OutboxEntry#KIND_OBJECT_UPDATED}, {@link
@@ -53,8 +52,7 @@ public class OutboxRelay {
             OutboxEntry.KIND_OBJECT_CREATED,
             OutboxEntry.KIND_OBJECT_UPDATED,
             OutboxEntry.KIND_OBJECT_DELETED,
-            OutboxEntry.KIND_TRANSITION_FIRED,
-            OutboxEntry.KIND_SIGNAL_RECEIVED);
+            OutboxEntry.KIND_TRANSITION_FIRED);
 
     private static final Set<String> OBJECT_LIFECYCLE_KINDS =
             Set.of(OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED);
@@ -144,7 +142,7 @@ public class OutboxRelay {
     /**
      * The placeholder principal id/display name used to dispatch an object-lifecycle
      * ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted}) outbox row, whose payload
-     * — unlike {@code TransitionFired} and {@code SignalReceived} — carries no {@code principalId}
+     * — unlike {@code TransitionFired} — carries no {@code principalId}
      * at all (verified against {@code DefaultBusinessObjectService}/{@code
      * DefaultActionExecutor}'s shared {@code outboxPayload} helper). There is no richer identity to
      * recover from that frozen payload, and {@code Principal}'s compact constructor rejects a

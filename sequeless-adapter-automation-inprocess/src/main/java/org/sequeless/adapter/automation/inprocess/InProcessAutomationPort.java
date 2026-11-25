@@ -69,8 +69,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * org.sequeless.spi.automation.DerivationRecomputer#recompute} for the same row before it calls this
  * method, so {@code
  * ex:ProjectLifecycle}'s {@code autoClose} guard reads a materialised property that is already
- * fresh. This port makes no recompute call of its own. {@code SignalReceived} goes to {@link
- * TriggerEvaluator#onSignal}. {@code TransitionFired} is applied per action: {@link #dispatch} routes
+ * fresh. This port makes no recompute call of its own. {@code TransitionFired} is applied per action: {@link #dispatch} routes
  * each such row to {@link #dispatchTransitionFired}, which starts the timers the row names through
  * {@link InProcessTimerScheduler} and then applies the row's actions in order from the automation of
  * the row's ontology version. This adapter has no timer kind of its own: timers are started from the
@@ -98,7 +97,7 @@ public final class InProcessAutomationPort implements AutomationPort {
      * @param actionExecutor the {@link ActionExecutor} this port calls back into to actually apply
      *     each action; must not be {@code null}
      * @param properties this adapter's webhook retry configuration; must not be {@code null}
-     * @param triggerEvaluator the port an object-lifecycle or signal entry is routed to;
+     * @param triggerEvaluator the port an object-lifecycle or timer entry is routed to;
      *     must not be {@code null}
      * @param timerScheduler the scheduler the timers a {@code TransitionFired} row starts are scheduled
      *     on; must not be {@code null}
@@ -138,7 +137,6 @@ public final class InProcessAutomationPort implements AutomationPort {
         switch (entry.kind()) {
             case OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED ->
                 triggerEvaluator.onChange(scope, entry);
-            case OutboxEntry.KIND_SIGNAL_RECEIVED -> triggerEvaluator.onSignal(scope, entry);
             default -> throw new IllegalArgumentException("Unsupported OutboxEntry kind for dispatch: " + entry.kind());
         }
     }

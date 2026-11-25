@@ -42,8 +42,7 @@ class PostgresOutboxClaimIT {
             "ObjectDeleted",
             "TransitionFired",
             "TimerScheduled",
-            "TimerCancelled",
-            "SignalReceived");
+            "TimerCancelled");
 
     private static final Instant BASE = Instant.parse("2026-11-01T00:00:00Z");
 

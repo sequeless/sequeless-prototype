@@ -7,7 +7,7 @@ import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The real {@link TriggerActivities} implementation: four pure pass-throughs to the injected
+ * The real {@link TriggerActivities} implementation: three pure pass-throughs to the injected
  * {@link TriggerEvaluator}/{@link DerivationRecomputer}. A {@code StaleObjectException} that
  * {@link DerivationRecomputer#recompute} throws, after its own intra-call retry loop is exhausted,
  * propagates out of this activity method unchanged, so Temporal's configured {@code RetryOptions}
@@ -19,8 +19,8 @@ public final class TriggerActivitiesImpl implements TriggerActivities {
     private final DerivationRecomputer derivationRecomputer;
 
     /**
-     * @param triggerEvaluator the port {@link #onChange}/{@link #onTimerElapsed}/{@link #onSignal}
-     *     forward to; must not be {@code null}
+     * @param triggerEvaluator the port {@link #onChange}/{@link #onTimerElapsed} forward to; must
+     *     not be {@code null}
      * @param derivationRecomputer the port {@link #recompute} forwards to; must not be {@code null}
      */
     public TriggerActivitiesImpl(TriggerEvaluator triggerEvaluator, DerivationRecomputer derivationRecomputer) {
@@ -42,10 +42,5 @@ public final class TriggerActivitiesImpl implements TriggerActivities {
     @Override
     public void onTimerElapsed(Scope scope, OutboxEntry timerScheduled) {
         triggerEvaluator.onTimerElapsed(scope, timerScheduled);
-    }
-
-    @Override
-    public void onSignal(Scope scope, OutboxEntry signalReceived) {
-        triggerEvaluator.onSignal(scope, signalReceived);
     }
 }

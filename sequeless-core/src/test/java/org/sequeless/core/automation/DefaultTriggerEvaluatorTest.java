@@ -120,20 +120,12 @@ class DefaultTriggerEvaluatorTest {
             Optional.empty());
     private static final Transition REOPEN = new Transition(
             "reopen", CLOSED_IRI, ACTIVE_IRI, new ExternalSignalTrigger("reopen"), Optional.empty(), Optional.empty());
-    /** A second signal-triggered transition, so onSignal's name-matching is actually exercised. */
-    private static final Transition ARCHIVE_SIGNAL = new Transition(
-            "archiveSignal",
-            CLOSED_IRI,
-            CLOSED_IRI,
-            new ExternalSignalTrigger("archive"),
-            Optional.empty(),
-            Optional.empty());
 
     private static final StateMachineDefinition PROJECT_LIFECYCLE = new StateMachineDefinition(
             NS + "ProjectLifecycle",
             List.of(ACTIVE, CLOSED, ON_HOLD),
             ACTIVE,
-            List.of(AUTO_CLOSE, EXPIRE_HOLD, REOPEN, ARCHIVE_SIGNAL));
+            List.of(AUTO_CLOSE, EXPIRE_HOLD, REOPEN));
 
     private static final TypeDefinition PROJECT =
             new TypeDefinition(PROJECT_IRI, "Project", List.of(), List.of(), DisplayHints.none(), false);
@@ -214,14 +206,6 @@ class DefaultTriggerEvaluatorTest {
         ResolvedTimer timer = new ResolvedTimer(
                 OutboxEntry.timerKey(projectId, state, transitionName), Duration.ofHours(72), state, transitionName);
         return TimerScheduledEntry.of(ALICE, projectId, PROJECT_IRI, 1, timer, NOW);
-    }
-
-    private static OutboxEntry signalReceivedEvent(ObjectId projectId, String signalName) {
-        return new OutboxEntry(
-                UUID.randomUUID(),
-                OutboxEntry.KIND_SIGNAL_RECEIVED,
-                Map.of("objectId", projectId.value().toString(), "signalName", signalName),
-                NOW);
     }
 
     // --- onChange ---
@@ -351,57 +335,6 @@ class DefaultTriggerEvaluatorTest {
         DefaultTriggerEvaluator evaluator = evaluator(store);
 
         evaluator.onTimerElapsed(ALICE, timerScheduledEvent(ObjectId.random(), ON_HOLD_IRI, "expireHold"));
-
-        assertThat(store.commitCalls).isZero();
-    }
-
-    // --- onSignal ---
-
-    @Test
-    void onSignalFiresTheTransitionWhoseSignalNameMatchesFromTheCurrentState() {
-        ObjectId projectId = ObjectId.random();
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        store.seed(project(projectId, 1, CLOSED_IRI));
-        DefaultTriggerEvaluator evaluator = evaluator(store);
-
-        evaluator.onSignal(ALICE, signalReceivedEvent(projectId, "reopen"));
-
-        assertThat(store.store.get(projectId).state()).contains(ACTIVE_IRI);
-    }
-
-    @Test
-    void onSignalIsANoOpForAnUnknownSignalName() {
-        ObjectId projectId = ObjectId.random();
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        store.seed(project(projectId, 1, CLOSED_IRI));
-        DefaultTriggerEvaluator evaluator = evaluator(store);
-
-        evaluator.onSignal(ALICE, signalReceivedEvent(projectId, "no-such-signal"));
-
-        assertThat(store.store.get(projectId).state()).contains(CLOSED_IRI);
-        assertThat(store.commitCalls).isZero();
-    }
-
-    @Test
-    void onSignalIsANoOpWhenNoTransitionDepartsTheCurrentStateWithThatName() {
-        ObjectId projectId = ObjectId.random();
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        // "reopen" only departs Closed; from Active it must not fire.
-        store.seed(project(projectId, 1, ACTIVE_IRI));
-        DefaultTriggerEvaluator evaluator = evaluator(store);
-
-        evaluator.onSignal(ALICE, signalReceivedEvent(projectId, "reopen"));
-
-        assertThat(store.store.get(projectId).state()).contains(ACTIVE_IRI);
-        assertThat(store.commitCalls).isZero();
-    }
-
-    @Test
-    void onSignalIsANoOpWhenTheObjectIsGone() {
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        DefaultTriggerEvaluator evaluator = evaluator(store);
-
-        evaluator.onSignal(ALICE, signalReceivedEvent(ObjectId.random(), "reopen"));
 
         assertThat(store.commitCalls).isZero();
     }

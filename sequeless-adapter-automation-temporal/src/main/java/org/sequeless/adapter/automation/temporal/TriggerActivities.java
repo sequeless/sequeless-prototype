@@ -8,11 +8,10 @@ import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The four Temporal activities {@link TimerWorkflowImpl}, {@link ChangeEventWorkflowImpl}, and
- * {@link SignalEventWorkflowImpl} call, one per {@link TriggerEvaluator}/{@link
- * DerivationRecomputer} inbound-port method — mirroring {@link ActionActivities}' one-interface,
- * thin-pass-through pattern exactly, so each method could later be given its own {@code
- * ActivityOptions} without touching the others. Today all four share the single {@code
+ * The three Temporal activities {@link TimerWorkflowImpl} and {@link ChangeEventWorkflowImpl} call,
+ * one per {@link TriggerEvaluator}/{@link DerivationRecomputer} inbound-port method — mirroring
+ * {@link ActionActivities}' one-interface, thin-pass-through pattern exactly, so each method could
+ * later be given its own {@code ActivityOptions} without touching the others. Today all three share the single {@code
  * ActivityOptions} {@link TemporalAutomationAutoConfiguration} builds from {@code
  * sequeless.automation.temporal.retry.*}, the same one {@link ActionActivities} shares.
  */
@@ -30,8 +29,4 @@ public interface TriggerActivities {
     /** Evaluates an elapsed timer. See {@link TriggerEvaluator#onTimerElapsed}. */
     @ActivityMethod
     void onTimerElapsed(Scope scope, OutboxEntry timerScheduled);
-
-    /** Evaluates a received signal. See {@link TriggerEvaluator#onSignal}. */
-    @ActivityMethod
-    void onSignal(Scope scope, OutboxEntry signalReceived);
 }

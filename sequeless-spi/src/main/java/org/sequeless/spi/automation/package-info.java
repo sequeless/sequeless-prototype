@@ -17,7 +17,7 @@
  * in-process relay, or a Temporal activity/workflow) calls back into whichever one a claimed
  * outbox row's kind calls for. This is what lets an adapter apply a fired transition's actions —
  * mutate an object, resolve a webhook's templated request, write a log line — evaluate a change,
- * timer, or signal against the state machine, or recompute a materialised derived property, all
+ * or timer against the state machine, or recompute a materialised derived property, all
  * using the exact same validated, audited code path {@code sequeless-core} already uses for every
  * other write, without that adapter depending on {@code sequeless-core} itself: the existing
  * {@code noAdapterDependsOnCore} architecture rule stays intact because the adapter depends only

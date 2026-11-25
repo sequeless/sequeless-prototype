@@ -15,8 +15,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * reads the entry's {@code after} duration and passes the entry on unchanged.
  *
  * <p><b>Workflow id is the timer's {@code timerKey}, deliberately NOT {@code entry.id()}</b> — unlike
- * {@link ChangeEventWorkflow} and {@link SignalEventWorkflow}, both of which key on the outbox entry's
- * own id. The key is stable for an object, state and transition, so a second {@code TransitionFired} row
+ * {@link ChangeEventWorkflow}, which keys on the outbox entry's own id. The key is stable for an object, state and transition, so a second {@code TransitionFired} row
  * that starts the same timer recomputes the same id, and the second start raises {@code
  * WorkflowExecutionAlreadyStarted}, which the port treats as a no-op.
  *

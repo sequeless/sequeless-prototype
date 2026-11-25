@@ -385,8 +385,10 @@ public class ObjectsController {
      *     {@link TransitionService#fire} itself decides whether a requested transition may fire —
      *     transitions triggered by {@code ON_CHANGE}/{@code TIMER}/{@code EXTERNAL_SIGNAL} are
      *     omitted, since {@link TransitionService#fire} would reject a {@code POST} against any of
-     *     them (409, not user-fireable); only {@link TransitionService#fireAutomated} can fire those,
-     *     and it is never invoked from a client request. Filtered here, not inside {@link
+     *     them (409, not user-fireable). {@code ON_CHANGE} and {@code TIMER} transitions are fired
+     *     only by {@link TransitionService#fireAutomated}, which no client request calls; an {@code
+     *     EXTERNAL_SIGNAL} transition is fired by the signal request, through {@link
+     *     TransitionService#signal}. Filtered here, not inside {@link
      *     StateMachineInterpreter#availableTransitions}, which stays a pure per-object-state
      *     computation shared by every trigger kind.
      */
@@ -479,21 +481,25 @@ public class ObjectsController {
      * @param type the type's short name or full IRI
      * @param id the id of the object the signal targets
      * @param name the signal name ({@link org.sequeless.ontology.behaviour.api.ExternalSignalTrigger#signalName()})
-     * @param body an arbitrary JSON object recorded alongside the signal for audit, or {@code null}
-     *     if the request has no body at all — {@link TransitionService#signal} requires a non-null
-     *     {@code Map}, so a missing body is treated as {@code Map.of()}
-     * @return 202 with no body: the signal is durably recorded as a {@code SignalReceived} outbox
-     *     entry and this method returns immediately, before any transition it might eventually cause
-     *     actually fires — see {@link TransitionService#signal}'s javadoc for why firing is the
-     *     automation adapter's job, not this endpoint's
+     * @param body an arbitrary JSON object, or {@code null} if the request has no body at all; the
+     *     body is accepted but not recorded or used, and a missing body is treated as {@code Map.of()}
+     *     because {@link TransitionService#signal} requires a non-null {@code Map}
+     * @return 202 with no body, returned once the transition the signal names has been applied: the
+     *     object's update and its {@code TransitionFired} row commit together before this method
+     *     returns, see {@link TransitionService#signal}
      */
-    @Operation(summary = "Record an external signal for an object; does not itself fire any transition")
+    @Operation(summary = "Fire the transition a named signal triggers on an object, in the request")
     @ApiResponse(
             responseCode = "202",
-            description = "The signal was durably recorded; any resulting transition fires asynchronously")
+            description = "The transition was applied before this reply; its actions run afterwards")
     @ApiResponse(
             responseCode = "400",
             description = "No transition on this type declares a signal named {name}",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "No transition departing the object's current state has this signal name, or"
+                    + " its guard does not pass; the reason is in the body",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "404",

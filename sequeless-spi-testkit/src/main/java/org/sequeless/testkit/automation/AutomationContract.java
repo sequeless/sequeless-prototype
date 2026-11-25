@@ -95,7 +95,7 @@ public abstract class AutomationContract {
     /**
      * @return the same {@link RecordingTriggerEvaluator} spy {@link #port()}'s implementation was
      *     constructed with, so this contract can observe which {@link TriggerEvaluator} method
-     *     {@code dispatch} routed an object-lifecycle, timer, or signal entry to
+     *     {@code dispatch} routed an object-lifecycle or timer entry to
      */
     protected abstract RecordingTriggerEvaluator recordingTriggerEvaluator();
 
@@ -264,16 +264,6 @@ public abstract class AutomationContract {
                 .isEqualTo(1);
     }
 
-    @Test
-    void dispatchRoutesSignalReceivedToOnSignal() {
-        OutboxEntry entry = signalReceivedEntry("reopen");
-
-        port().dispatch(SCOPE, entry);
-
-        assertThat(recordingTriggerEvaluator().countOf(RecordingTriggerEvaluator.METHOD_ON_SIGNAL))
-                .isEqualTo(1);
-    }
-
     /** Dispatching the same {@code TransitionFired} row twice starts its timer once, so it fires once. */
     @Test
     void redispatchOfATransitionFiredRowIsIdempotentForItsTimer() {
@@ -353,21 +343,6 @@ public abstract class AutomationContract {
     private static ResolvedTimer expireHoldTimer(UUID objectId, Duration after) {
         String timerKey = OutboxEntry.timerKey(new ObjectId(objectId), ACTIVE_IRI, TIMER_TRANSITION_NAME);
         return new ResolvedTimer(timerKey, after, ACTIVE_IRI, TIMER_TRANSITION_NAME);
-    }
-
-    /**
-     * Builds a valid {@code SignalReceived} {@link OutboxEntry} payload: {@code objectId}, {@code
-     * tenantId}, {@code principalId}, {@code signalName}, and a {@code body} recorded for audit
-     * only (never decoded by this contract's recording doubles).
-     */
-    private static OutboxEntry signalReceivedEntry(String signalName) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", UUID.randomUUID().toString());
-        payload.put("tenantId", SCOPE.tenantId().value());
-        payload.put("principalId", SCOPE.principal().id());
-        payload.put("signalName", signalName);
-        payload.put("body", Map.of());
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_SIGNAL_RECEIVED, payload, Instant.now());
     }
 
     /**

@@ -56,8 +56,8 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
  * {@link TemporalAutomationPort#dispatch} starts one {@link TransitionActionWorkflow} per action of
  * the transition, with workflow id {@code <entry id>:<action index>}, and the wrapper blocks on each
  * of those ids in turn. For every kind that starts a workflow expected to run to completion quickly
- * ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} via {@link ChangeEventWorkflow},
- * {@code SignalReceived} via {@link SignalEventWorkflow}), the wrapper blocks on {@link
+ * ({@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} via {@link ChangeEventWorkflow}),
+ * the wrapper blocks on {@link
  * WorkflowStub#getResult} for the exact workflow id {@link TemporalAutomationPort#dispatch} started
  * (see the history of this file for why polling a recorder instead of blocking on the workflow result
  * is a genuine race, not just a style choice).
@@ -125,10 +125,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         env = TestWorkflowEnvironment.newInstance();
         Worker worker = env.newWorker(TASK_QUEUE);
         worker.registerWorkflowImplementationTypes(
-                TransitionActionWorkflowImpl.class,
-                ChangeEventWorkflowImpl.class,
-                TimerWorkflowImpl.class,
-                SignalEventWorkflowImpl.class);
+                TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(executorHolder, automationSource),
                 new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
@@ -162,8 +159,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
             switch (entry.kind()) {
                 case OutboxEntry.KIND_OBJECT_CREATED,
                         OutboxEntry.KIND_OBJECT_UPDATED,
-                        OutboxEntry.KIND_OBJECT_DELETED,
-                        OutboxEntry.KIND_SIGNAL_RECEIVED ->
+                        OutboxEntry.KIND_OBJECT_DELETED ->
                     awaitWorkflowResult(entry.id().toString());
                 default -> {
                     // dispatch() rejects every kind it does not handle, so only TransitionFired
@@ -451,11 +447,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         @Override
         public void onTimerElapsed(Scope scope, OutboxEntry timerScheduled) {
             delegate.onTimerElapsed(scope, timerScheduled);
-        }
-
-        @Override
-        public void onSignal(Scope scope, OutboxEntry signalReceived) {
-            delegate.onSignal(scope, signalReceived);
         }
 
         @Override
