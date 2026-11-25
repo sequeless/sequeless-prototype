@@ -206,12 +206,14 @@ Reversibility: moderate. The kinds are gone, and the V9 marks cannot be undone.
 Context: spec 13 P4 (`docs/extraction/spec-13-p4-plan.md`) takes signals off the outbox. Through P3,
 `POST /api/objects/{type}/{id}/signals/{name}` wrote a `SignalReceived` row and returned 202.
 `OutboxRelay` then routed the row to `TriggerEvaluator.onSignal`, which made a state-less object or a
-failed guard a silent no-op, so the 202 promised an effect that might never happen. Decision: (a) The
-`SignalReceived` kind is removed. A signal writes no outbox row, `SignalEventWorkflow` is removed from
-the Temporal adapter, and neither adapter routes a signal. (b) A signal runs its matching transition
-synchronously, in the request, in one `ChangeSet`: an `Update` and one `TransitionFired` row. The 202 is
-returned only after the transition is applied. (c) C7: if no transition from the object's current state
-carries the signal name (a state-less object has none), or the matching guard fails, the request gets 409
+failed guard a silent no-op, so the 202 promised an effect that might never happen.
+Decision: (a) The `SignalReceived` kind is removed. A signal writes no outbox row, `SignalEventWorkflow`
+is removed from the Temporal adapter, and neither adapter routes a signal. (b) A signal runs its matching
+transition synchronously, in the request, in one `ChangeSet`: an `Update` and one `TransitionFired` row.
+The 202 is returned only after the transition is applied. A concurrent write that changes the object
+between the read and the commit rejects the signal with 409 `stale-object` (the existing
+`StaleObjectException` mapping). (c) C7: if no transition from the object's current state carries the
+signal name (a state-less object has none), or the matching guard fails, the request gets 409
 `transition-not-available`. The unknown-name check stays 400 (`UnknownSignalException`). An accepted
 signal gets 202. (d) When several transitions from the current state match the name, the first in
 transition order is taken. If its guard fails, the request is rejected; there is no fall-through to a
@@ -223,7 +225,8 @@ until then. The drain precondition and the owner's O-3 count gate the deploy (se
 Alternatives: a 202 no-op for a state-less object or a failed guard (the old behaviour); falling through
 to the next matching transition when a guard fails; carrying the body in the `TransitionFired` payload,
 or auditing it elsewhere; a 409 or 503 mapping for the version mismatch; re-arming dead-lettered signal
-rows instead of stamping them. Consequences: a signal rejected with 409 is a client-visible change for
-the UI's signal panels. The live panel still says "takes effect asynchronously" (a known follow-up, not
-decided here). The signal body is no longer audited. Reversibility: moderate. The kind is gone from the
-code, and the V11 marks cannot be undone.
+rows instead of stamping them.
+Consequences: a signal rejected with 409 is a client-visible change for the UI's signal panels. The live
+panel still says "takes effect asynchronously" (a known follow-up, not decided here). The signal body is
+no longer audited.
+Reversibility: moderate. The kind is gone from the code, and the V11 marks cannot be undone.

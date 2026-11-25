@@ -16,7 +16,7 @@ outbox event that names the fired transition and its ontology version, from whic
 but the record of what should happen next has not been durably written (or vice versa). `sq_outbox`
 is the same transactional-outbox table `ObjectCreated`/`ObjectUpdated`/`ObjectDeleted` events have
 used since DR-12; Phase 5 adds two new `kind` values to it and a `processed_at` marker column.
-Phase 6 (DR-12) adds three more `kind` values (§2). The relay claims seven kinds for dispatch (§2's
+Phase 6 (DR-12) adds three more `kind` values (§2). The relay claims four kinds for dispatch (§2's
 "dispatchable set"), `TransitionFired` included, and both automation adapters apply the actions of a
 `TransitionFired` row.
 
@@ -29,7 +29,7 @@ implementation (`DefaultActionExecutor` in `sequeless-core`) to apply a `Transit
 the other dispatchable kinds route to `TriggerEvaluator`/`DerivationRecomputer` instead — see §9.
 
 Phase 6 (DR-12) widens this considerably: what was originally a single `ActionRequest`-only queue
-is now a seven-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
+is now, after P4, a four-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
 `kind()`, not a single hard-coded call.
 
 ## 2. The outbox and the `TransitionFired` payload shape
@@ -134,7 +134,7 @@ to `ActionRequest` alone) to take an explicit, caller-chosen kind set, because a
 fans its one polling loop out to several inbound ports (`ActionExecutor`, `TriggerEvaluator`,
 `DerivationRecomputer`), not just `ActionExecutor`. `OutboxRelay` builds the set it passes,
 `DISPATCHABLE_KINDS`, once as a `static final Set<String>` field (not reconstructed per poll) —
-see §2 for the seven kinds it contains. The sole implementation (the postgres adapter)
+see §2 for the four kinds it contains. The sole implementation (the postgres adapter)
 runs `SELECT ... FROM sq_outbox WHERE kind IN (:kinds) AND processed_at IS NULL AND
 dead_lettered_at IS NULL ORDER BY occurred_at LIMIT 1 FOR UPDATE SKIP LOCKED` against that set
 (`:kinds` bound as a named IN list), calls `handler` once with the claimed row's raw `tenantId`
@@ -655,9 +655,11 @@ error responses:
   departing the object's *current* state carries that signal name (a state-less object has none), or
   the first such transition's guard evaluates `false`. A name the type declares but that no transition
   departs the current state with is a 409, not a 400, because the client named a real signal.
+- `409` (`StaleObjectException`, type suffix `stale-object`, `expectedVersion` property set) if a
+  concurrent write changes the object between the signal's read and its commit.
 - `500` if the automation half is at a different ontology version from the schema and behaviour halves
   read for the same request (an ontology reload during the signal): the `IllegalStateException` is not
-  mapped, so the client retries (DR-26).
+  mapped (HTTP 500); the client is expected to retry (DR-26).
 
 When several transitions from the current state match the name, the first in transition order is
 taken. If its guard fails, the request is rejected with 409; there is no fall-through to a later match.
