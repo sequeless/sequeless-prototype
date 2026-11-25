@@ -18,12 +18,9 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * times.
  *
  * <p>Each recorded {@link Call} additionally carries {@link Call#sequenceNanos()}, a {@link
- * System#nanoTime()} reading taken at record time. This exists purely so {@link
- * AutomationContract} can prove relative call order between this double and a separately
- * constructed {@link RecordingDerivationRecomputer} — for example, that a single change event's
- * recompute call happened before its onChange call — without the two doubles needing to share any
- * constructor-injected state; comparing two {@code sequenceNanos()} readings taken on the same JVM
- * is sufficient for a relative before/after assertion within one test.
+ * System#nanoTime()} reading taken at record time. It supports relative ordering of calls within one
+ * JVM run: comparing two {@code sequenceNanos()} readings taken on the same JVM is sufficient for a
+ * before/after assertion within one test.
  *
  * <p>Backed by a thread-safe list: a future Temporal activity implementation may call back into
  * this evaluator off the dispatching thread, so {@link #calls()} must remain safe to read and

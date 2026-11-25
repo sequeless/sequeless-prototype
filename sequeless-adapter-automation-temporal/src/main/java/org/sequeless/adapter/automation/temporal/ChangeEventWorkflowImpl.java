@@ -19,7 +19,6 @@ public final class ChangeEventWorkflowImpl implements ChangeEventWorkflow {
                     + "TemporalAutomationAutoConfiguration must assign it before starting the worker");
         }
         TriggerActivities activities = Workflow.newActivityStub(TriggerActivities.class, activityOptions);
-        activities.recompute(scope, entry);
         activities.onChange(scope, entry);
     }
 }

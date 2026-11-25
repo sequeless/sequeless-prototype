@@ -25,7 +25,6 @@ import org.sequeless.ontology.automation.api.SetPropertyAction;
 import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
@@ -98,14 +97,6 @@ public abstract class AutomationContract {
      *     {@code dispatch} routed an object-lifecycle or timer entry to
      */
     protected abstract RecordingTriggerEvaluator recordingTriggerEvaluator();
-
-    /**
-     * @return the same {@link RecordingDerivationRecomputer} spy {@link #port()}'s implementation
-     *     was constructed with, so this contract can observe whether {@code dispatch} called {@link
-     *     DerivationRecomputer#recompute}. An adapter whose {@code dispatch} does not recompute may
-     *     return a spy that nothing is wired to; the contract then sees no calls
-     */
-    protected abstract RecordingDerivationRecomputer recordingDerivationRecomputer();
 
     /**
      * Advances this port's notion of "now" by {@code by} and, before returning, synchronously

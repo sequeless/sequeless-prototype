@@ -21,7 +21,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
 /**
  * The default, durable {@link AutomationPort} adapter. {@link #dispatch} routes by {@code
  * entry.kind()}: the three object-lifecycle kinds start a {@link ChangeEventWorkflow} (also keyed by
- * {@code entry.id()}) that runs recompute then {@code onChange}, in that order. {@code TransitionFired}
+ * {@code entry.id()}) that runs {@code onChange} only. {@code TransitionFired}
  * is routed to {@code startTransitionFiredActions}, which starts one {@link TimerWorkflow} for each timer the row
  * starts, keyed by the timer's {@code timerKey}, and then one {@link TransitionActionWorkflow} per action
  * of the transition, keyed by {@code entry.id()} and the action index. Every case is fire-and-forget —
@@ -35,11 +35,6 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * catches and treats as a successful no-op — unlike {@code
  * org.sequeless.adapter.automation.inprocess.InProcessAutomationPort}, which has to track dispatched ids
  * itself because it has no equivalent durable-engine mechanism to lean on.
- *
- * <p><b>Recompute concurrency has no serialize or coalesce mode, for this first cut.</b> See {@link
- * ChangeEventWorkflow}'s javadoc for why the plan's full {@code serialize}/{@code coalesce}
- * per-key-{@code RecomputeWorkflow}-via-{@code signalWithStart} design was not attempted, and what
- * would be needed to add it later.
  *
  * <p><b>{@code WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE} is set explicitly,
  * deliberately overriding Temporal's own default.</b> Verified empirically (a failing {@code

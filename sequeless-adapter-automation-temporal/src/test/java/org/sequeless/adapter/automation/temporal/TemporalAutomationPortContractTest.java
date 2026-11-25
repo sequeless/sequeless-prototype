@@ -1,6 +1,5 @@
 package org.sequeless.adapter.automation.temporal;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.sun.net.httpserver.HttpServer;
@@ -33,14 +32,12 @@ import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.ResolvedWebhookRequest;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.testkit.automation.AutomationContract;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
-import org.sequeless.testkit.automation.RecordingDerivationRecomputer;
 import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
@@ -81,13 +78,11 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     private static TestWorkflowEnvironment env;
     private static SwappableActionExecutor executorHolder;
     private static SwappableTriggerEvaluator triggerEvaluatorHolder;
-    private static SwappableDerivationRecomputer derivationRecomputerHolder;
     private static SwappableAutomationSource automationSource;
     private static AutomationPort port;
 
     private RecordingActionExecutor recorder;
     private RecordingTriggerEvaluator triggerRecorder;
-    private RecordingDerivationRecomputer recomputerRecorder;
 
     /**
      * The due instant, in {@link TestWorkflowEnvironment#currentTimeMillis()} terms, of every timer a
@@ -112,7 +107,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
 
         executorHolder = new SwappableActionExecutor();
         triggerEvaluatorHolder = new SwappableTriggerEvaluator();
-        derivationRecomputerHolder = new SwappableDerivationRecomputer();
         automationSource = new SwappableAutomationSource();
 
         // Published before env.start(), mirroring TemporalAutomationAutoConfiguration's own
@@ -128,7 +122,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                 TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(executorHolder, automationSource),
-                new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
+                new TriggerActivitiesImpl(triggerEvaluatorHolder));
         env.start();
 
         port = new TemporalAutomationPort(
@@ -147,8 +141,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         executorHolder.setDelegate(recorder);
         triggerRecorder = new RecordingTriggerEvaluator();
         triggerEvaluatorHolder.setDelegate(triggerRecorder);
-        recomputerRecorder = new RecordingDerivationRecomputer();
-        derivationRecomputerHolder.setDelegate(recomputerRecorder);
         SwappableAutomationSource.reset();
     }
 
@@ -294,11 +286,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         return triggerRecorder;
     }
 
-    @Override
-    protected RecordingDerivationRecomputer recordingDerivationRecomputer() {
-        return recomputerRecorder;
-    }
-
     /** Serves the actions through {@link SwappableAutomationSource}, the source the activities read from. */
     @Override
     protected void serveAutomationWithActions(Map<TransitionRef, List<Action>> actionsByTransition) {
@@ -348,51 +335,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                         .describe())
                 .doesNotThrowAnyException();
         awaitWorkflowResult(entryId + ":0");
-    }
-
-    /**
-     * Since P5a the relay runs the recompute before it dispatches an object-lifecycle row, but this
-     * adapter still runs its own recompute, in {@link ChangeEventWorkflowImpl}, before {@code
-     * onChange}. Until that workflow activity is removed (P5b), this test keeps the
-     * recompute-before-onChange order checked for the Temporal adapter, which {@link
-     * AutomationContract} no longer asserts.
-     */
-    @Test
-    void dispatchRunsRecomputeBeforeOnChangeForObjectUpdated() {
-        port().dispatch(SCOPE, objectChangeEntry(OutboxEntry.KIND_OBJECT_UPDATED));
-
-        assertThat(recomputerRecorder.calls()).hasSize(1);
-        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
-    }
-
-    /** The {@code ObjectDeleted} counterpart of {@link #dispatchRunsRecomputeBeforeOnChangeForObjectUpdated()}. */
-    @Test
-    void dispatchRunsRecomputeBeforeOnChangeForObjectDeleted() {
-        port().dispatch(SCOPE, objectDeletedEntry());
-
-        assertThat(recomputerRecorder.calls()).hasSize(1);
-        assertThat(triggerRecorder.countOf(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .isEqualTo(1);
-        assertRecomputeRanBeforeOnChange();
-    }
-
-    /**
-     * Asserts that the one recompute call recorded for the change event most recently dispatched
-     * happened strictly before the first {@link RecordingTriggerEvaluator#METHOD_ON_CHANGE} call, by
-     * comparing each recorded call's {@code sequenceNanos()}. See {@link RecordingTriggerEvaluator}'s
-     * javadoc for why that field, rather than any state shared between the two doubles, makes this
-     * comparison possible.
-     */
-    private void assertRecomputeRanBeforeOnChange() {
-        long recomputeAt = recomputerRecorder.calls().get(0).sequenceNanos();
-        long onChangeAt = triggerRecorder.calls().stream()
-                .filter(call -> call.method().equals(RecordingTriggerEvaluator.METHOD_ON_CHANGE))
-                .findFirst()
-                .orElseThrow()
-                .sequenceNanos();
-        assertThat(recomputeAt).isLessThan(onChangeAt);
     }
 
     /**
@@ -459,21 +401,6 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         /** @return the timers the port resolved for the {@code TransitionFired} row {@code rowId}, or none */
         List<ResolvedTimer> timersResolvedFor(UUID rowId) {
             return resolvedByRow.getOrDefault(rowId, List.of());
-        }
-    }
-
-    /** Same swap-the-delegate indirection as {@link SwappableActionExecutor}, for {@link DerivationRecomputer}. */
-    private static final class SwappableDerivationRecomputer implements DerivationRecomputer {
-
-        private volatile DerivationRecomputer delegate;
-
-        void setDelegate(DerivationRecomputer delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void recompute(Scope scope, OutboxEntry changeEvent) {
-            delegate.recompute(scope, changeEvent);
         }
     }
 }

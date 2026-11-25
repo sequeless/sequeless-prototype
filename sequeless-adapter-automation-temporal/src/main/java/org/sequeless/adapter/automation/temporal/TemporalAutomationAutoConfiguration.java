@@ -11,7 +11,6 @@ import java.time.Duration;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,8 +125,6 @@ public class TemporalAutomationAutoConfiguration {
      * @param triggerEvaluator the {@link TriggerEvaluator} bean {@link TriggerActivitiesImpl} calls
      *     back into, expected to already be registered on the context (mirroring {@code
      *     actionExecutor}'s own precedent)
-     * @param derivationRecomputer the {@link DerivationRecomputer} bean {@link TriggerActivitiesImpl}
-     *     calls back into, expected to already be registered on the context
      * @param automationSource the {@link AutomationSource} bean {@link ActionActivitiesImpl}'s
      *     {@code applyTransitionAction} reads the automation from, required and injected eagerly
      * @param props the bound {@code sequeless.automation.temporal.*} configuration, supplying the
@@ -140,7 +137,6 @@ public class TemporalAutomationAutoConfiguration {
             WorkflowClient client,
             ActionExecutor actionExecutor,
             TriggerEvaluator triggerEvaluator,
-            DerivationRecomputer derivationRecomputer,
             AutomationSource automationSource,
             TemporalAutomationProperties props) {
         TemporalActivityOptions.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
@@ -151,7 +147,7 @@ public class TemporalAutomationAutoConfiguration {
                 TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(actionExecutor, automationSource),
-                new TriggerActivitiesImpl(triggerEvaluator, derivationRecomputer));
+                new TriggerActivitiesImpl(triggerEvaluator));
         try {
             factory.start();
         } catch (RuntimeException e) {
