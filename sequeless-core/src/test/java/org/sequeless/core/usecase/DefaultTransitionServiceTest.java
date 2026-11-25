@@ -521,7 +521,7 @@ class DefaultTransitionServiceTest {
     // --- timer outbox entries ---
 
     @Test
-    void firingATransitionIntoAStateWithATimerTransitionWritesTimerScheduled() {
+    void firingATransitionIntoAStateWithATimerTransitionWritesOnlyTransitionFired() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = timerWidget(id, 1, START_IRI);
         FakeObjectStorePort store = new FakeObjectStorePort();
@@ -531,24 +531,12 @@ class DefaultTransitionServiceTest {
         service.fire(ALICE, "TimerWidget", id, "enter", 1);
 
         ChangeSet changeSet = store.commits.get(0);
-        assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + TimerScheduled
+        assertThat(changeSet.outbox()).hasSize(1); // TransitionFired only: the core writes no timer rows.
         assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
-        OutboxEntry scheduled = changeSet.outbox().get(1);
-        assertThat(scheduled.kind()).isEqualTo(OutboxEntry.KIND_TIMER_SCHEDULED);
-        String expectedTimerKey = id.value().toString() + "|" + WAITING_IRI + "|expire";
-        assertThat(scheduled.payload())
-                .containsEntry("objectId", id.value().toString())
-                .containsEntry("tenantId", "acme")
-                .containsEntry("principalId", "alice")
-                .containsEntry("typeIri", TIMER_WIDGET_IRI)
-                .containsEntry("state", WAITING_IRI)
-                .containsEntry("transitionName", "expire")
-                .containsEntry("after", EXPIRE_AFTER.toString())
-                .containsEntry("timerKey", expectedTimerKey);
     }
 
     @Test
-    void firingATransitionOutOfAStateWithATimerTransitionWritesTimerCancelled() {
+    void firingATransitionOutOfAStateWithATimerTransitionWritesOnlyTransitionFired() {
         ObjectId id = ObjectId.random();
         BusinessObject existing = timerWidget(id, 1, WAITING_IRI);
         FakeObjectStorePort store = new FakeObjectStorePort();
@@ -558,28 +546,8 @@ class DefaultTransitionServiceTest {
         service.fire(ALICE, "TimerWidget", id, "leave", 1);
 
         ChangeSet changeSet = store.commits.get(0);
-        assertThat(changeSet.outbox()).hasSize(2); // TransitionFired + TimerCancelled
-        OutboxEntry cancelled = changeSet.outbox().get(1);
-        assertThat(cancelled.kind()).isEqualTo(OutboxEntry.KIND_TIMER_CANCELLED);
-        String expectedTimerKey = id.value().toString() + "|" + WAITING_IRI + "|expire";
-        assertThat(cancelled.payload())
-                .containsEntry("objectId", id.value().toString())
-                .containsEntry("tenantId", "acme")
-                .containsEntry("timerKey", expectedTimerKey);
-    }
-
-    @Test
-    void theTimerKeyWrittenOnTimerScheduledIsTheSharedOutboxEntryTimerKey() {
-        ObjectId id = ObjectId.random();
-        BusinessObject existing = timerWidget(id, 1, START_IRI);
-        FakeObjectStorePort store = new FakeObjectStorePort();
-        store.seed(existing);
-        DefaultTransitionService service = service(store, permitAll());
-
-        service.fire(ALICE, "TimerWidget", id, "enter", 1);
-
-        OutboxEntry scheduled = store.commits.get(0).outbox().get(1);
-        assertThat(scheduled.payload()).containsEntry("timerKey", OutboxEntry.timerKey(id, WAITING_IRI, "expire"));
+        assertThat(changeSet.outbox()).hasSize(1); // TransitionFired only: no TimerCancelled row.
+        assertThat(changeSet.outbox().get(0).kind()).isEqualTo(OutboxEntry.KIND_TRANSITION_FIRED);
     }
 
     @Test
