@@ -8,28 +8,29 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
- * The Temporal workflow that durably waits out one {@code TimerScheduled} outbox entry's {@code
- * after} duration, calling {@link TriggerActivities#onTimerElapsed} on natural expiry, or doing
- * nothing if a {@link #cancel} signal arrives first.
+ * The Temporal workflow that durably waits out one timer that a {@code TransitionFired} row starts,
+ * calling {@link TriggerActivities#onTimerElapsed} on expiry. {@link TemporalAutomationPort} builds the
+ * {@code TimerScheduled}-shaped outbox entry that {@link #run} takes, from the timer that {@link
+ * org.sequeless.spi.automation.TriggerEvaluator#timersStartedBy} resolves for the row. This workflow
+ * reads the entry's {@code after} duration and passes the entry on unchanged.
  *
- * <p><b>Workflow id is the payload's {@code timerKey}, deliberately NOT {@code entry.id()}</b> —
- * unlike {@link ChangeEventWorkflow} and {@link SignalEventWorkflow}, both of which key on the outbox
- * entry's own id. Keying on {@code timerKey} (stable across the
- * schedule/cancel pair — see {@code OutboxEntry#KIND_TIMER_SCHEDULED}'s javadoc for its {@code
- * objectId|stateIri|transitionName} shape) is what lets a later {@code TimerCancelled} dispatch
- * find and signal the exact right running workflow by recomputing the same key, and what makes
- * redispatching an identical {@code TimerScheduled} entry naturally idempotent: the second {@code
- * dispatch} call's attempt to start a workflow with the same id raises {@code
- * WorkflowExecutionAlreadyStarted}, exactly like the id-based idempotency of the change and signal
- * workflows.
+ * <p><b>Workflow id is the timer's {@code timerKey}, deliberately NOT {@code entry.id()}</b> — unlike
+ * {@link ChangeEventWorkflow} and {@link SignalEventWorkflow}, both of which key on the outbox entry's
+ * own id. The key is stable for an object, state and transition, so a second {@code TransitionFired} row
+ * that starts the same timer recomputes the same id, and the second start raises {@code
+ * WorkflowExecutionAlreadyStarted}, which the port treats as a no-op.
+ *
+ * <p>No timer is cancelled after P3, so the adapter no longer sends {@link #cancel}. The staleness check
+ * in {@code onTimerElapsed} is the guard against a timer firing for an object that has left its state.
+ * The {@link #cancel} signal stays for executions recorded before P3, whose histories can contain it.
  */
 @WorkflowInterface
 public interface TimerWorkflow {
 
     /**
-     * Waits {@code entry.payload()}'s {@code after} duration (parsed from its ISO-8601 string) for
-     * either natural expiry or a {@link #cancel} signal, calling {@link
-     * TriggerActivities#onTimerElapsed} only on natural expiry.
+     * Waits {@code entry.payload()}'s {@code after} duration (parsed from its ISO-8601 string), then calls
+     * {@link TriggerActivities#onTimerElapsed}. A {@link #cancel} signal ends the wait early only in an
+     * execution recorded before P3 (see {@link TimerWorkflowImpl}).
      *
      * @param entry the {@code TimerScheduled}-kind outbox entry describing the pending timer
      * @param scope the scope to fire {@code onTimerElapsed} under
@@ -47,7 +48,7 @@ public interface TimerWorkflow {
 
     /**
      * @return {@code true} once {@link #run} has reached its {@code Workflow.await} call and is
-     *     genuinely parked waiting for either the timer or a {@link #cancel} signal — used only by
+     *     genuinely parked waiting for its timer (or, in an execution recorded before P3, for a {@link #cancel} signal) — used only by
      *     test code (see {@code TemporalAutomationPortContractTest#advanceTime}) to know it is safe
      *     to skip {@code TestWorkflowEnvironment} time forward without racing this workflow's own
      *     startup.

@@ -106,10 +106,10 @@ class PostgresOutboxPortIT {
         UUID timerRowId = UUID.randomUUID();
         UUID actionRowId = UUID.randomUUID();
         Instant now = Instant.now();
-        insertOutboxRow(timerRowId, OutboxEntry.KIND_TIMER_SCHEDULED, UUID.randomUUID(), now);
+        insertOutboxRow(timerRowId, "TimerScheduled", UUID.randomUUID(), now);
         insertOutboxRow(actionRowId, OutboxEntry.KIND_TRANSITION_FIRED, UUID.randomUUID(), now.plusSeconds(1));
 
-        Set<String> kinds = Set.of(OutboxEntry.KIND_TIMER_SCHEDULED, OutboxEntry.KIND_TRANSITION_FIRED);
+        Set<String> kinds = Set.of("TimerScheduled", OutboxEntry.KIND_TRANSITION_FIRED);
         Optional<UUID> first = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
         Optional<UUID> second = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());
         Optional<UUID> third = freshPort().claimNext(kinds, (tenantId, entry) -> entry.id());

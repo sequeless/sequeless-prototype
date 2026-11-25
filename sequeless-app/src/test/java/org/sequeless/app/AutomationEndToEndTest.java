@@ -43,9 +43,10 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * class). The production {@code timer-tick-ms} default (100ms) is left untouched: {@link
  * InProcessTimerScheduler#sweep()} is a pure in-memory scan with no DB access, so it already
  * notices an advanced clock quickly; the one thing that genuinely needs synchronizing is waiting
- * for the {@code TimerScheduled}/{@code TimerCancelled} outbox rows themselves to reach the
- * scheduler before advancing the clock at all — see {@link #awaitOutboxProcessed} and the timer
- * tests' own javadoc for why the naive "fire, then immediately advance" ordering races the relay.
+ * for the {@code TransitionFired} row that starts the timer (the {@code hold} transition) to reach
+ * the in-process adapter before advancing the clock at all — see {@link #awaitOutboxProcessed} and
+ * the timer tests' own javadoc for why the naive "fire, then immediately advance" ordering races
+ * the relay.
  *
  * <p>The relay recomputes each object-lifecycle row before it dispatches that row, so the on-change
  * test gets the same-dispatch recompute-then-onChange ordering the {@code autoClose} guard needs.
@@ -190,11 +191,12 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 
         // InProcessTimerScheduler.schedule() computes its due instant as *its own clock's current
         // value* plus the transition's `after` duration, at the moment the relay actually drains
-        // this TimerScheduled outbox row -- not at the moment "hold" wrote it. Advancing the fake
-        // clock before that dispatch has happened would make schedule() compute a due instant
-        // relative to the already-advanced "now", pushing it another 72h out and making the timer
-        // never fire within this test. Wait for the row to be durably dispatched first.
-        awaitOutboxProcessed(project.id(), "TimerScheduled");
+        // the "hold" TransitionFired row that starts the timer -- not at the moment "hold" wrote
+        // it. Advancing the fake clock before that dispatch has happened would make schedule()
+        // compute a due instant relative to the already-advanced "now", pushing it another 72h out
+        // and making the timer never fire within this test. Wait for the row to be durably
+        // dispatched first.
+        awaitOutboxProcessed(project.id(), "hold");
 
         ClockTestConfiguration.CLOCK.advance(Duration.ofHours(73));
 
@@ -202,21 +204,26 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     /**
-     * Polls {@code sq_outbox} until a row of the given {@code kind} for {@code objectId} has been
-     * claimed by {@link org.sequeless.app.automation.OutboxRelay} (its {@code processed_at} is set)
-     * -- the only way an e2e test can know a durably-recorded, async-relayed side effect (like
-     * {@link InProcessTimerScheduler}'s bookkeeping for a {@code TimerScheduled} row) has actually
-     * reached the in-process adapter before racing it with the next step.
+     * Polls {@code sq_outbox} until the {@code TransitionFired} row for {@code transitionName} on
+     * {@code objectId} has been claimed by {@link org.sequeless.app.automation.OutboxRelay} (its
+     * {@code processed_at} is set) -- the only way an e2e test can know a durably-recorded,
+     * async-relayed side effect (like the timer that the in-process adapter starts from that row)
+     * has actually reached the adapter before racing it with the next step. The match is on
+     * {@code payload->>'transitionName'}, not on the kind alone: {@code setOwnerAndActivate} writes
+     * an {@code activate} row first, so a kind-only wait could return before the row this test
+     * waits for has been dispatched.
      */
-    private void awaitOutboxProcessed(UUID objectId, String kind) {
+    private void awaitOutboxProcessed(UUID objectId, String transitionName) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         while (Instant.now().isBefore(deadline)) {
             long processedCount = jdbcClient
                     .sql("SELECT count(*) FROM sq_outbox WHERE object_id = :objectId AND"
-                            + " kind = :kind AND processed_at IS NOT NULL")
+                            + " kind = :kind AND payload ->> 'transitionName' = :transitionName AND"
+                            + " processed_at IS NOT NULL")
                     .param("objectId", objectId)
-                    .param("kind", kind)
+                    .param("kind", "TransitionFired")
+                    .param("transitionName", transitionName)
                     .query(Long.class)
                     .single();
             if (processedCount > 0) {
@@ -224,7 +231,8 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
             }
             sleep(Duration.ofMillis(50));
         }
-        throw new AssertionError("outbox row of kind '" + kind + "' for object " + objectId + " was never processed");
+        throw new AssertionError("TransitionFired outbox row for transition '" + transitionName + "' on object "
+                + objectId + " was never processed");
     }
 
     @Test
@@ -238,14 +246,14 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         fireTransition(client, project.id(), "hold", activated.version());
         fireTransition(client, project.id(), "resume", activated.version() + 1);
 
-        // Both the TimerScheduled (from "hold") and the TimerCancelled (from "resume") must have
-        // reached InProcessTimerScheduler before advancing the clock -- see the sibling positive
-        // test's javadoc for why scheduling relative to an already-advanced clock would otherwise
-        // race. Here the race would be benign for the schedule half (it would just push the timer
-        // further out), but waiting for the cancel too makes the assertion below meaningful rather
-        // than incidentally true.
-        awaitOutboxProcessed(project.id(), "TimerScheduled");
-        awaitOutboxProcessed(project.id(), "TimerCancelled");
+        // Both the "hold" and the "resume" TransitionFired rows must have been dispatched before
+        // advancing the clock. "hold" starts the timer, so its row must reach the adapter before
+        // the due instant is computed (see the sibling positive test). "resume" cancels nothing:
+        // leaving the state commits no cancel, so the timer still fires after the advance, and the
+        // staleness check at fire time is what keeps the project at Active. Waiting for "resume"
+        // too makes the assertion below check that guard against the state after both transitions.
+        awaitOutboxProcessed(project.id(), "hold");
+        awaitOutboxProcessed(project.id(), "resume");
 
         ClockTestConfiguration.CLOCK.advance(Duration.ofHours(73));
 

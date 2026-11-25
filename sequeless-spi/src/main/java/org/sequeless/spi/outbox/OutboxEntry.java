@@ -20,11 +20,10 @@ import org.sequeless.spi.object.Update;
  * <p>{@code kind} is one of {@link #KIND_OBJECT_CREATED}, {@link #KIND_OBJECT_UPDATED}, or {@link
  * #KIND_OBJECT_DELETED} for the mutations this SPI defines, {@link #KIND_TRANSITION_FIRED} for a
  * fired state-machine transition, whose row names the transition and its ontology version, and from
- * which the automation port applies the actions,
- * or {@link #KIND_TIMER_SCHEDULED}, {@link #KIND_TIMER_CANCELLED}, or {@link
- * #KIND_SIGNAL_RECEIVED} for the automation events introduced alongside {@code
- * org.sequeless.ontology.behaviour.api.TriggerSpec} — though the type itself does not restrict {@code kind} to
- * those values — a future kind can reuse this record without a new one being minted.
+ * which the automation port applies the actions, or {@link #KIND_SIGNAL_RECEIVED} for the automation
+ * event introduced alongside {@code org.sequeless.ontology.behaviour.api.TriggerSpec} — though the
+ * type itself does not restrict {@code kind} to those values — a future kind can reuse this record
+ * without a new one being minted.
  *
  * <p>{@code payload} must be JSON-compatible end to end: every value, at any depth, is a {@code
  * String}, a {@code Number}, a {@code Boolean}, a {@code List<?>} of such values, or a {@code
@@ -63,29 +62,6 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
     public static final String KIND_TRANSITION_FIRED = "TransitionFired";
 
     /**
-     * The event kind recorded when a transition whose {@code org.sequeless.ontology.behaviour.api.TriggerSpec}
-     * is a {@code org.sequeless.ontology.behaviour.api.TimerTrigger} is entered — that is, when the object
-     * transitions into that timer transition's {@code fromStateIri} — exactly as entering {@code
-     * ex:OnHold} schedules the {@code expireHold} timer. Payload carries {@code objectId}, {@code
-     * tenantId}, {@code principalId}, {@code typeIri}, {@code state}, {@code transitionName},
-     * {@code after} (ISO-8601), and {@code timerKey} (stable, derived as {@code
-     * objectId|stateIri|transitionName}), used directly as both the Temporal workflow id and the
-     * in-process scheduler key.
-     */
-    public static final String KIND_TIMER_SCHEDULED = "TimerScheduled";
-
-    /**
-     * The event kind recorded when an object leaves the state a previously scheduled {@link
-     * #KIND_TIMER_SCHEDULED} entry was waiting out, whether because the timer transition itself
-     * fired or because some other transition departed that state first — exactly as leaving {@code
-     * ex:OnHold} for any reason cancels the pending {@code expireHold} timer. Payload carries
-     * {@code objectId}, {@code tenantId}, and the same {@code timerKey} the corresponding {@link
-     * #KIND_TIMER_SCHEDULED} entry carried, which is how the automation adapter finds the timer to
-     * cancel.
-     */
-    public static final String KIND_TIMER_CANCELLED = "TimerCancelled";
-
-    /**
      * The event kind recorded when a client calls {@code POST
      * /objects/{type}/{id}/signals/{name}}, for an automation adapter to dispatch to whichever
      * transition on the object's current state has a matching {@code
@@ -117,9 +93,8 @@ public record OutboxEntry(UUID id, String kind, Map<String, Object> payload, Ins
      * The stable key that names one timer transition's pending wait: {@code
      * objectId|stateIri|transitionName}, where {@code stateIri} is the state the timer waits in (the
      * timer transition's {@code fromStateIri}). It is the {@code timerKey} payload value carried by
-     * {@link #KIND_TIMER_SCHEDULED} and {@link #KIND_TIMER_CANCELLED} entries, and is used directly
-     * as the Temporal workflow id and the in-process scheduler key, so every writer and reader of a
-     * timer key must build it here.
+     * {@code TimerScheduled} entries, and is used directly as the Temporal workflow id and the
+     * in-process scheduler key, so every writer and reader of a timer key must build it here.
      *
      * @param objectId the object the timer belongs to; must not be {@code null}
      * @param stateIri the IRI of the state the timer waits in; must not be {@code null}

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.spi.automation.TimerScheduledEntry;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
@@ -28,7 +29,7 @@ class WorkflowHolderNullTest {
     private static final Scope SCOPE = new Scope(new TenantId("tenant-1"), new Principal("user-1", Set.of()));
     private static final OutboxEntry ENTRY = new OutboxEntry(
             UUID.randomUUID(),
-            OutboxEntry.KIND_TIMER_SCHEDULED,
+            TimerScheduledEntry.KIND,
             Map.of("objectId", UUID.randomUUID().toString()),
             Instant.parse("2026-01-01T00:00:00Z"));
 

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.sun.net.httpserver.HttpServer;
 import io.temporal.activity.ActivityOptions;
-import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
 import io.temporal.testing.TestWorkflowEnvironment;
@@ -18,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterAll;
@@ -63,24 +62,15 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
  * (see the history of this file for why polling a recorder instead of blocking on the workflow result
  * is a genuine race, not just a style choice).
  *
- * <p><b>{@code TimerScheduled} is different: its workflow is not supposed to complete quickly.</b>
- * {@link TimerWorkflow} stays parked in {@code Workflow.await} until either the configured
- * duration elapses (via {@link #advanceTime}) or a {@code cancel} signal arrives, so blocking on
- * its result here would deadlock. Instead, the wrapper polls the started {@link TimerWorkflow}'s
- * {@link TimerWorkflow#isAwaiting()} query (a bounded, short, real-time retry loop — this is test
- * synchronization scaffolding, not the workflow's own logic) until it reports {@code true} before
- * returning. That is what makes {@link #advanceTime} safe to call immediately afterwards: by
- * construction, the workflow has already reached its {@code Workflow.await} call, so skipping
- * {@link TestWorkflowEnvironment} time forward cannot race the workflow's own startup.
- *
- * <p><b>{@code TimerCancelled} also needs a synchronization point.</b> Signalling {@code cancel()}
- * only records the signal event; the actual re-evaluation of {@code Workflow.await}'s condition
- * (and the workflow's consequent completion, since it exits without firing) happens on the next
- * workflow task, asynchronously with respect to the signal call returning. The wrapper blocks on
- * {@link WorkflowStub#getResult} for the timer's workflow id (bounded, short timeout, swallowing
- * both a timeout and {@link WorkflowNotFoundException}) so that, by the time {@link #advanceTime}
- * runs next, a genuine cancellation has already taken deterministic effect — never racing the
- * subsequent time-skip.
+ * <p><b>A {@code TransitionFired} row also starts its timers, and a timer is different: its workflow is
+ * not supposed to complete quickly.</b> {@link TimerWorkflow} stays parked in {@code Workflow.sleep} until
+ * its duration elapses (via {@link #advanceTime}), so blocking on its result here would deadlock. Instead,
+ * the wrapper polls each started {@link TimerWorkflow}'s {@link TimerWorkflow#isAwaiting()} query (a
+ * bounded, short, real-time retry loop — this is test synchronization scaffolding, not the workflow's own
+ * logic) until it reports {@code true} before returning. That is what makes {@link #advanceTime} safe to
+ * call immediately afterwards: by construction, the workflow has already reached its wait, so skipping
+ * {@link TestWorkflowEnvironment} time forward cannot race the workflow's own startup. No timer is
+ * cancelled after P3, so there is no cancel wait.
  */
 class TemporalAutomationPortContractTest extends AutomationContract {
 
@@ -100,15 +90,14 @@ class TemporalAutomationPortContractTest extends AutomationContract {
     private RecordingDerivationRecomputer recomputerRecorder;
 
     /**
-     * Every {@code timerKey} a {@code TimerScheduled} entry was dispatched for during the current
-     * {@code @Test} method (JUnit 5's default per-method instance lifecycle gives this a fresh,
-     * empty list per test, exactly like {@link #recorder} and its siblings). {@link #advanceTime}
-     * uses this to know which {@link TimerWorkflow} executions might have just become due, and
-     * blocks on each one settling before returning — see {@link #advanceTime}'s own javadoc for why
-     * {@link TestWorkflowEnvironment#sleep} alone is not sufficient for the contract's
-     * synchronicity requirement.
+     * The due instant, in {@link TestWorkflowEnvironment#currentTimeMillis()} terms, of every timer a
+     * {@code TransitionFired} row started during the current {@code @Test} method, keyed by its {@code
+     * timerKey} (JUnit 5's default per-method instance lifecycle gives this a fresh, empty map per test,
+     * exactly like {@link #recorder} and its siblings). An instant is recorded once, on the first
+     * dispatch, so a redelivered row keeps the due instant of its first delivery, as the port does.
+     * {@link #advanceTime} settles only the timers whose due instant has passed; see its javadoc.
      */
-    private final List<String> dispatchedTimerKeys = new CopyOnWriteArrayList<>();
+    private final Map<String, Long> dueAtByTimerKey = new ConcurrentHashMap<>();
 
     @BeforeAll
     static void startEnvironment() throws IOException {
@@ -145,7 +134,8 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                 new TriggerActivitiesImpl(triggerEvaluatorHolder, derivationRecomputerHolder));
         env.start();
 
-        port = new TemporalAutomationPort(env.getWorkflowClient(), TASK_QUEUE, automationSource);
+        port = new TemporalAutomationPort(
+                env.getWorkflowClient(), TASK_QUEUE, automationSource, triggerEvaluatorHolder);
     }
 
     @AfterAll
@@ -175,20 +165,28 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                         OutboxEntry.KIND_OBJECT_DELETED,
                         OutboxEntry.KIND_SIGNAL_RECEIVED ->
                     awaitWorkflowResult(entry.id().toString());
-                case OutboxEntry.KIND_TIMER_SCHEDULED -> {
-                    String timerKey = (String) entry.payload().get("timerKey");
-                    awaitTimerWorkflowParked(timerKey);
-                    dispatchedTimerKeys.add(timerKey);
-                }
-                case OutboxEntry.KIND_TIMER_CANCELLED ->
-                    awaitCancellationTakesEffect((String) entry.payload().get("timerKey"));
                 default -> {
                     // dispatch() rejects every kind it does not handle, so only TransitionFired
                     // reaches this branch.
+                    awaitTransitionFiredTimers(entry);
                     awaitTransitionFiredActions(entry);
                 }
             }
         };
+    }
+
+    /**
+     * Blocks until each {@link TimerWorkflow} that {@link TemporalAutomationPort#dispatch} started for
+     * {@code entry} has reached its wait, and records its due instant. The timers are the ones the port
+     * received from {@link TriggerEvaluator#timersStartedBy} for this row, read back from the holder, so the
+     * lookup is not made a second time.
+     */
+    private void awaitTransitionFiredTimers(OutboxEntry entry) {
+        for (ResolvedTimer timer : triggerEvaluatorHolder.timersResolvedFor(entry.id())) {
+            awaitTimerWorkflowParked(timer.timerKey());
+            dueAtByTimerKey.putIfAbsent(
+                    timer.timerKey(), env.currentTimeMillis() + timer.after().toMillis());
+        }
     }
 
     /**
@@ -241,25 +239,7 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                 throw new AssertionError("Interrupted while waiting for timer " + timerKey + " to park", e);
             }
         }
-        throw new AssertionError("Timer workflow " + timerKey + " never reached Workflow.await within 5 seconds");
-    }
-
-    /**
-     * Blocks until the {@link TimerWorkflow} named {@code timerKey} has closed as a result of a
-     * {@code cancel()} signal just sent to it, so a subsequent {@link #advanceTime} call cannot
-     * race the cancellation taking effect. Swallows both a bounded timeout and {@link
-     * WorkflowNotFoundException} — {@code TemporalAutomationPort.dispatch}'s own cancel-signal path
-     * already tolerates a nonexistent workflow as a legitimate no-op, and this method must too.
-     */
-    private static void awaitCancellationTakesEffect(String timerKey) {
-        WorkflowStub stub = env.getWorkflowClient().newUntypedWorkflowStub(timerKey);
-        try {
-            stub.getResult(5, TimeUnit.SECONDS, Void.class);
-        } catch (TimeoutException e) {
-            throw new AssertionError("Timer workflow " + timerKey + " did not close within 5 seconds", e);
-        } catch (WorkflowNotFoundException e) {
-            // Idempotent no-op: nothing was there to cancel.
-        }
+        throw new AssertionError("Timer workflow " + timerKey + " never reached its wait within 5 seconds");
     }
 
     /**
@@ -276,30 +256,35 @@ class TemporalAutomationPortContractTest extends AutomationContract {
      * until its {@code onTimerElapsed} activity call (if any) has actually returned, so once every
      * tracked timer workflow that is due has settled, the contract's synchronicity requirement
      * genuinely holds.
+     *
+     * <p>Only the timers that are due at the new "now" are settled. A timer not yet due is left alone,
+     * because calling {@link WorkflowStub#getResult} on it would let the test environment skip time and
+     * fire it early. A timer is due when the due instant recorded for it by {@link #awaitTransitionFiredTimers}
+     * is no later than the environment clock after the sleep.
      */
     @Override
     protected void advanceTime(Duration by) {
         env.sleep(by);
-        for (String timerKey : dispatchedTimerKeys) {
-            awaitTimerWorkflowSettledIfDue(timerKey);
+        long now = env.currentTimeMillis();
+        for (Map.Entry<String, Long> timer : dueAtByTimerKey.entrySet()) {
+            if (timer.getValue() <= now) {
+                awaitTimerWorkflowSettled(timer.getKey());
+            }
         }
     }
 
     /**
-     * Blocks briefly on {@code timerKey}'s {@link TimerWorkflow} completing. A timer not yet due by
-     * this point in the test (a scenario this contract does not currently exercise, since every
-     * test's {@link #advanceTime} call advances by at least the full configured duration) would
-     * make this method wait out its bounded timeout and swallow it as "not settled yet" rather than
-     * fail — this method proves a due timer's effects are visible, it does not assert that every
-     * tracked timer is due.
+     * Blocks briefly on {@code timerKey}'s {@link TimerWorkflow} completing. Called only for a timer that is
+     * due, so the wait ends once its {@code onTimerElapsed} activity has returned. A timeout is swallowed here
+     * rather than failed: the test's own assertions on the recording double decide correctness.
      */
-    private static void awaitTimerWorkflowSettledIfDue(String timerKey) {
+    private static void awaitTimerWorkflowSettled(String timerKey) {
         WorkflowStub stub = env.getWorkflowClient().newUntypedWorkflowStub(timerKey);
         try {
             stub.getResult(2, TimeUnit.SECONDS, Void.class);
         } catch (TimeoutException e) {
-            // Not due yet (or already observed/settled by an earlier advanceTime call in this same
-            // test) - not this method's concern; the test's own assertions decide correctness.
+            // Not settled within the bound (or already observed by an earlier advanceTime call in this
+            // same test) - not this method's concern; the test's own assertions decide correctness.
         }
     }
 
@@ -442,13 +427,20 @@ class TemporalAutomationPortContractTest extends AutomationContract {
         }
     }
 
-    /** Same swap-the-delegate indirection as {@link SwappableActionExecutor}, for {@link TriggerEvaluator}. */
+    /**
+     * Same swap-the-delegate indirection as {@link SwappableActionExecutor}, for {@link TriggerEvaluator}.
+     * {@link #timersStartedBy} delegates to the recording double, which records the call and returns the
+     * timers the test set with {@code setTimersStartedBy}. This class also keeps the timers each row
+     * resolved to, as the port received them, so {@link #port()} can wait for those timer workflows.
+     */
     private static final class SwappableTriggerEvaluator implements TriggerEvaluator {
 
         private volatile TriggerEvaluator delegate;
+        private final Map<UUID, List<ResolvedTimer>> resolvedByRow = new ConcurrentHashMap<>();
 
         void setDelegate(TriggerEvaluator delegate) {
             this.delegate = delegate;
+            resolvedByRow.clear();
         }
 
         @Override
@@ -468,7 +460,14 @@ class TemporalAutomationPortContractTest extends AutomationContract {
 
         @Override
         public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
-            return List.of();
+            List<ResolvedTimer> timers = delegate.timersStartedBy(scope, transitionFired);
+            resolvedByRow.put(transitionFired.id(), timers);
+            return timers;
+        }
+
+        /** @return the timers the port resolved for the {@code TransitionFired} row {@code rowId}, or none */
+        List<ResolvedTimer> timersResolvedFor(UUID rowId) {
+            return resolvedByRow.getOrDefault(rowId, List.of());
         }
     }
 

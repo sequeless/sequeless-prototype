@@ -40,8 +40,7 @@ class PostgresOutboxDecodeFailureIT {
     /** A JSON array is valid {@code jsonb} but not a JSON object, so the codec's {@code Map} decode rejects it. */
     private static final String UNDECODABLE_PAYLOAD = "[1, 2, 3]";
 
-    private static final Set<String> CLAIMABLE_KINDS =
-            Set.of(OutboxEntry.KIND_TRANSITION_FIRED, OutboxEntry.KIND_TIMER_SCHEDULED);
+    private static final Set<String> CLAIMABLE_KINDS = Set.of(OutboxEntry.KIND_TRANSITION_FIRED, "TimerScheduled");
 
     private static final Instant BASE = Instant.parse("2026-11-01T00:00:00Z");
 

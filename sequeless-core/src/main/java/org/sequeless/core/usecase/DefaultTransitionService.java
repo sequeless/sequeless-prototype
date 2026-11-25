@@ -32,7 +32,6 @@ import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
 import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
-import org.sequeless.ontology.behaviour.api.TimerTrigger;
 import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
@@ -298,11 +297,9 @@ public final class DefaultTransitionService implements TransitionService {
 
     /**
      * The single commit path shared by {@link #fire} and {@link #fireAutomated}: builds the moved-state
-     * {@code candidate}, the one {@code TransitionFired} entry that carries the actions' data, the
-     * {@code TimerScheduled}/{@code TimerCancelled} entries for every timer transition entered or
-     * departed by this move (see {@link
-     * #addTimerOutboxEntries}), and commits all of it as one {@link ChangeSet} — so the two callers
-     * can never disagree about what a successful transition commits.
+     * {@code candidate} and the one {@code TransitionFired} entry that carries the actions' data, and
+     * commits both as one {@link ChangeSet} — so the two callers can never disagree about what a
+     * successful transition commits.
      *
      * <p>Reads {@link Automation} from its {@link AutomationSource} first. If its ontology version
      * differs from the version of {@code halves}, this throws {@link IllegalStateException} before
@@ -343,92 +340,10 @@ public final class DefaultTransitionService implements TransitionService {
         int ontologyVersion = halves.schema().ontologyVersion().value();
         List<OutboxEntry> outbox = new ArrayList<>();
         outbox.add(transitionFiredEntry(scope, existing, resolved, machine, transition, ontologyVersion, now));
-        addTimerOutboxEntries(scope, resolved, machine, existing, transition, ontologyVersion, now, outbox);
 
         ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), outbox);
         CommitResult result = objectStorePort.commit(scope, changeSet);
         return result.objects().get(0);
-    }
-
-    /**
-     * Appends, to {@code outbox}, one {@code TimerCancelled} entry for every timer transition
-     * departing the state {@code transition} is leaving ({@link Transition#fromStateIri()}) and one
-     * {@code TimerScheduled} entry for every timer transition departing the state {@code transition}
-     * is entering ({@link Transition#toStateIri()}) — including {@code transition} itself, if its own
-     * trigger happens to be a timer. Iterates the whole {@link StateMachineDefinition} rather than a
-     * from/to-indexed lookup: state machines are small, and this keeps {@link Transition}'s own
-     * representation untouched.
-     */
-    private void addTimerOutboxEntries(
-            Scope scope,
-            TypeDefinition resolved,
-            StateMachineDefinition machine,
-            BusinessObject existing,
-            Transition transition,
-            int ontologyVersion,
-            Instant now,
-            List<OutboxEntry> outbox) {
-        for (Transition candidate : machine.transitions()) {
-            if (!(candidate.trigger() instanceof TimerTrigger timer)) {
-                continue;
-            }
-            if (candidate.fromStateIri().equals(transition.fromStateIri())) {
-                outbox.add(timerCancelledEntry(scope, existing, candidate, ontologyVersion, now));
-            }
-            if (candidate.fromStateIri().equals(transition.toStateIri())) {
-                outbox.add(timerScheduledEntry(scope, resolved, existing, candidate, timer, ontologyVersion, now));
-            }
-        }
-    }
-
-    /**
-     * Builds one {@code TimerScheduled} entry for {@code timerTransition}, a timer transition
-     * departing the state the object just entered. {@code state} and {@code timerKey} are both
-     * anchored to {@code timerTransition.fromStateIri()} — the state the timer waits in — not to
-     * {@code transition.toStateIri()} on the caller's stack, even though the two are always equal
-     * here, so this method's own contract is self-evident without relying on that equality holding at
-     * every call site.
-     */
-    private OutboxEntry timerScheduledEntry(
-            Scope scope,
-            TypeDefinition resolved,
-            BusinessObject existing,
-            Transition timerTransition,
-            TimerTrigger timer,
-            int ontologyVersion,
-            Instant now) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", existing.id().value().toString());
-        payload.put("tenantId", scope.tenantId().value());
-        payload.put("principalId", scope.principal().id());
-        payload.put("typeIri", resolved.iri());
-        payload.put("state", timerTransition.fromStateIri());
-        payload.put("transitionName", timerTransition.name());
-        payload.put("after", timer.after().toString());
-        payload.put(
-                "timerKey",
-                OutboxEntry.timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
-        payload.put("ontologyVersion", ontologyVersion);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_SCHEDULED, payload, now);
-    }
-
-    /**
-     * Builds one {@code TimerCancelled} entry for {@code timerTransition}, a timer transition
-     * departing the state the object just left. {@code timerKey} is computed by the exact same {@link
-     * OutboxEntry#timerKey} helper {@link #timerScheduledEntry} uses, keyed the same way (the timer transition's
-     * own {@code fromStateIri}), so a cancel entry always carries the identical key the matching
-     * schedule entry carried — the two can never drift apart.
-     */
-    private OutboxEntry timerCancelledEntry(
-            Scope scope, BusinessObject existing, Transition timerTransition, int ontologyVersion, Instant now) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("objectId", existing.id().value().toString());
-        payload.put("tenantId", scope.tenantId().value());
-        payload.put(
-                "timerKey",
-                OutboxEntry.timerKey(existing.id(), timerTransition.fromStateIri(), timerTransition.name()));
-        payload.put("ontologyVersion", ontologyVersion);
-        return new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_TIMER_CANCELLED, payload, now);
     }
 
     private static String notAvailableMessage(String transitionName) {

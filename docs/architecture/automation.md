@@ -41,27 +41,26 @@ adapter that must filter on `kind` (the relay, an `AutomationPort`) cannot depen
 `sequeless-core`, and the `noAdapterDependsOnCore` ArchUnit rule forbids it from trying.
 
 - `OutboxEntry.KIND_TRANSITION_FIRED = "TransitionFired"` — one per fired transition, carrying the
-  transition's actions (the payload is described below). The relay claims it like every other kind,
-  and both automation adapters apply its actions.
+  transition's actions and naming the transition (the payload is described below). The relay claims
+  it like every other kind; both automation adapters apply its actions, and they start the timers
+  that the move begins (see the timer path below).
 - The `ActionRequest` kind has no constant any more: P2e removed `OutboxEntry.KIND_ACTION_REQUEST`.
   No code writes an `ActionRequest` row, and the relay does not claim one. Rows written before the
   flip were stamped processed by the V8 migration (see "Rows written before the flip" below).
 
-Phase 6 (DR-12) adds three more constants, all documented directly on `OutboxEntry` itself (the
-authoritative list — this document doesn't repeat their payload shapes beyond what's useful here;
-see the javadoc for the exact field list of each):
+Phase 6 (DR-12) adds one more constant, documented directly on `OutboxEntry` itself (the
+authoritative list — this document doesn't repeat its payload shape beyond what's useful here;
+see the javadoc for the exact field list):
 
-- `OutboxEntry.KIND_TIMER_SCHEDULED = "TimerScheduled"` — recorded when an object enters a state a
-  timer-triggered transition waits in.
-- `OutboxEntry.KIND_TIMER_CANCELLED = "TimerCancelled"` — recorded when an object leaves that state
-  for any reason, whether the timer transition itself fired or some other transition departed
-  first.
 - `OutboxEntry.KIND_SIGNAL_RECEIVED = "SignalReceived"` — recorded when `POST
   /api/objects/{type}/{id}/signals/{name}` is called (§12).
 
+DR-12 also added `TimerScheduled` and `TimerCancelled` rows. DR-25 removes both: a timer now starts
+from the `TransitionFired` row, and nothing cancels it (see the timer path below).
+
 Together with the three pre-existing object-lifecycle kinds (`ObjectCreated`/`ObjectUpdated`/
-`ObjectDeleted`, in use since DR-12), that makes six kinds besides `TransitionFired`, seven in all.
-`OutboxRelay` claims across all seven in one poll loop (§3), and the automation adapters apply the
+`ObjectDeleted`, in use since DR-12), that makes four kinds besides `TransitionFired`, five in all.
+`OutboxRelay` claims across all five in one poll loop (§3), and the automation adapters apply the
 actions of each `TransitionFired` row (§4).
 
 `OutboxEntry`'s constructor enforces the payload is JSON-compatible end to end (`String`,
@@ -463,16 +462,20 @@ path `fire()` (the REST path) uses — guard, state move, and one `TransitionFir
 transition, whose actions the adapters apply — so an automated transition is indistinguishable, in the audit trail and in its
 side-effects, from one a user fired directly.
 
-**The `timerKey` scheme.** Every successful transition, automated or user-fired, additionally
-writes — in the *same* `ChangeSet` as the state move — a `TimerCancelled` entry per timer
-transition departing the state just left, and a `TimerScheduled` entry per timer transition
-departing the state just entered. Both entries carry a `timerKey`, built by one private static
-helper in `DefaultTransitionService` (`objectId + "|" + stateIri + "|" + transitionName`, where
-`stateIri` is the timer transition's own `fromStateIri` — the state it waits in) that both the
-schedule and cancel call sites share. Building it in exactly one place, rather than duplicating the
-concatenation at each call site, is what guarantees a schedule and its matching cancel can never
-drift apart: an adapter finds a running timer to cancel by looking up this same string, whether
-it's a `ScheduledExecutorService` key (in-process) or a Temporal workflow id (Temporal).
+**The timer path and the `timerKey` scheme.** No timer kind is written: a move writes only its
+`TransitionFired` row, in the same `ChangeSet` as the state move. The row starts the timers that the
+move begins. `TriggerEvaluator.timersStartedBy` resolves them from the behaviour, and both adapters
+start one timer per resolved timer before they apply the row's actions. Each timer is keyed by
+`OutboxEntry.timerKey` (`objectId + "|" + stateIri + "|" + transitionName`, where `stateIri` is the
+timer transition's own `fromStateIri`, the state it waits in). That is one static method in
+`spi/outbox`, shared by core and both adapters. The in-process scheduler keys its map by this string,
+and Temporal uses it as the workflow id. A second start for the same key does not move the due time:
+the in-process scheduler uses `putIfAbsent`, and on Temporal the duplicate id is refused
+(`REJECT_DUPLICATE`), so the first run keeps its due time while it is open. Once that run has closed,
+a refused start leaves no timer. Leaving a timer state cancels nothing, and no adapter cancels a timer
+(DR-25). When a timer fires, `DefaultTriggerEvaluator.onTimerElapsed` checks the object's current
+state, and a timer whose object has left the state no-ops there. That staleness check is the only
+guard, so a timer can outlive a state change by up to its duration.
 
 **Recompute-then-`onChange` ordering.** For a single outbox row of kind `ObjectCreated`,
 `ObjectUpdated` or `ObjectDeleted`, the relay calls `DerivationRecomputer.recompute` **before** it
@@ -520,7 +523,7 @@ sequenceDiagram
         Relay->>Port: dispatch(scope, entry)
         Port->>Trig: onChange(scope, entry)
         Trig->>TS: fireAutomated(Project, "autoClose", ON_CHANGE)
-        TS->>DB: guard true (openTaskCount == 0, already fresh) →<br/>commit state move + TransitionFired (with its actions)<br/>+ TimerCancelled/TimerScheduled as applicable
+        TS->>DB: guard true (openTaskCount == 0, already fresh) →<br/>commit state move + TransitionFired (with its actions and timers)
         DB-->>Relay: row marked processed_at
     end
 
@@ -530,11 +533,13 @@ sequenceDiagram
     end
 ```
 
-A `TimerScheduled`/`TimerCancelled`/`SignalReceived` row follows the same claim → dispatch shape,
-just routed to `onTimerElapsed`/(cancel by `timerKey`)/`onSignal` instead of `onChange`; each
-adapter's `dispatch` switches on `kind()` to route them. A `TransitionFired` row is written alongside
-every fired transition and names the transition and its ontology version. The relay claims it like
-any other kind, and both adapters apply its actions by index (§4).
+A `SignalReceived` row follows the same claim → dispatch shape, routed to `onSignal` instead of
+`onChange`. A timer has no row of its own: it fires through `onTimerElapsed` when its due time
+passes, and the `TransitionFired` row that started it goes through the same claim → dispatch shape
+as any other row. Each adapter's `dispatch` switches on `kind()` to route the rows. A `TransitionFired`
+row is written alongside every fired transition and names the transition and its ontology version.
+The relay claims it like any other kind, and both adapters apply its actions by index (§4) and start
+its timers.
 
 ## 11. Materialised derivations (Phase 6 / DR-08)
 

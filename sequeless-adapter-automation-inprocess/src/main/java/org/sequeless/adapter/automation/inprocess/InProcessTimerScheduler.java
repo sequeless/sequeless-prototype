@@ -1,20 +1,26 @@
 package org.sequeless.adapter.automation.inprocess;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.spi.automation.ResolvedTimer;
+import org.sequeless.spi.automation.TimerScheduledEntry;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The in-process substitute for a durable timer engine (a future Temporal adapter's {@code
- * TimerWorkflow}): keeps every pending {@link OutboxEntry#KIND_TIMER_SCHEDULED} entry in an
- * in-memory map keyed by its payload's {@code timerKey}, and fires {@link
+ * TimerWorkflow}): keeps every pending timer that a {@code TransitionFired} row starts in an
+ * in-memory map keyed by {@link ResolvedTimer#timerKey()}, and fires {@link
  * TriggerEvaluator#onTimerElapsed} for whichever of them are due whenever {@link #sweep()} runs.
+ * {@link InProcessAutomationPort} calls {@link #schedule} once for each timer the row starts, before
+ * it applies the row's actions. There is no cancel: a timer runs to its due instant, and the
+ * staleness check in {@link TriggerEvaluator#onTimerElapsed} is the only guard against firing after
+ * the object has left the timer's state.
  *
  * <p><b>Not crash-safe</b> — a process restart forgets every pending timer, exactly like {@link
  * InProcessAutomationPort}'s own idempotency set. This is an accepted limitation of the in-process
@@ -28,7 +34,13 @@ import org.sequeless.spi.outbox.OutboxEntry;
  */
 final class InProcessTimerScheduler {
 
-    private record ScheduledTimer(Instant dueAt, Scope scope, OutboxEntry entry) {}
+    /**
+     * A pending timer: the {@link ResolvedTimer} it was scheduled from (which carries the timer key,
+     * the state and the transition name), its due instant, and the object and scope the sweep needs
+     * to rebuild the {@code TimerScheduled}-shaped entry at fire time.
+     */
+    private record ScheduledTimer(
+            Instant dueAt, Scope scope, ObjectId objectId, String typeIri, int ontologyVersion, ResolvedTimer timer) {}
 
     private final Clock clock;
     private final TriggerEvaluator triggerEvaluator;
@@ -46,50 +58,54 @@ final class InProcessTimerScheduler {
     }
 
     /**
-     * Records a pending timer from a {@link OutboxEntry#KIND_TIMER_SCHEDULED} entry, due {@code
-     * after} (parsed from the payload's ISO-8601 {@code after} field) from {@link #clock}'s current
-     * instant. Re-scheduling the same {@code timerKey} (e.g. a redispatch of the identical entry)
-     * simply overwrites the previous pending timer with an identical one — harmless, since both
-     * describe the same due instant relative to when they were first scheduled... callers are
-     * expected to have already de-duplicated by {@link OutboxEntry#id()} before calling this, which
-     * {@link InProcessAutomationPort} does.
+     * Records a pending timer that a {@code TransitionFired} row starts, due {@code timer.after()}
+     * from {@link #clock}'s current instant. The timer is keyed by {@link ResolvedTimer#timerKey()}.
      *
-     * @param scope the tenant/principal {@link #sweep()} should fire {@code onTimerElapsed} under
-     *     for this timer; must not be {@code null}
-     * @param entry the {@code TimerScheduled}-kind outbox entry; must not be {@code null}
+     * <p>A {@code timerKey} that is already pending is left alone: the map uses {@code putIfAbsent},
+     * so the original due instant survives. A {@code TransitionFired} row is redelivered when a retry
+     * re-enters {@link InProcessAutomationPort#dispatchTransitionFired}, and this keeps such a retry
+     * from moving the due time. A timer that {@link #sweep()} has already fired and removed is armed
+     * again; the staleness check in {@link TriggerEvaluator#onTimerElapsed} makes that second firing
+     * a no-op.
+     *
+     * @param scope the tenant and principal {@link #sweep()} fires {@code onTimerElapsed} under for
+     *     this timer; must not be {@code null}
+     * @param objectId the object the timer belongs to, from which {@link #sweep()} rebuilds the entry
+     *     with {@link TimerScheduledEntry#of}; must not be {@code null}
+     * @param typeIri the IRI of the object's type, for the same rebuilt entry; must not be {@code null}
+     * @param ontologyVersion the ontology version the {@code TransitionFired} row is stamped with, for
+     *     the same rebuilt entry
+     * @param timer the timer the {@link TriggerEvaluator} resolved for that row; its key, duration,
+     *     state and transition name are stored; must not be {@code null}
      */
-    void schedule(Scope scope, OutboxEntry entry) {
+    void schedule(Scope scope, ObjectId objectId, String typeIri, int ontologyVersion, ResolvedTimer timer) {
         Objects.requireNonNull(scope, "scope must not be null");
-        Objects.requireNonNull(entry, "entry must not be null");
-        String timerKey = (String) entry.payload().get("timerKey");
-        Duration after = Duration.parse((String) entry.payload().get("after"));
-        pending.put(timerKey, new ScheduledTimer(clock.instant().plus(after), scope, entry));
-    }
-
-    /**
-     * Removes the pending timer named by {@code cancelledEntry}'s payload {@code timerKey}, if any.
-     * A cancel for a {@code timerKey} with no pending timer (already fired, already cancelled, or
-     * never scheduled on this process) is a silent no-op.
-     *
-     * @param cancelledEntry the {@code TimerCancelled}-kind outbox entry; must not be {@code null}
-     */
-    void cancel(OutboxEntry cancelledEntry) {
-        Objects.requireNonNull(cancelledEntry, "cancelledEntry must not be null");
-        pending.remove((String) cancelledEntry.payload().get("timerKey"));
+        Objects.requireNonNull(objectId, "objectId must not be null");
+        Objects.requireNonNull(typeIri, "typeIri must not be null");
+        Objects.requireNonNull(timer, "timer must not be null");
+        pending.putIfAbsent(
+                timer.timerKey(),
+                new ScheduledTimer(
+                        clock.instant().plus(timer.after()), scope, objectId, typeIri, ontologyVersion, timer));
     }
 
     /**
      * Fires {@link TriggerEvaluator#onTimerElapsed} for, and removes, every pending timer whose
-     * {@code dueAt} is not after {@link #clock}'s current instant. Called both by a background tick
-     * (production) and directly, synchronously, by test code via {@code advanceTime} (see this
-     * class's javadoc) — the same method serves both, since sweeping is idempotent and cheap.
+     * {@code dueAt} is not after {@link #clock}'s current instant. The entry passed to {@code
+     * onTimerElapsed} is a {@code TimerScheduled}-shaped entry rebuilt from the stored timer with
+     * {@link TimerScheduledEntry#of}, and its {@code occurredAt} is the instant of this sweep. Called
+     * both by a background tick (production) and directly, synchronously, by test code via {@code
+     * advanceTime} (see this class's javadoc) — the same method serves both, since sweeping is
+     * idempotent and cheap.
      */
     void sweep() {
         Instant now = clock.instant();
         pending.entrySet().removeIf(e -> {
             ScheduledTimer timer = e.getValue();
             if (!timer.dueAt().isAfter(now)) {
-                triggerEvaluator.onTimerElapsed(timer.scope(), timer.entry());
+                OutboxEntry entry = TimerScheduledEntry.of(
+                        timer.scope(), timer.objectId(), timer.typeIri(), timer.ontologyVersion(), timer.timer(), now);
+                triggerEvaluator.onTimerElapsed(timer.scope(), entry);
                 return true;
             }
             return false;

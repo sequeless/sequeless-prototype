@@ -13,12 +13,12 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Proves the frozen post-P7 and post-P2 migration sets in test resources still match the live sets. The
- * frozen command sets are subsets of the live command set: later migrations may be added to the live set
- * after the freeze, as V7 was. The frozen post-P7 query set has the same file names as its live set. Every
- * frozen file is byte-identical to its live file. P2's PR copies its own migration pair from the post-P7
- * set, so a silent drift between the two would corrupt that copy; the post-P2 set is the step that pair
- * migrates to, so it is checked the same way.
+ * Proves the frozen post-P7, post-P2 and post-P3 migration sets in test resources still match the live
+ * sets. The frozen command sets are subsets of the live command set: later migrations may be added to the
+ * live set after the freeze, as V7 was. The frozen post-P7 query set has the same file names as its live
+ * set. Every frozen file is byte-identical to its live file. P2's PR copies its own migration pair from the
+ * post-P7 set, so a silent drift between the two would corrupt that copy; the post-P2 and post-P3 sets are
+ * the steps that the later pairs migrate to, so they are checked the same way.
  */
 class PostgresMigrationFrozenSetsTest {
 
@@ -27,6 +27,7 @@ class PostgresMigrationFrozenSetsTest {
     private static final String FROZEN_COMMAND = "frozen-migrations/post-p7/command";
     private static final String FROZEN_QUERY = "frozen-migrations/post-p7/query";
     private static final String FROZEN_POST_P2_COMMAND = "frozen-migrations/post-p2/command";
+    private static final String FROZEN_POST_P3_COMMAND = "frozen-migrations/post-p3/command";
 
     @Test
     void frozenCommandSetIsASubsetOfTheLiveCommandSet() {
@@ -52,6 +53,16 @@ class PostgresMigrationFrozenSetsTest {
     @Test
     void everyFrozenPostP2FileIsByteIdenticalToItsLiveFile() {
         assertIdentical(FROZEN_POST_P2_COMMAND, LIVE_COMMAND);
+    }
+
+    @Test
+    void frozenPostP3CommandSetIsASubsetOfTheLiveCommandSet() {
+        assertThat(sqlFileNames(LIVE_COMMAND)).containsAll(sqlFileNames(FROZEN_POST_P3_COMMAND));
+    }
+
+    @Test
+    void everyFrozenPostP3FileIsByteIdenticalToItsLiveFile() {
+        assertIdentical(FROZEN_POST_P3_COMMAND, LIVE_COMMAND);
     }
 
     private static void assertIdentical(String frozenDirectory, String liveDirectory) {

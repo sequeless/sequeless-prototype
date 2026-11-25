@@ -3,6 +3,7 @@ package org.sequeless.testkit.automation;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.automation.ResolvedTimer;
@@ -39,11 +40,14 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
     /** The method name recorded for a call to {@link TriggerEvaluator#onSignal}. */
     public static final String METHOD_ON_SIGNAL = "onSignal";
 
+    /** The method name recorded for a call to {@link TriggerEvaluator#timersStartedBy}. */
+    public static final String METHOD_TIMERS_STARTED_BY = "timersStartedBy";
+
     /**
      * One recorded {@link TriggerEvaluator} call.
      *
-     * @param method one of {@link #METHOD_ON_CHANGE}, {@link #METHOD_ON_TIMER_ELAPSED}, or {@link
-     *     #METHOD_ON_SIGNAL}
+     * @param method one of {@link #METHOD_ON_CHANGE}, {@link #METHOD_ON_TIMER_ELAPSED}, {@link
+     *     #METHOD_ON_SIGNAL}, or {@link #METHOD_TIMERS_STARTED_BY}
      * @param entryId the {@link OutboxEntry#id()} the call was made with
      * @param sequenceNanos a {@link System#nanoTime()} reading taken when the call was recorded,
      *     usable only for relative ordering within a single JVM run, never as a wall-clock value
@@ -51,6 +55,9 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
     public record Call(String method, UUID entryId, long sequenceNanos) {}
 
     private final List<Call> calls = Collections.synchronizedList(new ArrayList<>());
+
+    /** The timers {@link #timersStartedBy} returns; empty until a test sets them with {@link #setTimersStartedBy}. */
+    private volatile List<ResolvedTimer> timers = List.of();
 
     @Override
     public void onChange(Scope scope, OutboxEntry changeEvent) {
@@ -67,10 +74,25 @@ public final class RecordingTriggerEvaluator implements TriggerEvaluator {
         record(METHOD_ON_SIGNAL, signalReceived);
     }
 
-    /** Resolves no timers: this double records only the three inbound calls and never returns timers. */
+    /**
+     * Records the call under {@link #METHOD_TIMERS_STARTED_BY}, then returns the timers most recently
+     * set with {@link #setTimersStartedBy}, or none if no test has set any.
+     */
     @Override
     public List<ResolvedTimer> timersStartedBy(Scope scope, OutboxEntry transitionFired) {
-        return List.of();
+        record(METHOD_TIMERS_STARTED_BY, transitionFired);
+        return timers;
+    }
+
+    /**
+     * Sets the timers that every later {@link #timersStartedBy} call returns, replacing any set before.
+     * A contract test calls this before dispatching a {@code TransitionFired} row, so that the row
+     * starts the timers the test needs. Until it is called, the double resolves no timers.
+     *
+     * @param timers the timers to return, in the order they should be started; must not be {@code null}
+     */
+    public void setTimersStartedBy(List<ResolvedTimer> timers) {
+        this.timers = List.copyOf(Objects.requireNonNull(timers, "timers must not be null"));
     }
 
     /** @return every call recorded so far, in invocation order; a snapshot, not a live view */
