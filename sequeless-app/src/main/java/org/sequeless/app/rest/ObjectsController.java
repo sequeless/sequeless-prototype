@@ -499,7 +499,9 @@ public class ObjectsController {
     @ApiResponse(
             responseCode = "409",
             description = "No transition departing the object's current state has this signal name, or"
-                    + " its guard does not pass; the reason is in the body",
+                    + " its guard does not pass; the reason is in the body. A concurrent write to the"
+                    + " object, so that the stored object is not at the expected version, gives 409"
+                    + " stale-object",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "404",

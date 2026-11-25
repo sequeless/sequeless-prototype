@@ -691,6 +691,23 @@ class DefaultTransitionServiceTest {
     }
 
     @Test
+    void signalThrowsStaleObjectExceptionWhenTheObjectMovesBeforeTheCommitAndCommitsNothing() {
+        ObjectId id = ObjectId.random();
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        store.seed(timerWidget(id, 1, DONE_IRI));
+        // Another writer commits version 2 after the signal reads version 1 and before the signal commits.
+        BusinessObject concurrent = timerWidget(id, 2, DONE_IRI);
+        store.writeConcurrentlyAfterRead(concurrent);
+        DefaultTransitionService service = service(store, permitAll());
+
+        assertThatExceptionOfType(StaleObjectException.class)
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+        assertThat(store.commitCalls).isEqualTo(1);
+        assertThat(store.commits).isEmpty();
+        assertThat(store.store.get(id)).isEqualTo(concurrent);
+    }
+
+    @Test
     void signalForATransitionNotDepartingTheCurrentStateIsTransitionNotAvailable() {
         ObjectId id = ObjectId.random();
         // "wake" departs Done, but this object is in Start: no transition from Start carries the name.
@@ -722,7 +739,13 @@ class DefaultTransitionServiceTest {
         DefaultTransitionService service = service(store, permitAll());
 
         assertThatExceptionOfType(TransitionNotAvailableException.class)
-                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()));
+                .isThrownBy(() -> service.signal(ALICE, "TimerWidget", id, WAKE_SIGNAL, Map.of()))
+                .satisfies(exception -> {
+                    assertThat(exception.transitionName()).isEqualTo(WAKE_SIGNAL);
+                    assertThat(exception.reason())
+                            .isEqualTo("No transition for signal '" + WAKE_SIGNAL
+                                    + "' is available from the object's current state");
+                });
         assertThat(store.commitCalls).isZero();
     }
 
@@ -962,9 +985,15 @@ class DefaultTransitionServiceTest {
         private final List<ChangeSet> commits = new ArrayList<>();
         private int findCalls;
         private int commitCalls;
+        private BusinessObject writtenAfterRead;
 
         void seed(BusinessObject object) {
             store.put(object.id(), object);
+        }
+
+        /** Models another writer committing {@code object} right after the next read, before the caller commits. */
+        void writeConcurrentlyAfterRead(BusinessObject object) {
+            writtenAfterRead = object;
         }
 
         @Override
@@ -975,6 +1004,10 @@ class DefaultTransitionServiceTest {
             BusinessObject found = store.get(id);
             if (found == null || found.deleted()) {
                 return Optional.empty();
+            }
+            if (writtenAfterRead != null) {
+                store.put(id, writtenAfterRead);
+                writtenAfterRead = null;
             }
             return Optional.of(found);
         }
@@ -989,7 +1022,6 @@ class DefaultTransitionServiceTest {
             Objects.requireNonNull(scope, "scope must not be null");
             Objects.requireNonNull(changeSet, "changeSet must not be null");
             commitCalls++;
-            commits.add(changeSet);
 
             List<BusinessObject> resultObjects = new ArrayList<>();
             for (Mutation mutation : changeSet.mutations()) {
@@ -1011,6 +1043,8 @@ class DefaultTransitionServiceTest {
                 }
             }
 
+            // Recorded only once every mutation has passed its check, so a rejected commit records nothing.
+            commits.add(changeSet);
             List<UUID> outboxIds = new ArrayList<>();
             for (OutboxEntry ignored : changeSet.outbox()) {
                 outboxIds.add(UUID.randomUUID());

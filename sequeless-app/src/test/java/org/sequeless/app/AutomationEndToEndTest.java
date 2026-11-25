@@ -28,10 +28,10 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * End-to-end acceptance coverage (T12) for Phase 6's three automated trigger kinds, all against the
+ * End-to-end acceptance coverage (T12) for Phase 6's two automated trigger kinds, both against the
  * real {@code ex:ProjectLifecycle} state machine in {@code reference.ttl}: {@code autoClose}
- * (OnChange, watching {@code ex:belongsToProject}), {@code expireHold} (Timer, {@code PT72H}), and
- * {@code reopen} (ExternalSignal). Boots the real application on a random port against a real
+ * (OnChange, watching {@code ex:belongsToProject}) and {@code expireHold} (Timer, {@code PT72H}).
+ * Boots the real application on a random port against a real
  * Postgres Testcontainer with the in-process automation adapter draining the outbox, mirroring
  * {@link TransitionsEndToEndTest}'s idiom exactly (same {@code RestTestClient}, same hand-rolled
  * deadline-loop polling style).
