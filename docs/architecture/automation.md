@@ -21,16 +21,17 @@ Phase 6 (DR-12) adds three more `kind` values (§2). The relay claims four kinds
 `TransitionFired` row.
 
 `OutboxRelay` (`sequeless-app`, `org.sequeless.app.automation`) is a `@Scheduled` poller that
-drains the full **dispatchable** outbox kind set, one row at a time, into whichever
-`AutomationPort` adapter is currently configured via `sequeless.automation.adapter` — `inprocess`
+drains the full **dispatchable** outbox kind set, one row at a time, mapping each row to a
+`StoreEvent` and ingesting it into whichever `AutomationPort` adapter is currently configured via
+`sequeless.automation.adapter` — `inprocess`
 (synchronous, in the relay's own thread; for tests and local development) or `temporal` (durable,
 retried, the production default per DR-09). Both adapters call back into the same `ActionExecutor`
 implementation (`DefaultActionExecutor` in `sequeless-core`) to apply a `TransitionFired` row's actions;
 the other dispatchable kinds route to `TriggerEvaluator`/`DerivationRecomputer` instead — see §9.
 
 Phase 6 (DR-12) widens this considerably: what was originally a single `ActionRequest`-only queue
-is now, after P4, a four-kind dispatchable set (§2), and the adapter's `dispatch()` method is a switch over
-`kind()`, not a single hard-coded call.
+is now, after P4, a four-kind dispatchable set (§2), and the adapter's `ingest()` method matches on the
+sealed `StoreEvent` type, with no default branch, not a single hard-coded call.
 
 ## 2. The outbox and the `TransitionFired` payload shape
 
@@ -113,11 +114,11 @@ to confirm it (`DefaultActionExecutorTest`).
 **What the per-action path reads, and when.** The row names the transition (`machineIri`,
 `fromState`, `transitionName`) and its `ontologyVersion`, but not the actions. Both adapters read the
 row's actions from the `AutomationSource` for the row's ontology version, and pass each action, with
-its index, to the matching `ActionExecutor` method. `TemporalAutomationPort.dispatch` reads them once, to
+its index, to the matching `ActionExecutor` method. `TemporalAutomationPort.ingest` reads them once, to
 count the workflows to start, and `ActionActivitiesImpl#applyTransitionAction` reads them again on
 each attempt, to pick the action at its index. `InProcessAutomationPort` reads them once, at
-dispatch. A missing `ontologyVersion` stamp, or one that differs from the automation's version,
-throws `IllegalStateException` at dispatch. In the Temporal activity the same checks throw a
+ingest. A missing `ontologyVersion` stamp, or one that differs from the automation's version,
+throws `IllegalStateException` at ingest. In the Temporal activity the same checks throw a
 non-retryable `ApplicationFailure`, so Temporal does not retry them.
 
 ## 3. `OutboxRelay`
@@ -194,9 +195,10 @@ template error can never succeed.
 
 ### Temporal (`sequeless.automation.adapter=temporal`)
 
-`TemporalAutomationPort.dispatch` is fire-and-forget. For a `TransitionFired` row it calls
-`startTransitionFiredActions`, which starts one `TransitionActionWorkflow` per action of the row's
-transition, in index order, with workflow id `<entryId>:<index>`. Each start is the async
+`TemporalAutomationPort.ingest` is fire-and-forget. An object-lifecycle event starts one
+`ChangeEventWorkflow`, keyed by the event id, which runs `onChange` only (§9). For a `TransitionFired`
+event it calls `startTransitionFiredActions`, which starts one `TransitionActionWorkflow` per action of
+the transition, in index order, with workflow id `<eventId>:<index>`. Each start is the async
 `WorkflowClient.start` call, not the blocking `execute()`, so the outbox row is marked processed as
 soon as the workflows durably **start**, not when they complete. `TransitionActionWorkflow`
 (`@WorkflowInterface`, one `@WorkflowMethod execute(OutboxEntry entry, int actionIndex)`) calls
@@ -228,16 +230,16 @@ having run, rather than a silent `NullPointerException` deep in workflow logic.
 
 ## 5. Idempotency
 
-`AutomationPort#dispatch`'s contract requires that a second call for an already-dispatched
-`entry.id()` must not invoke the underlying `ActionExecutor` method a second time. For a
-`TransitionFired` row the key is the entry id and the action index (see (a) and (c)). Three
+`AutomationPort#ingest`'s contract requires that a second call for an already-ingested
+`event.id()` must not invoke the underlying `ActionExecutor` method a second time. For a
+`TransitionFired` event the key is the event id and the action index (see (a) and (c)). Three
 independent mechanisms, at three different layers, jointly guarantee this — deliberately
 independent, so a gap in one does not silently break the guarantee.
 
-**(a) Temporal workflow-id reuse policy (dispatch layer).**
-`TemporalAutomationPort.dispatch` uses `entry.id().toString()`, exactly, as the workflow id, and
+**(a) Temporal workflow-id reuse policy (ingest layer).**
+`TemporalAutomationPort.ingest` uses `event.id().toString()`, exactly, as the workflow id, and
 explicitly sets `WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE` on the
-`WorkflowOptions` it builds. A `TransitionFired` row uses `<entryId>:<index>` as its workflow id
+`WorkflowOptions` it builds. A `TransitionFired` event uses `<eventId>:<index>` as its workflow id
 instead, one per action, with the same options. This was a real bug caught during implementation via a failing
 `TestWorkflowEnvironment` contract test, not a hypothetical: the Temporal SDK's **default** reuse
 policy is `ALLOW_DUPLICATE`, under which starting a workflow whose previous run with the same id
@@ -245,11 +247,12 @@ had already *completed* silently starts a brand-new execution instead of raising
 `WorkflowExecutionAlreadyStarted` — which would re-run the action a second time on redispatch,
 exactly the bug idempotency is supposed to prevent. `REJECT_DUPLICATE` makes
 `WorkflowExecutionAlreadyStarted` unconditional for any duplicate workflow id (running, completed,
-or failed), which `dispatch`'s `catch (WorkflowExecutionAlreadyStarted e)` block treats as a
+or failed), which the `catch (WorkflowExecutionAlreadyStarted e)` blocks in `TemporalAutomationPort`
+treat as a
 successful no-op.
 
 **(b) `DefaultActionExecutor`'s own idempotent writes (action-execution layer, independent of
-(a)).** Even a duplicate dispatch that somehow got past the workflow-id guard (or an in-process
+(a)).** Even a duplicate ingest that somehow got past the workflow-id guard (or an in-process
 relay retry, which has no equivalent guard of its own — see (c)) cannot produce a duplicate
 side-effect, because `DefaultActionExecutor` (`sequeless-core`,
 `org.sequeless.core.automation.DefaultActionExecutor`) is idempotent by construction:
@@ -265,9 +268,9 @@ side-effect, because `DefaultActionExecutor` (`sequeless-core`,
 
 **(c) The in-process adapter's own weaker, process-lifetime-only guard.**
 `InProcessAutomationPort` keeps an in-memory `ConcurrentHashMap`-backed `Set<UUID>` of every
-`entry.id()` it has already dispatched, short-circuiting a repeat call as a no-op. It has no
-Temporal-style durable-engine mechanism to lean on for free, so it tracks dispatched ids itself.
-A `TransitionFired` row is the exception: it is tracked per `(entry id, action index)` in a second
+event id it has already ingested, short-circuiting a repeat call as a no-op. It has no
+Temporal-style durable-engine mechanism to lean on for free, so it tracks ingested ids itself.
+A `TransitionFired` event is the exception: it is tracked per `(event id, action index)` in a second
 set. A `Log` action is recorded once applied, and a `Webhook` action once its delivery succeeds, so
 neither repeats on a retry. A `SetProperty` or `CreateObject` action is never recorded, because its
 write commits with the claim transaction and rolls back with it, so it runs again on a retry.
@@ -286,7 +289,7 @@ gap doesn't matter.
   `attempts`, and the third failure dead-letters the row (see the next item).
 - **Dead-letter after three failed dispatches, with manual recovery (DR-23).**
   `PostgresOutboxPort`'s claim (behind `OutboxPort#claimNext`) orders by `occurred_at` and skips a
-  dead-lettered row. A row whose `dispatch()` throws, or, for an object-lifecycle row, whose
+  dead-lettered row. A row whose `ingest()` throws, or, for an object-lifecycle row, whose
   recompute throws, has `fail_count` incremented in its own transaction after the failed dispatch
   rolls back; that increment is skipped if another relay has processed the row since the rollback,
   if the increment itself fails (the error is then only attached to the handler's exception as
@@ -344,7 +347,7 @@ Application-side configuration (`TemporalAutomationProperties`,
 `sequeless.automation.temporal.*`): `target` (`host:port` gRPC target) is blank/unset by default,
 which means "use `WorkflowServiceStubs.newLocalServiceStubs()`", targeting `127.0.0.1:7233` without
 eagerly connecting — i.e. it matches the Docker Compose service above with zero configuration.
-`task-queue` defaults to `"sequeless-actions"` — the queue both `TemporalAutomationPort.dispatch`
+`task-queue` defaults to `"sequeless-actions"` — the queue both `TemporalAutomationPort.ingest`
 starts workflows on and `TemporalAutomationAutoConfiguration.workerFactory`'s worker polls.
 
 **Why `temporal-spring-boot-starter` is deliberately not used.** That starter transitively pulls
@@ -396,7 +399,7 @@ real `ObjectStorePort#commit` call, bypassing `TransitionService`/the ontology e
 automation that holds the webhook action, pointing at a local JDK `HttpServer` stub instead.
 
 The in-process adapter makes this caveat stricter. A failing webhook throws `WebhookDeliveryException`
-out of `dispatchTransitionFired`, which rolls back the claim transaction for the whole fired row. No
+out of `applyTransitionFired`, which rolls back the claim transaction for the whole fired row. No
 action of that row takes effect, including the kickoff `CreateObject`, and the row is dead-lettered
 after three polls. `TransitionsEndToEndTest` therefore redirects the webhook to a local stand-in at the
 `ActionExecutor` seam (`WebhookStandInConfiguration`), so that the `activate` row's kickoff `Task` is
@@ -482,17 +485,17 @@ guard, so a timer can outlive a state change by up to its duration.
 
 **Recompute-then-`onChange` ordering.** For a single outbox row of kind `ObjectCreated`,
 `ObjectUpdated` or `ObjectDeleted`, the relay calls `DerivationRecomputer.recompute` **before** it
-dispatches that row to the automation port, which then calls `TriggerEvaluator.onChange`. The relay
-does this for every adapter, inside the same claim. This matters concretely: the reference
+ingests that row into the automation port as an `ObjectChangedEvent`, which then calls
+`TriggerEvaluator.onChange`. The relay does this for every adapter, inside the same claim. This matters
+concretely: the reference
 ontology's `autoClose` transition guards on `self.openTaskCount == 0`, read from *stored* props — so
 the materialised count must already be fresh by the time `onChange` evaluates that guard, or the
 happy path (closing the last open Task should immediately make the Project eligible to auto-close)
 would take an extra hop to converge. The system still converges even if the relay ever ran them out
 of order — recompute's own `ObjectUpdated` write re-triggers evaluation regardless — but the fixed
 order makes the common case resolve in one hop instead of two. `OutboxRelay#pollOnce`'s javadoc
-documents this ordering. The Temporal adapter's `ChangeEventWorkflow` still runs its own recompute
-before `onChange`; for the same change that recompute finds nothing to commit, until the workflow
-step is removed.
+documents this ordering. The Temporal adapter's `ChangeEventWorkflow` runs `onChange` only: the relay's
+recompute is the one recompute for the change, so the workflow has no recompute step of its own.
 
 ## 10. Event flow
 
@@ -507,7 +510,7 @@ sequenceDiagram
     participant Core as Core commit<br/>(ChangeSet: mutation + outbox rows)
     participant DB as sq_object / sq_outbox
     participant Relay as OutboxRelay (poll loop)
-    participant Port as AutomationPort.dispatch
+    participant Port as AutomationPort.ingest
     participant Recomp as DerivationRecomputer.recompute
     participant Trig as TriggerEvaluator<br/>(onChange / onTimerElapsed)
     participant TS as TransitionService.fireAutomated
@@ -523,8 +526,8 @@ sequenceDiagram
         Relay->>Recomp: recompute(scope, entry)
         Recomp->>DB: read Project fresh, computeRule, commit only if changed
         Note over Recomp,DB: writes its own ObjectUpdated(Project)<br/>row if openTaskCount changed
-        Relay->>Port: dispatch(scope, entry)
-        Port->>Trig: onChange(scope, entry)
+        Relay->>Port: ingest(scope, event)
+        Port->>Trig: onChange(scope, event)
         Trig->>TS: fireAutomated(Project, "autoClose", ON_CHANGE)
         TS->>DB: guard true (openTaskCount == 0, already fresh) →<br/>commit state move + TransitionFired (with its actions and timers)
         DB-->>Relay: row marked processed_at
@@ -540,8 +543,9 @@ A signal has no row and takes no claim → dispatch step: `POST .../signals/{nam
 transition in the request (§12). A timer has no row of its own: it fires through `onTimerElapsed`
 when its due time passes, and the `TransitionFired` row that started it goes through the same
 claim → dispatch shape
-as any other row. Each adapter's `dispatch` switches on `kind()` to route the rows. A `TransitionFired`
-row is written alongside every fired transition and names the transition and its ontology version.
+as any other row. Each adapter's `ingest` matches on the sealed `StoreEvent` type, with no default
+branch. A `TransitionFired` row is written alongside every fired transition and names the transition
+and its ontology version.
 The relay claims it like any other kind, and both adapters apply its actions by index (§4) and start
 its timers.
 
@@ -594,10 +598,10 @@ by:
 If every attempt is exhausted, the exception propagates uncaught out of `recompute()`. The relay
 calls `recompute()` inside its claim handler, so the claim rolls back: the row stays unprocessed,
 and the next poll tick retries it. That is the recovery for both adapters, because the relay runs
-the recompute before dispatch for both. A row whose recompute keeps failing is dead-lettered after
+the recompute before ingest for both. A row whose recompute keeps failing is dead-lettered after
 three failed dispatches, so it no longer blocks the rows behind it (§6, DR-23).
-`recompute` itself does not retry a second time. The Temporal `ChangeEventWorkflow` still has its
-own recompute activity, which Temporal retries, until its workflow step is removed.
+`recompute` itself does not retry a second time. The Temporal `ChangeEventWorkflow` has no recompute
+activity, so Temporal's retry policy never applies to the recompute.
 
 This is exactly what a 200-concurrent-Task-update load test exercises: settling on the correct
 `openTaskCount` losslessly under real contention (20-thread pool, 200 futures)
@@ -613,11 +617,11 @@ persistence DataSource bean exists, each commit inside that recompute runs in it
 `ObjectStorePort`), so a retried `StaleObjectException` rolls back only its own attempt and does
 not mark the claim transaction rollback-only.
 
-**The Temporal adapter has one recompute per change event, with no serialize or coalesce mode** —
+**The Temporal adapter has no recompute of its own, and no serialize or coalesce mode** —
 a deliberate, stated scope reduction, not an oversight, and there is no
-`sequeless.automation.temporal.recompute.mode` property at all. `ChangeEventWorkflow` still calls
-the `recompute` then `onChange` activities directly, relying on `DefaultDerivationRecomputer`'s own
-intra-call retry (plus Temporal's activity-level `RetryOptions` on top). Building a Temporal
+`sequeless.automation.temporal.recompute.mode` property at all. The relay's one recompute per change
+event relies on `DefaultDerivationRecomputer`'s own intra-call retry, and `ChangeEventWorkflow` runs
+`onChange` only. Building a Temporal
 equivalent of `SERIALIZE`/`COALESCE` would need a per-key
 `RecomputeWorkflow` driven by `signalWithStart` — but `WorkflowClient.signalWithStart`/
 `WorkflowStub.signalWithStart` in this SDK are fire-and-forget: they start and signal a workflow but
