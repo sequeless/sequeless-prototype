@@ -1,8 +1,8 @@
-import type { Locator, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
 
 // The only file allowed to import the e2e runner. Journeys import from here so the runner can be swapped in one place.
 export { test, expect } from '@playwright/test';
-export type { Locator, Page };
+export type { APIRequestContext, Locator, Page };
 
 export interface E2eEnv {
   baseUrl: string;
