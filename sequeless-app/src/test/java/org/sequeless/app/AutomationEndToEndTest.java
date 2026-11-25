@@ -34,7 +34,8 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * Boots the real application on a random port against a real
  * Postgres Testcontainer with the in-process automation adapter draining the outbox, mirroring
  * {@link TransitionsEndToEndTest}'s idiom exactly (same {@code RestTestClient}, same hand-rolled
- * deadline-loop polling style).
+ * deadline-loop polling style). It also covers the {@code reopen} external signal, which applies its
+ * transition in the request, with no relay and no poll ({@code reopenSignalMovesAClosedProjectBackToActive}).
  *
  * <p><b>Fake clock seam.</b> A real {@code PT72H} timer cannot be waited out in a test, so this
  * class registers its own {@code @Primary} {@link Clock} bean — a small mutable fake — overriding

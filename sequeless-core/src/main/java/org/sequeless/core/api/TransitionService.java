@@ -107,7 +107,7 @@ public interface TransitionService {
      * <p>On a {@link TransitionNotAvailableException}, {@code transitionName} is the signal name when
      * no transition from the current state carries the signal name (including a state-less object).
      * When the matched transition's guard fails, {@code transitionName} is that transition's name and
-     * the reason is the guard's message.
+     * the reason is the guard's message, or a default naming the transition when the guard gives none.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
