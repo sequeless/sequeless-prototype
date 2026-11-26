@@ -9,8 +9,9 @@ import io.temporal.failure.CanceledFailure;
 import org.junit.jupiter.api.Test;
 
 /**
- * Covers {@link ActivityFailureCauses} directly. The workflow tests show the outcome of a cancellation (no record),
- * but a cancelled activity is short-circuited before it is dispatched, so the predicate itself is proven here.
+ * Covers {@link ActivityFailureCauses} directly. {@code ChangeEventWorkflowTest} shows the outcome of a cancellation
+ * (no record), but it cannot prove this predicate: once the workflow is cancelled, a record activity scheduled after
+ * the cancel is never dispatched, so no record is written whichever branch runs. This test proves the predicate itself.
  */
 class ActivityFailureCausesTest {
 
@@ -39,6 +40,14 @@ class ActivityFailureCausesTest {
     void describesAnApplicationFailureWithNoMessageAsItsTypeAlone() {
         ActivityFailure failure =
                 activityFailure(ApplicationFailure.newFailure(null, "java.lang.IllegalStateException"));
+
+        assertThat(ActivityFailureCauses.describe(failure)).isEqualTo("java.lang.IllegalStateException");
+    }
+
+    @Test
+    void describesAnApplicationFailureWithABlankMessageAsItsTypeAlone() {
+        // A failure decoded from history carries an empty message, not null, so this is the case production hits.
+        ActivityFailure failure = activityFailure(ApplicationFailure.newFailure("", "java.lang.IllegalStateException"));
 
         assertThat(ActivityFailureCauses.describe(failure)).isEqualTo("java.lang.IllegalStateException");
     }
