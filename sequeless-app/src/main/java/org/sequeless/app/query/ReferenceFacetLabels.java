@@ -1,5 +1,6 @@
 package org.sequeless.app.query;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +22,10 @@ import org.sequeless.ontology.schema.api.AttributeDefinition;
 import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.query.api.FacetBucket;
+import org.sequeless.query.api.ObjectView;
 import org.sequeless.query.api.PropertyRef;
 import org.sequeless.query.api.QueryService;
+import org.sequeless.query.api.ReadRequest;
 import org.sequeless.query.field.api.ClassRef;
 import org.sequeless.query.field.api.FieldPath;
 import org.sequeless.query.field.api.FieldScope;
@@ -39,7 +42,8 @@ import org.sequeless.query.field.api.FieldType;
  * label is dropped, as the prototype's query dropped it. A reference facet whose target type declares no label keeps
  * the target id as text, the prototype's documented fallback. Non-reference facets pass through unchanged.
  *
- * <p>This costs one read per distinct target in the facet. The released query has no join to do it in one statement.
+ * <p>This costs one read per distinct target in the browse, across all its reference facets: a target that two facets
+ * share is read once. The released query has no join to do it in one statement.
  */
 final class ReferenceFacetLabels {
 
@@ -62,9 +66,10 @@ final class ReferenceFacetLabels {
     Map<FieldPath, List<FacetBucket>> apply(
             Scope scope, Schema schema, FieldScope fieldScope, Map<FieldPath, List<FacetBucket>> facets) {
         Map<FieldPath, List<FacetBucket>> result = new LinkedHashMap<>();
+        Map<ObjectId, Optional<ObjectView>> views = new HashMap<>();
         facets.forEach((path, buckets) -> {
             Optional<String> labelIri = displayLabelOf(path, fieldScope, schema);
-            result.put(path, labelIri.isEmpty() ? buckets : labelled(scope, labelIri.get(), buckets));
+            result.put(path, labelIri.isEmpty() ? buckets : labelled(scope, labelIri.get(), buckets, views));
         });
         return result;
     }
@@ -87,10 +92,12 @@ final class ReferenceFacetLabels {
                         .findFirst());
     }
 
-    private List<FacetBucket> labelled(Scope scope, String labelIri, List<FacetBucket> buckets) {
+    private List<FacetBucket> labelled(
+            Scope scope, String labelIri, List<FacetBucket> buckets, Map<ObjectId, Optional<ObjectView>> views) {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (FacetBucket bucket : buckets) {
-            labelOf(scope, labelIri, bucket.value()).ifPresent(label -> counts.merge(label, bucket.count(), Long::sum));
+            labelOf(scope, labelIri, bucket.value(), views)
+                    .ifPresent(label -> counts.merge(label, bucket.count(), Long::sum));
         }
         return counts.entrySet().stream()
                 .sorted(java.util.Map.Entry.<String, Long>comparingByValue()
@@ -100,10 +107,10 @@ final class ReferenceFacetLabels {
                 .toList();
     }
 
-    private Optional<String> labelOf(Scope scope, String labelIri, String targetId) {
+    private Optional<String> labelOf(
+            Scope scope, String labelIri, String targetId, Map<ObjectId, Optional<ObjectView>> views) {
         ObjectId id = new ObjectId(UUID.fromString(targetId));
-        return queryService
-                .read(scope, new org.sequeless.query.api.ReadRequest(id))
+        return views.computeIfAbsent(id, key -> queryService.read(scope, new ReadRequest(key)))
                 .flatMap(view -> Optional.ofNullable(view.properties().get(new PropertyRef(labelIri))))
                 .flatMap(ReferenceFacetLabels::lexical);
     }

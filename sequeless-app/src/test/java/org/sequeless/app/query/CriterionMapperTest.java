@@ -8,6 +8,7 @@ import static org.sequeless.app.query.QueryFixtures.criterion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.NullNode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -54,26 +55,42 @@ class CriterionMapperTest {
     }
 
     @Test
-    void isNullIsUnmappedAndNamesTheOperator() {
-        assertThatThrownBy(() -> CriterionMapper.toFieldFilter(criterion(Operator.IS_NULL, null)))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("IS_NULL");
+    void isNullIsTheReleasedIsWithAJsonNullValue() {
+        FieldFilter filter = CriterionMapper.toFieldFilter(criterion(Operator.IS_NULL, null));
+
+        assertThat(filter).isEqualTo(new FieldFilter(TITLE_IRI, "is", NullNode.getInstance()));
+        assertThat(filter.value()).isNotNull();
+        assertThat(filter.value().isNull()).isTrue();
     }
 
     @Test
-    void notNullIsUnmappedAndNamesTheOperator() {
-        assertThatThrownBy(() -> CriterionMapper.toFieldFilter(criterion(Operator.NOT_NULL, null)))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("NOT_NULL");
+    void notNullIsTheReleasedIsNotWithAJsonNullValue() {
+        FieldFilter filter = CriterionMapper.toFieldFilter(criterion(Operator.NOT_NULL, null));
+
+        assertThat(filter).isEqualTo(new FieldFilter(TITLE_IRI, "is not", NullNode.getInstance()));
+        assertThat(filter.value()).isNotNull();
+        assertThat(filter.value().isNull()).isTrue();
     }
 
     @Test
-    void anUnmappedOperatorInsideAnAndIsRejectedWhole() {
-        List<Criterion> criteria = List.of(criterion(Operator.EQ, Value.text("x")), criterion(Operator.IS_NULL, null));
+    void theNullValueIsTheJsonNullNodeNotAJavaNull() {
+        assertThat(CriterionMapper.toFieldFilter(criterion(Operator.IS_NULL, null))
+                        .value())
+                .isSameAs(NullNode.getInstance());
+        assertThat(CriterionMapper.toFieldFilter(criterion(Operator.NOT_NULL, null))
+                        .value())
+                .isSameAs(NullNode.getInstance());
+    }
 
-        assertThatThrownBy(() -> CriterionMapper.toFilter(criteria))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("IS_NULL");
+    @Test
+    void aNullCriterionInsideAnAndKeepsItsOrder() {
+        Criterion first = criterion(Operator.EQ, Value.text("x"));
+        Criterion second = criterion(Operator.IS_NULL, null);
+
+        assertThat(CriterionMapper.toFilter(List.of(first, second)))
+                .hasValueSatisfying(node -> assertThat(node)
+                        .isEqualTo(new AndFilter(
+                                List.of(CriterionMapper.toFieldFilter(first), CriterionMapper.toFieldFilter(second)))));
     }
 
     @Test
