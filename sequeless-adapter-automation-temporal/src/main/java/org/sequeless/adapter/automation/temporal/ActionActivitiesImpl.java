@@ -64,7 +64,9 @@ public final class ActionActivitiesImpl implements ActionActivities {
      *
      * <p>The three checks throw a non-retryable {@link ApplicationFailure}, so Temporal does not
      * retry the activity. The row was already processed by the relay before this runs, so no
-     * dead-letter applies: a failure here is visible only in Temporal's history.
+     * dead-letter applies: a failure here is recorded as an {@link
+     * org.sequeless.spi.automation.AutomationFailure} by {@link TransitionActionWorkflowImpl} once the
+     * activity's retries are exhausted (spec 13, R2).
      *
      * @param scope the tenant and principal to apply the action on behalf of
      * @param transitionFired the {@code TransitionFired}-kind outbox entry the action originates from

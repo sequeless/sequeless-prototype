@@ -28,6 +28,12 @@ import org.sequeless.spi.outbox.OutboxEntry;
  */
 public final class TransitionActionWorkflowImpl implements TransitionActionWorkflow {
 
+    /** The change id that guards the failure record of a transition action (spec 13, R2). */
+    private static final String FAILURE_RECORD_CHANGE_ID = "transition-action-failure-record";
+
+    /** The version a new execution records under {@link #FAILURE_RECORD_CHANGE_ID}. */
+    private static final int FAILURE_RECORD_VERSION = 1;
+
     /** The workflow type written on a failure record. Equals the interface's simple name. */
     static final String WORKFLOW_TYPE = "TransitionActionWorkflow";
 
@@ -40,10 +46,15 @@ public final class TransitionActionWorkflowImpl implements TransitionActionWorkf
         }
         Scope scope = scopeFrom(entry);
         ActionActivities activities = Workflow.newActivityStub(ActionActivities.class, activityOptions);
+        // Read before the activity, on every path, so the marker is written on the first execution. An execution
+        // recorded before R2 has no marker, so it keeps the old behaviour: the failure propagates.
+        boolean recordsFailure =
+                Workflow.getVersion(FAILURE_RECORD_CHANGE_ID, Workflow.DEFAULT_VERSION, FAILURE_RECORD_VERSION)
+                        == FAILURE_RECORD_VERSION;
         try {
             activities.applyTransitionAction(scope, entry, actionIndex);
         } catch (ActivityFailure failure) {
-            if (ActivityFailureCauses.isCancellation(failure)) {
+            if (!recordsFailure || ActivityFailureCauses.isCancellation(failure)) {
                 throw failure;
             }
             AutomationFailureActivities failures =
