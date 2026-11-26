@@ -54,7 +54,7 @@ class ArchitectureTest {
     private static final String INGEST = "ingest";
     private static final String RELAY_PACKAGE = "org.sequeless.app.automation..";
     private static final String RELAY_CLASS = "org.sequeless.app.automation.OutboxRelay";
-    private static final String TESTKIT_AUTOMATION_PACKAGE = "org.sequeless.testkit.automation..";
+    private static final String TESTKIT_AUTOMATION_PACKAGE = "org.sequeless.automation.testkit..";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -299,8 +299,9 @@ class ArchitectureTest {
 
     /**
      * Automation's ingress is fed only by the outbox relay (spec 13 P5b, #20 point 4): no class outside
-     * {@code org.sequeless.app.automation} calls {@code AutomationPort#ingest}. The testkit's automation contract
-     * ({@code org.sequeless.testkit.automation}) is excluded: it drives the port from the adapters' contract tests
+     * {@code org.sequeless.app.automation} calls {@code AutomationPort#ingest}. The released automation testkit
+     * ({@code org.sequeless.automation.testkit}, retargeted from the prototype's deleted testkit.automation in spec 17 P4)
+     * is excluded: it drives the port from the adapters' contract tests
      * and is not a production caller. That exclusion is a deviation from spec line 207, which names only the relay
      * package; the testkit's main code is imported here, so it must be named.
      */
