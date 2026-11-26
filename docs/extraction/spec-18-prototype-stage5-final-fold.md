@@ -47,12 +47,12 @@ The decisions below are the Navigator's and the parent's, as recorded in the pla
 | Q-B | The frozen directories `frozen-migrations/3328993` and `frozen-migrations/fbb82c5` stay in the host. Amends Q15. |
 | Q-C | The `AuthorizationPort` interface moves to `store.spi`. In U2 `AccessDecision` and `Operation` stay in `org.sequeless.spi.authz`; U3 moves them to `store.api`. The permit-all adapter, its autoconfiguration and its wiring stay in the host. Amends #19 item 6. |
 | Q-D | `store.api` gains one minimal `ObjectState` (or `ObjectRecord`) type, with its fields sized by a grep at U4 (open item O5). |
-| Q-E | An injected hook between command migrations V6 and V7, no-op by default, so the V6 trigger's harness can be swapped (open item O1, decided at U8). |
+| Q-E | An injected hook between command migrations V6 and V7 (`PostgresMigrations.migrate(DataSource, Consumer<DataSource>)`). **Amended in U5 (PR-B):** the default `migrate(DataSource)` runs the Query set in that hook, so every existing caller keeps its behaviour and its row writes keep working. A no-op hook gives the Command set alone. The original text said no-op by default; that default would have broken every caller that writes `sq_object` rows. The harness choice (open item O1) is still decided at U8. |
 | Q-F | `ontology-postgres-adapter`'s tests take `store-postgres-jsonb-adapter` 0.1.0 at test scope, for the migrated schema only. It has no compile dependency and ships no migration. |
 | G1 | The store's integration tests create `sq_searchable_property` with copied DDL. One host drift IT runs the real Query set and then the command set. There is no query artifact in the store. |
 | G2 | `store-core` builds against the BOM's `ontology-core` 0.1.0. U8 and U10 each carry a compile check. Fallback: 0.2.0, if the check fails. |
 | G3 | The store's ArchUnit rules move to `store-core`'s test (U8). |
-| G4 | The settling cases are split between the host and the store (U5). The case map is open item O9. |
+| G4 | **Amended in U5 (PR-B):** all seven settling cases stay in the host for U5, because each one calls `assertQueryHistory` or `queryFlyway`, and the parent's ruling keeps those in the host. The store-side split is deferred to U8, after G1. The case map (open item O9) is closed by that ruling. The bare-database cases (default write works, command-only write fails, default history matches the released Query migrate) are added to the same host IT. |
 | O2 | A JSONB-to-`Value` sync test lives in U10's `StoreBomContractTest`. Fallback: a recorded gap. |
 | O8 | Option B: `ontology-jena-adapter` stays at 0.1.2 in the BOM. BOM 0.5.0 adds the ontology-postgres-adapter entries only (U13b). |
 
@@ -159,7 +159,7 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 | U2 | Spec doc, DR-29 to DR-36, the `store.spi` rename (section 6.1), the frozen-sets check (section 13), the ArchitectureTest retarget. Carries U1. | Done: #226, `9ecfea1` |
 | U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | Done: #227, `c6ddb55` |
 | U4 | `store.core` and `store.postgres` rename; minimal `ObjectState` (Q-D, O5). | This PR |
-| U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | Planned |
+| U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | PR-A `#229` (`9e83a48`): doubles, `schema()` split, Spring guard. PR-B: `queryFlyway` removed, the hook (Q-E amended), the bare-database cases; the settling cases stay in the host (G4 amended). The aggregate contract and the O12 host move wait for U6. |
 | U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | Planned |
 | U7 | Scaffold `sequeless-store` from `sequeless-template`; CI calls `maven-ci` and `maven-release`; CODEOWNERS; GitHub Packages write; release-please for three modules; placeholder build green. | Planned |
 | U8 | Move `store-core`, `store-testkit` and `store-postgres-jsonb-adapter` from the import SHA (pure copy); V1 and V3 to V12 byte-identical; `PostgresMigrationFrozenSetsTest` with the four command sets (Q15 as amended by Q-B: `post-p2`, `post-p3`, `post-p4` and `post-p7`); store ITs with copied DDL (G1); the store ArchUnit rules (G3); the no-op hook between V6 and V7 (Q-E); `docs/adr/0001` in the store. | Planned |
