@@ -208,12 +208,12 @@ public class OutboxRelay {
      * (handed back raw by {@link OutboxPort}, by design — see its javadoc) and the payload's own
      * {@code principalId} where one is present.
      *
-     * <p>{@code principalId} is used as {@link Principal#id()}: there is no richer identity to
-     * recover from the frozen outbox
-     * payload, and no "system principal" concept exists anywhere in this codebase. {@code roles} is
-     * the empty set — safe because {@code DefaultActionExecutor}, the {@link
-     * org.sequeless.spi.automation.ActionExecutor} implementation every automation adapter calls
-     * back into, performs no {@link org.sequeless.spi.authz.AuthorizationPort} check of its own.
+     * <p>{@code principalId} is used as {@link Principal#id()}: there is no richer identity to recover from the frozen
+     * outbox payload, and no "system principal" concept exists anywhere in this codebase. {@code roles} is the empty set.
+     * The automated writes run through the Command use cases ({@code BusinessObjectService} and {@code TransitionService}),
+     * which call the {@link org.sequeless.spi.authz.AuthorizationPort} with this principal. So the configured
+     * authorization adapter decides what a principal with no roles may do. The relay does not widen the principal to let
+     * a write pass.
      *
      * <p>The three object-lifecycle kinds carry no {@code principalId} in their payload at all —
      * {@link #LIFECYCLE_EVENT_PRINCIPAL_ID} stands in for it in that case, since {@link Principal}'s
