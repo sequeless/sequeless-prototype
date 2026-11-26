@@ -18,7 +18,7 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.IndexPreparationPort;
-import org.sequeless.testkit.query.QueryFixtures;
+import org.sequeless.testkit.Fixtures;
 import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -33,7 +33,7 @@ class OntologyStartupValidatorTest {
 
     @Test
     void startupReadsTheDefaultTenantSchemaTwiceAndPreparesIndexesForItsVersionOnce() {
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         List<TenantId> readTenants = new ArrayList<>();
         SchemaSource source = tenant -> {
             readTenants.add(tenant);

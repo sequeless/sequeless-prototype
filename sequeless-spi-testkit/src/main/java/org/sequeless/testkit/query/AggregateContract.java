@@ -66,7 +66,7 @@ import org.sequeless.testkit.Fixtures;
  * <p>Every test seeds real {@code Task} and {@code Project} objects (the reference-domain
  * hierarchy {@link org.sequeless.ontology.testfixtures.Fixtures} declares IRI constants for) via {@link Environment#store()}'s {@link
  * ObjectStorePort#commit}, then calls {@link Environment#queryPort()}'s {@link
- * QueryPort#aggregate} against {@link QueryFixtures#schema()}, mirroring the exact rollup shapes
+ * QueryPort#aggregate} against {@link Fixtures#schema()}, mirroring the exact rollup shapes
  * {@code ex:openTaskCount} and {@code ex:totalEstimatedHours} declare.
  */
 public abstract class AggregateContract {
@@ -128,7 +128,7 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of(new Criterion(STATUS_IRI, Operator.NE, Optional.of(Value.text("done")))));
 
-        AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(scope, Fixtures.schema(), request);
 
         assertThat(result.values()).containsEntry(projectA, Value.integer(2)).containsEntry(projectB, Value.integer(0));
     }
@@ -153,7 +153,7 @@ public abstract class AggregateContract {
                 Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
 
-        AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(scope, Fixtures.schema(), request);
 
         assertThat(result.values()).containsKey(projectA);
         assertThat(decimalOf(result, projectA)).isEqualByComparingTo(new BigDecimal("7.5"));
@@ -179,7 +179,7 @@ public abstract class AggregateContract {
                 AggregateFunction.MIN,
                 Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
-        AggregateResult minResult = env.queryPort().aggregate(scope, QueryFixtures.schema(), minRequest);
+        AggregateResult minResult = env.queryPort().aggregate(scope, Fixtures.schema(), minRequest);
         assertThat(decimalOf(minResult, projectA)).isEqualByComparingTo(new BigDecimal("1"));
 
         AggregateRequest maxRequest = new AggregateRequest(
@@ -189,7 +189,7 @@ public abstract class AggregateContract {
                 AggregateFunction.MAX,
                 Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
-        AggregateResult maxResult = env.queryPort().aggregate(scope, QueryFixtures.schema(), maxRequest);
+        AggregateResult maxResult = env.queryPort().aggregate(scope, Fixtures.schema(), maxRequest);
         assertThat(decimalOf(maxResult, projectA)).isEqualByComparingTo(new BigDecimal("4.5"));
     }
 
@@ -212,7 +212,7 @@ public abstract class AggregateContract {
                 Optional.of(ESTIMATED_HOURS_IRI),
                 List.of());
 
-        AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(scope, Fixtures.schema(), request);
 
         // Allow for reasonable scale/rounding differences between adapters (e.g. Postgres' avg()
         // over numeric returns a wider scale than a hand-rolled BigDecimal division would) — assert
@@ -240,7 +240,7 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of(new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))));
 
-        AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(scope, Fixtures.schema(), request);
 
         assertThat(result.values()).containsEntry(projectA, Value.integer(2));
     }
@@ -268,7 +268,7 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of());
 
-        AggregateResult result = env.queryPort().aggregate(defaultScope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(defaultScope, Fixtures.schema(), request);
 
         assertThat(result.values()).containsEntry(projectA, Value.integer(1));
     }
@@ -293,7 +293,7 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of());
 
-        AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(scope, Fixtures.schema(), request);
 
         assertThat(result.values()).containsEntry(projectA, Value.integer(0));
     }
@@ -311,7 +311,7 @@ public abstract class AggregateContract {
                 Optional.empty(),
                 List.of());
 
-        AggregateResult result = env.queryPort().aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = env.queryPort().aggregate(scope, Fixtures.schema(), request);
 
         assertThat(result).isEqualTo(new AggregateResult(Map.of()));
     }
@@ -320,7 +320,7 @@ public abstract class AggregateContract {
     void aggregateRejectsNullArguments() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         AggregateRequest request = new AggregateRequest(
                 Set.of(TASK_IRI),
                 BELONGS_TO_PROJECT_IRI,

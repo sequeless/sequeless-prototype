@@ -14,7 +14,7 @@ import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.IndexPreparationPort;
 import org.sequeless.store.spi.SearchVectorBackfillPort;
-import org.sequeless.testkit.query.QueryFixtures;
+import org.sequeless.testkit.Fixtures;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -33,7 +33,7 @@ class IndexPreparationTest {
 
     @Test
     void prepareReadsTheTenantSchemaAndPassesScopeVersionAndSchemaToThePort() {
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         List<TenantId> readTenants = new ArrayList<>();
         SchemaSource source = tenant -> {
             readTenants.add(tenant);
@@ -53,7 +53,7 @@ class IndexPreparationTest {
 
     @Test
     void prepareDoesNotCheckTheVersionAgainstTheSchemaItReads() {
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         OntologyVersion unmatched = new OntologyVersion(schema.ontologyVersion().value() + 6);
         RecordingTransactions transactions = new RecordingTransactions();
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort(false, transactions);
@@ -67,7 +67,7 @@ class IndexPreparationTest {
 
     @Test
     void backfillRunsForTheSameScopeWhenThePortRegistersANewSearchableProperty() {
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         RecordingTransactions transactions = new RecordingTransactions();
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort(true, transactions);
         RecordingBackfillPort backfill = new RecordingBackfillPort(transactions);
@@ -79,7 +79,7 @@ class IndexPreparationTest {
 
     @Test
     void backfillIsSkippedWhenThePortRegistersNothingNew() {
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         RecordingTransactions transactions = new RecordingTransactions();
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort(false, transactions);
         RecordingBackfillPort backfill = new RecordingBackfillPort(transactions);
@@ -92,7 +92,7 @@ class IndexPreparationTest {
 
     @Test
     void prepareAndBackfillRunInsideOneTransactionAndTheTransactionCloses() {
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         RecordingTransactions transactions = new RecordingTransactions();
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort(true, transactions);
         RecordingBackfillPort backfill = new RecordingBackfillPort(transactions);
@@ -107,7 +107,7 @@ class IndexPreparationTest {
 
     @Test
     void constructorAndPrepareRejectNullArguments() {
-        SchemaSource source = tenant -> QueryFixtures.schema();
+        SchemaSource source = tenant -> Fixtures.schema();
         RecordingTransactions transactions = new RecordingTransactions();
         RecordingIndexPreparationPort port = new RecordingIndexPreparationPort(false, transactions);
         RecordingBackfillPort backfill = new RecordingBackfillPort(transactions);

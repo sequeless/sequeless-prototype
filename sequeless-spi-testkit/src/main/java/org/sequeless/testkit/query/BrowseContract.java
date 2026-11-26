@@ -77,7 +77,7 @@ import org.sequeless.testkit.Fixtures;
  * org.sequeless.spi.object.BusinessObject}s of the reference-domain {@code Task}, {@code
  * Project}, and {@code Person} types — via {@link Environment#store()}'s {@link
  * ObjectStorePort#commit} — and browses them through {@link Environment#browsePort()} against
- * {@link QueryFixtures#schema()}, a hand-built {@link Schema} mirroring {@code reference.ttl}.
+ * {@link Fixtures#schema()}, a hand-built {@link Schema} mirroring {@code reference.ttl}.
  *
  * <p><b>What this contract deliberately does not check.</b> No assertion here depends on a
  * particular storage or indexing technology. Every assertion is about the behaviour {@link
@@ -108,8 +108,8 @@ public abstract class BrowseContract {
     private static final PropertyRef DUE_DATE = new PropertyRef(DUE_DATE_IRI);
     private static final PropertyRef ASSIGNED_TO = new PropertyRef(ASSIGNED_TO_IRI);
     private static final PropertyRef BELONGS_TO_PROJECT = new PropertyRef(BELONGS_TO_PROJECT_IRI);
-    private static final PropertyRef NAME = new PropertyRef(QueryFixtures.NAME_IRI);
-    private static final PropertyRef EMAIL = new PropertyRef(QueryFixtures.EMAIL_IRI);
+    private static final PropertyRef NAME = new PropertyRef(Fixtures.NAME_IRI);
+    private static final PropertyRef EMAIL = new PropertyRef(Fixtures.EMAIL_IRI);
 
     // Unsigned order: ID_A < ID_B < ID_C < ID_D. The signed UUID.compareTo order would be D, B, A, C.
     private static final ObjectId ID_A = ObjectId.parse("00000000-0000-4000-7fff-ffffffffffff");
@@ -151,7 +151,7 @@ public abstract class BrowseContract {
     void browseRejectsNullArguments() {
         Environment env = freshEnvironment();
         Scope scope = Fixtures.defaultScope();
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
 
         assertThatNullPointerException().isThrownBy(() -> env.browsePort().browse(null, schema, query));
@@ -181,7 +181,7 @@ public abstract class BrowseContract {
                 List.of(new Criterion(STATUS_IRI, Operator.EQ, Optional.of(Value.text("OPEN")))),
                 new Page(0, 20));
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).containsExactlyInAnyOrder(open1, open2);
         assertThat(result.total()).isEqualTo(2);
@@ -205,7 +205,7 @@ public abstract class BrowseContract {
                 List.of(new Criterion(ASSIGNED_TO_IRI, Operator.EQ, Optional.of(Value.ref(alice)))),
                 new Page(0, 20));
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).containsExactly(taskForAlice);
         assertThat(result.total()).isEqualTo(1);
@@ -229,7 +229,7 @@ public abstract class BrowseContract {
                         new Criterion(DUE_DATE_IRI, Operator.LTE, Optional.of(Value.date(LocalDate.of(2026, 2, 28))))),
                 new Page(0, 20));
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).containsExactly(inWindow);
         assertThat(result.total()).isEqualTo(1);
@@ -247,7 +247,7 @@ public abstract class BrowseContract {
         ObjectId high = seedTask(
                 env, scope, base.plusSeconds(2), "High priority", "OPEN", 9, LocalDate.of(2026, 2, 3), null, null);
 
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
 
         Query ascending =
                 queryOf(Set.of(TASK_IRI), List.of(), List.of(new Sort(PRIORITY_IRI, Direction.ASC)), new Page(0, 20));
@@ -288,7 +288,7 @@ public abstract class BrowseContract {
                 false,
                 TASK_IRI);
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).containsExactly(openLow);
         assertThat(result.total()).isEqualTo(1);
@@ -312,7 +312,7 @@ public abstract class BrowseContract {
 
         Query query = queryOf(Set.of(TASK_IRI), List.of(), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI));
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         List<FacetBucket> assignedToBuckets = result.facets().get(ASSIGNED_TO_IRI);
         assertThat(assignedToBuckets)
@@ -340,7 +340,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort()
                 .browse(
                         scope,
-                        QueryFixtures.schema(),
+                        Fixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
 
         // Equal counts: U+0042 (B) sorts before U+0062 (b) in code point order.
@@ -362,7 +362,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort()
                 .browse(
                         scope,
-                        QueryFixtures.schema(),
+                        Fixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
 
         assertThat(result.facets().get(STATUS_IRI)).containsExactly(new FacetBucket("B", 2), new FacetBucket("A", 1));
@@ -382,7 +382,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort()
                 .browse(
                         scope,
-                        QueryFixtures.schema(),
+                        Fixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
 
         assertThat(result.total()).isEqualTo(3);
@@ -406,7 +406,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort()
                 .browse(
                         scope,
-                        QueryFixtures.schema(),
+                        Fixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(STATUS_IRI)));
 
         assertThat(result.facets().get(STATUS_IRI))
@@ -446,7 +446,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort()
                 .browse(
                         scope,
-                        QueryFixtures.schema(),
+                        Fixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI)));
 
         // Id, insertion and code point order all put Alice Smith first, so only count order decides
@@ -484,7 +484,7 @@ public abstract class BrowseContract {
         QueryResult result = env.browsePort()
                 .browse(
                         scope,
-                        QueryFixtures.schema(),
+                        Fixtures.schema(),
                         queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20), List.of(ASSIGNED_TO_IRI)));
 
         // Equal counts: "Bob" (U+0042) sorts before "alice" (U+0061) in code point order. Case-insensitive
@@ -543,7 +543,7 @@ public abstract class BrowseContract {
                 false,
                 TASK_IRI);
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).isNotEmpty();
         assertThat(result.items().get(0).id()).isEqualTo(bestMatch);
@@ -560,7 +560,7 @@ public abstract class BrowseContract {
 
         Query query = queryOf(Set.of(TASK_IRI, PROJECT_IRI), List.of(), new Page(0, 20));
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).containsExactlyInAnyOrder(task, project);
         assertThat(result.items())
@@ -581,7 +581,7 @@ public abstract class BrowseContract {
                 seedTask(env, scope, base.plusSeconds(3), "Task 4", "OPEN", 4, LocalDate.of(2026, 2, 4), null, null),
                 seedTask(env, scope, base.plusSeconds(4), "Task 5", "OPEN", 5, LocalDate.of(2026, 2, 5), null, null));
 
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
 
         // No explicit sort: relies on BrowsePort's documented default order, ascending
         // (createdAt, id), so page contents are deterministic.
@@ -618,7 +618,7 @@ public abstract class BrowseContract {
         Query query = new Query(
                 Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false, TASK_IRI);
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).doesNotContain(id);
         assertThat(result.total()).isZero();
@@ -637,7 +637,7 @@ public abstract class BrowseContract {
                 seedProject(env, scope, base.plusSeconds(3), "Project 2", "ACTIVE"),
                 seedTask(env, scope, base.plusSeconds(4), "Task 3", "OPEN", 3, LocalDate.of(2026, 2, 3), null, null));
 
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         Set<String> types = Set.of(TASK_IRI, PROJECT_IRI);
 
         QueryResult page0 = env.browsePort().browse(scope, schema, queryOf(types, List.of(), new Page(0, 2)));
@@ -665,7 +665,7 @@ public abstract class BrowseContract {
         Query query = new Query(
                 Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), true, TASK_IRI);
 
-        QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
+        QueryResult result = env.browsePort().browse(scope, Fixtures.schema(), query);
 
         assertThat(result.items()).extracting(ObjectView::id).containsExactly(id);
         assertThat(result.total()).isEqualTo(1);
@@ -680,7 +680,7 @@ public abstract class BrowseContract {
 
         seedTask(env, alice, base, "Alice's task", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
 
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         Query query = queryOf(Set.of(TASK_IRI), List.of(), new Page(0, 20));
 
         QueryResult otherResult = env.browsePort().browse(otherTenant, schema, query);
@@ -875,7 +875,7 @@ public abstract class BrowseContract {
     }
 
     private static List<ObjectId> browseIds(Environment env, Scope scope, Query query) {
-        return env.browsePort().browse(scope, QueryFixtures.schema(), query).items().stream()
+        return env.browsePort().browse(scope, Fixtures.schema(), query).items().stream()
                 .map(ObjectView::id)
                 .toList();
     }

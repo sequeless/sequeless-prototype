@@ -26,7 +26,6 @@ import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.testkit.Fixtures;
-import org.sequeless.testkit.query.QueryFixtures;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -77,7 +76,7 @@ class PostgresSearchVectorBackfillIT {
         PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
         PostgresObjectStore store = new PostgresObjectStore(jdbcClient, transactionManager);
         Scope scope = Fixtures.defaultScope();
-        Schema schema = QueryFixtures.schema();
+        Schema schema = Fixtures.schema();
         ObjectId id = new ObjectId(UUID.randomUUID());
         store.commit(
                 scope,

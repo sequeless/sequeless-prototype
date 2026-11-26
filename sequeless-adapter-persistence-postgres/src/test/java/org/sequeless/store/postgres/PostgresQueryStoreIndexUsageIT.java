@@ -33,7 +33,6 @@ import org.sequeless.spi.object.TypeRef;
 import org.sequeless.store.spi.AggregateRequest;
 import org.sequeless.store.spi.AggregateResult;
 import org.sequeless.testkit.Fixtures;
-import org.sequeless.testkit.query.QueryFixtures;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -110,7 +109,7 @@ class PostgresQueryStoreIndexUsageIT {
                 Optional.empty(),
                 List.of());
 
-        AggregateResult result = queryPort.aggregate(scope, QueryFixtures.schema(), request);
+        AggregateResult result = queryPort.aggregate(scope, Fixtures.schema(), request);
         assertThat(result.values()).hasSize(projectCount);
 
         // Reconstructs the exact SQL PostgresQueryStore.aggregate builds for this request: a single
