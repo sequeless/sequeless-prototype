@@ -3,10 +3,13 @@ package org.sequeless.app.automation;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.sequeless.automation.api.AutomationPort;
+import org.sequeless.automation.api.StoreEventRow;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.AutomationFailure;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
@@ -58,9 +61,17 @@ public class OutboxRelay {
     private static final Set<String> OBJECT_LIFECYCLE_KINDS =
             Set.of(OutboxEntry.KIND_OBJECT_CREATED, OutboxEntry.KIND_OBJECT_UPDATED, OutboxEntry.KIND_OBJECT_DELETED);
 
+    /** The workflow type a relay failure record carries; the relay is the host's own dispatch path, not a workflow. */
+    static final String RELAY_WORKFLOW_TYPE = "OutboxRelay";
+
+    /** The cause the record of an unstamped TransitionFired row carries (spec 15 D-2, spec 17 Q5). */
+    static final String UNSTAMPED_TRANSITION_CAUSE =
+            "TransitionFired row has no ontologyVersion stamp; the core needs provenance to ingest it (spec 15 D-2)";
+
     private final OutboxPort outboxPort;
     private final ObjectProvider<AutomationPort> automationPortProvider;
     private final DerivationRecomputer derivationRecomputer;
+    private final ObjectProvider<AutomationFailureRecorder> failureRecorder;
 
     /**
      * @param outboxPort the lazily-resolved outbox port adapter; {@code @Lazy} for the same reason
@@ -73,17 +84,21 @@ public class OutboxRelay {
      * @param derivationRecomputer the recompute run before each object-lifecycle row is ingested;
      *     {@code @Lazy} for the same reason as {@code outboxPort}, so this bean constructs in
      *     Spring's first singleton pass and the bean is resolved only when a row needs it
+     * @param failureRecorder the host's failure recorder, resolved only when an unstamped TransitionFired row needs
+     *     recording (see {@link #pollOnce()})
      * @throws NullPointerException if any argument is {@code null}
      */
     public OutboxRelay(
             @Lazy OutboxPort outboxPort,
             ObjectProvider<AutomationPort> automationPortProvider,
-            @Lazy DerivationRecomputer derivationRecomputer) {
+            @Lazy DerivationRecomputer derivationRecomputer,
+            ObjectProvider<AutomationFailureRecorder> failureRecorder) {
         this.outboxPort = Objects.requireNonNull(outboxPort, "outboxPort must not be null");
         this.automationPortProvider =
                 Objects.requireNonNull(automationPortProvider, "automationPortProvider must not be null");
         this.derivationRecomputer =
                 Objects.requireNonNull(derivationRecomputer, "derivationRecomputer must not be null");
+        this.failureRecorder = Objects.requireNonNull(failureRecorder, "failureRecorder must not be null");
     }
 
     /**
@@ -102,6 +117,10 @@ public class OutboxRelay {
      * relying on the next {@code @Scheduled} tick to retry naturally rather than busy-looping
      * against the same failure.
      *
+     * <p><b>An unstamped TransitionFired row is recorded and skipped.</b> A row with no {@code ontologyVersion} stamp
+     * (spec 15 D-2) goes to the host's {@code AutomationFailureRecorder} and is claimed as done. The rows behind it are
+     * not held back, and the released core never sees it.
+     *
      * <p><b>A persistently failing row is dead-lettered.</b> {@link OutboxPort#claimNext} claims the
      * oldest unprocessed row (among {@link #DISPATCHABLE_KINDS}) first. A row whose recompute, Store
      * event mapping, or {@link AutomationPort#ingest} keeps throwing is retried on later polls until it
@@ -118,11 +137,20 @@ public class OutboxRelay {
             try {
                 Optional<Boolean> claimed = outboxPort.claimNext(DISPATCHABLE_KINDS, (tenantId, entry) -> {
                     Scope scope = buildScope(tenantId, entry);
+                    if (isUnstampedTransitionFired(entry)) {
+                        // The released core refuses a row with no provenance, and would dead-letter it after three
+                        // tries without a record. The host records it and claims it as done, so the rows behind it run.
+                        recordUnstampedTransitionFired(scope, entry);
+                        return Boolean.TRUE;
+                    }
                     if (OBJECT_LIFECYCLE_KINDS.contains(entry.kind())) {
                         // Recompute first, in this same claim, so the ingress below reads fresh values.
                         derivationRecomputer.recompute(scope, entry);
                     }
-                    automationPort.ingest(scope, StoreEvents.from(entry));
+                    // The released row record (spec 15 R1), then the Store event it records.
+                    StoreEventRow row =
+                            new StoreEventRow(entry.id(), entry.kind(), entry.payload(), entry.occurredAt());
+                    automationPort.ingest(scope, StoreEvents.from(row));
                     // Non-null sentinel: OutboxPort#claimNext returns
                     // Optional.empty() both when no row was available AND (per its own
                     // javadoc) if handler legitimately returned null, so the handler must
@@ -138,6 +166,27 @@ public class OutboxRelay {
                 break;
             }
         }
+    }
+
+    /** Whether {@code entry} is a TransitionFired row with no {@code ontologyVersion} stamp (spec 15 D-2). */
+    private static boolean isUnstampedTransitionFired(OutboxEntry entry) {
+        return OutboxEntry.KIND_TRANSITION_FIRED.equals(entry.kind())
+                && entry.payload().get("ontologyVersion") == null;
+    }
+
+    /**
+     * Records an unstamped TransitionFired row on the host, which owns failure recording (spec 17, Q2). With no recorder
+     * bean the failure cannot be kept, so the exception propagates and the row stays claimable, as any ingest failure
+     * does.
+     */
+    private void recordUnstampedTransitionFired(Scope scope, OutboxEntry entry) {
+        AutomationFailureRecorder recorder = failureRecorder.getIfAvailable();
+        if (recorder == null) {
+            throw new IllegalStateException(
+                    "no AutomationFailureRecorder bean, so the unstamped row " + entry.id() + " cannot be recorded");
+        }
+        recorder.record(new AutomationFailure(
+                scope, entry.id().toString(), RELAY_WORKFLOW_TYPE, null, UNSTAMPED_TRANSITION_CAUSE));
     }
 
     /**
@@ -159,12 +208,12 @@ public class OutboxRelay {
      * (handed back raw by {@link OutboxPort}, by design — see its javadoc) and the payload's own
      * {@code principalId} where one is present.
      *
-     * <p>{@code principalId} is used as {@link Principal#id()}: there is no richer identity to
-     * recover from the frozen outbox
-     * payload, and no "system principal" concept exists anywhere in this codebase. {@code roles} is
-     * the empty set — safe because {@code DefaultActionExecutor}, the {@link
-     * org.sequeless.spi.automation.ActionExecutor} implementation every automation adapter calls
-     * back into, performs no {@link org.sequeless.spi.authz.AuthorizationPort} check of its own.
+     * <p>{@code principalId} is used as {@link Principal#id()}: there is no richer identity to recover from the frozen
+     * outbox payload, and no "system principal" concept exists anywhere in this codebase. {@code roles} is the empty set.
+     * The automated writes run through the Command use cases ({@code BusinessObjectService} and {@code TransitionService}),
+     * which call the {@link org.sequeless.spi.authz.AuthorizationPort} with this principal. So the configured
+     * authorization adapter decides what a principal with no roles may do. The relay does not widen the principal to let
+     * a write pass.
      *
      * <p>The three object-lifecycle kinds carry no {@code principalId} in their payload at all —
      * {@link #LIFECYCLE_EVENT_PRINCIPAL_ID} stands in for it in that case, since {@link Principal}'s

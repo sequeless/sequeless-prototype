@@ -17,11 +17,25 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
-import org.sequeless.adapter.automation.inprocess.InProcessAutomationAutoConfiguration;
 import org.sequeless.adapter.persistence.postgres.PostgresObjectStore;
 import org.sequeless.adapter.persistence.postgres.PostgresPersistenceAutoConfiguration;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
-import org.sequeless.core.automation.DefaultActionExecutor;
+import org.sequeless.automation.api.ActionExecutor;
+import org.sequeless.automation.api.AutomationPort;
+import org.sequeless.automation.api.ObjectChangedEvent;
+import org.sequeless.automation.api.ObjectReadPort;
+import org.sequeless.automation.api.ResolvedTimer;
+import org.sequeless.automation.api.StoreCommandPort;
+import org.sequeless.automation.api.StoreEventRow;
+import org.sequeless.automation.api.TransitionFiredEvent;
+import org.sequeless.automation.api.TriggerEvaluator;
+import org.sequeless.automation.autoconfigure.InProcessAutomationAutoConfiguration;
+import org.sequeless.automation.core.DefaultActionExecutor;
+import org.sequeless.core.api.BusinessObjectService;
+import org.sequeless.core.api.TransitionService;
+import org.sequeless.core.derivation.DerivationPlanner;
+import org.sequeless.core.derivation.DerivationPluginRegistry;
+import org.sequeless.core.usecase.DefaultBusinessObjectService;
 import org.sequeless.expression.api.ExpressionContext;
 import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Principal;
@@ -34,11 +48,16 @@ import org.sequeless.ontology.automation.api.Automation;
 import org.sequeless.ontology.automation.api.CreateObjectAction;
 import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.DisplayHints;
 import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
-import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.TransitionFiredEvent;
+import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
@@ -47,11 +66,12 @@ import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
-import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -95,6 +115,18 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
                     List.<Action>of(
                             new CreateObjectAction(FIRST_TYPE_IRI, List.of()),
                             new CreateObjectAction(SECOND_TYPE_IRI, List.of()))));
+
+    /** The two types the automation creates. They declare no properties, so the structural checks have nothing to reject. */
+    private static final Schema SCHEMA = new Schema(
+            new OntologyVersion(1),
+            "https://sequeless.dev/ns/test",
+            Optional.empty(),
+            Map.of(),
+            List.of(
+                    new TypeDefinition(FIRST_TYPE_IRI, "First", List.of(), List.of(), DisplayHints.none(), false),
+                    new TypeDefinition(SECOND_TYPE_IRI, "Second", List.of(), List.of(), DisplayHints.none(), false)));
+
+    private static final Behaviour BEHAVIOUR = new Behaviour(new OntologyVersion(1), Map.of(), Map.of());
 
     @Test
     void aRetriedFireAppliesEachCreateObjectExactlyOnceAfterARolledBackAttempt() throws SQLException {
@@ -205,21 +237,77 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
     }
 
     /**
-     * The proof's wiring. The fault store wraps the real {@code PostgresObjectStore}, and the
-     * {@link ActionExecutor} the in-process adapter calls is the real {@code DefaultActionExecutor} over
-     * that fault store. The in-process adapter and the Postgres outbox come from their auto-configurations.
+     * The proof's wiring. The fault store wraps the real {@code PostgresObjectStore}. The create path is the released
+     * one: the released {@code DefaultActionExecutor} calls the host's {@code ObjectReadPort} and
+     * {@code StoreCommandPort} ({@link AutomationBindingConfiguration}), and those call {@link BusinessObjectService#add}
+     * over the fault store. The in-process adapter and the Postgres outbox come from their auto-configurations. The
+     * schema, behaviour, validation and authorization are stubs.
      */
     @Configuration(proxyBeanMethods = false)
+    @Import(AutomationBindingConfiguration.class)
     static class ProofConfiguration {
 
         @Bean
+        @Primary
         FaultOnceObjectStore faultOnceObjectStore(DataSource dataSource) {
             return new FaultOnceObjectStore(new PostgresObjectStore(
                     JdbcClient.create(dataSource), new DataSourceTransactionManager(dataSource)));
         }
 
         @Bean
-        ActionExecutor actionExecutor(FaultOnceObjectStore faultOnceObjectStore) {
+        BusinessObjectService businessObjectService(FaultOnceObjectStore faultOnceObjectStore) {
+            return new DefaultBusinessObjectService(
+                    tenant -> SCHEMA,
+                    tenant -> BEHAVIOUR,
+                    faultOnceObjectStore,
+                    (scope, schema, object) -> List.of(),
+                    (scope, operation, resource) -> new AccessDecision(true, "permitted"),
+                    (scope, request) -> Optional.empty(),
+                    (scope, schema, query) -> {
+                        throw new UnsupportedOperationException("not needed by this test");
+                    },
+                    Clock.systemUTC(),
+                    new DerivationPlanner(
+                            (scope, schema, request) -> {
+                                throw new UnsupportedOperationException("not needed by this test");
+                            },
+                            DerivationPluginRegistry.fromServiceLoader()));
+        }
+
+        @Bean
+        BehaviourSource behaviourSource() {
+            return tenant -> BEHAVIOUR;
+        }
+
+        @Bean
+        SchemaSource schemaSource() {
+            return tenant -> SCHEMA;
+        }
+
+        @Bean
+        TransitionService transitionService() {
+            return new TransitionService() {
+                @Override
+                public org.sequeless.spi.object.BusinessObject fire(
+                        Scope scope, String type, ObjectId id, String transitionName, long expectedVersion) {
+                    throw new UnsupportedOperationException("not needed by this test");
+                }
+
+                @Override
+                public Optional<org.sequeless.spi.object.BusinessObject> fireAutomated(
+                        Scope scope, ObjectId id, String transitionName, TriggerKind expected) {
+                    throw new UnsupportedOperationException("not needed by this test");
+                }
+
+                @Override
+                public void signal(Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
+                    throw new UnsupportedOperationException("not needed by this test");
+                }
+            };
+        }
+
+        @Bean
+        ActionExecutor actionExecutor(ObjectReadPort objectReadPort, StoreCommandPort storeCommandPort) {
             // Neither CreateObject action carries a property assignment, so no expression is ever evaluated.
             ExpressionPort expressionPort = new ExpressionPort() {
                 @Override
@@ -232,7 +320,7 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
             };
-            return new DefaultActionExecutor(expressionPort, faultOnceObjectStore, Clock.systemUTC());
+            return new DefaultActionExecutor(expressionPort, objectReadPort, storeCommandPort);
         }
 
         @Bean
@@ -240,9 +328,21 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
             return tenant -> AUTOMATION;
         }
 
+        /** No timers and no change triggers: this proof is about the create action alone. */
         @Bean
-        RecordingTriggerEvaluator triggerEvaluator() {
-            return new RecordingTriggerEvaluator();
+        TriggerEvaluator triggerEvaluator() {
+            return new TriggerEvaluator() {
+                @Override
+                public void onChange(Scope scope, ObjectChangedEvent changeEvent) {}
+
+                @Override
+                public void onTimerElapsed(Scope scope, StoreEventRow timerScheduled) {}
+
+                @Override
+                public List<ResolvedTimer> timersStartedBy(Scope scope, TransitionFiredEvent transitionFired) {
+                    return List.of();
+                }
+            };
         }
     }
 

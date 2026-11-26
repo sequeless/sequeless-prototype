@@ -1,6 +1,7 @@
 package org.sequeless.core.api;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.validation.ValidationException;
@@ -11,6 +12,7 @@ import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
 
@@ -82,6 +84,23 @@ public interface BusinessObjectService {
     ObjectView read(Scope scope, String type, ObjectId id);
 
     /**
+     * Returns the type of the live object {@code id} in the tenant of {@code scope}, or empty if there is none. An id
+     * that is absent, soft-deleted, or belongs to another tenant gives the same empty result, so the lookup never
+     * reveals an object of another tenant.
+     *
+     * <p>This is a lookup, not a read, and it authorizes nothing: the type is what an authorization decision needs.
+     * {@link #read}, {@link #edit} and {@link #delete} each authorize their own operation against the type. The
+     * automation bindings use it to resolve the type of an object id (spec 17, section 10), since the released
+     * automation ports carry an id and no type.
+     *
+     * @param scope the tenant the lookup is made in; must not be {@code null}
+     * @param id the object's id; must not be {@code null}
+     * @return the object's type, or empty if no live object of the tenant has this id
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    Optional<TypeRef> typeOf(Scope scope, ObjectId id);
+
+    /**
      * Creates a new object of {@code type} with {@code properties}.
      *
      * <p>Authorizes {@link Operation#ADD} against the resolved type's IRI, coerces {@code
@@ -103,6 +122,27 @@ public interface BusinessObjectService {
      *     violation
      */
     BusinessObject add(Scope scope, String type, Map<String, Object> properties);
+
+    /**
+     * Creates a new object of {@code type} with the caller's id {@code id} and {@code properties}. Runs the
+     * same checks and writes the same {@code ObjectCreated} outbox entry as {@link #add(Scope, String, Map)}.
+     *
+     * <p>The caller chooses the id, so a retry that derives the same id can detect the object it already
+     * created (spec 17, section 3: the automation CreateObject command). The id must not already belong to a
+     * live object; if it does, the Store's commit rejects the create.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code null}
+     * @param type the type's short name or full IRI; must not be {@code null}
+     * @param id the id of the new object; must not be {@code null}
+     * @param properties JSON-like raw property values, keyed by property short name or full IRI; must not be
+     *     {@code null}
+     * @return the newly created object, at version 1
+     * @throws NullPointerException if any argument is {@code null}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
+     * @throws AuthorizationException if the authorization port denies the operation
+     * @throws ValidationException if coercion, the structural checks, or the SHACL check finds a violation
+     */
+    BusinessObject add(Scope scope, String type, ObjectId id, Map<String, Object> properties);
 
     /**
      * Fully replaces the properties of an existing object of {@code type} (or a subtype of it).

@@ -1,50 +1,43 @@
 package org.sequeless.app.automation;
 
-import org.sequeless.spi.automation.ObjectChangedEvent;
-import org.sequeless.spi.automation.StoreEvent;
-import org.sequeless.spi.automation.TransitionFiredEvent;
-import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.automation.api.ObjectChangedEvent;
+import org.sequeless.automation.api.StoreEvent;
+import org.sequeless.automation.api.StoreEventRow;
+import org.sequeless.automation.api.TransitionFiredEvent;
 
 /**
- * Maps an outbox row of a dispatchable kind to the Store event it records.
+ * Maps a claimed outbox row, as the released {@link StoreEventRow}, to the Store event it records.
  *
- * <p>The three object-lifecycle kinds map to an {@link ObjectChangedEvent} with the matching {@link
- * ObjectChangedEvent.Change}, and {@link OutboxEntry#KIND_TRANSITION_FIRED} maps to a {@link
- * TransitionFiredEvent}. The event id is the row id, unchanged: the automation adapters derive their
- * idempotency keys and workflow ids from it, so a changed id would break redelivery.
+ * <p>The three object-lifecycle kinds map to an {@link ObjectChangedEvent} with the matching change, and
+ * {@link StoreEventRow#KIND_TRANSITION_FIRED} maps to a {@link TransitionFiredEvent}. The event id is the row id,
+ * unchanged: the released adapters derive their idempotency keys and workflow ids from it, so a changed id would
+ * break redelivery.
  *
- * <p>The mapping lives in the host relay, not in the SPI, because the relay is the one place that
- * reads the persisted kind string (spec #20 point 4: "the relay stays in the host"). Keeping the
- * mapping here means {@link StoreEvent} does not depend on the outbox row type. A kind outside the
- * dispatchable set is rejected with {@link IllegalArgumentException}; the relay claims only those
- * kinds, so that branch is unreachable in practice, and a throw here counts as a failed dispatch.
+ * <p>The mapping lives in the host relay, because the relay is the one place that reads the persisted kind string.
+ * A kind outside the Store event kinds is rejected with {@link IllegalArgumentException}. The relay claims only those
+ * kinds, so that branch is unreachable in practice.
  */
 final class StoreEvents {
 
     private StoreEvents() {}
 
     /**
-     * Returns the Store event that {@code entry} records.
-     *
-     * @param entry a claimed outbox row of a dispatchable kind; must not be {@code null}
-     * @return the matching {@link ObjectChangedEvent} or {@link TransitionFiredEvent}, carrying the
-     *     row's id, payload and {@code occurredAt}
+     * @param row a claimed outbox row of a dispatchable kind, as {@link StoreEventRow}; must not be {@code null}
+     * @return the matching {@link ObjectChangedEvent} or {@link TransitionFiredEvent}, carrying the row's id, payload
+     *     and {@code occurredAt}
      * @throws IllegalArgumentException if the row's kind is not a Store event kind
      */
-    static StoreEvent from(OutboxEntry entry) {
-        return switch (entry.kind()) {
-            case OutboxEntry.KIND_OBJECT_CREATED ->
-                new ObjectChangedEvent(
-                        entry.id(), ObjectChangedEvent.Change.CREATED, entry.payload(), entry.occurredAt());
-            case OutboxEntry.KIND_OBJECT_UPDATED ->
-                new ObjectChangedEvent(
-                        entry.id(), ObjectChangedEvent.Change.UPDATED, entry.payload(), entry.occurredAt());
-            case OutboxEntry.KIND_OBJECT_DELETED ->
-                new ObjectChangedEvent(
-                        entry.id(), ObjectChangedEvent.Change.DELETED, entry.payload(), entry.occurredAt());
-            case OutboxEntry.KIND_TRANSITION_FIRED ->
-                new TransitionFiredEvent(entry.id(), entry.payload(), entry.occurredAt());
-            default -> throw new IllegalArgumentException("not a Store event kind: " + entry.kind());
+    static StoreEvent from(StoreEventRow row) {
+        return switch (row.kind()) {
+            case StoreEventRow.KIND_OBJECT_CREATED ->
+                new ObjectChangedEvent(row.id(), ObjectChangedEvent.Change.CREATED, row.payload(), row.occurredAt());
+            case StoreEventRow.KIND_OBJECT_UPDATED ->
+                new ObjectChangedEvent(row.id(), ObjectChangedEvent.Change.UPDATED, row.payload(), row.occurredAt());
+            case StoreEventRow.KIND_OBJECT_DELETED ->
+                new ObjectChangedEvent(row.id(), ObjectChangedEvent.Change.DELETED, row.payload(), row.occurredAt());
+            case StoreEventRow.KIND_TRANSITION_FIRED ->
+                new TransitionFiredEvent(row.id(), row.payload(), row.occurredAt());
+            default -> throw new IllegalArgumentException("not a Store event kind: " + row.kind());
         };
     }
 }

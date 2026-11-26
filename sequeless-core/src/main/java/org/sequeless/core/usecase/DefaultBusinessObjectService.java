@@ -247,9 +247,24 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     @Override
+    public Optional<TypeRef> typeOf(Scope scope, ObjectId id) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        // The store's own tenant filter decides: an object of another tenant is absent from the result.
+        return Optional.ofNullable(objectStorePort.typesOf(scope, Set.of(id)).get(id));
+    }
+
+    @Override
     public BusinessObject add(Scope scope, String type, Map<String, Object> properties) {
+        Objects.requireNonNull(properties, "properties must not be null");
+        return add(scope, type, ObjectId.random(), properties);
+    }
+
+    @Override
+    public BusinessObject add(Scope scope, String type, ObjectId id, Map<String, Object> properties) {
         Objects.requireNonNull(scope, "scope must not be null");
         Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(properties, "properties must not be null");
 
         SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
@@ -270,7 +285,7 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
         Optional<String> initialState =
                 behaviour.stateMachine(resolved.iri()).map(m -> m.initialState().iri());
         BusinessObject candidate = new BusinessObject(
-                ObjectId.random(),
+                id,
                 new TypeRef(resolved.iri()),
                 scope.tenantId(),
                 1,

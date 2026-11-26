@@ -118,16 +118,32 @@
       <artifactId>expression-api</artifactId>
     </dependency>
 
+    <!--
+      Spec 17 P3: the released automation runtime. automation-spring-boot-autoconfig registers the released
+      ActionExecutor and TriggerEvaluator (automation-core) and, selected by sequeless.automation.adapter, one of
+      the two AutomationPort adapters. Its adapter classes are optional there, so both adapters are declared here.
+      The host's ObjectReadPort and StoreCommandPort bindings (org.sequeless.app.automation) implement the API.
+      No version here: the BOM manages every one of these.
+    -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-automation-temporal</artifactId>
-      <version>${project.version}</version>
+      <artifactId>automation-api</artifactId>
     </dependency>
-
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-automation-inprocess</artifactId>
-      <version>${project.version}</version>
+      <artifactId>automation-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-inprocess-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-temporal-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-spring-boot-autoconfig</artifactId>
     </dependency>
 
     <dependency>

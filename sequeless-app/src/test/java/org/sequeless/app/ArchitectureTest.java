@@ -17,7 +17,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.automation.api.AutomationPort;
 import org.sequeless.spi.query.IndexPreparationPort;
 
 /**
@@ -156,17 +156,39 @@ class ArchitectureTest {
                     + "org.springframework.context.. to wire themselves, but must never depend on "
                     + "the web layer.");
 
+    /**
+     * The four automation classes that call the Command use cases: the host's ObjectReadPort and StoreCommandPort
+     * bindings, the type lookup they share, and the configuration that registers them (spec 17 P3, Q3). No other
+     * automation class may reach into core. The outbox relay in particular must not (spec 13 P5b).
+     */
+    private static final String AUTOMATION_BINDING_CONFIGURATION =
+            "org.sequeless.app.automation.AutomationBindingConfiguration";
+
+    private static final String BUSINESS_OBJECT_READ_PORT = "org.sequeless.app.automation.BusinessObjectReadPort";
+    private static final String BUSINESS_OBJECT_STORE_COMMAND_PORT =
+            "org.sequeless.app.automation.BusinessObjectStoreCommandPort";
+    private static final String OBJECT_TYPES = "org.sequeless.app.automation.ObjectTypes";
+
     @ArchTest
-    static final ArchRule onlyAppRestAndConfigMayDependOnCore = noClasses()
+    static final ArchRule onlyAppRestConfigAndAutomationBindingsMayDependOnCore = noClasses()
             .that()
             .resideInAPackage(APP_PACKAGE)
             .and()
             .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..")
+            .and()
+            .doNotHaveFullyQualifiedName(AUTOMATION_BINDING_CONFIGURATION)
+            .and()
+            .doNotHaveFullyQualifiedName(BUSINESS_OBJECT_READ_PORT)
+            .and()
+            .doNotHaveFullyQualifiedName(BUSINESS_OBJECT_STORE_COMMAND_PORT)
+            .and()
+            .doNotHaveFullyQualifiedName(OBJECT_TYPES)
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
-            .because("Within sequeless-app, only the REST inbound adapter and the wiring/configuration "
-                    + "packages may reach into core use cases; other app packages, such as the port "
+            .because("Within sequeless-app, only the REST inbound adapter, the wiring/configuration packages and "
+                    + "the four automation bindings (spec 17 P3: the host's ObjectReadPort and StoreCommandPort call "
+                    + "the Command use cases) may reach into core use cases; other app packages, such as the port "
                     + "registry, must stay ignorant of the domain core.");
 
     @ArchTest
@@ -210,19 +232,24 @@ class ArchitectureTest {
                     + "runtime; referencing Jena, JDBC or Temporal types directly would leak adapter "
                     + "implementation details into the use cases the ports exist to hide.");
 
-    private static final String TEMPORAL_ADAPTER_PACKAGE = "org.sequeless.adapter.automation.temporal..";
+    private static final String TEMPORAL_ADAPTER_PACKAGE = "org.sequeless.automation.temporal..";
+
+    private static final String TEMPORAL_AUTOCONFIGURE_PACKAGE = "org.sequeless.automation.autoconfigure..";
 
     @ArchTest
     static final ArchRule onlyTemporalAdapterMayDependOnTemporal = noClasses()
             .that()
-            .resideOutsideOfPackage(TEMPORAL_ADAPTER_PACKAGE)
+            .resideOutsideOfPackages(TEMPORAL_ADAPTER_PACKAGE, TEMPORAL_AUTOCONFIGURE_PACKAGE)
+            .and()
+            .doNotHaveFullyQualifiedName("org.sequeless.app.automation.TemporalFailureRecorder")
             .should()
             .dependOnClassesThat()
             .resideInAPackage("io.temporal..")
-            .because("io.temporal is sequeless-adapter-automation-temporal's own implementation library; "
-                    + "confining it there (stronger than coreDoesNotDependOnAdapterSpecificLibraries, "
-                    + "which only guards sequeless-core) keeps every other module free to swap or omit "
-                    + "the Temporal adapter without dragging its SDK onto an unrelated classpath.");
+            .because("io.temporal is the released automation-temporal-adapter's own implementation library "
+                    + "(spec 17 P3: org.sequeless.automation.temporal and its autoconfiguration). Confining it there "
+                    + "(stronger than coreDoesNotDependOnAdapterSpecificLibraries, which only guards sequeless-core) "
+                    + "keeps every other module free to swap or omit the Temporal adapter. The one exception is the "
+                    + "host's TemporalFailureRecorder, which reads Temporal's attempt number inside an activity.");
 
     @ArchTest
     static final ArchRule noJenaInSpiOrCore = noClasses()

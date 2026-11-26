@@ -15,21 +15,24 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
-import org.sequeless.adapter.automation.temporal.TimerWorkflow;
 import org.sequeless.app.support.TemporalTestcontainersSupport;
+import org.sequeless.automation.api.ResolvedTimer;
+import org.sequeless.automation.api.StoreEventRow;
+import org.sequeless.automation.api.TimerKey;
+import org.sequeless.automation.api.TimerScheduledEntry;
+import org.sequeless.automation.api.TriggerEvaluator;
+import org.sequeless.automation.temporal.TimerWorkflow;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
-import org.sequeless.spi.automation.ResolvedTimer;
-import org.sequeless.spi.automation.TimerScheduledEntry;
-import org.sequeless.spi.automation.TriggerEvaluator;
-import org.sequeless.spi.outbox.OutboxEntry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.Ordered;
+import org.springframework.core.PriorityOrdered;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
@@ -74,8 +77,8 @@ class TimerFailureRecordEndToEndTest extends TemporalTestcontainersSupport {
     @Test
     void aTimerWhoseElapsedActivityFailsLeavesExactlyOneRecordKeyedByItsTimerKey() throws TimeoutException {
         ObjectId objectId = ObjectId.parse(UUID.randomUUID().toString());
-        String timerKey = OutboxEntry.timerKey(objectId, STATE_IRI, TRANSITION);
-        OutboxEntry timer = timer(objectId, timerKey);
+        String timerKey = TimerKey.of(objectId, STATE_IRI, TRANSITION);
+        StoreEventRow timer = timer(objectId, timerKey);
 
         // The workflow ends normally: the failure is recorded, not thrown.
         runTimer(timer, timerKey);
@@ -90,8 +93,8 @@ class TimerFailureRecordEndToEndTest extends TemporalTestcontainersSupport {
     @Test
     void aSecondRunUnderTheSameTimerKeyAddsNoSecondRow() throws TimeoutException {
         ObjectId objectId = ObjectId.parse(UUID.randomUUID().toString());
-        String timerKey = OutboxEntry.timerKey(objectId, STATE_IRI, TRANSITION);
-        OutboxEntry timer = timer(objectId, timerKey);
+        String timerKey = TimerKey.of(objectId, STATE_IRI, TRANSITION);
+        StoreEventRow timer = timer(objectId, timerKey);
         runTimer(timer, timerKey);
 
         // The second start uses Temporal's default reuse policy, which allows a closed workflow id to start again.
@@ -102,13 +105,13 @@ class TimerFailureRecordEndToEndTest extends TemporalTestcontainersSupport {
         assertThat(rowsFor(timerKey)).hasSize(1);
     }
 
-    private static OutboxEntry timer(ObjectId objectId, String timerKey) {
+    private static StoreEventRow timer(ObjectId objectId, String timerKey) {
         ResolvedTimer resolved = new ResolvedTimer(timerKey, Duration.ofMillis(200), STATE_IRI, TRANSITION);
         return TimerScheduledEntry.of(SCOPE, objectId, TYPE_IRI, 1, resolved, OCCURRED_AT);
     }
 
     /** Starts the timer under {@code timerKey}, as the Temporal port does, and waits, bounded, for it to close. */
-    private void runTimer(OutboxEntry entry, String timerKey) throws TimeoutException {
+    private void runTimer(StoreEventRow entry, String timerKey) throws TimeoutException {
         TimerWorkflow workflow = workflowClient.newWorkflowStub(
                 TimerWorkflow.class,
                 WorkflowOptions.newBuilder()
@@ -137,29 +140,46 @@ class TimerFailureRecordEndToEndTest extends TemporalTestcontainersSupport {
          * Wraps every {@link TriggerEvaluator} bean in a proxy whose {@code onTimerElapsed} throws, as a broken
          * timer evaluation would. Every other method is delegated to the real evaluator.
          */
+        /**
+         * Applied before the host's failure-recording post-processor, which has no order and so runs later. The failing
+         * proxy therefore sits inside the host wrapper, and the host wrapper records the failure as it does for a real
+         * broken evaluation. This ordering is test-only: production bean ordering is unchanged (spec 17, section 9).
+         *
+         * <p>The return type is the concrete class, not {@link BeanPostProcessor}. Spring reads PriorityOrdered from
+         * the declared return type of a {@code @Bean} method, so a {@code BeanPostProcessor} return type would drop the
+         * ordering.
+         */
         @Bean
-        static BeanPostProcessor failingOnTimerElapsed() {
-            return new BeanPostProcessor() {
-                @Override
-                public Object postProcessAfterInitialization(Object bean, String beanName) {
-                    if (!(bean instanceof TriggerEvaluator evaluator)) {
-                        return bean;
-                    }
-                    return Proxy.newProxyInstance(
-                            TriggerEvaluator.class.getClassLoader(),
-                            new Class<?>[] {TriggerEvaluator.class},
-                            (proxy, method, args) -> {
-                                if (method.getName().equals("onTimerElapsed")) {
-                                    throw new IllegalStateException("timer evaluation broke");
-                                }
-                                try {
-                                    return method.invoke(evaluator, args);
-                                } catch (InvocationTargetException e) {
-                                    throw e.getCause();
-                                }
-                            });
+        static FailingOnTimerElapsed failingOnTimerElapsed() {
+            return new FailingOnTimerElapsed();
+        }
+
+        static final class FailingOnTimerElapsed implements BeanPostProcessor, PriorityOrdered {
+
+            @Override
+            public int getOrder() {
+                return Ordered.HIGHEST_PRECEDENCE;
+            }
+
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (!(bean instanceof TriggerEvaluator evaluator)) {
+                    return bean;
                 }
-            };
+                return Proxy.newProxyInstance(
+                        TriggerEvaluator.class.getClassLoader(),
+                        new Class<?>[] {TriggerEvaluator.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("onTimerElapsed")) {
+                                throw new IllegalStateException("timer evaluation broke");
+                            }
+                            try {
+                                return method.invoke(evaluator, args);
+                            } catch (InvocationTargetException e) {
+                                throw e.getCause();
+                            }
+                        });
+            }
         }
     }
 }

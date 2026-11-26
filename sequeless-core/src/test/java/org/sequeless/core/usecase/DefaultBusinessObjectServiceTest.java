@@ -304,6 +304,32 @@ class DefaultBusinessObjectServiceTest {
     // --- browse ---
 
     @Test
+    void typeOfReturnsTheTypeOfALiveObjectOfTheCallersTenant() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        BusinessObject task = seedTask(store, "alice", NOW, 1);
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
+
+        assertThat(service.typeOf(ALICE, task.id())).contains(new TypeRef(TASK_IRI));
+    }
+
+    @Test
+    void typeOfIsEmptyForAnIdThatDoesNotExist() {
+        DefaultBusinessObjectService service = service(new FakeObjectStorePort(), noViolations(), permitAll());
+
+        assertThat(service.typeOf(ALICE, ObjectId.random())).isEmpty();
+    }
+
+    @Test
+    void typeOfIsEmptyForAnObjectOfAnotherTenant() {
+        FakeObjectStorePort store = new FakeObjectStorePort();
+        BusinessObject task = seedTask(store, "alice", NOW, 1);
+        DefaultBusinessObjectService service = service(store, noViolations(), permitAll());
+        Scope otherTenant = new Scope(new TenantId("globex"), new Principal("carol", Set.of("member")));
+
+        assertThat(service.typeOf(otherTenant, task.id())).isEmpty();
+    }
+
+    @Test
     void browseAuthorizesOnceAgainstResolvedTypeIriAndQueriesConcreteSubtypes() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();
@@ -1534,7 +1560,8 @@ class DefaultBusinessObjectServiceTest {
             Objects.requireNonNull(id, "id must not be null");
             findCalls++;
             BusinessObject found = store.get(id);
-            if (found == null || found.deleted()) {
+            // Tenant-scoped, as the ObjectStorePort contract requires: another tenant's object is absent.
+            if (found == null || found.deleted() || !found.tenant().equals(scope.tenantId())) {
                 return Optional.empty();
             }
             return Optional.of(found);
@@ -1548,7 +1575,7 @@ class DefaultBusinessObjectServiceTest {
             Map<ObjectId, TypeRef> result = new HashMap<>();
             for (ObjectId id : ids) {
                 BusinessObject found = store.get(id);
-                if (found != null && !found.deleted()) {
+                if (found != null && !found.deleted() && found.tenant().equals(scope.tenantId())) {
                     result.put(id, found.type());
                 }
             }

@@ -19,6 +19,7 @@ import org.sequeless.adapter.persistence.postgres.PostgresObjectStore;
 import org.sequeless.adapter.persistence.postgres.PostgresPersistenceAutoConfiguration;
 import org.sequeless.app.automation.OutboxRelay;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
+import org.sequeless.automation.api.AutomationPort;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
@@ -39,7 +40,7 @@ import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
-import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
@@ -245,8 +246,9 @@ class RecomputeCommitRetryProofTest extends PostgresTestcontainersSupport {
         OutboxRelay outboxRelay(
                 OutboxPort outboxPort,
                 ObjectProvider<AutomationPort> automationPortProvider,
-                DerivationRecomputer derivationRecomputer) {
-            return new OutboxRelay(outboxPort, automationPortProvider, derivationRecomputer);
+                DerivationRecomputer derivationRecomputer,
+                ObjectProvider<AutomationFailureRecorder> failureRecorder) {
+            return new OutboxRelay(outboxPort, automationPortProvider, derivationRecomputer, failureRecorder);
         }
     }
 

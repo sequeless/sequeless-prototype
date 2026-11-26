@@ -10,8 +10,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.automation.OutboxRelay;
+import org.sequeless.automation.api.ActionExecutor;
+import org.sequeless.automation.api.AutomationPort;
 import org.sequeless.core.api.TransitionService;
-import org.sequeless.core.automation.DefaultActionExecutor;
 import org.sequeless.core.usecase.DefaultTransitionService;
 import org.sequeless.expression.api.ExpressionContext;
 import org.sequeless.expression.api.ExpressionPort;
@@ -31,8 +32,7 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
@@ -51,8 +51,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * Exercises {@link CoreConfiguration}'s two newest beans — {@link ActionExecutor} and {@link
- * TransitionService} — end to end against real {@link ApplicationContextRunner} contexts, mirroring
+ * Exercises {@link CoreConfiguration}'s use-case beans, {@link TransitionService} among them, end to end against real
+ * {@link ApplicationContextRunner} contexts, mirroring
  * {@code PortRegistryContextRunnerTest}'s style. Also verifies, via reflection, that {@link
  * OutboxRelay#pollOnce()} carries the expected {@code @Scheduled} configuration, and that {@link
  * SchedulingConfiguration} actually registers Spring's scheduling infrastructure — without ever
@@ -67,34 +67,29 @@ class CoreConfigurationContextRunnerTest {
      * property.
      */
     @Test
-    void actionExecutorAndTransitionServiceRegisterWithoutAnyPortBeans() {
+    void transitionServiceRegistersWithoutAnyPortBeans() {
         new ApplicationContextRunner()
                 .withUserConfiguration(CoreConfiguration.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(ActionExecutor.class);
                     assertThat(context).hasSingleBean(TransitionService.class);
-                    assertThat(context.getBean(ActionExecutor.class)).isInstanceOf(DefaultActionExecutor.class);
                     assertThat(context.getBean(TransitionService.class)).isInstanceOf(DefaultTransitionService.class);
+                    // The released automation-core autoconfiguration, not CoreConfiguration, supplies ActionExecutor.
+                    assertThat(context).doesNotHaveBean(ActionExecutor.class);
                 });
     }
 
     /**
      * The closer-to-deployment case: every port slot {@link CoreConfiguration} depends on
-     * (transitively, across its five bean methods) has exactly one bean present, all inert stubs
-     * that are never actually invoked by this test. This is what "the two new beans are what
-     * {@code InProcessAutomationAutoConfiguration}'s and {@code TemporalAutomationAutoConfiguration}'s
-     * own {@code automationPort(ActionExecutor actionExecutor, ...)} bean methods have been depending
-     * on" (see {@link CoreConfiguration#actionExecutor}'s javadoc) looks like once those adapters'
-     * own {@code @Bean} methods resolve {@code ActionExecutor} eagerly.
+     * (transitively, across its bean methods) has exactly one bean present, all inert stubs that are
+     * never actually invoked by this test.
      */
     @Test
-    void actionExecutorAndTransitionServiceRegisterWithStubPortBeans() {
+    void transitionServiceRegistersWithStubPortBeans() {
         new ApplicationContextRunner()
                 .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(ActionExecutor.class);
                     assertThat(context).hasSingleBean(TransitionService.class);
                 });
     }
@@ -165,13 +160,19 @@ class CoreConfigurationContextRunnerTest {
                     },
                     (scope, changeEvent) -> {
                         throw new UnsupportedOperationException("not needed by this test");
+                    },
+                    new ObjectProvider<>() {
+                        @Override
+                        public AutomationFailureRecorder getIfAvailable() {
+                            return null;
+                        }
                     });
         }
     }
 
     /**
      * One inert stub bean per port slot {@link CoreConfiguration} depends on across all five of its
-     * bean methods, so {@link #actionExecutorAndTransitionServiceRegisterWithStubPortBeans()} can
+     * bean methods, so {@link #transitionServiceRegistersWithStubPortBeans()} can
      * assert the happy-path wiring without a real adapter. None of these stubs' methods are ever
      * actually invoked by that test — every method throws, mirroring {@code
      * PortRegistryContextRunnerTest}'s existing convention of only implementing what a given test

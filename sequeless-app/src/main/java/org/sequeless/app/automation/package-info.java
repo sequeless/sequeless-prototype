@@ -9,9 +9,14 @@
  * {@code TransitionFiredEvent}, and feeds that event to the ingress of whichever {@link
  * org.sequeless.spi.automation.AutomationPort} adapter is currently configured. It reconstructs a
  * {@link org.sequeless.kernel.identity.Scope} from the row's payload and passes it alongside the
- * event. This package depends only on {@code sequeless-spi} plus
- * standard Spring/JDK types — it never depends on {@code org.sequeless.core}, unlike {@link
- * org.sequeless.app.config} and {@link org.sequeless.app.rest}, because the relay only ever talks
- * to core-implemented behaviour indirectly, through SPI ports.
+ * event. The relay depends only on {@code sequeless-spi}, the released automation API and standard
+ * Spring/JDK types. It never depends on {@code org.sequeless.core}.
+ *
+ * <p>The host's bindings of the released {@code ObjectReadPort} and {@code StoreCommandPort}
+ * ({@link org.sequeless.app.automation.BusinessObjectReadPort}, {@link
+ * org.sequeless.app.automation.BusinessObjectStoreCommandPort}) are the exception. They call the Command
+ * use cases in {@code sequeless-core}, so that validation, authorization, provenance and the outbox write
+ * run as on the HTTP path (spec 17, section 10, Q3). The rule that allows this is in {@code
+ * ArchitectureTest}.
  */
 package org.sequeless.app.automation;
