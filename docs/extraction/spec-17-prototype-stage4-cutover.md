@@ -9,11 +9,11 @@ Status: draft, revision 1, written in the first code PR (P1). Facts are checked 
 - Stage 4, cut-over. Spec 17 of 19. The prototype stops carrying the Query and automation code that specs 14 and 15 copied out, and consumes the released artifacts instead.
 - Waits for spec 14 ([#42](https://github.com/sequeless/sequeless-prototype/issues/42), `sequeless-query`, closed), spec 15 ([#43](https://github.com/sequeless/sequeless-prototype/issues/43), `sequeless-automation`, closed) and spec 16 ([#44](https://github.com/sequeless/sequeless-prototype/issues/44), closed). Spec 16 deleted `facet-core` from the ontology.
 - Branch `spec-17-prototype-stage4-cutover`, based on `origin/main` `8389ec6`.
-- Root POM: `sequeless-bom` moves from 0.1.5 to 0.2.0 (`pom.xml` line 64). This is the only BOM edit.
+- Root POM: `sequeless-bom` moves from 0.1.5 to 0.2.0 (`pom.xml` line 64). Later P2 commits move it to 0.3.1 (section 1.1).
 
 ### 1.1 Released artifacts this spec consumes
 
-Read from the `sequeless-bom-v0.2.0` pom (`sequeless-build/sequeless-bom/pom.xml`). Group `org.sequeless` for all of them.
+The table is the BOM 0.2.0 pin, read from the `sequeless-bom-v0.2.0` pom (`sequeless-build/sequeless-bom/pom.xml`) at the start of the spec. Group `org.sequeless` for all of them. The current pin is 0.3.1; see the update after the table.
 
 | Artifact | BOM 0.2.0 version | Source of the version |
 |---|---|---|
@@ -33,6 +33,8 @@ Read from the `sequeless-bom-v0.2.0` pom (`sequeless-build/sequeless-bom/pom.xml
 | `filter-core` | 0.1.5 | BOM; `filter-core-v0.1.5` |
 | `schema-contract` | 0.2.0 | BOM; `schema-contract-v0.2.0` |
 
+**Update (current pin, BOM 0.3.1).** The root POM pins `sequeless-bom` 0.3.1 (`617e2f8`). The `sequeless-bom-v0.3.1` tag of `sequeless-build` lists `query-schema-adapter` 0.2.2, which makes a single-valued property sortable (`sequeless-build` #67, commit `986a6ec`; release PR #68, `9d1ace8`). The same tag still lists `query-core` 0.2.1, `query-postgres-jsonb-adapter` 0.2.1 and `query-spring-boot-autoconfig` 0.2.1. `query-spring-boot-autoconfig` 0.3.0 was released by `sequeless-query` #23 (tag `query-spring-boot-autoconfig-v0.3.0`; the release PR merged 2026-11-26), and the BOM keeps 0.2.1 for it until a BOM change says otherwise. The pending subtype-union release is on branch `fix/schema-subtype-properties` in `sequeless-query`, head `3e26daa`. That branch is not on the remote, its push is refused and pending, and it will need a further BOM change.
+
 Two version differences from the brief: `query-field` is 0.1.1 in the BOM, and the BOM also moves `kernel-identity`, `kernel-values` (0.1.0 to 0.1.1), `filter-core` (0.1.4 to 0.1.5), `expression-*` and the ontology modules. Each of those is picked up by the BOM bump, and P1's gate checks that nothing else moved.
 
 ## 2. Moves
@@ -50,10 +52,12 @@ Source: `sequeless/sequeless-prototype` at `48a0cc6` (the prototype's `origin/ma
 | `sequeless-spi-testkit/.../testkit/query/{BrowseContract,ReadContract,ObjectViews,QueryFixtures}.java` | `query-testkit` | Ported |
 | `sequeless-spi-testkit/src/test/.../testkit/query/{InMemoryBrowsePort,InMemoryReadPort}.java` | `query-testkit` | Ported |
 | `sequeless-adapter-persistence-postgres/.../PostgresQueryStore.java` (`query`, `ensureIndexes`, `castExpression`) | `query-postgres-jsonb-adapter`, split into `PostgresBrowsePort`, `PostgresReadPort`, `PostgresIndexPreparation` | Ported and split |
-| `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres-query/V1__index_registry.sql` | `query-postgres-jsonb-adapter`, same path | Copied unchanged |
-| `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres-query/V2__search_gin_index.sql` | `query-postgres-jsonb-adapter`, same path | Copied unchanged |
+| `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres-query/V1__index_registry.sql` | `query-postgres-jsonb-adapter`, same path | Copied unchanged; deleted from the prototype in P2 (`617e2f8`), not P4 (deviation, below) |
+| `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres-query/V2__search_gin_index.sql` | `query-postgres-jsonb-adapter`, same path | Copied unchanged; deleted from the prototype in P2 (`617e2f8`), not P4 (deviation, below) |
 
 Not moved, and staying in the prototype: `Criterion`, `Operator`, `AggregateRequest`, `AggregateResult`, `QueryPort`. Aggregates stay on the Command side. `AggregateContract` and `InMemoryAggregateContractTest` in the prototype are not on the list.
+
+**Deviation from spec 14: the V1 and V2 copies are deleted in P2, not P4.** Commit `617e2f8` deletes the prototype's `V1__index_registry.sql` and `V2__search_gin_index.sql` and moves the released `query-postgres-jsonb-adapter` jar from test to runtime scope (`e1c9299`). The reason, as recorded in `617e2f8`: Flyway rejects two copies of one migration at one location, so the prototype's copies cannot stay on the classpath beside the released files. The released files are byte-identical to the copies (checked by byte comparison in `617e2f8`). The released jar and the prototype's `PostgresMigrations` both run this set against the history table `flyway_schema_history_query` (`PostgresMigrations.java` line 34). `PostgresMigrationFrozenSetsTest` pins the file names and checks the frozen copy against the released bytes. Section 2.3 leaves V1 and V2 out of the P4 deletion.
 
 **Import commit (to confirm).** The released repo's PROVENANCE names the prototype source SHA, not the import commit. The code commits that carry the ported paths are `072a6a3` (query-core ports, use cases), `6ef2b78` (`query-postgres-jsonb-adapter`), `1d59e5f` (read port with contract) and `6060d76` (query-testkit contracts). P4 names the commit that first carries each path, and this list is checked with `git log --diff-filter=A` before P4.
 
@@ -82,7 +86,7 @@ The released automation repo has no failure port or failure activities (verified
 
 ### 2.3 Deletion commit (P4)
 
-P4 deletes the moved copies in one commit. The deletion list is section 2.1 and 2.2, minus three exceptions settled by decision Q1 (section 10): `spi/object/Audit.java`, `PropertyRef.java` and `TypeRef.java` stay in the prototype as Command-side value types. `Page.java` is deleted, because every code user of it is on the Query side. The commit message names `sequeless/sequeless-automation` and `5159284`, and names `sequeless/sequeless-query` with its confirmed import commit (section 2.1). The commit also adds reverse pointers in the prototype: the `docs/extraction/` note, and a comment in each host file that now imports the released package. Nothing the list does not name is deleted.
+P4 deletes the moved copies in one commit. The deletion list is section 2.1 and 2.2, minus V1 and V2 (deleted in P2, section 2.1), minus three exceptions settled by decision Q1 (section 10): `spi/object/Audit.java`, `PropertyRef.java` and `TypeRef.java` stay in the prototype as Command-side value types. `Page.java` is deleted, because every code user of it is on the Query side. The commit message names `sequeless/sequeless-automation` and `5159284`, and names `sequeless/sequeless-query` with its confirmed import commit (section 2.1). The commit also adds reverse pointers in the prototype: the `docs/extraction/` note, and a comment in each host file that now imports the released package. Nothing the list does not name is deleted.
 
 ## 3. Prerequisite refactors
 
@@ -121,7 +125,7 @@ Prototype modules this spec changes:
 | `sequeless-spi` | Query types leave. `PropertyRef`, `TypeRef` and `Audit` keep a Command-side copy (decision Q1). The Query side's mapping to the released types is in the REST mappers | Automation SPI leaves | Moved packages deleted, minus the Q1 exceptions |
 | `sequeless-spi-testkit` | Query contracts leave | Automation contracts leave | Moved contracts deleted; the prototype's `AggregateContract` stays |
 | `sequeless-core` | Use cases call `QueryService` | Uses the released `ActionExecutor` and `TriggerEvaluator` | `core/automation` deleted; `DerivationRecomputer` and the derivation planner stay |
-| `sequeless-adapter-persistence-postgres` | `PostgresQueryStore` replaced by the released Postgres ports; `PostgresMigrations` keeps running the `postgres-query` location | Failure recorder stays (section 10) | Moved copies deleted; `V1` and `V2` in `postgres-query` deleted from the prototype (the released jar supplies the same files) |
+| `sequeless-adapter-persistence-postgres` | `PostgresQueryStore` replaced by the released Postgres ports; `PostgresMigrations` keeps running the `postgres-query` location | Failure recorder stays (section 10) | Moved copies deleted; `V1` and `V2` in `postgres-query` deleted in P2 (`617e2f8`), not P4 (section 2.1) |
 | `sequeless-adapter-automation-inprocess` | Not touched | Module replaced by the released artifact | Module deleted |
 | `sequeless-adapter-automation-temporal` | Not touched | Module replaced by the released artifact | Module deleted |
 | `sequeless-app` | REST mappers for Object views and `BrowseResult`; `CoreConfiguration` beans | Host bindings; relay maps rows to `StoreEventRow`; `CoreConfiguration` beans | Imports and wiring updated; `ArchitectureTest` rules retargeted |
@@ -132,7 +136,7 @@ Dependency versions come only from the BOM. Module POMs carry no version for the
 
 - The prototype is not released. Its root version stays `0.1.0-SNAPSHOT`, and no artifact is published from it.
 - No SNAPSHOT is a dependency of the prototype on `main`. Every released artifact comes from the BOM at a released version.
-- The BOM bump (P1) and the released artifacts are the only release-side change. The released artifacts' releases are done: query 0.2.1, automation 0.1.0, BOM 0.2.0.
+- The BOM bump (P1) and the released artifacts are the only release-side change. The released artifacts' releases were done at the start of the spec: query 0.2.1, automation 0.1.0, BOM 0.2.0. Since then: `query-schema-adapter` 0.2.2, `query-spring-boot-autoconfig` 0.3.0 (`sequeless-query` #23) and BOM 0.3.1 (section 1.1).
 - The prototype's own `codeql.yml` caller grant is an open item in `remaining-work.md`. It is checked before the prototype's pin moves.
 
 ## 7. CI and workflows
@@ -154,7 +158,7 @@ This cut-over changes the prototype's runtime behaviour. The differences are the
 
 - **Criterion to FilterNode.** The Browse filter is a `FilterNode`. The prototype's `Criterion` and `Operator` remain for aggregates (`QueryPort`). The released query side rejects `like` and `not like` (`InvalidQueryException`, as its javadoc states; not re-verified in this draft), while filter-core's table has `is like` and `is not like` as operators. The REST aliases map to the released names by the table in section 10 (Q4), and the values become `JsonNode`.
 - **Ordering comparisons on dates.** The released filter's ordering operators (`is greater than`, `is less than` and their variants) also apply to `date` and `date-time` strings (`alsoAppliesToFormats`). The prototype's ordering operators apply to the types its own applicability check allows. P2 records any filter that now validates and did not before, and any REST response that changes.
-- **Null semantics and `contains` case handling.** Not yet checked against the released filter. The released `is` operator lists `is null` and `is not null` as aliases, and `is not` does not, so the representation of `isnull` and `notnull` is open (Q4). P2 checks the `contains` case handling against the prototype's own contract test, and records any difference.
+- **Null semantics.** Checked in P2; see "Null operators" below. The released `is` operator lists `is null` and `is not null` as aliases, and `is not` does not, so the representation used is `is` and `is not` with a JSON null (section 10, Q4). **`contains` case handling** is not checked in P2.
 - **DATE comparisons and tenant-wide text search.** The cycle brief names both as runtime changes. They are not yet checked against the released Postgres adapter's SQL, so P2 must check them with the released query contracts before the cut-over merges.
 - **Display labels and operator aliases.** Changed by the released query and REST layer. The REST wire format must stay wire-compatible with the hand-written TypeScript models for Object views and `BrowseResult` (DR-20).
 - **Sorting and facets.** Core rejects an unsortable sort and an unfacetable facet with `InvalidQueryException` before the port runs. Facet keys are `FieldPath`s, not IRIs. A sort key on a relationship orders by target id.
@@ -163,6 +167,14 @@ This cut-over changes the prototype's runtime behaviour. The differences are the
 - **Authorization (spec 15 H7).** Store-side validation runs on automation's writes, so some actions the prototype accepted may now be rejected. The cut-over's tests cover the rejections.
 - **Failure recording (section 2.2).** The released automation does not record automation failures. After the cut-over the prototype's `sq_automation_failure` stops receiving rows unless the host records them.
 - **Divergence (spec 15 D-1).** The prototype and the released artifacts differ in behaviour until the cut-over (P2 and P3). Each step's gate names the behaviour it checks.
+- **Sort.** `query-schema-adapter` 0.2.2 makes a property sortable when its cardinality max is exactly 1 (`sequeless-query` #21, commit `83e7dc4`; `SchemaFieldSourceTest.sortableOnlyWhenCardinalityMaxIsExactlyOne`). Before it, the adapter hard-coded sortable to false. Only the sortable flag changed. This overrides spec 14 decision Q16 for sort only. `sequeless-query`'s ADR 0001 still says sortable is always false, which is stale on that point.
+- **Subtype union (unpushed).** A root's scope includes its transitive subtypes' properties. The root's own list, inherited copies included, wins for its IRIs. A subtype-only IRI is one usable Field when every copy agrees, and an explicit conflict Field (all capabilities false, type UNKNOWN) when they disagree (`953b2ba`; tests in `SchemaFieldSourceTest`). The sibling-conflict case is a behaviour change. The prototype's union takes one copy, which this spec recorded as a silent last-copy pick; that is not re-verified in P2. On the reference ontology the change adds 11 subtype-only IRIs at `Deliverable` and 9 at `WorkItem`, and changes no root-declared IRI (`953b2ba`, `ReferenceOntologyParityTest`). The work is on `fix/schema-subtype-properties` in `sequeless-query` (head `3e26daa`), not pushed and not on `origin/main`.
+- **Multi-valued filters and non-materialised derived properties.** The released API accepts both: its filter does not gate on cardinality, and it accepts derived properties. The prototype's core still refuses them before the port is called (`DefaultBusinessObjectService.java`, `resolveQueryableProperty`, called from `buildCriteria`, `buildSorts` and `buildFacets`). `cf1ea97` pins four REST cases in `QueryEndToEndTest`. With one core check removed at a time, the matching case fails (section 12). The facet case is also refused by the core's own "not a facet property" check, so with the pre-check removed it fails on wording, not on status.
+- **Null operators.** `isnull` maps to `is` with a JSON null, and `notnull` to `is not` with a JSON null (`ca89624`). `ReleasedNullParityIT` (5 tests, EXIT 0, Testcontainers `postgres:18`) shows identical id sets on both sides for a missing key, a tagged empty list, a present value, the negated not-null, and the combined filter with a comparison (`9f24983`). An explicit JSON null is different. Both readers (`ValueJsonDecoder` in `query-postgres-jsonb-adapter`, and the prototype's `ValueJsonCodec`) fail on it with `IllegalArgumentException: Unrecognized tagged value: null`. A bare `[]` is undecodable on both sides. The domain writer cannot store a bare null, so only raw rows reach this. Follow-up: decode an explicit null on both sides, through an upstream patch and the prototype's `ValueJsonCodec`. Operator pre-deploy check, not run (no dev database): count object rows where a property value is a bare JSON null or a bare `[]`.
+- **Reference facet labels.** `ReferenceFacetLabels` reads each distinct reference target once per browse, across all reference facets (`ca89624`). The cost is one released read per distinct target. Follow-ups: a batched read, or label translation in `sequeless-query`.
+- **`includeDeleted=true`.** `ReleasedBrowsePortAdapter` throws `UnsupportedOperationException` for it. The core always passes `false` (`DefaultBusinessObjectService.java` line 220), so REST cannot reach it. Not changed.
+- **Pre-existing gaps, not changed.** Deeper hops (`PathWalk.find`) do not compare the caller's target class with the edge's target. `describe()`'s terminal root hop returns the caller's path without comparing its target. The unpushed commit `3e26daa` closes the root-hop comparison for `expand` and for non-terminal `describe`, and leaves both gaps open.
+- **Live browse routing.** On this branch the core's `BrowsePort` is `ReleasedBrowsePortAdapter` (`CoreConfiguration.java` line 192). The prototype's `PostgresQueryStore` is not a `BrowsePort` bean, and no conditional gates the released bean, so the code does not hold live browse back. The release condition is separate: no live browse through the released query side until a BOM carries the subtype union. The sort fix is already pinned (0.2.2).
 - **Limitation: no deploy gate.** No dev database exists on this host. The deploy gates (the O-3 unprocessed count, the live Temporal count and the owner's deploy approval) cannot run here. This spec records that as a limitation, and no deploy is claimed.
 
 ## 10. Open Navigator questions
@@ -181,6 +193,17 @@ Settled by the Navigator (session `0e5543805193449c8caefabab95e002c`):
 
 Settled by the Navigator. Nothing is open in this section.
 
+Settled after the P2 round, in Navigator session `0e5543805193449c8caefabab95e002c`. Each line names the commit that carries the decision.
+
+- **Q6, migration copies in P2.** The prototype's `postgres-query` copies `V1` and `V2` are deleted in P2 (`617e2f8`), not P4. This deviates from spec 14 (section 2.1).
+- **Q7, adapter shape.** The host's Query-side adapters call the released `QueryService`: `ReleasedBrowsePortAdapter`, `ReleasedReadPortAdapter` and `ReleasedIndexPreparationPortAdapter`, bound in `ReleasedQueryConfiguration` (`617e2f8`).
+- **Q-root, `rootIri` on the core's `Query`.** The record `spi.query.Query` gains `rootIri`, appended last and non-blank. `DefaultBusinessObjectService.browse` sets it to the resolved type's IRI (`617e2f8`).
+- **Sort.** A property is sortable when its cardinality max is exactly 1 (`83e7dc4`, released `query-schema-adapter` 0.2.2). This overrides spec 14 decision Q16 ("sorting is off") for sort only.
+- **Subtype union.** A root's own copy of an IRI wins over subtype copies. A subtype-only IRI is one Field when every copy agrees, and an explicit conflict Field (all capabilities false) when they do not (`953b2ba`). Unpushed (section 1.1).
+- **Parity acceptance.** The released API accepts multi-valued filters and non-materialised derived properties, so the host gates them. The core refuses them before the port runs (`cf1ea97`; section 9).
+- **Null mapping.** `isnull` maps to `is` with a JSON null, and `notnull` to `is not` with a JSON null (`ca89624`).
+- **Explicit-null acceptance.** An explicit JSON null is not decoded by either side, and both fail with the same error. Accepted for this spec. The follow-up is in section 9 (`9f24983`).
+
 ## 11. Definition of done (issue #45)
 
 - The new repos' CI is green. This is done for `sequeless-query` (releases 0.2.1) and `sequeless-automation` (0.1.0).
@@ -197,3 +220,11 @@ Each step runs, before its PR is opened:
 - P2 and P3: the unit gate, a wire-format contract test for Object views and `BrowseResult` (P2), and a trigger-to-action test with in-process fakes (P3). Each integration test class is run alone under the Maven lock.
 - P4: the unit gate, a grep showing no dangling import of a deleted package, and the integration tests run alone.
 - P5: the handoff, `docs/agents/handoff.md`, in the last code PR.
+
+Run for the P2 fix round (commits `ca89624` to `ed0db73` on `spec-17-p2a-query-consumption`; no PR):
+
+- Unit gate after each commit: `spotless:apply`, then `mvn -Prelease -DskipITs verify` under `flock`, JDK 25, `-T 1`, `MAVEN_OPTS=-Xmx1g`. BUILD SUCCESS after `ca89624`, `9f24983`, `6a9fb5a`, `e1c9299`, `919ad90`, `283c1f0`, `cf1ea97` and `ed0db73`. The base commit `617e2f8` records its own gate in its message (`sequeless-app` 194 tests).
+- `ReleasedNullParityIT` alone (`-pl sequeless-app -am verify -Dit.test=ReleasedNullParityIT`): EXIT 0, `Tests run: 5, Failures: 0, Errors: 0`. Run at `9f24983`, and again on the final branch after `283c1f0` and after `ed0db73`. The first run failed on spotless formatting before `spotless:apply`; the test code did not change.
+- `QueryEndToEndTest` (`mvn test -pl sequeless-app -am -Dtest=QueryEndToEndTest`): 12 tests, 0 failures, including the four pre-check cases (`cf1ea97`).
+- Pre-check removal, not committed: three runs of `QueryEndToEndTest`, each with one `resolveQueryableProperty` call in `DefaultBusinessObjectService` replaced by a plain lookup and the file restored afterwards. Removing the filter check fails the multi-valued and derived cases (both return 200) and `invalidFilterPropertyReturns400WithViolations`. Removing the sort check fails the sort case, because the released sort refuses with no core violation. Removing the facet check fails the facet case on wording.
+- Not run: the full integration set (the other failsafe classes); the P2 wire-format contract test named in section 12 (not written in this round); any dev-database or deploy gate (no dev database on this host); the UI and ng tests.
