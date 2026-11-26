@@ -32,6 +32,7 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
@@ -159,6 +160,12 @@ class CoreConfigurationContextRunnerTest {
                     },
                     (scope, changeEvent) -> {
                         throw new UnsupportedOperationException("not needed by this test");
+                    },
+                    new ObjectProvider<>() {
+                        @Override
+                        public AutomationFailureRecorder getIfAvailable() {
+                            return null;
+                        }
                     });
         }
     }

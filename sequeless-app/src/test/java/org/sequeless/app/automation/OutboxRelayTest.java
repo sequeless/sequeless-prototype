@@ -21,6 +21,8 @@ import org.sequeless.automation.api.ObjectChangedEvent;
 import org.sequeless.automation.api.StoreEvent;
 import org.sequeless.automation.api.TransitionFiredEvent;
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.automation.AutomationFailure;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
@@ -48,6 +50,14 @@ class OutboxRelayTest {
     /** The recomputer for the object-lifecycle tests, which do not assert on the recompute itself. */
     private static final DerivationRecomputer NOOP_RECOMPUTER = (scope, changeEvent) -> {};
 
+    /** A failure recorder provider with no bean: for the tests where no unstamped row is expected. */
+    private static final ObjectProvider<AutomationFailureRecorder> NO_RECORDER = new ObjectProvider<>() {
+        @Override
+        public AutomationFailureRecorder getIfAvailable() {
+            return null;
+        }
+    };
+
     @Test
     void multipleQueuedRowsAllDrainWithinOnePollOnceCall() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
@@ -55,7 +65,7 @@ class OutboxRelayTest {
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -72,7 +82,7 @@ class OutboxRelayTest {
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
         automationPort.throwOnCall(2); // the second ingested row fails
 
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -83,11 +93,41 @@ class OutboxRelayTest {
         assertThat(outboxPort.remaining()).isEqualTo(2);
     }
 
+    /**
+     * Spec 15 D-2. The released core refuses a TransitionFired row with no provenance (the fake below does the same). Without
+     * the relay's handling, the first refusal stops the drain and the stamped rows behind it wait. With the handling, the
+     * unstamped row is recorded on the host, the relay claims it as done, and the rows behind it are ingested in the same
+     * poll.
+     */
+    @Test
+    void anUnstampedTransitionFiredRowIsRecordedAndTheRelayContinuesWithTheNextRow() {
+        InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
+        OutboxEntry unstamped = unstampedTransitionFired("tenant-a", "alice");
+        outboxPort.enqueue("tenant-a", unstamped);
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
+        RecordingAutomationPort automationPort = new RecordingAutomationPort();
+        RecordingFailureRecorder recorder = new RecordingFailureRecorder();
+        OutboxRelay relay =
+                new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER, providerOf(recorder));
+
+        relay.pollOnce();
+
+        assertThat(automationPort.ingestedEvents).hasSize(2);
+        assertThat(outboxPort.isEmpty()).isTrue();
+        assertThat(recorder.records).hasSize(1);
+        AutomationFailure record = recorder.records.get(0);
+        assertThat(record.workflowId()).isEqualTo(unstamped.id().toString());
+        assertThat(record.workflowType()).isEqualTo(OutboxRelay.RELAY_WORKFLOW_TYPE);
+        assertThat(record.cause()).isEqualTo(OutboxRelay.UNSTAMPED_TRANSITION_CAUSE);
+        assertThat(record.transition()).isNull();
+    }
+
     @Test
     void pollOnceMakesNoOutboxCallsWhenNoAutomationPortIsAvailable() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
-        OutboxRelay relay = new OutboxRelay(outboxPort, unavailableProvider(), UNUSED_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, unavailableProvider(), UNUSED_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -100,7 +140,7 @@ class OutboxRelayTest {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("acme-tenant", transitionFired("acme-tenant", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -117,7 +157,7 @@ class OutboxRelayTest {
         OutboxEntry row = transitionFired("tenant-a", "alice");
         outboxPort.enqueue("tenant-a", row);
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -155,7 +195,7 @@ class OutboxRelayTest {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("tenant-a", actionRequest());
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -174,7 +214,7 @@ class OutboxRelayTest {
         List<String> order = new ArrayList<>();
         DerivationRecomputer recomputer = (scope, changeEvent) -> order.add("recompute");
         AutomationPort automationPort = (scope, event) -> order.add("ingest");
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), recomputer);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), recomputer, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -192,7 +232,7 @@ class OutboxRelayTest {
         OutboxEntry row = objectLifecycle(kind);
         outboxPort.enqueue("tenant-a", row);
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), NOOP_RECOMPUTER);
+        OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), NOOP_RECOMPUTER, NO_RECORDER);
 
         relay.pollOnce();
 
@@ -241,11 +281,19 @@ class OutboxRelayTest {
         return new OutboxEntry(UUID.randomUUID(), "ActionRequest", payload, Instant.now());
     }
 
-    private static ObjectProvider<AutomationPort> providerOf(AutomationPort port) {
+    /** Builds a {@code TransitionFired}-kind {@link OutboxEntry} with no {@code ontologyVersion} stamp (spec 15 D-2). */
+    private static OutboxEntry unstampedTransitionFired(String tenantId, String principalId) {
+        OutboxEntry stamped = transitionFired(tenantId, principalId);
+        Map<String, Object> payload = new HashMap<>(stamped.payload());
+        payload.remove("ontologyVersion");
+        return new OutboxEntry(stamped.id(), stamped.kind(), payload, stamped.occurredAt());
+    }
+
+    private static <T> ObjectProvider<T> providerOf(T bean) {
         return new ObjectProvider<>() {
             @Override
-            public AutomationPort getIfAvailable() {
-                return port;
+            public T getIfAvailable() {
+                return bean;
             }
         };
     }
@@ -310,7 +358,10 @@ class OutboxRelayTest {
         }
     }
 
-    /** Records every {@link #ingest} call; can be configured to throw on the Nth call. */
+    /**
+     * Records every {@link #ingest} call; can be configured to throw on the Nth call. It also refuses a TransitionFired
+     * event with no {@code ontologyVersion}, as the released core does (spec 15 D-2).
+     */
     private static final class RecordingAutomationPort implements AutomationPort {
 
         final List<StoreEvent> ingestedEvents = new ArrayList<>();
@@ -328,8 +379,22 @@ class OutboxRelayTest {
             if (callCount == throwOnCall) {
                 throw new RuntimeException("simulated ingest failure on call " + callCount);
             }
+            if (event instanceof TransitionFiredEvent fired && fired.payload().get("ontologyVersion") == null) {
+                throw new IllegalStateException("TransitionFired " + fired.id() + " has no ontologyVersion stamp");
+            }
             ingestedScopes.add(scope);
             ingestedEvents.add(event);
+        }
+    }
+
+    /** Records every failure the relay hands the host recorder. */
+    private static final class RecordingFailureRecorder implements AutomationFailureRecorder {
+
+        final List<AutomationFailure> records = new ArrayList<>();
+
+        @Override
+        public void record(AutomationFailure failure) {
+            records.add(failure);
         }
     }
 }
