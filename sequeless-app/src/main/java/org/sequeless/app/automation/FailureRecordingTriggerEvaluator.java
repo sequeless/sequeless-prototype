@@ -10,11 +10,10 @@ import org.sequeless.automation.api.TriggerEvaluator;
 import org.sequeless.kernel.identity.Scope;
 
 /**
- * Wraps the released {@link TriggerEvaluator} so that a timer's final failure is recorded, as the prototype's
- * {@code TimerWorkflow} recorded it, and the timer's workflow ends normally (spec 17, section 9).
- *
- * <p>Only {@link #onTimerElapsed} records. The prototype's change-event workflow did not record a failure, and this
- * wrapper does not either: a failed {@code onChange} propagates as it did before.
+ * Wraps the released {@link TriggerEvaluator} so that the final failure of {@link #onChange} and of
+ * {@link #onTimerElapsed} is recorded, as the prototype's {@code ChangeEventWorkflow} and {@code TimerWorkflow} recorded
+ * them, and the workflow then ends normally (spec 13, R2; spec 17, section 9). A non-final failure is rethrown, so
+ * Temporal retries the activity.
  */
 final class FailureRecordingTriggerEvaluator implements TriggerEvaluator {
 
@@ -32,7 +31,16 @@ final class FailureRecordingTriggerEvaluator implements TriggerEvaluator {
 
     @Override
     public void onChange(Scope scope, ObjectChangedEvent changeEvent) {
-        delegate.onChange(scope, changeEvent);
+        try {
+            delegate.onChange(scope, changeEvent);
+        } catch (RuntimeException failure) {
+            if (!failures.isFinalAttempt()) {
+                throw failure;
+            }
+            // The released port starts a change event's workflow under the event id, so that is the workflow id.
+            failures.record(
+                    scope, changeEvent.id().toString(), TemporalFailureRecorder.CHANGE_EVENT_WORKFLOW, null, failure);
+        }
     }
 
     @Override

@@ -26,6 +26,9 @@ final class TemporalFailureRecorder {
     /** The workflow type the prototype wrote for a timer; equals the interface's simple name. */
     static final String TIMER_WORKFLOW = "TimerWorkflow";
 
+    /** The workflow type the prototype wrote for a change event; equals the interface's simple name. */
+    static final String CHANGE_EVENT_WORKFLOW = "ChangeEventWorkflow";
+
     /** The longest cause the prototype stored, in code points. */
     static final int MAX_CAUSE_LENGTH = 1000;
 
