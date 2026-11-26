@@ -92,8 +92,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
         // estimatedHours gained an owl:maxCardinality 1 restriction in Phase 4 (T5, so its
         // Project-level rollup can sum it in SQL), so it is now scalar-expecting like name
         // (F27's comment below): send a bare 5000, not a list.
-        Map<String, Object> body =
-                Map.of("properties", Map.of("title", List.of("Overbudget task"), "estimatedHours", 5000));
+        Map<String, Object> body = Map.of("properties", Map.of("title", "Overbudget task", "estimatedHours", 5000));
 
         restTestClient
                 .post()
@@ -121,11 +120,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         Map<String, Object> body = Map.of(
                 "properties",
-                Map.of(
-                        "title",
-                        List.of("Misfiled task"),
-                        "belongsToProject",
-                        person.id().toString()));
+                Map.of("title", "Misfiled task", "belongsToProject", person.id().toString()));
 
         restTestClient
                 .post()
@@ -146,14 +141,14 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
     @Test
     void editWithStaleVersionReturns409() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Edit me twice")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Edit me twice"));
 
         // First edit lands and moves the object to version 2.
         restTestClient
                 .put()
                 .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("version", 1, "properties", Map.of("title", List.of("First edit"))))
+                .body(Map.of("version", 1, "properties", Map.of("title", "First edit")))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -163,7 +158,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
                 .put()
                 .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("version", 1, "properties", Map.of("title", List.of("Second edit, stale"))))
+                .body(Map.of("version", 1, "properties", Map.of("title", "Second edit, stale")))
                 .exchange()
                 .expectStatus()
                 .isEqualTo(409)
@@ -176,7 +171,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
     @Test
     void deleteHidesFromBrowseAndReadButRowSurvivesWithDeletedAtSet() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Soft delete me")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Soft delete me"));
 
         restTestClient
                 .delete()
@@ -215,7 +210,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
     @Test
     void outboxRowCountTracksSuccessfulMutationsOnly() {
         long before = outboxCount();
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Outbox add")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Outbox add"));
         assertThat(outboxCount()).as("successful add").isEqualTo(before + 1);
 
         long beforeEdit = outboxCount();
@@ -223,7 +218,7 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
                 .put()
                 .uri("/api/objects/Task/" + created.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("version", 1, "properties", Map.of("title", List.of("Outbox edit"))))
+                .body(Map.of("version", 1, "properties", Map.of("title", "Outbox edit")))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -257,13 +252,11 @@ class AcceptanceCriteriaIT extends PostgresTestcontainersSupport {
 
         // openTaskCount counts Tasks with status != "done": two of the three below qualify.
         // totalEstimatedHours sums estimatedHours over every Task regardless of status: 3+5+2=10.
-        createTask(Map.of(
-                "title", List.of("Done task"), "status", "done", "estimatedHours", 3, "belongsToProject", projectId));
-        createTask(Map.of(
-                "title", List.of("Open task"), "status", "open", "estimatedHours", 5, "belongsToProject", projectId));
+        createTask(Map.of("title", "Done task", "status", "done", "estimatedHours", 3, "belongsToProject", projectId));
+        createTask(Map.of("title", "Open task", "status", "open", "estimatedHours", 5, "belongsToProject", projectId));
         createTask(Map.of(
                 "title",
-                List.of("In-progress task"),
+                "In-progress task",
                 "status",
                 "in-progress",
                 "estimatedHours",

@@ -157,7 +157,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                         "properties",
                         Map.of(
                                 "title",
-                                List.of("Only task"),
+                                "Only task",
                                 "belongsToProject",
                                 project.id().toString(),
                                 "status",
@@ -353,7 +353,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                         "properties",
                         Map.of(
                                 "title",
-                                List.of(title),
+                                title,
                                 "belongsToProject",
                                 belongsToProjectId,
                                 "status",

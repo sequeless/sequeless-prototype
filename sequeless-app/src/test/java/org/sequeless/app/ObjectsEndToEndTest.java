@@ -6,7 +6,6 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,11 +61,11 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void createsReadsAndListsATask() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Write plan")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Write plan"));
 
         assertThat(created.type()).isEqualTo("Task");
         assertThat(created.version()).isEqualTo(1L);
-        assertThat(created.properties()).containsEntry("title", List.of("Write plan"));
+        assertThat(created.properties()).containsEntry("title", "Write plan");
         assertThat(created.audit().createdBy()).isEqualTo("anonymous");
 
         BusinessObjectResponse read = restTestClient
@@ -118,7 +117,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
      */
     @Test
     void createReturnsApiPrefixedRelativeLocationAndETag() {
-        Map<String, Object> body = Map.of("properties", Map.of("title", List.of("Ship it")));
+        Map<String, Object> body = Map.of("properties", Map.of("title", "Ship it"));
         var response = restTestClient
                 .post()
                 .uri("/api/objects/Task")
@@ -145,9 +144,9 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void updateWithCorrectVersionSucceeds() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Original title")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Original title"));
 
-        Map<String, Object> updateBody = Map.of("version", 1, "properties", Map.of("title", List.of("Updated title")));
+        Map<String, Object> updateBody = Map.of("version", 1, "properties", Map.of("title", "Updated title"));
 
         BusinessObjectResponse updated = restTestClient
                 .put()
@@ -165,14 +164,14 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
         assertThat(updated).isNotNull();
         assertThat(updated.version()).isEqualTo(2L);
-        assertThat(updated.properties()).containsEntry("title", List.of("Updated title"));
+        assertThat(updated.properties()).containsEntry("title", "Updated title");
     }
 
     @Test
     void updateWithWrongVersionIs409() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Stale me")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Stale me"));
 
-        Map<String, Object> updateBody = Map.of("version", 99, "properties", Map.of("title", List.of("Will not land")));
+        Map<String, Object> updateBody = Map.of("version", 99, "properties", Map.of("title", "Will not land"));
 
         restTestClient
                 .put()
@@ -191,9 +190,9 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void updateWithNeitherVersionNorIfMatchIs428() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("No version supplied")));
+        BusinessObjectResponse created = createTask(Map.of("title", "No version supplied"));
 
-        Map<String, Object> updateBody = Map.of("properties", Map.of("title", List.of("Attempted update")));
+        Map<String, Object> updateBody = Map.of("properties", Map.of("title", "Attempted update"));
 
         restTestClient
                 .put()
@@ -209,10 +208,9 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void updateWithMismatchedBodyAndIfMatchIs400() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Mismatch me")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Mismatch me"));
 
-        Map<String, Object> updateBody =
-                Map.of("version", 1, "properties", Map.of("title", List.of("Attempted update")));
+        Map<String, Object> updateBody = Map.of("version", 1, "properties", Map.of("title", "Attempted update"));
 
         restTestClient
                 .put()
@@ -229,9 +227,9 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void updateAcceptsIfMatchAloneWithNoBodyVersion() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("If-Match only")));
+        BusinessObjectResponse created = createTask(Map.of("title", "If-Match only"));
 
-        Map<String, Object> updateBody = Map.of("properties", Map.of("title", List.of("Updated via If-Match")));
+        Map<String, Object> updateBody = Map.of("properties", Map.of("title", "Updated via If-Match"));
 
         restTestClient
                 .put()
@@ -248,7 +246,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void deleteThenReadIs404AndDisappearsFromBrowse() {
-        BusinessObjectResponse created = createTask(Map.of("title", List.of("Delete me")));
+        BusinessObjectResponse created = createTask(Map.of("title", "Delete me"));
 
         restTestClient
                 .delete()
