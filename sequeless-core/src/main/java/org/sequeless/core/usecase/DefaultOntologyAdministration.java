@@ -8,8 +8,8 @@ import org.sequeless.ontology.api.ImportMode;
 import org.sequeless.ontology.api.ImportReport;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyFormat;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**

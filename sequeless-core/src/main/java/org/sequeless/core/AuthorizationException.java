@@ -1,7 +1,7 @@
 package org.sequeless.core;
 
 import java.util.Objects;
-import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.store.api.AccessDecision;
 
 /**
  * Thrown by a use case when an {@link org.sequeless.store.spi.AuthorizationPort} denies the
@@ -13,7 +13,7 @@ import org.sequeless.spi.authz.AccessDecision;
  * it into the appropriate transport-level response.
  *
  * <p>This exception deliberately carries only the denying {@link AccessDecision} — not the {@link
- * org.sequeless.kernel.identity.Scope}, {@link org.sequeless.spi.authz.Operation}, or resource that produced
+ * org.sequeless.kernel.identity.Scope}, {@link org.sequeless.store.api.Operation}, or resource that produced
  * it. Add those only when a real caller needs them; until then they would be unused surface area.
  */
 public final class AuthorizationException extends RuntimeException {

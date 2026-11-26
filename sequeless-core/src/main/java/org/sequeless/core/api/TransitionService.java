@@ -9,9 +9,9 @@ import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.ontology.behaviour.api.ExternalSignalTrigger;
 import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.store.api.Operation;
 
 /**
  * Moves an existing business object through its type's {@code sq:StateMachine} by firing one of

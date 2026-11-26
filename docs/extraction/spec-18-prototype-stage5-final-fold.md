@@ -157,7 +157,7 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 | Unit | Scope | Status |
 |---|---|---|
 | U2 | Spec doc, DR-29 to DR-36, the `store.spi` rename (section 6.1), the frozen-sets check (section 13), the ArchitectureTest retarget. Carries U1. | This PR |
-| U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | Planned |
+| U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | This PR |
 | U4 | `store.core` and `store.postgres` rename; minimal `ObjectState` (Q-D, O5). | Planned |
 | U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | Planned |
 | U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | Planned |

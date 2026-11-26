@@ -38,8 +38,6 @@ import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -48,6 +46,8 @@ import org.sequeless.spi.object.Mutation;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
 import org.sequeless.store.spi.AuthorizationPort;
 import org.sequeless.store.spi.ObjectStorePort;
 
@@ -182,7 +182,7 @@ public final class DefaultTransitionService implements TransitionService {
      *
      * @param scope the tenant and principal context the commit is recorded under; must not be {@code
      *     null}. Automation never authorizes against {@link
-     *     org.sequeless.spi.authz.Operation#TRANSITION} the way {@link #fire} does — there is no
+     *     org.sequeless.store.api.Operation#TRANSITION} the way {@link #fire} does — there is no
      *     external caller to authorize, only the object's own current, valid state
      * @param id the id of the object to transition; must not be {@code null}
      * @param transitionName the name of the transition to fire; must not be {@code null}

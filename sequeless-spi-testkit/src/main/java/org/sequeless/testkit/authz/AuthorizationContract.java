@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
 import org.sequeless.store.spi.AuthorizationPort;
 import org.sequeless.testkit.Fixtures;
 

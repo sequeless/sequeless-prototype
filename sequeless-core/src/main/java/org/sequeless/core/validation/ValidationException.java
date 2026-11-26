@@ -16,7 +16,7 @@ import org.sequeless.store.spi.Violation;
  * {@link #source()} and {@link #violations()} into a 400 response body.
  *
  * <p>Follows {@link org.sequeless.core.AuthorizationException}'s "reject the degenerate case in the
- * constructor" idiom (there, an {@link org.sequeless.spi.authz.AccessDecision#allowed()} decision;
+ * constructor" idiom (there, an {@link org.sequeless.store.api.AccessDecision#allowed()} decision;
  * here, an empty violations list) — a {@code ValidationException} exists to carry failures, not to
  * be thrown when there is nothing wrong.
  */

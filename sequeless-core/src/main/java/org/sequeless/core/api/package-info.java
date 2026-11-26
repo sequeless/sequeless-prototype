@@ -5,7 +5,7 @@
  * <p>{@link org.sequeless.core.api.WhoAmI} is the first such use case — Phase 0's proof that a
  * caller's own identity and authorization decision can be reported end to end through the {@link
  * org.sequeless.store.spi.AuthorizationPort} SPI. {@link org.sequeless.core.api.WhoAmIResult}
- * carries its result, including the SPI's own {@link org.sequeless.spi.authz.AccessDecision}
+ * carries its result, including the SPI's own {@link org.sequeless.store.api.AccessDecision}
  * rather than duplicating its allowed/reason fields. Implementations of the interfaces declared
  * here live in {@link org.sequeless.core.usecase}.
  */

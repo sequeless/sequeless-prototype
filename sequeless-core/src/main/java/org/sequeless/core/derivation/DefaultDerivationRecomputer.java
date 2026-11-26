@@ -30,7 +30,6 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -38,6 +37,7 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.store.api.DerivationRecomputer;
 import org.sequeless.store.spi.ObjectStorePort;
 
 /**

@@ -1,4 +1,4 @@
-package org.sequeless.spi.automation;
+package org.sequeless.store.api;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.outbox.OutboxEntry;

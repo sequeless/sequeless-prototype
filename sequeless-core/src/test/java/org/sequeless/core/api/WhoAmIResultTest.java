@@ -7,7 +7,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.store.api.AccessDecision;
 
 class WhoAmIResultTest {
 

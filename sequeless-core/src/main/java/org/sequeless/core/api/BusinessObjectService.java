@@ -8,12 +8,12 @@ import org.sequeless.core.validation.ValidationException;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
-import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.api.Operation;
 import org.sequeless.store.spi.ObjectStorePort;
 
 /**
