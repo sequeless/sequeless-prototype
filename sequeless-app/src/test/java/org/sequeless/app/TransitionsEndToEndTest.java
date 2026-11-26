@@ -19,18 +19,17 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.BusinessObjectResponse;
 import org.sequeless.app.rest.TransitionResponse;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
+import org.sequeless.automation.api.ActionExecutor;
+import org.sequeless.automation.api.ResolvedWebhookRequest;
+import org.sequeless.automation.api.StoreEventRow;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.WebhookAction;
-import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.automation.ResolvedWebhookRequest;
-import org.sequeless.spi.outbox.OutboxEntry;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -60,7 +59,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * https://example.org/hooks/project-activated}) that this sandbox cannot resolve. The activate
  * row's actions commit together, so that failure would roll back the kickoff Task too. The webhook
  * is therefore redirected to a local stand-in at the {@link ActionExecutor} seam:
- * {@link WebhookStandInConfiguration} registers a {@code @Primary} decorator that delegates to the
+ * {@link WebhookStandInConfiguration} wraps the released {@code actionExecutor} bean, which delegates to the
  * real executor and rewrites only the resolved webhook URL to a localhost {@code HttpServer}. The
  * production URL and the reference ontology are unchanged. This test asserts the kickoff {@code Task}.
  *
@@ -83,19 +82,29 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
     private static final String GUARD_MESSAGE = "Project must have an owner before it can be activated";
 
     /**
-     * Registers the test-only {@code @Primary} {@link ActionExecutor} that redirects the activate
-     * webhook to a local stand-in. Spring Boot picks up this single nested {@code @TestConfiguration}
-     * automatically. The decorator wraps the real {@code actionExecutor} bean by name, so the context
-     * has no cycle: the real bean never depends on the decorator.
+     * Wraps the released {@code actionExecutor} bean in the webhook stand-in, with a bean post-processor. The released
+     * autoconfiguration registers that bean only while no other {@code ActionExecutor} bean exists, so a second bean of
+     * the same type would suppress it. The wrapper redirects the activate webhook's URL to the stand-in and delegates
+     * every other call.
      */
     @TestConfiguration
     static class WebhookStandInConfiguration {
 
-        @Bean(destroyMethod = "close")
-        @Primary
-        ActionExecutor webhookStandInActionExecutor(@Qualifier("actionExecutor") ActionExecutor delegate)
-                throws IOException {
-            return new WebhookStandInActionExecutor(delegate);
+        @Bean
+        static BeanPostProcessor webhookStandInPostProcessor() {
+            return new BeanPostProcessor() {
+                @Override
+                public Object postProcessAfterInitialization(Object bean, String beanName) {
+                    if (bean instanceof ActionExecutor delegate && !(bean instanceof WebhookStandInActionExecutor)) {
+                        try {
+                            return new WebhookStandInActionExecutor(delegate);
+                        } catch (IOException e) {
+                            throw new IllegalStateException("the webhook stand-in did not start", e);
+                        }
+                    }
+                    return bean;
+                }
+            };
         }
     }
 
@@ -129,13 +138,13 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
         }
 
         @Override
-        public void applyAction(Scope scope, OutboxEntry transitionFired, Action action, int actionIndex) {
+        public void applyAction(Scope scope, StoreEventRow transitionFired, Action action, int actionIndex) {
             delegate.applyAction(scope, transitionFired, action, actionIndex);
         }
 
         @Override
         public ResolvedWebhookRequest resolveWebhookAction(
-                Scope scope, OutboxEntry transitionFired, WebhookAction action, int actionIndex) {
+                Scope scope, StoreEventRow transitionFired, WebhookAction action, int actionIndex) {
             ResolvedWebhookRequest resolved =
                     delegate.resolveWebhookAction(scope, transitionFired, action, actionIndex);
             String standInUrl = "http://localhost:" + standIn.getAddress().getPort() + "/hook";

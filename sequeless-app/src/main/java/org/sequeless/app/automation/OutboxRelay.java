@@ -3,10 +3,11 @@ package org.sequeless.app.automation;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.sequeless.automation.api.AutomationPort;
+import org.sequeless.automation.api.StoreEventRow;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
 import org.sequeless.spi.outbox.OutboxPort;
@@ -122,7 +123,10 @@ public class OutboxRelay {
                         // Recompute first, in this same claim, so the ingress below reads fresh values.
                         derivationRecomputer.recompute(scope, entry);
                     }
-                    automationPort.ingest(scope, StoreEvents.from(entry));
+                    // The released row record (spec 15 R1), then the Store event it records.
+                    StoreEventRow row =
+                            new StoreEventRow(entry.id(), entry.kind(), entry.payload(), entry.occurredAt());
+                    automationPort.ingest(scope, StoreEvents.from(row));
                     // Non-null sentinel: OutboxPort#claimNext returns
                     // Optional.empty() both when no row was available AND (per its own
                     // javadoc) if handler legitimately returned null, so the handler must

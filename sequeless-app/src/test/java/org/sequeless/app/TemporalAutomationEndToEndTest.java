@@ -23,6 +23,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.BusinessObjectResponse;
 import org.sequeless.app.support.TemporalTestcontainersSupport;
+import org.sequeless.automation.api.AutomationPort;
+import org.sequeless.automation.api.TransitionFiredEvent;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
@@ -36,8 +38,6 @@ import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.schema.api.OntologyVersion;
-import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.automation.TransitionFiredEvent;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -61,7 +61,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * sequeless.automation.adapter=temporal}, proving two properties {@code
  * TransitionsEndToEndTest} cannot (that class runs the in-process adapter): that a webhook
  * activity genuinely retries through Temporal's own {@code RetryOptions} until it succeeds, and
- * that {@link org.sequeless.adapter.automation.temporal.TemporalAutomationPort}'s explicit {@code
+ * that {@link org.sequeless.automation.temporal.TemporalAutomationPort}'s explicit {@code
  * WorkflowIdReusePolicy.REJECT_DUPLICATE} (finding F40 from T10) actually prevents a duplicate
  * side effect when the same {@link TransitionFiredEvent} is ingested twice — the realistic shape of "the
  * relay crashed between committing an outbox row and finishing its ingest, then re-ingested the

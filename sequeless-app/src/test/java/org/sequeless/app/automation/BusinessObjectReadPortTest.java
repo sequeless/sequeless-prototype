@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.automation.BindingFakes.RecordingObjects;
-import org.sequeless.app.automation.BindingFakes.TypesOnlyObjectStore;
 import org.sequeless.automation.api.ObjectReadDeniedException;
 import org.sequeless.automation.api.ObjectSnapshot;
 import org.sequeless.core.AuthorizationException;
@@ -16,7 +15,6 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.object.TypeRef;
 
 /** Unit tests for {@link BusinessObjectReadPort}: absent is empty, present is a snapshot, a denial is thrown. */
 class BusinessObjectReadPortTest {
@@ -25,9 +23,8 @@ class BusinessObjectReadPortTest {
     private static final String NAME = "https://sequeless.dev/ns/test#name";
     private static final ObjectId ID = new ObjectId(UUID.fromString("00000000-0000-0000-0000-0000000000aa"));
 
-    private final TypesOnlyObjectStore store = new TypesOnlyObjectStore();
     private final RecordingObjects objects = new RecordingObjects();
-    private final BusinessObjectReadPort port = new BusinessObjectReadPort(new ObjectTypes(store), objects);
+    private final BusinessObjectReadPort port = new BusinessObjectReadPort(new ObjectTypes(objects), objects);
 
     @Test
     void anAbsentObjectIsAnEmptyResultAndIsNotRead() {
@@ -38,7 +35,6 @@ class BusinessObjectReadPortTest {
 
     @Test
     void aPresentObjectIsReturnedAsASnapshotOfItsTypeStateAndValues() {
-        store.types.put(ID, new TypeRef(TYPE));
         objects.views.put(ID, BindingFakes.view(ID, TYPE, 2, Optional.empty(), Map.of(NAME, Value.text("kept"))));
 
         ObjectSnapshot snapshot = port.find(BindingFakes.SCOPE, ID).orElseThrow();
@@ -50,7 +46,7 @@ class BusinessObjectReadPortTest {
 
     @Test
     void anObjectDeletedBetweenTheLookupAndTheReadIsAnEmptyResult() {
-        store.types.put(ID, new TypeRef(TYPE));
+        objects.views.put(ID, BindingFakes.view(ID, TYPE, 2, Optional.empty(), Map.of()));
         objects.readFailure = new ObjectNotFoundException(ID);
 
         assertThat(port.find(BindingFakes.SCOPE, ID)).isEmpty();
@@ -58,7 +54,7 @@ class BusinessObjectReadPortTest {
 
     @Test
     void aDeniedReadThrowsAndDoesNotNameTheObjectInTheMessage() {
-        store.types.put(ID, new TypeRef(TYPE));
+        objects.views.put(ID, BindingFakes.view(ID, TYPE, 2, Optional.empty(), Map.of()));
         objects.readFailure = new AuthorizationException(new AccessDecision(false, "denied"));
 
         assertThatThrownBy(() -> port.find(BindingFakes.SCOPE, ID))

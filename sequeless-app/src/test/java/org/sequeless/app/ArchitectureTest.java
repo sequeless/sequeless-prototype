@@ -17,7 +17,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-import org.sequeless.spi.automation.AutomationPort;
+import org.sequeless.automation.api.AutomationPort;
 import org.sequeless.spi.query.IndexPreparationPort;
 
 /**
@@ -212,19 +212,24 @@ class ArchitectureTest {
                     + "runtime; referencing Jena, JDBC or Temporal types directly would leak adapter "
                     + "implementation details into the use cases the ports exist to hide.");
 
-    private static final String TEMPORAL_ADAPTER_PACKAGE = "org.sequeless.adapter.automation.temporal..";
+    private static final String TEMPORAL_ADAPTER_PACKAGE = "org.sequeless.automation.temporal..";
+
+    private static final String TEMPORAL_AUTOCONFIGURE_PACKAGE = "org.sequeless.automation.autoconfigure..";
 
     @ArchTest
     static final ArchRule onlyTemporalAdapterMayDependOnTemporal = noClasses()
             .that()
-            .resideOutsideOfPackage(TEMPORAL_ADAPTER_PACKAGE)
+            .resideOutsideOfPackages(TEMPORAL_ADAPTER_PACKAGE, TEMPORAL_AUTOCONFIGURE_PACKAGE)
+            .and()
+            .doNotHaveFullyQualifiedName("org.sequeless.app.automation.TemporalFailureRecorder")
             .should()
             .dependOnClassesThat()
             .resideInAPackage("io.temporal..")
-            .because("io.temporal is sequeless-adapter-automation-temporal's own implementation library; "
-                    + "confining it there (stronger than coreDoesNotDependOnAdapterSpecificLibraries, "
-                    + "which only guards sequeless-core) keeps every other module free to swap or omit "
-                    + "the Temporal adapter without dragging its SDK onto an unrelated classpath.");
+            .because("io.temporal is the released automation-temporal-adapter's own implementation library "
+                    + "(spec 17 P3: org.sequeless.automation.temporal and its autoconfiguration). Confining it there "
+                    + "(stronger than coreDoesNotDependOnAdapterSpecificLibraries, which only guards sequeless-core) "
+                    + "keeps every other module free to swap or omit the Temporal adapter. The one exception is the "
+                    + "host's TemporalFailureRecorder, which reads Temporal's attempt number inside an activity.");
 
     @ArchTest
     static final ArchRule noJenaInSpiOrCore = noClasses()

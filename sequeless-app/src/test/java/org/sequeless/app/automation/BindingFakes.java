@@ -20,9 +20,6 @@ import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ChangeSet;
-import org.sequeless.spi.object.CommitResult;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.ObjectView;
@@ -42,38 +39,6 @@ final class BindingFakes {
 
     static UnsupportedOperationException unsupported() {
         return new UnsupportedOperationException("not used by this test");
-    }
-
-    /** An {@link ObjectStorePort} that answers only {@code typesOf}, from a map the test fills. */
-    static final class TypesOnlyObjectStore implements ObjectStorePort {
-
-        final Map<ObjectId, TypeRef> types = new HashMap<>();
-
-        @Override
-        public Optional<BusinessObject> find(Scope scope, ObjectId id) {
-            throw unsupported();
-        }
-
-        @Override
-        public Map<ObjectId, TypeRef> typesOf(Scope scope, Set<ObjectId> ids) {
-            Map<ObjectId, TypeRef> found = new HashMap<>();
-            for (ObjectId id : ids) {
-                if (types.containsKey(id)) {
-                    found.put(id, types.get(id));
-                }
-            }
-            return found;
-        }
-
-        @Override
-        public CommitResult commit(Scope scope, ChangeSet changeSet) {
-            throw unsupported();
-        }
-
-        @Override
-        public org.sequeless.ontology.spi.OntologyDocumentStore ontologyDocuments() {
-            throw unsupported();
-        }
     }
 
     /**

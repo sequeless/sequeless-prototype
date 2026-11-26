@@ -8,8 +8,6 @@ import org.sequeless.core.api.MetaModelService;
 import org.sequeless.core.api.OntologyAdministration;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.core.api.WhoAmI;
-import org.sequeless.core.automation.DefaultActionExecutor;
-import org.sequeless.core.automation.DefaultTriggerEvaluator;
 import org.sequeless.core.derivation.DefaultDerivationRecomputer;
 import org.sequeless.core.derivation.DerivationPlanner;
 import org.sequeless.core.derivation.DerivationPluginRegistry;
@@ -23,9 +21,7 @@ import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.DerivationRecomputer;
-import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.query.BrowsePort;
@@ -270,36 +266,6 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link ActionExecutor} implementation around whichever {@link ExpressionPort} and
-     * {@link ObjectStorePort} adapters are configured. Unlike every other bean in this class, {@code
-     * ActionExecutor} is not consumed by a REST controller in this module — it is consumed by
-     * whichever automation adapter ({@code sequeless-adapter-automation-inprocess} or {@code
-     * sequeless-adapter-automation-temporal}) is on the classpath and selected by {@code
-     * sequeless.automation.adapter}. Both adapters' own {@code @AutoConfiguration} classes declare,
-     * in their javadoc, that they take an {@link ActionExecutor} as a plain {@code @Bean} method
-     * parameter and expect "some other, application-level configuration" to have already registered
-     * it on the context by the time they run — this bean method is that configuration. Neither
-     * adapter module may depend on {@code sequeless-core} (the {@code noAdapterDependsOnCore}
-     * architecture rule), which is exactly why {@link DefaultActionExecutor} has to be wired here,
-     * in one of the two packages this reactor permits to depend on {@code sequeless-core}.
-     *
-     * <p>Both parameters are {@code @Lazy} for exactly the reason spelled out on {@link
-     * #whoAmI(AuthorizationPort)} above, and neither may be "simplified" away.
-     *
-     * <p>No shared {@link Clock} bean exists in this application — {@link Clock#systemUTC()} is
-     * called inline here, matching {@link #businessObjectService}'s existing convention, rather than
-     * introducing a new shared bean for one call site each.
-     *
-     * @param expressionPort the lazily-resolved expression port adapter
-     * @param objectStorePort the lazily-resolved object store port adapter
-     * @return a {@link DefaultActionExecutor} consulting both ports on every call
-     */
-    @Bean
-    public ActionExecutor actionExecutor(@Lazy ExpressionPort expressionPort, @Lazy ObjectStorePort objectStorePort) {
-        return new DefaultActionExecutor(expressionPort, objectStorePort, Clock.systemUTC());
-    }
-
-    /**
      * Builds the {@link TransitionService} use case around whichever schema, behaviour and
      * automation read ports, {@link ObjectStorePort}, {@link AuthorizationPort}, and {@link
      * ExpressionPort} adapters are configured.
@@ -307,7 +273,7 @@ public class CoreConfiguration {
      * <p>All port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
      * #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.
      *
-     * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
+     * <p>No shared {@link Clock} bean exists in this application; see {@link #businessObjectService}'s
      * javadoc for why {@link Clock#systemUTC()} is called inline here too.
      *
      * @param schemaSource the lazily-resolved schema read port
@@ -334,40 +300,6 @@ public class CoreConfiguration {
                 authorizationPort,
                 expressionPort,
                 Clock.systemUTC());
-    }
-
-    /**
-     * Builds the {@link TriggerEvaluator} implementation an automation adapter calls back into once
-     * an {@code ObjectCreated}/{@code ObjectUpdated}/{@code ObjectDeleted} event or an elapsed timer
-     * might make an {@code OnChange}/{@code Timer}-triggered transition available. Exactly the same
-     * reasoning as {@link #actionExecutor} applies here:
-     * {@code TriggerEvaluator} is not consumed by a REST controller in this module, it is consumed
-     * by whichever automation adapter is configured, and neither adapter module may depend on {@code
-     * sequeless-core} — this bean is that unavoidable wiring seam.
-     *
-     * <p>{@link DefaultTriggerEvaluator} takes the already-built {@link TransitionService} bean
-     * above (an ordinary intra-configuration reference, not a port, so it needs no {@code @Lazy})
-     * rather than duplicating {@link DefaultTransitionService}'s own constructor dependencies — every
-     * actual state move, including guard evaluation and the commit, is {@link
-     * TransitionService#fireAutomated}'s job, not this class's.
-     *
-     * <p>The port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
-     * #whoAmI(AuthorizationPort)} above.
-     *
-     * @param schemaSource the lazily-resolved schema read port
-     * @param behaviourSource the lazily-resolved behaviour read port
-     * @param objectStorePort the lazily-resolved object store port adapter
-     * @param transitionService the {@link TransitionService} bean built above
-     * @return a {@link DefaultTriggerEvaluator} consulting its ports and {@code transitionService}
-     *     on every call
-     */
-    @Bean
-    public TriggerEvaluator triggerEvaluator(
-            @Lazy SchemaSource schemaSource,
-            @Lazy BehaviourSource behaviourSource,
-            @Lazy ObjectStorePort objectStorePort,
-            TransitionService transitionService) {
-        return new DefaultTriggerEvaluator(schemaSource, behaviourSource, objectStorePort, transitionService);
     }
 
     /**
@@ -404,7 +336,7 @@ public class CoreConfiguration {
      * REQUIRES_NEW} would not suspend the claim. When no DataSource bean exists, nothing is wrapped,
      * and this bean is built exactly as before.
      *
-     * <p>No shared {@link Clock} bean exists in this application; see {@link #actionExecutor}'s
+     * <p>No shared {@link Clock} bean exists in this application; see {@link #businessObjectService}'s
      * javadoc for why {@link Clock#systemUTC()} is called inline here too.
      *
      * @param schemaSource the lazily-resolved schema read port

@@ -10,7 +10,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.automation.BindingFakes.RecordingObjects;
 import org.sequeless.app.automation.BindingFakes.RecordingTransitions;
-import org.sequeless.app.automation.BindingFakes.TypesOnlyObjectStore;
 import org.sequeless.automation.api.CommandProvenance;
 import org.sequeless.automation.api.CreateObjectCommand;
 import org.sequeless.automation.api.FireTransitionCommand;
@@ -23,7 +22,6 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.validation.Violation;
 
 /**
@@ -41,15 +39,13 @@ class BusinessObjectStoreCommandPortTest {
     private static final CommandProvenance PROVENANCE =
             new CommandProvenance(UUID.fromString("00000000-0000-0000-0000-0000000000c1"), 0, 1);
 
-    private final TypesOnlyObjectStore store = new TypesOnlyObjectStore();
     private final RecordingObjects objects = new RecordingObjects();
     private final RecordingTransitions transitions = new RecordingTransitions();
 
     private final BusinessObjectStoreCommandPort port = new BusinessObjectStoreCommandPort(
-            new ObjectTypes(store), objects, transitions, BindingFakes.behaviourWithDerived(TOTAL));
+            new ObjectTypes(objects), objects, transitions, BindingFakes.behaviourWithDerived(TOTAL));
 
     private void storeOneObject() {
-        store.types.put(OBJECT, new TypeRef(TYPE));
         objects.views.put(
                 OBJECT,
                 BindingFakes.view(
@@ -133,7 +129,9 @@ class BusinessObjectStoreCommandPortTest {
 
     @Test
     void aRepeatedCreateUnderAnExistingIdIsANoOp() {
-        store.types.put(NEW_OBJECT, new TypeRef(TYPE));
+        objects.views.put(
+                NEW_OBJECT,
+                BindingFakes.view(NEW_OBJECT, TYPE, 1, Optional.empty(), Map.of(NAME, Value.text("already"))));
 
         port.createObject(
                 BindingFakes.SCOPE,
