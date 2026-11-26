@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.TypeDefinition;
@@ -59,12 +60,16 @@ final class ShapeCoercion {
         return shaped;
     }
 
-    /** Whether the declared cardinality allows more than one value: no maximum, or a maximum above one. */
+    /**
+     * Whether a scalar on the property is wrapped: the property is declared, and its cardinality maximum is not present
+     * and equal to one. Only a maximum of exactly one is single-valued. A maximum of zero, which the Store would refuse
+     * for any value, is not single-valued either, so a scalar is wrapped and the Store decides.
+     */
     private static boolean isMultiValued(PropertyDefinition property) {
         if (property == null) {
             return false;
         }
-        return property.cardinality().max().isEmpty()
-                || property.cardinality().max().getAsInt() > 1;
+        OptionalInt max = property.cardinality().max();
+        return max.isEmpty() || max.getAsInt() != 1;
     }
 }

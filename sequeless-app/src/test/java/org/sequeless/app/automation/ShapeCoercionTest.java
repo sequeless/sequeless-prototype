@@ -21,20 +21,35 @@ class ShapeCoercionTest {
     private static final String TAGS = "https://sequeless.dev/ns/test#tags";
     private static final String LABELS = "https://sequeless.dev/ns/test#labels";
     private static final String UNDECLARED = "https://sequeless.dev/ns/test#undeclared";
+    private static final String NEVER = "https://sequeless.dev/ns/test#never";
 
-    /** Unbounded (no maximum) and above-one maximum are both multi-valued; a maximum of one is single-valued. */
+    /**
+     * Unbounded (no maximum), above-one and zero maximums are wrapped; only a maximum of exactly one is single-valued.
+     */
     private final ShapeCoercion shape = new ShapeCoercion(BindingFakes.schemaDeclaring(
             TYPE,
             Map.of(
-                    NAME, Cardinality.atMost(1),
-                    TAGS, new Cardinality(0, OptionalInt.empty()),
-                    LABELS, Cardinality.range(0, 3))));
+                    NAME,
+                    Cardinality.atMost(1),
+                    TAGS,
+                    new Cardinality(0, OptionalInt.empty()),
+                    LABELS,
+                    Cardinality.range(0, 3),
+                    NEVER,
+                    new Cardinality(0, OptionalInt.of(0)))));
 
     @Test
     void aScalarOnAMultiValuedPropertyBecomesAOneElementList() {
         Map<String, Object> shaped = shape.coerce(BindingFakes.SCOPE, TYPE, Map.of(TAGS, "one"));
 
         assertThat(shaped).isEqualTo(Map.of(TAGS, List.of("one")));
+    }
+
+    @Test
+    void aMaximumOfZeroWrapsAScalarBecauseOnlyAMaximumOfExactlyOneIsSingleValued() {
+        Map<String, Object> shaped = shape.coerce(BindingFakes.SCOPE, TYPE, Map.of(NEVER, "one"));
+
+        assertThat(shaped).isEqualTo(Map.of(NEVER, List.of("one")));
     }
 
     @Test
