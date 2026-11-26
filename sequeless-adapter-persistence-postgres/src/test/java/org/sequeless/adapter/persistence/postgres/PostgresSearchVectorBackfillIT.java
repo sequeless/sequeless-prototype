@@ -16,7 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -36,11 +38,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Proves {@link PostgresObjectStore#backfill} on its own, against a real PostgreSQL 18 started by
  * Testcontainers: a row written before the search column existed has no search data until the
- * backfill runs, after which a search for its text matches it. The second {@code prepare} for the same
- * schema reports nothing newly registered.
+ * backfill runs, after which a search for its text matches it.
  *
- * <p>{@code prepare} and {@code backfill} are called in separate steps on purpose, to test the
- * backfill alone. The transaction that joins the two in production is proved by the app module's
+ * <p>Registration of the searchable properties is set up directly, not through {@code prepare} (removed from
+ * the prototype in spec 17 P4); the released index preparation's contract tests cover registration and its
+ * repeat-call result. Registration and backfill are called in separate steps on purpose, to test the backfill alone. The transaction that joins the two in production is proved by the app module's
  * {@code IndexPreparationTransactionProofTest}.
  *
  * <p>Each test empties the {@code public} schema first, so it starts with no migration history.
@@ -74,7 +76,6 @@ class PostgresSearchVectorBackfillIT {
         JdbcClient jdbcClient = JdbcClient.create(dataSource);
         PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
         PostgresObjectStore store = new PostgresObjectStore(jdbcClient, transactionManager);
-        PostgresQueryStore queryStore = new PostgresQueryStore(jdbcClient, transactionManager);
         Scope scope = Fixtures.defaultScope();
         Schema schema = QueryFixtures.schema();
         ObjectId id = new ObjectId(UUID.randomUUID());
@@ -85,15 +86,31 @@ class PostgresSearchVectorBackfillIT {
         PostgresMigrations.migrate(dataSource);
         assertThat(matchesSearch(id, "ledger")).as("before the backfill").isFalse();
 
-        assertThat(queryStore.prepare(scope, schema.ontologyVersion(), schema))
-                .as("first prepare registers the searchable properties")
-                .isTrue();
+        registerSearchableProperties(jdbcClient, scope, schema);
         store.backfill(scope);
         assertThat(matchesSearch(id, "ledger")).as("after the backfill").isTrue();
+    }
 
-        assertThat(queryStore.prepare(scope, schema.ontologyVersion(), schema))
-                .as("a repeat prepare registers nothing new")
-                .isFalse();
+    /**
+     * Registers each searchable property of {@code schema} in {@code sq_searchable_property}, the rows the backfill
+     * reads. The released index preparation performs this registration, and its contract tests cover it; this test
+     * only needs the rows in place.
+     */
+    private static void registerSearchableProperties(JdbcClient jdbcClient, Scope scope, Schema schema) {
+        for (TypeDefinition type : schema.types()) {
+            for (PropertyDefinition property : type.properties()) {
+                if (property.searchable()) {
+                    jdbcClient
+                            .sql(
+                                    "INSERT INTO sq_searchable_property (tenant_id, property_iri) "
+                                            + "SELECT :tenantId, :propertyIri WHERE NOT EXISTS (SELECT 1 FROM "
+                                            + "sq_searchable_property WHERE tenant_id = :tenantId AND property_iri = :propertyIri)")
+                            .param("tenantId", scope.tenantId().value())
+                            .param("propertyIri", property.iri())
+                            .update();
+                }
+            }
+        }
     }
 
     /** Whether {@code id}'s stored {@code search_vector} matches a search for {@code term}. */

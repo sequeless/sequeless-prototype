@@ -293,7 +293,7 @@ class ArchitectureTest {
                     + "host's configuration package may call IndexPreparationPort#prepare in production code, so "
                     + "that the use cases never see the index preparation port for that purpose and the host can "
                     + "swap it in one place. The call is matched on its owner type, so a call through a concrete "
-                    + "store such as PostgresQueryStore is caught too. The testkit's query contract kit "
+                    + "store such as an adapter's own class is caught too. The testkit's query contract kit "
                     + "(org.sequeless.testkit.query) is excluded: it exercises the port contracts and is not a "
                     + "production caller.");
 

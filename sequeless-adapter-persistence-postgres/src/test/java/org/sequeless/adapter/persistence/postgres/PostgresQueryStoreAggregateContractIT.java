@@ -3,9 +3,7 @@ package org.sequeless.adapter.persistence.postgres;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.sequeless.testkit.Fixtures;
 import org.sequeless.testkit.query.AggregateContract;
-import org.sequeless.testkit.query.QueryFixtures;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
@@ -21,13 +19,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * PostgresObjectStore} that seeds fixture data into the same tables {@link PostgresQueryStore}
  * reads from.
  *
- * <p>Follows {@link PostgresQueryStoreContractIT}'s exact pattern: one shared container, migrated
- * once in {@link #migrate()}, with {@code sq_object}/{@code sq_ontology_document}/{@code sq_outbox}
- * truncated after every test. {@link #freshEnvironment()} also calls {@code
- * prepare(Fixtures.defaultScope(), version, QueryFixtures.schema())} before returning, mirroring
- * the order every real caller uses (ontology activation always prepares indexes before any query),
- * even though {@link PostgresQueryStore#aggregate} does not itself depend on the index or
- * searchable-property registries the way free-text {@code browse} does.
+ * <p>Follows the pattern of the released query contract ITs: one shared container, migrated once in
+ * {@link #migrate()}, with {@code sq_object}/{@code sq_ontology_document}/{@code sq_outbox} truncated after every
+ * test. {@link PostgresQueryStore#aggregate} does not depend on the index or searchable-property registries, so
+ * {@link #freshEnvironment()} does not prepare indexes (spec 17 P4 removed {@code prepare} from that class).
  */
 @Testcontainers
 class PostgresQueryStoreAggregateContractIT extends AggregateContract {
@@ -57,7 +52,6 @@ class PostgresQueryStoreAggregateContractIT extends AggregateContract {
         JdbcClient jdbcClient = JdbcClient.create(dataSource);
         PostgresObjectStore store = new PostgresObjectStore(jdbcClient, transactionManager);
         PostgresQueryStore queryPort = new PostgresQueryStore(jdbcClient, transactionManager);
-        queryPort.prepare(Fixtures.defaultScope(), QueryFixtures.schema().ontologyVersion(), QueryFixtures.schema());
         return new Environment(store, queryPort);
     }
 }
