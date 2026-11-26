@@ -20,7 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * validates {@code temporalio/temporal:1.9.1} via {@code server start-dev}, which is
  * self-contained (an embedded sqlite-backed server, no external database dependency unlike {@code
  * auto-setup}) and auto-registers the {@code default} namespace {@link
- * org.sequeless.adapter.automation.temporal.TemporalAutomationAutoConfiguration}'s {@code
+ * org.sequeless.automation.autoconfigure.TemporalAutomationAutoConfiguration}'s {@code
  * WorkflowServiceStubs}/{@code WorkflowClient}/{@code WorkerFactory} need. The healthcheck command —
  * {@code temporal operator cluster health --address 127.0.0.1:7233} — is the same one {@code
  * docker-compose.yml} already proved reliable, reused here via {@link

@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.sequeless.adapter.persistence.postgres.PostgresQueryStore;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.sequeless.filter.api.FieldFilter;
 import org.sequeless.kernel.identity.Principal;
@@ -38,13 +37,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 
 /**
- * Proves that the prototype's own Postgres query store and the released Postgres browse agree on NULL semantics over
- * the same stored rows (spec 17 P2a, Navigator gate 2).
+ * Pins the released Postgres browse's NULL semantics over the same stored rows, against the id sets the prototype's own
+ * query store produced when this test was written (spec 17 P2a, Navigator gate 2). Spec 17 P4 deleted that store's
+ * browse, so each test now asserts the released side against the same explicit expectation the prototype side met.
  *
- * <p>The prototype side is {@link PostgresQueryStore#browse}. The released side is {@link ReleasedBrowsePortAdapter},
+ * <p>The released side is {@link ReleasedBrowsePortAdapter},
  * which maps the criteria to released filter nodes and calls {@link QueryService#browse}, and so reaches the released
  * Postgres browse port. The negated form is also run straight through {@link QueryService#browse} with a {@code is
  * not} {@link NullNode} filter, so the released filter is compared without the host mapper in the way.
@@ -52,13 +51,12 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
  * <p>The rows are seeded as raw JSON in {@code sq_object}. The domain write path holds no JSON null, so an explicit
  * null can only be stored this way. The property under test is {@code status} on {@code Task}, a single-valued string.
  * An empty list is stored in the tagged list form {@code {"list": []}} on that same single-valued property, because
- * both readers decode the tagged form and a bare {@code []} is not decodable by either of them. Each test seeds its
+ * the released reader decodes the tagged form and a bare {@code []} is not decodable by it. Each test seeds its
  * own tenant, so the rows of one test do not reach another.
  *
- * <p>An explicit JSON null is different: neither reader decodes it (the tagged-value decoder throws on a bare null), so
- * a browse that returns that row fails on both sides with the same exception. The test {@link
- * #explicitJsonNullFailsTheSameWayOnBothSides} pins that identical failure, not an id set, because no id set is
- * produced for that case.
+ * <p>The released reader does not decode an explicit JSON null: its tagged-value decoder throws on a bare null. A browse
+ * that returns that row therefore fails, and the test {@link #explicitJsonNullFailsWithTheDecoderError} pins that failure
+ * rather than an id set, because no id set is produced for that case.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = "sequeless.ontology.reasoner=owl")
 class ReleasedNullParityIT extends PostgresTestcontainersSupport {
@@ -83,7 +81,6 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
     private JdbcClient jdbc;
     private Scope scope;
     private Schema schema;
-    private PostgresQueryStore prototype;
     private ReleasedBrowsePortAdapter released;
 
     @BeforeEach
@@ -91,79 +88,68 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
         jdbc = JdbcClient.create(dataSource);
         scope = new Scope(new TenantId("parity-" + UUID.randomUUID()), new Principal("parity", Set.of("member")));
         schema = schemaSource.schema(scope.tenantId());
-        prototype = new PostgresQueryStore(jdbc, new DataSourceTransactionManager(dataSource));
         released = new ReleasedBrowsePortAdapter(queryService, fieldSource);
     }
 
     // --- the four stored shapes, on one tenant ---------------------------------------------------
 
     @Test
-    void isNullAndTheEmptyListAgreeOnAMissingKeyAndAnEmptyList() {
+    void isNullMatchesAMissingKeyAndATaggedEmptyList() {
         ObjectId missing = insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         ObjectId present = insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         ObjectId emptyList = insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
 
-        Set<ObjectId> fromPrototype = ids(prototype.browse(scope, schema, query(isNull())));
         Set<ObjectId> fromReleased = ids(released.browse(scope, schema, query(isNull())));
 
-        assertThat(fromReleased).isEqualTo(fromPrototype);
-        assertThat(fromPrototype).containsExactlyInAnyOrder(missing, emptyList).doesNotContain(present);
+        assertThat(fromReleased).containsExactlyInAnyOrder(missing, emptyList).doesNotContain(present);
     }
 
     @Test
-    void notNullAgreesOnAPresentValue() {
+    void notNullMatchesAPresentValue() {
         insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         ObjectId present = insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
 
-        Set<ObjectId> fromPrototype = ids(prototype.browse(scope, schema, query(notNull())));
         Set<ObjectId> fromReleased = ids(released.browse(scope, schema, query(notNull())));
 
-        assertThat(fromReleased).isEqualTo(fromPrototype);
-        assertThat(fromPrototype).containsExactly(present);
+        assertThat(fromReleased).containsExactly(present);
     }
 
     @Test
-    void theNegatedNotNullFilterOnTheReleasedQueryServiceAgreesWithNotNull() {
+    void theNegatedNotNullFilterOnTheReleasedQueryServiceMatchesNotNull() {
         insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         ObjectId present = insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
 
-        Set<ObjectId> fromPrototype = ids(prototype.browse(scope, schema, query(notNull())));
         Set<ObjectId> fromReleasedNegated = releasedIds(new FieldFilter(STATUS, "is not", NullNode.getInstance()));
 
-        assertThat(fromReleasedNegated).isEqualTo(fromPrototype);
         assertThat(fromReleasedNegated).containsExactly(present);
     }
 
     @Test
-    void aCombinedFilterWithAComparisonAgrees() {
+    void aCombinedIsNullFilterWithAComparisonMatchesTheExpectedRow() {
         ObjectId missing = insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         ObjectId emptyList = insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
         Criterion greaterThanOne = new Criterion(PRIORITY, Operator.GT, Optional.of(Value.integer(1)));
 
-        Set<ObjectId> fromPrototype = ids(prototype.browse(scope, schema, query(isNull(), greaterThanOne)));
         Set<ObjectId> fromReleased = ids(released.browse(scope, schema, query(isNull(), greaterThanOne)));
 
-        assertThat(fromReleased).isEqualTo(fromPrototype);
-        assertThat(fromPrototype).containsExactly(emptyList).doesNotContain(missing);
+        assertThat(fromReleased).containsExactly(emptyList).doesNotContain(missing);
     }
 
     // --- the explicit JSON null ------------------------------------------------------------------
 
     @Test
-    void explicitJsonNullFailsTheSameWayOnBothSides() {
+    void explicitJsonNullFailsWithTheDecoderError() {
         insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 2}, \"" + STATUS + "\": null}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
 
-        String fromPrototype = outcome(() -> prototype.browse(scope, schema, query(isNull())));
         String fromReleased = outcome(() -> released.browse(scope, schema, query(isNull())));
 
-        String sameFailure = "failed java.lang.IllegalArgumentException: Unrecognized tagged value: null";
-        assertThat(fromPrototype).isEqualTo(sameFailure);
-        assertThat(fromReleased).isEqualTo(sameFailure);
+        String expectedFailure = "failed java.lang.IllegalArgumentException: Unrecognized tagged value: null";
+        assertThat(fromReleased).isEqualTo(expectedFailure);
     }
 
     // --- helpers ---------------------------------------------------------------------------------

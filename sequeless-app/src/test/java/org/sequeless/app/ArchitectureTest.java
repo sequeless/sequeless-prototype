@@ -54,7 +54,6 @@ class ArchitectureTest {
     private static final String INGEST = "ingest";
     private static final String RELAY_PACKAGE = "org.sequeless.app.automation..";
     private static final String RELAY_CLASS = "org.sequeless.app.automation.OutboxRelay";
-    private static final String TESTKIT_AUTOMATION_PACKAGE = "org.sequeless.testkit.automation..";
 
     /**
      * ArchUnit places primitive types ({@code int}, {@code boolean}, {@code void}, ...) and array
@@ -91,9 +90,9 @@ class ArchitectureTest {
     /**
      * {@code org.slf4j} (the facade, not any concrete provider) is allowed alongside the JDK: it is
      * a logging API with no implementation of its own and no adapter-specific technology behind it
-     * — {@code org.sequeless.core.automation.DefaultActionExecutor#applyAction} is the first, but not
-     * necessarily the last, direct SLF4J usage in {@code sequeless-core}. This is narrower than the
-     * blanket {@code java..} exemption: only the {@code org.slf4j} package itself is allowed, so a
+     * — the first direct SLF4J usage in {@code sequeless-core} was DefaultActionExecutor#applyAction,
+     * which moved to sequeless-automation in spec 17 P4; the rule stays for any later one. This is
+     * narrower than the blanket {@code java..} exemption: only the {@code org.slf4j} package itself is allowed, so a
      * concrete logging backend (Logback, Log4j2, ...) pulled in transitively would still violate
      * this rule if referenced directly from core.
      */
@@ -293,21 +292,19 @@ class ArchitectureTest {
                     + "host's configuration package may call IndexPreparationPort#prepare in production code, so "
                     + "that the use cases never see the index preparation port for that purpose and the host can "
                     + "swap it in one place. The call is matched on its owner type, so a call through a concrete "
-                    + "store such as PostgresQueryStore is caught too. The testkit's query contract kit "
+                    + "store such as an adapter's own class is caught too. The testkit's query contract kit "
                     + "(org.sequeless.testkit.query) is excluded: it exercises the port contracts and is not a "
                     + "production caller.");
 
     /**
      * Automation's ingress is fed only by the outbox relay (spec 13 P5b, #20 point 4): no class outside
-     * {@code org.sequeless.app.automation} calls {@code AutomationPort#ingest}. The testkit's automation contract
-     * ({@code org.sequeless.testkit.automation}) is excluded: it drives the port from the adapters' contract tests
-     * and is not a production caller. That exclusion is a deviation from spec line 207, which names only the relay
-     * package; the testkit's main code is imported here, so it must be named.
+     * {@code org.sequeless.app.automation} calls {@code AutomationPort#ingest}. No exclusion is needed: the released
+     * automation testkit is test-scoped and absent from this module, so no class here calls the port except the relay.
      */
     @ArchTest
     static final ArchRule onlyTheRelayFeedsAutomation = noClasses()
             .that()
-            .resideOutsideOfPackages(RELAY_PACKAGE, TESTKIT_AUTOMATION_PACKAGE)
+            .resideOutsideOfPackages(RELAY_PACKAGE)
             .should()
             .callMethodWhere(target(name(INGEST)).and(target(declaredIn(assignableTo(AutomationPort.class)))))
             .because("the outbox relay is the only feeder of automation's Store-event ingress (spec 13 P5b, #20 "

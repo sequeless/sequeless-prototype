@@ -15,7 +15,7 @@
   <description>Use cases (inbound API in org.sequeless.core.api), BREAD orchestration, structural validation,
     state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok.
     Depends on sequeless-spi, the released kernel, ontology, behaviour, automation, expression and
-    filter artifacts, jackson-databind, slf4j-api and the JDK.</description>
+    filter artifacts, jackson-databind and the JDK.</description>
 
   <properties>
     <!-- Core modules: ban Spring, Jena and Lombok from the compile classpath. -->
@@ -69,16 +69,6 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-    </dependency>
-
-    <!--
-      First direct SLF4J usage in sequeless-core (org.sequeless.core.automation.DefaultActionExecutor's
-      applyAction, for a Log action): declared explicitly, with the version left to the parent's spring-boot-dependencies
-      BOM import, rather than relying on whatever transitively pulls it in.
-    -->
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
     </dependency>
 
     <dependency>

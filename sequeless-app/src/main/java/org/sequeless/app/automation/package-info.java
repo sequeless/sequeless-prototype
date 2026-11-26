@@ -7,7 +7,7 @@
  * kinds. Timers have no kind of their own: the adapter starts them from the {@code TransitionFired}
  * row. The relay maps each row to the Store event it records, an {@code ObjectChangedEvent} or a
  * {@code TransitionFiredEvent}, and feeds that event to the ingress of whichever {@link
- * org.sequeless.spi.automation.AutomationPort} adapter is currently configured. It reconstructs a
+ * org.sequeless.automation.api.AutomationPort} adapter is currently configured. It reconstructs a
  * {@link org.sequeless.kernel.identity.Scope} from the row's payload and passes it alongside the
  * event. The relay depends only on {@code sequeless-spi}, the released automation API and standard
  * Spring/JDK types. It never depends on {@code org.sequeless.core}.

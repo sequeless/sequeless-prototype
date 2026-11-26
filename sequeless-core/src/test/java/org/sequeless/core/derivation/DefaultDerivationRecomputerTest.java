@@ -59,8 +59,8 @@ import org.sequeless.spi.query.QueryPort;
  * Unit tests for {@link DefaultDerivationRecomputer}, built against a hand-written {@code Project}
  * (a materialised {@code sq:Rollup} {@code openTaskCount}, {@code sq:function sq:count}, {@code
  * sq:over ex:Task}, {@code sq:via belongsToProject}) and a {@code Task} type whose {@code
- * belongsToProject} relationship is the rollup's {@code via}, mirroring {@link
- * org.sequeless.core.automation.DefaultTriggerEvaluatorTest}'s fixture shape. Every port double is
+ * belongsToProject} relationship is the rollup's {@code via}, mirroring the fixture shape of
+ * the trigger evaluator tests that moved to sequeless-automation (spec 17 P4). Every port double is
  * a small hand-written fake; {@link DerivationPlanner} is real, not faked, so these tests exercise
  * the actual {@code computeRule} aggregate path.
  */

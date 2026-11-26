@@ -117,9 +117,9 @@ public class PostgresPersistenceAutoConfiguration {
         PlatformTransactionManager transactionManager =
                 new DataSourceTransactionManager(sequelessPersistenceDataSource);
         PostgresQueryStore store = new PostgresQueryStore(jdbcClient, transactionManager);
-        // Spec 17 P2a: the bean is a QueryPort and nothing else. A narrowed return type is not enough on its own: once
-        // the singleton exists, Spring matches a type against the instance, and PostgresQueryStore is also a ReadPort,
-        // BrowsePort and IndexPreparationPort. QueryPort has one method, so the view is a lambda over the store.
+        // The bean is a QueryPort and nothing else. Spring matches a singleton by its instance, so the view is a lambda
+        // over the store: PostgresQueryStore has been a QueryPort only since spec 17 P4 deleted its browse, read and
+        // index methods, and the released adapters serve the other ports.
         return (scope, schema, request) -> store.aggregate(scope, schema, request);
     }
 

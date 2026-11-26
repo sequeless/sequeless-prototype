@@ -27,8 +27,6 @@
     <module>sequeless-adapter-authz-permitall</module>
     <module>sequeless-adapter-ontology-jena</module>
     <module>sequeless-adapter-persistence-postgres</module>
-    <module>sequeless-adapter-automation-temporal</module>
-    <module>sequeless-adapter-automation-inprocess</module>
     <module>sequeless-app</module>
   </modules>
 
@@ -160,14 +158,14 @@
       </dependency>
 
       <!--
-        Temporal Java SDK for the default AutomationPort adapter (sequeless-adapter-automation-
-        temporal), 1.39.0 verified as the latest stable 1.x on Maven Central as of Phase 5 T10.
+        Temporal Java SDK for the released sequeless-automation temporal adapter, which sequeless-app
+        consumes since spec 17 P3 (the prototype's own adapter module was deleted in P4). 1.39.0
+        verified as the latest stable 1.x on Maven Central as of Phase 5 T10.
         temporal-spring-boot-starter is deliberately NOT used here: verified (mvn dependency:tree)
         that it transitively pulls Spring Boot 2.7.18 (spring-boot-starter/spring-boot-
         autoconfigure 2.7.18), incompatible with this project's Boot 4.1.1 line and a real risk of
         NoSuchMethodError/ClassNotFoundException from stale bytecode even after dependencyManagement
-        force-upgrades the jar versions. This adapter hand-rolls its own @AutoConfiguration against
-        the dependency-free temporal-sdk instead, exactly like every other adapter in this repo.
+        force-upgrades the jar versions. The dependency-free temporal-sdk is used instead.
       -->
       <dependency>
         <groupId>io.temporal</groupId>
@@ -182,8 +180,8 @@
       </dependency>
 
       <!--
-        Used directly by sequeless-adapter-automation-temporal. No BOM manages it, so it is pinned
-        here at the same version as temporal-sdk.
+        Used directly by the released sequeless-automation temporal adapter. No BOM manages it, so it
+        is pinned here at the same version as temporal-sdk.
       -->
       <dependency>
         <groupId>io.temporal</groupId>

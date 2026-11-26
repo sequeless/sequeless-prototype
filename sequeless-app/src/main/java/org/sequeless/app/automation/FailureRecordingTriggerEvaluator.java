@@ -10,7 +10,11 @@ import org.sequeless.automation.api.TriggerEvaluator;
 import org.sequeless.kernel.identity.Scope;
 
 /**
- * Wraps the released {@link TriggerEvaluator} so that the final failure of {@link #onChange} and of
+ * Wraps the released {@code org.sequeless.automation.api.TriggerEvaluator} (sequeless/sequeless-automation at 5159284).
+ * The prototype's core.automation.DefaultTriggerEvaluator, which the released TriggerEvaluator replaces, was deleted
+ * in spec 17 P4.
+ *
+ * <p>The final failure of {@link #onChange} and of
  * {@link #onTimerElapsed} is recorded, as the prototype's {@code ChangeEventWorkflow} and {@code TimerWorkflow} recorded
  * them, and the workflow then ends normally (spec 13, R2; spec 17, section 9). A non-final failure is rethrown, so
  * Temporal retries the activity.
