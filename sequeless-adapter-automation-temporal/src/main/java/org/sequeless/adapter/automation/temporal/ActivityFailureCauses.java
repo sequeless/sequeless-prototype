@@ -6,8 +6,8 @@ import io.temporal.failure.CanceledFailure;
 
 /**
  * Reads an {@link ActivityFailure} for the durable failure record, and tells a cancellation apart from a
- * real failure. Used by {@link ChangeEventWorkflowImpl} and {@link TransitionActionWorkflowImpl}, which
- * catch an activity failure only after Temporal's retries are exhausted.
+ * real failure. Used by {@link ChangeEventWorkflowImpl}, {@link TransitionActionWorkflowImpl} and {@link
+ * TimerWorkflowImpl}, which catch an activity failure only after Temporal's retries are exhausted.
  *
  * <p>A workflow cannot rebuild the original exception, so the cause text is the application failure's
  * type and message. That is the same text the record holds, and it is deterministic on replay, because

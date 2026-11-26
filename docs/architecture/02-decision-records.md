@@ -262,3 +262,17 @@ old worker cannot decode a new-shaped `ChangeEventWorkflow` task. `TimerWorkflow
 `TransitionActionWorkflow`.
 Reversibility: moderate. No row, kind or migration changes, but the `ChangeEventWorkflow` input shape is part of a running workflow's history, so a revert must also stop the new worker before the old one
 starts, the same order as the deploy.
+
+### DR-28 A failed Temporal activity is recorded, not lost, and each workflow is guarded by a version marker
+Context: spec 13 R2 (PR #220, fix #41). A `ChangeEventWorkflow` or `TransitionActionWorkflow` whose activity
+failed after its retries failed silently, because the relay had already marked the outbox row processed. A
+`TimerWorkflow` whose `onTimerElapsed` failed had the same gap. The record needs a table (V12, on main), and the record
+write is a new Temporal command in each workflow's history.
+Decision: (a) Each workflow catches the `ActivityFailure` once its retries are exhausted, writes one
+`AutomationFailure` through `AutomationFailureActivities#recordFailure`, and ends normally. The record table is
+`sq_automation_failure` (V12, already on main), keyed by the workflow id, with `ON CONFLICT DO NOTHING`. (b) The
+timer workflow records too, keyed by its `timerKey`, which is the workflow id that `TemporalAutomationPort` starts it
+under. (c) Each workflow guards the new command with `Workflow.getVersion` under its own change id, `change-event-failure-record`, `transition-action-failure-record`, or `timer-failure-record`, with `Workflow.DEFAULT_VERSION` as the minimum and 1 as the maximum. An execution recorded before the guard has no marker and keeps the old behaviour: the failure propagates. (d) A cancellation is not recorded, and a failed record write propagates so the execution shows as failed. (e) The schema changes once, in V12, and this unit adds no migration (V13 stays free). (f) Decided by the Navigator (session a8653f325ba448cab8ae305fdea665b2), Q-A option 1 and Q-B option 1.
+Alternatives: a retry cap on the timer's activity, so an endlessly failing timer is dropped (rejected: a timer that fails after its retries is recorded, not lost); leaving timers out of the record (rejected: the same silent loss); a table per workflow type (more schema for the same shape); no guard, so the new command reaches histories written before the deploy (rejected: an old execution replays into a command it never issued, which is non-determinism).
+Consequences: each guarded workflow's history gains one marker and, on a failure, one record command. A deploy stops every old worker before it starts a new one, and it runs V12 first (the operator steps are in `automation.md`, "Deploying the failure record"). The guards stay until no open execution predates them (has no marker for its change id), then they can be removed. The R2 commit `d3c0fb5` must never be deployed alone. A record write that keeps failing fails its workflow, so the failure stays visible. `maximumAttempts` must stay above zero, because zero means unlimited retries.
+Reversibility: low after the first record. A reverted worker cannot replay a history that holds a record command, so a rollback needs the same stop-then-start order and strands those executions. Roll forward instead.

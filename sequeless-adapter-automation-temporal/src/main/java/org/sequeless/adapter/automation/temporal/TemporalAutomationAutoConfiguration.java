@@ -151,6 +151,8 @@ public class TemporalAutomationAutoConfiguration {
         Worker worker = factory.newWorker(props.getTaskQueue());
         worker.registerWorkflowImplementationTypes(
                 TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
+        // One worker serves all three workflow types, so TimerWorkflowImpl reaches AutomationFailureActivities
+        // through the same registration as the change-event and transition-action workflows (spec 13, R2).
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(actionExecutor, automationSource),
                 new TriggerActivitiesImpl(triggerEvaluator),

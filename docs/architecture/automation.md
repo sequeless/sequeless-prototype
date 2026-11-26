@@ -228,6 +228,50 @@ already-published value. Each reader throws `IllegalStateException` if this fiel
 when read — a loud failure for the wiring bug of starting a worker without the auto-configuration
 having run, rather than a silent `NullPointerException` deep in workflow logic.
 
+### Failure record (spec 13, R2)
+
+A Temporal activity that fails after its retries are exhausted used to fail its workflow silently: the
+outbox row was already marked processed, so nothing recorded the change. Now the workflow records the
+failure and ends normally. The three workflows write the same shape, `AutomationFailure`, through
+`AutomationFailureActivities#recordFailure`, into `sq_automation_failure` (V12):
+
+| Workflow | Guard change id | Record's `workflow_id` | `workflow_type` | Transition columns |
+|---|---|---|---|---|
+| `ChangeEventWorkflow` | `change-event-failure-record` | the event id | `ChangeEventWorkflow` | NULL |
+| `TransitionActionWorkflow` | `transition-action-failure-record` | `<eventId>:<index>` | `TransitionActionWorkflow` | the row's machine, from-state and transition |
+| `TimerWorkflow` | `timer-failure-record` | the `timerKey` | `TimerWorkflow` | NULL |
+
+- The insert is `ON CONFLICT (workflow_id) DO NOTHING`, so the first record for a workflow id stands. It
+  protects a retried record activity whose insert committed before the attempt was reported as failed.
+  `TemporalAutomationPort` starts every workflow with `REJECT_DUPLICATE`, so a re-run under the same
+  `timerKey` is refused before it starts and does not reach the insert.
+- A cancellation is not recorded. It propagates.
+- A failure of the record write itself propagates, so the execution shows as failed. The record activity
+  is retried under the same policy before the failure propagates.
+- Each guard is `Workflow.getVersion(changeId, Workflow.DEFAULT_VERSION, 1)`. An execution recorded before
+  the guard has no marker, so on replay it takes the default path: the failure propagates, as it did before
+  R2. A new execution writes the marker and records. The decision is DR-28.
+
+### Deploying the failure record
+
+- **Stop the old workers, then start the new ones.** The record activity adds a command to history. An
+  old worker that replays a new execution sees a command it never issues, so it cannot replay it. This
+  applies to the R2 workflows (`ChangeEventWorkflow`, `TransitionActionWorkflow`) and to `TimerWorkflow`.
+- **Never deploy the R2 commit (`d3c0fb5`) on its own.** It records a failure with no guard. A worker
+  built from it that has a record scheduled or retrying in an open execution leaves a command in history
+  that the guarded code does not issue. If such a worker has run, drain its open executions before you
+  deploy this change.
+- **Flyway V12 runs first.** It creates `sq_automation_failure`. The worker also needs an
+  `AutomationFailureRecorder` bean, which the Postgres persistence adapter provides, so it does not start
+  without one.
+- **Roll forward, not back.** A reverted worker cannot replay an execution that has already written a
+  record command, so a rollback needs the same stop-then-start order and leaves those executions stuck.
+- **Remove the guards later.** Remove each `Workflow.getVersion` guard only once no open execution predates
+  it, that is, once every execution that has no marker for its change id has closed.
+- **Keep `sequeless.automation.temporal.retry.maximum-attempts` above zero.** Zero means unlimited
+  attempts in Temporal, so a record write that keeps failing would retry forever and never end the
+  workflow.
+
 ## 5. Idempotency
 
 `AutomationPort#ingest`'s contract requires that a second call for an already-ingested

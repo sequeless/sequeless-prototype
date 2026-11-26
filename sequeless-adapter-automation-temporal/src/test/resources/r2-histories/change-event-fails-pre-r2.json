@@ -1,0 +1,201 @@
+{
+  "events": [{
+    "eventId": "1",
+    "eventTime": "2056-11-18T03:07:34.998Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+    "workflowExecutionStartedEventAttributes": {
+      "workflowType": {
+        "name": "ChangeEventWorkflow"
+      },
+      "taskQueue": {
+        "name": "gen"
+      },
+      "input": {
+        "payloads": [{
+          "metadata": {
+            "encoding": "anNvbi9wbGFpbg=="
+          },
+          "data": "eyJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMiIsImNoYW5nZSI6IkNSRUFURUQiLCJwYXlsb2FkIjp7Im9iamVjdElkIjoiYTBhMWY2NzQtYjQwOS00NzlhLWI0ODctYWI2ZGJiNjU4OTIyIn0sIm9jY3VycmVkQXQiOiIyMDI2LTAxLTAxVDAwOjAwOjAwWiJ9"
+        }, {
+          "metadata": {
+            "encoding": "anNvbi9wbGFpbg=="
+          },
+          "data": "eyJ0ZW5hbnRJZCI6eyJ2YWx1ZSI6InRlbmFudC0xIn0sInByaW5jaXBhbCI6eyJpZCI6InVzZXItMSIsInJvbGVzIjpbXX19"
+        }]
+      },
+      "workflowExecutionTimeout": "315360000s",
+      "workflowRunTimeout": "315360000s",
+      "workflowTaskTimeout": "10s",
+      "originalExecutionRunId": "af195e3b-e6e9-4ad3-9753-0de4df97f600",
+      "identity": "1198795@38b071549a1a",
+      "firstExecutionRunId": "af195e3b-e6e9-4ad3-9753-0de4df97f600",
+      "attempt": 1,
+      "firstWorkflowTaskBackoff": "0s",
+      "header": {
+      }
+    }
+  }, {
+    "eventId": "2",
+    "eventTime": "2056-11-18T03:07:34.998Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+    "workflowTaskScheduledEventAttributes": {
+      "taskQueue": {
+        "name": "gen"
+      },
+      "startToCloseTimeout": "10s",
+      "attempt": 1
+    }
+  }, {
+    "eventId": "3",
+    "eventTime": "2056-11-18T03:07:34.999Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+    "workflowTaskStartedEventAttributes": {
+      "scheduledEventId": "2",
+      "identity": "1198795@38b071549a1a",
+      "historySizeBytes": "507"
+    }
+  }, {
+    "eventId": "4",
+    "eventTime": "2056-11-18T03:07:35.001Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+    "workflowTaskCompletedEventAttributes": {
+      "scheduledEventId": "2",
+      "identity": "1198795@38b071549a1a",
+      "sdkMetadata": {
+        "langUsedFlags": [1, 3],
+        "sdkName": "temporal-java",
+        "sdkVersion": "1.39.0"
+      },
+      "meteringMetadata": {
+      }
+    }
+  }, {
+    "eventId": "5",
+    "eventTime": "2056-11-18T03:07:35.001Z",
+    "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+    "activityTaskScheduledEventAttributes": {
+      "activityId": "a958d198-23fd-3993-aeb1-6af2ac5d0930",
+      "activityType": {
+        "name": "OnChange"
+      },
+      "taskQueue": {
+        "name": "gen"
+      },
+      "header": {
+      },
+      "input": {
+        "payloads": [{
+          "metadata": {
+            "encoding": "anNvbi9wbGFpbg=="
+          },
+          "data": "eyJ0ZW5hbnRJZCI6eyJ2YWx1ZSI6InRlbmFudC0xIn0sInByaW5jaXBhbCI6eyJpZCI6InVzZXItMSIsInJvbGVzIjpbXX19"
+        }, {
+          "metadata": {
+            "encoding": "anNvbi9wbGFpbg=="
+          },
+          "data": "eyJpZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMiIsImNoYW5nZSI6IkNSRUFURUQiLCJwYXlsb2FkIjp7Im9iamVjdElkIjoiYTBhMWY2NzQtYjQwOS00NzlhLWI0ODctYWI2ZGJiNjU4OTIyIn0sIm9jY3VycmVkQXQiOiIyMDI2LTAxLTAxVDAwOjAwOjAwWiJ9"
+        }]
+      },
+      "scheduleToCloseTimeout": "315360000s",
+      "scheduleToStartTimeout": "315360000s",
+      "startToCloseTimeout": "10s",
+      "heartbeatTimeout": "0s",
+      "workflowTaskCompletedEventId": "3",
+      "retryPolicy": {
+        "initialInterval": "0.010s",
+        "backoffCoefficient": 1.0,
+        "maximumInterval": "1s",
+        "maximumAttempts": 3
+      }
+    }
+  }, {
+    "eventId": "6",
+    "eventTime": "2056-11-18T03:07:35.031Z",
+    "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+    "activityTaskStartedEventAttributes": {
+      "scheduledEventId": "5",
+      "identity": "1198795@38b071549a1a",
+      "attempt": 3
+    }
+  }, {
+    "eventId": "7",
+    "eventTime": "2056-11-18T03:07:35.033Z",
+    "eventType": "EVENT_TYPE_ACTIVITY_TASK_FAILED",
+    "activityTaskFailedEventAttributes": {
+      "failure": {
+        "message": "boom",
+        "source": "JavaSDK",
+        "stackTrace": "org.sequeless.adapter.automation.temporal.FixtureGenTmpTest$Trig.onChange(FixtureGenTmpTest.java:140)\njava.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)\njava.base/java.lang.reflect.Method.invoke(Method.java:565)\nio.temporal.internal.activity.RootActivityInboundCallsInterceptor$POJOActivityInboundCallsInterceptor.executeActivity(RootActivityInboundCallsInterceptor.java:44)\nio.temporal.internal.activity.RootActivityInboundCallsInterceptor.execute(RootActivityInboundCallsInterceptor.java:23)\nio.temporal.internal.activity.ActivityTaskExecutors$BaseActivityTaskExecutor.execute(ActivityTaskExecutors.java:88)\nio.temporal.internal.activity.ActivityTaskHandlerImpl.handle(ActivityTaskHandlerImpl.java:109)\nio.temporal.internal.worker.ActivityWorker$TaskHandlerImpl.handleActivity(ActivityWorker.java:393)\nio.temporal.internal.worker.ActivityWorker$TaskHandlerImpl.handle(ActivityWorker.java:334)\nio.temporal.internal.worker.ActivityWorker$TaskHandlerImpl.handle(ActivityWorker.java:296)\nio.temporal.internal.worker.PollTaskExecutor.lambda$process$1(PollTaskExecutor.java:80)\njava.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)\njava.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)\njava.base/java.lang.Thread.run(Thread.java:1474)\n",
+        "applicationFailureInfo": {
+          "type": "java.lang.IllegalStateException"
+        }
+      },
+      "scheduledEventId": "5",
+      "startedEventId": "6",
+      "identity": "1198795@38b071549a1a",
+      "retryState": "RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED"
+    }
+  }, {
+    "eventId": "8",
+    "eventTime": "2056-11-18T03:07:35.033Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+    "workflowTaskScheduledEventAttributes": {
+      "taskQueue": {
+        "name": "gen"
+      },
+      "startToCloseTimeout": "10s",
+      "attempt": 1
+    }
+  }, {
+    "eventId": "9",
+    "eventTime": "2056-11-18T03:07:35.034Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+    "workflowTaskStartedEventAttributes": {
+      "scheduledEventId": "8",
+      "identity": "1198795@38b071549a1a",
+      "historySizeBytes": "2585"
+    }
+  }, {
+    "eventId": "10",
+    "eventTime": "2056-11-18T03:07:35.037Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+    "workflowTaskCompletedEventAttributes": {
+      "scheduledEventId": "8",
+      "identity": "1198795@38b071549a1a",
+      "sdkMetadata": {
+        "sdkName": "temporal-java",
+        "sdkVersion": "1.39.0"
+      },
+      "meteringMetadata": {
+      }
+    }
+  }, {
+    "eventId": "11",
+    "eventTime": "2056-11-18T03:07:35.037Z",
+    "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_FAILED",
+    "workflowExecutionFailedEventAttributes": {
+      "failure": {
+        "message": "Activity task failed",
+        "cause": {
+          "message": "boom",
+          "source": "JavaSDK",
+          "stackTrace": "org.sequeless.adapter.automation.temporal.FixtureGenTmpTest$Trig.onChange(FixtureGenTmpTest.java:140)\njava.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)\njava.base/java.lang.reflect.Method.invoke(Method.java:565)\nio.temporal.internal.activity.RootActivityInboundCallsInterceptor$POJOActivityInboundCallsInterceptor.executeActivity(RootActivityInboundCallsInterceptor.java:44)\nio.temporal.internal.activity.RootActivityInboundCallsInterceptor.execute(RootActivityInboundCallsInterceptor.java:23)\nio.temporal.internal.activity.ActivityTaskExecutors$BaseActivityTaskExecutor.execute(ActivityTaskExecutors.java:88)\nio.temporal.internal.activity.ActivityTaskHandlerImpl.handle(ActivityTaskHandlerImpl.java:109)\nio.temporal.internal.worker.ActivityWorker$TaskHandlerImpl.handleActivity(ActivityWorker.java:393)\nio.temporal.internal.worker.ActivityWorker$TaskHandlerImpl.handle(ActivityWorker.java:334)\nio.temporal.internal.worker.ActivityWorker$TaskHandlerImpl.handle(ActivityWorker.java:296)\nio.temporal.internal.worker.PollTaskExecutor.lambda$process$1(PollTaskExecutor.java:80)\njava.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)\njava.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)\njava.base/java.lang.Thread.run(Thread.java:1474)\n",
+          "applicationFailureInfo": {
+            "type": "java.lang.IllegalStateException"
+          }
+        },
+        "activityFailureInfo": {
+          "scheduledEventId": "5",
+          "startedEventId": "6",
+          "identity": "1198795@38b071549a1a",
+          "activityType": {
+            "name": "OnChange"
+          },
+          "activityId": "a958d198-23fd-3993-aeb1-6af2ac5d0930",
+          "retryState": "RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED"
+        }
+      },
+      "workflowTaskCompletedEventId": "9"
+    }
+  }]
+}

@@ -29,7 +29,9 @@ public interface TimerWorkflow {
     /**
      * Waits {@code entry.payload()}'s {@code after} duration (parsed from its ISO-8601 string), then calls
      * {@link TriggerActivities#onTimerElapsed}. A {@link #cancel} signal ends the wait early only in an
-     * execution recorded before P3 (see {@link TimerWorkflowImpl}).
+     * execution recorded before P3 (see {@link TimerWorkflowImpl}). If {@link TriggerActivities#onTimerElapsed}
+     * fails after its retries, the failure is recorded under this workflow's id (the timer's key) and the
+     * workflow ends normally (spec 13, R2).
      *
      * @param entry the {@code TimerScheduled}-kind outbox entry describing the pending timer
      * @param scope the scope to fire {@code onTimerElapsed} under
