@@ -50,7 +50,7 @@ import org.springframework.web.servlet.resource.ResourceResolverChain;
  * {@code PathResourceResolver}'s path-traversal and "is the resource under the location" checks
  * for real files; the fallback logic only runs for paths that genuinely resolved to nothing.
  *
- * <p><b>Deliberately no {@code org.sequeless.core} imports.</b> The ArchUnit rule
+ * <p><b>Deliberately no {@code org.sequeless.store.core} imports.</b> The ArchUnit rule
  * {@code onlyAppRestAndConfigMayDependOnCore} in {@code ArchitectureTest} allows classes in
  * {@code org.sequeless.app.config} to depend on the core; this class simply has no need to, and
  * is pure JDK + Spring.

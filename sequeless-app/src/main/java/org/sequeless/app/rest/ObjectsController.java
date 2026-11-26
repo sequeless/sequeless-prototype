@@ -18,11 +18,6 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.sequeless.core.api.BrowseQuery;
-import org.sequeless.core.api.BusinessObjectService;
-import org.sequeless.core.api.MetaModelService;
-import org.sequeless.core.api.TransitionService;
-import org.sequeless.core.statemachine.StateMachineInterpreter;
 import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
@@ -36,6 +31,11 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.core.api.BrowseQuery;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.MetaModelService;
+import org.sequeless.store.core.api.TransitionService;
+import org.sequeless.store.core.statemachine.StateMachineInterpreter;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
@@ -102,7 +102,7 @@ public class ObjectsController {
      *     {@code null}
      * @param expressionPort the port {@link #transitions} evaluates transition guards through, via
      *     a fresh {@link StateMachineInterpreter} built per request, exactly as {@link
-     *     org.sequeless.core.usecase.DefaultTransitionService} does internally on the write path;
+     *     org.sequeless.store.core.usecase.DefaultTransitionService} does internally on the write path;
      *     must not be {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */

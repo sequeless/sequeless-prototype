@@ -1,15 +1,15 @@
 package org.sequeless.app.rest;
 
 import java.net.URI;
-import org.sequeless.core.AuthorizationException;
-import org.sequeless.core.api.InvalidQueryException;
-import org.sequeless.core.api.TransitionNotAvailableException;
-import org.sequeless.core.api.TypeNotFoundException;
-import org.sequeless.core.api.UnknownSignalException;
-import org.sequeless.core.validation.ValidationException;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.InvalidQueryException;
+import org.sequeless.store.core.api.TransitionNotAvailableException;
+import org.sequeless.store.core.api.TypeNotFoundException;
+import org.sequeless.store.core.api.UnknownSignalException;
+import org.sequeless.store.core.validation.ValidationException;
 import org.sequeless.store.spi.Violation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * TypesController}; that is an intentional behaviour change, not scope creep.
  *
  * <p>Maps exactly three exception types, each escaping from {@link
- * org.sequeless.core.api.MetaModelService} (or, for {@link AuthorizationException}, from any use
+ * org.sequeless.store.core.api.MetaModelService} (or, for {@link AuthorizationException}, from any use
  * case):
  *
  * <ul>
@@ -99,8 +99,8 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the validation failure escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService#add}/{@link
-     *     org.sequeless.core.api.BusinessObjectService#edit}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService#add}/{@link
+     *     org.sequeless.store.core.api.BusinessObjectService#edit}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying {@code source} ({@code "structural"} or
      *     {@code "shacl"}) and a {@code violations} array
      */
@@ -121,7 +121,7 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the invalid filter/sort/facet property or operator escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService#browse}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService#browse}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying a {@code violations} array
      */
     @ExceptionHandler(InvalidQueryException.class)
@@ -160,7 +160,7 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the missing/deleted/mismatched-type object escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService}; must not be {@code null}
      * @return 404 with a {@link ProblemDetail} carrying the exception's own pre-formatted message
      */
     @ExceptionHandler(ObjectNotFoundException.class)
@@ -173,8 +173,8 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the optimistic-locking failure escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService#edit}/{@link
-     *     org.sequeless.core.api.BusinessObjectService#delete}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService#edit}/{@link
+     *     org.sequeless.store.core.api.BusinessObjectService#delete}; must not be {@code null}
      * @return 409 with a {@link ProblemDetail} carrying {@link StaleObjectException#expectedVersion()}
      */
     @ExceptionHandler(StaleObjectException.class)
@@ -215,7 +215,7 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the unavailable-transition failure escaping from {@link
-     *     org.sequeless.core.api.TransitionService#fire}; must not be {@code null}
+     *     org.sequeless.store.core.api.TransitionService#fire}; must not be {@code null}
      * @return 409 with a {@link ProblemDetail} carrying {@link
      *     TransitionNotAvailableException#transitionName()}, detail text taken from {@link
      *     TransitionNotAvailableException#reason()} (not {@code getMessage()}, even though the two
@@ -233,7 +233,7 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the unrecognised signal name escaping from {@link
-     *     org.sequeless.core.api.TransitionService#signal}; must not be {@code null}
+     *     org.sequeless.store.core.api.TransitionService#signal}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying {@link UnknownSignalException#typeIri()} and
      *     {@link UnknownSignalException#signalName()}
      */

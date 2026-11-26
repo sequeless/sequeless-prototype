@@ -8,7 +8,7 @@ import java.util.Map;
  * <p>{@code version} is nullable: its presence or absence, together with whether an {@code
  * If-Match} header is present, is what {@link ObjectsController#edit} uses to resolve the single
  * {@code expectedVersion} {@code long} that {@code
- * org.sequeless.core.api.BusinessObjectService#edit} requires — neither present is a 428, both
+ * org.sequeless.store.core.api.BusinessObjectService#edit} requires — neither present is a 428, both
  * present but disagreeing is a 400. See {@link ObjectsController}'s javadoc for the full rule.
  *
  * @param version the version the caller expects the stored object to currently be at, or {@code

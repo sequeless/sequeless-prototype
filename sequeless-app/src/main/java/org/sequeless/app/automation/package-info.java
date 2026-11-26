@@ -10,7 +10,7 @@
  * org.sequeless.automation.api.AutomationPort} adapter is currently configured. It reconstructs a
  * {@link org.sequeless.kernel.identity.Scope} from the row's payload and passes it alongside the
  * event. The relay depends only on {@code sequeless-spi}, the released automation API and standard
- * Spring/JDK types. It never depends on {@code org.sequeless.core}.
+ * Spring/JDK types. It never depends on {@code org.sequeless.store.core}.
  *
  * <p>The host's bindings of the released {@code ObjectReadPort} and {@code StoreCommandPort}
  * ({@link org.sequeless.app.automation.BusinessObjectReadPort}, {@link

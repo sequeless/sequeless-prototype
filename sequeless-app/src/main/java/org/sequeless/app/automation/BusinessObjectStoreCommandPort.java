@@ -8,11 +8,6 @@ import org.sequeless.automation.api.FireTransitionCommand;
 import org.sequeless.automation.api.SetPropertyCommand;
 import org.sequeless.automation.api.StoreCommandPort;
 import org.sequeless.automation.api.StoreCommandRejectedException;
-import org.sequeless.core.AuthorizationException;
-import org.sequeless.core.api.BusinessObjectService;
-import org.sequeless.core.api.TransitionService;
-import org.sequeless.core.api.TypeNotFoundException;
-import org.sequeless.core.validation.ValidationException;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
@@ -23,6 +18,11 @@ import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.query.ObjectView;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.TransitionService;
+import org.sequeless.store.core.api.TypeNotFoundException;
+import org.sequeless.store.core.validation.ValidationException;
 
 /**
  * The host's {@link StoreCommandPort}: every automation write goes through a Command use case, so validation,

@@ -12,7 +12,7 @@
   <artifactId>sequeless-core</artifactId>
 
   <name>sequeless-core</name>
-  <description>Use cases (inbound API in org.sequeless.core.api), BREAD orchestration, structural validation,
+  <description>Use cases (inbound API in org.sequeless.store.core.api), BREAD orchestration, structural validation,
     state machine interpreter, derivation planner, event emission. Pure Java, records, no Lombok.
     Depends on sequeless-spi, the released kernel, ontology, behaviour, automation, expression and
     filter artifacts, jackson-databind and the JDK.</description>

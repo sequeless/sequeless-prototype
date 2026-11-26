@@ -10,11 +10,11 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.app.automation.BindingFakes.RecordingObjects;
 import org.sequeless.automation.api.ObjectReadDeniedException;
 import org.sequeless.automation.api.ObjectSnapshot;
-import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.core.AuthorizationException;
 
 /** Unit tests for {@link BusinessObjectReadPort}: absent is empty, present is a snapshot, a denial is thrown. */
 class BusinessObjectReadPortTest {
