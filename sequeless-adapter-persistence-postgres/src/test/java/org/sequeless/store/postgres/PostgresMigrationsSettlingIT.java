@@ -1,6 +1,7 @@
 package org.sequeless.store.postgres;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
@@ -90,7 +91,7 @@ class PostgresMigrationsSettlingIT {
                 .migrate();
         // A database at the post-P7 set has also run the Query set, which creates sq_searchable_property;
         // V6's trigger reads that table on every object write.
-        PostgresMigrations.queryFlyway(dataSource).migrate();
+        queryFlyway(dataSource).migrate();
         insertObject(UUID.randomUUID(), "first");
         insertObject(UUID.randomUUID(), "second");
         insertSearchableRegistration();
@@ -122,7 +123,7 @@ class PostgresMigrationsSettlingIT {
                 .load()
                 .migrate();
         // The post-P2 set has the search trigger, which reads sq_searchable_property on every object write.
-        PostgresMigrations.queryFlyway(dataSource).migrate();
+        queryFlyway(dataSource).migrate();
         insertObject(UUID.randomUUID(), "first");
         insertObject(UUID.randomUUID(), "second");
         insertSearchableRegistration();
@@ -154,7 +155,7 @@ class PostgresMigrationsSettlingIT {
                 .load()
                 .migrate();
         // The post-P3 set has the search trigger, which reads sq_searchable_property on every object write.
-        PostgresMigrations.queryFlyway(dataSource).migrate();
+        queryFlyway(dataSource).migrate();
         insertObject(UUID.randomUUID(), "first");
         insertObject(UUID.randomUUID(), "second");
         insertSearchableRegistration();
@@ -268,19 +269,86 @@ class PostgresMigrationsSettlingIT {
     void migratingAnUpToDateDatabaseAgainChangesNeitherHistory() {
         PostgresMigrations.migrate(dataSource);
         List<String> commandBefore = describedHistory(PostgresMigrations.commandFlyway(dataSource));
-        List<String> queryBefore = describedHistory(PostgresMigrations.queryFlyway(dataSource));
+        List<String> queryBefore = describedHistory(queryFlyway(dataSource));
 
         PostgresMigrations.migrate(dataSource);
 
         assertThat(describedHistory(PostgresMigrations.commandFlyway(dataSource)))
                 .isEqualTo(commandBefore);
-        assertThat(describedHistory(PostgresMigrations.queryFlyway(dataSource))).isEqualTo(queryBefore);
+        assertThat(describedHistory(queryFlyway(dataSource))).isEqualTo(queryBefore);
+    }
+
+    /**
+     * Bare database, default migrate: the Query set is applied before any Command write, so a row write right
+     * after migrate succeeds and the search trigger fires.
+     */
+    @Test
+    void defaultMigrateWritesAnObjectOnABareDatabase() {
+        PostgresMigrations.migrate(dataSource);
+
+        insertObject(UUID.randomUUID(), "bare");
+
+        assertRowCounts(1, 0);
+        assertSearchSchemaPresent();
+        assertQueryHistory();
+    }
+
+    /**
+     * Bare database, command-only migrate (a no-op hook): the Query set is not applied, so the search trigger
+     * reads a table that does not exist and an object write fails. This is the negative check for the default.
+     */
+    @Test
+    void commandOnlyMigrateFailsAnObjectWriteBecauseNoQuerySetExists() {
+        PostgresMigrations.migrate(dataSource, ignored -> {});
+
+        // Spring wraps the driver error, so its message is the SQL text. The missing relation is in the cause.
+        assertThatThrownBy(() -> insertObject(UUID.randomUUID(), "bare"))
+                .hasStackTraceContaining("relation \"sq_searchable_property\" does not exist");
+    }
+
+    /**
+     * The default's Query history matches the released query-postgres-jsonb-adapter's migrate: the same versions,
+     * descriptions, states and checksums. The released adapter is a runtime dependency only, so it is reached by
+     * reflection and this test does not compile against it.
+     */
+    @Test
+    void defaultQuerySetMatchesTheReleasedQueryMigrate() throws ReflectiveOperationException {
+        PostgresMigrations.migrate(dataSource);
+        List<String> store = queryHistoryFingerprint();
+
+        emptyDatabase();
+        PostgresMigrations.migrate(dataSource, ignored -> {});
+        Class.forName("org.sequeless.query.postgres.PostgresMigrations")
+                .getMethod("migrate", DataSource.class)
+                .invoke(null, dataSource);
+
+        assertThat(queryHistoryFingerprint()).isEqualTo(store);
+    }
+
+    private static List<String> queryHistoryFingerprint() {
+        return Arrays.stream(queryFlyway(dataSource).info().all())
+                .map(info -> info.getVersion() + " " + info.getDescription() + " " + info.getState() + " "
+                        + info.getChecksum())
+                .toList();
     }
 
     /** Settling case (d): the Query history is the baseline and its two migrations, and nothing else. */
     private static void assertQueryHistory() {
-        assertThat(versionsAndStates(PostgresMigrations.queryFlyway(dataSource)))
-                .containsExactly("0 BASELINE", "1 SUCCESS", "2 SUCCESS");
+        assertThat(versionsAndStates(queryFlyway(dataSource))).containsExactly("0 BASELINE", "1 SUCCESS", "2 SUCCESS");
+    }
+
+    /**
+     * The Query instance for history assertions, configured as the store's migrate configures it. The
+     * accessor was removed from PostgresMigrations (spec 18 Q23), so the test builds its own copy.
+     */
+    private static Flyway queryFlyway(DataSource dataSource) {
+        return Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration/sequeless/postgres-query")
+                .table("flyway_schema_history_query")
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
+                .load();
     }
 
     /** Settling cases (b) and (c): the only missing Command entry is V2, recorded as MISSING_SUCCESS. */

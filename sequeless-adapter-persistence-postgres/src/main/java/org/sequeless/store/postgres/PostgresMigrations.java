@@ -2,6 +2,7 @@ package org.sequeless.store.postgres;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
@@ -25,10 +26,17 @@ import org.flywaydb.core.api.configuration.FluentConfiguration;
  * <p>{@link #migrate} applies the Command set up to version {@code 6}, then the Query set, then the
  * rest of the Command set. Command version 6 creates a trigger that reads {@code
  * sq_searchable_property}, which the Query set creates, so the Query set must exist before any later
- * Command migration that writes {@code sq_object}.
+ * Command migration that writes {@code sq_object}. {@link #migrate(DataSource, Consumer)} takes the
+ * step between Command versions 6 and 7 as a hook; {@link #migrate} supplies the Query set as that
+ * hook.
  */
 public final class PostgresMigrations {
 
+    /*
+     * These three constants must match the released query-postgres-jsonb-adapter's migration set: its
+     * location, its history table, and its baseline. They are shared by convention only, so a change in
+     * that adapter must be mirrored here. The released adapter's migrate(DataSource) uses the same values.
+     */
     private static final String COMMAND_LOCATION = "classpath:db/migration/sequeless/postgres";
     private static final String QUERY_LOCATION = "classpath:db/migration/sequeless/postgres-query";
     private static final String QUERY_HISTORY_TABLE = "flyway_schema_history_query";
@@ -39,16 +47,35 @@ public final class PostgresMigrations {
     private PostgresMigrations() {}
 
     /**
+     * Migrates the Command set and the Query set, in the order the search trigger requires.
+     *
      * @param dataSource the data source to migrate; must not be {@code null}
      */
     public static void migrate(DataSource dataSource) {
+        migrate(dataSource, PostgresMigrations::migrateQuerySet);
+    }
+
+    /**
+     * Migrates the Command set with {@code afterCommandV6} run between Command versions 6 and 7. The hook
+     * is the only place the Query set can be applied, so a no-op hook gives the Command set alone. A
+     * caller that writes {@code sq_object} rows must run the Query set in the hook before it writes.
+     *
+     * @param dataSource the data source to migrate; must not be {@code null}
+     * @param afterCommandV6 the step to run once Command version 6 is applied; must not be {@code null}
+     */
+    public static void migrate(DataSource dataSource, Consumer<DataSource> afterCommandV6) {
         Objects.requireNonNull(dataSource, "dataSource must not be null");
+        Objects.requireNonNull(afterCommandV6, "afterCommandV6 must not be null");
         commandConfiguration(dataSource)
                 .target(COMMAND_VERSION_BEFORE_QUERY)
                 .load()
                 .migrate();
-        queryConfiguration(dataSource).load().migrate();
+        afterCommandV6.accept(dataSource);
         commandConfiguration(dataSource).load().migrate();
+    }
+
+    private static void migrateQuerySet(DataSource dataSource) {
+        queryConfiguration(dataSource).load().migrate();
     }
 
     /**
@@ -75,17 +102,6 @@ public final class PostgresMigrations {
     static Flyway commandFlyway(DataSource dataSource) {
         Objects.requireNonNull(dataSource, "dataSource must not be null");
         return commandConfiguration(dataSource).load();
-    }
-
-    /**
-     * The Query instance, for tests that read its history with {@code info()}.
-     *
-     * @param dataSource the data source; must not be {@code null}
-     * @return a configured Flyway instance for the Query set
-     */
-    static Flyway queryFlyway(DataSource dataSource) {
-        Objects.requireNonNull(dataSource, "dataSource must not be null");
-        return queryConfiguration(dataSource).load();
     }
 
     /*
