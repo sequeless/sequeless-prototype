@@ -8,15 +8,15 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * property (per {@code DerivationRule.materialised()}) correct in {@code sq_object.props}
  * whenever a domain event could have changed it — exactly what keeps {@code
  * ex:Project.openTaskCount} filterable via {@code filter[openTaskCount][eq]=0} instead of only
- * ever visible on read. See this package's {@code package-info.java} for why this port's
- * dependency direction is the mirror image of every outbound port in this SPI: {@code
- * sequeless-core} implements this interface ({@code
- * org.sequeless.core.usecase.DefaultDerivationRecomputer}), and an automation adapter (the
- * in-process relay, or a Temporal activity) calls it, rather than the other way around.
+ * ever visible on read. Its dependency direction is the mirror image of every outbound port in
+ * this SPI: {@code sequeless-core} implements this interface ({@code
+ * org.sequeless.core.usecase.DefaultDerivationRecomputer}), and the host's outbox relay calls it,
+ * rather than the other way around.
  *
  * <p>{@code recompute}'s payload carries {@code objectId}, {@code tenantId}, and {@code
- * principalId}, reconstructing the {@link Scope} the recompute runs under exactly as {@link
- * ActionExecutor}'s methods do; there is no dedicated {@code Recompute} outbox kind — recompute is
+ * principalId}, reconstructing the {@link Scope} the recompute runs under exactly as the released
+ * {@code org.sequeless.automation.api.ActionExecutor}'s methods do; there is no dedicated
+ * {@code Recompute} outbox kind — recompute is
  * driven directly off the ordinary {@code ObjectCreated}/{@code ObjectUpdated}/{@code
  * ObjectDeleted} events the store already writes.
  */

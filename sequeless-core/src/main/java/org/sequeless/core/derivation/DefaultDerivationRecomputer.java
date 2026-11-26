@@ -45,8 +45,8 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * full contract this class implements: candidate resolution off a materialised {@link RollupRule},
  * commit-only-if-changed, and a jittered intra-call retry loop on {@link StaleObjectException}.
  *
- * <p>Like {@link org.sequeless.core.automation.DefaultTriggerEvaluator}, this class is an
- * inbound-port implementation an automation adapter calls back into, never the other way around.
+ * <p>Like the trigger evaluator that moved to {@code org.sequeless.automation.core} (spec 17 P4), this
+ * class is an inbound-port implementation an automation adapter calls back into, never the other way around.
  * Unlike that class, this one writes directly: it builds a {@link ChangeSet} and calls {@link
  * ObjectStorePort#commit} itself, deliberately bypassing {@code ValueCoercer}/{@code
  * StructuralValidator} (both of which reject a client write to a derived property) because this is
@@ -307,8 +307,8 @@ public final class DefaultDerivationRecomputer implements DerivationRecomputer {
     /**
      * Decodes an {@code ObjectDeleted} payload's {@code properties} snapshot — a full-IRI-keyed,
      * {@link PayloadValueCodec}-encoded map captured at delete time precisely because {@link
-     * ObjectStorePort#find} can never read a soft-deleted object back. Same decode idiom as {@link
-     * org.sequeless.core.automation.DefaultTriggerEvaluator#decodePropertiesSnapshot}.
+     * ObjectStorePort#find} can never read a soft-deleted object back. Same decode idiom as the trigger
+     * evaluator's decodePropertiesSnapshot, which moved to sequeless-automation in spec 17 P4.
      */
     @SuppressWarnings("unchecked")
     private static Map<PropertyRef, Value> decodePropertiesSnapshot(Map<String, Object> payload) {

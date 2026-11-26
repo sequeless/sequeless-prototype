@@ -10,8 +10,8 @@ import org.sequeless.spi.object.ObjectStorePort;
  * time, hand it to a handler, and mark it processed — all inside one short transaction, so a slow
  * action never blocks other rows and a crash mid-dispatch simply releases the row's lock for the
  * next poll. This port claims across whatever set of kinds the caller names, because one relay
- * fans its polling loop out to several inbound ports rather than always calling {@code
- * ActionExecutor}. {@code OutboxRelay} passes the dispatchable set: the three object-lifecycle
+ * fans its polling loop out to several inbound ports rather than always calling the
+ * automation action port. {@code OutboxRelay} passes the dispatchable set: the three object-lifecycle
  * kinds and {@link OutboxEntry#KIND_TRANSITION_FIRED}. A {@code TransitionFired} row is handed to
  * the automation port, whose adapters apply its actions.
  *

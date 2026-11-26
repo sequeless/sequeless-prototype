@@ -183,8 +183,6 @@ Set 'sequeless.authz.adapter' to one of: permit-all
 | `sequeless-adapter-ontology-jena` | Prototype wiring around the released `ontology-jena-adapter`: `JenaOntologyAutoConfiguration`, `JenaOntologyProperties`, `JenaOntologyAdapterDescriptorProvider` and `ShaclValidationAdapterDescriptorProvider` (ServiceLoader descriptors), `ShaclValidationAutoConfiguration`, `ShaclValidationPort` (the SHACL validation adapter) and `ValidationSchemaAdapter`. The Jena 6 ontapi, built-in OWL reasoner, jena-shacl and Turtle import/export are in the released adapter | `kernel-identity`, `kernel-values`, `sequeless-spi`, `ontology-jena-adapter`, `ontology-core`, `schema-contract`, `spring-boot-autoconfigure` (optional), `spring-context`, `spring-beans`, `spring-boot` |
 | `sequeless-adapter-persistence-postgres` | `ObjectStorePort` and `QueryPort` on PostgreSQL 18 JSONB; Flyway migrations; outbox table; hint-driven indexes | `sequeless-spi`, JDBC/Spring JDBC, Flyway, Lombok |
 | `sequeless-adapter-expression-jexl` | `ExpressionPort` via Commons JEXL 3 in a sandboxed, side-effect-free configuration | `sequeless-spi`, JEXL |
-| `sequeless-adapter-automation-temporal` | `AutomationPort` via Temporal Java SDK: outbox relay, action workflows, timers, signals | `sequeless-spi`, Temporal SDK, Spring Boot starter |
-| `sequeless-adapter-automation-inprocess` | `AutomationPort` test/dev adapter: synchronous executor over the outbox | `sequeless-spi` |
 | `sequeless-adapter-authz-permitall` | `AuthorizationPort` that allows everything | `sequeless-spi` |
 | `sequeless-app` | Spring Boot application: REST inbound adapter, wiring, Actuator, OpenAPI, ArchUnit tests, end-to-end tests with Testcontainers | everything above |
 

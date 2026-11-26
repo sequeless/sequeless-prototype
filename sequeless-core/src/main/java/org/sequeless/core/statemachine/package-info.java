@@ -17,9 +17,8 @@
  * <p>{@link org.sequeless.core.statemachine.PayloadValueCodec} is the {@link
  * org.sequeless.kernel.values.Value}-to-outbox-payload codec both {@link
  * org.sequeless.core.usecase.DefaultTransitionService} (the encode side, building the {@code self}
- * map of each {@code TransitionFired} {@link org.sequeless.spi.outbox.OutboxEntry}'s payload) and a later sibling {@code
- * org.sequeless.core.automation.ActionExecutor} implementation (the decode side, not built by this
- * package's originating task) use to move property values in and out of the JSON-compatible {@code
+ * map of each {@code TransitionFired} {@link org.sequeless.spi.outbox.OutboxEntry}'s payload) and a later sibling ActionExecutor
+ * implementation (the decode side, not built by this package's originating task) use to move property values in and out of the JSON-compatible {@code
  * Map<String, Object>} an outbox payload is built from.
  */
 package org.sequeless.core.statemachine;
