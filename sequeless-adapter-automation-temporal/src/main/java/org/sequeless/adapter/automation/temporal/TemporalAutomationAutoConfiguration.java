@@ -10,6 +10,7 @@ import io.temporal.worker.WorkerFactory;
 import java.time.Duration;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.slf4j.Logger;
@@ -127,6 +128,10 @@ public class TemporalAutomationAutoConfiguration {
      *     actionExecutor}'s own precedent)
      * @param automationSource the {@link AutomationSource} bean {@link ActionActivitiesImpl}'s
      *     {@code applyTransitionAction} reads the automation from, required and injected eagerly
+     * @param failureRecorder the {@link AutomationFailureRecorder} bean that persists the failure record
+     *     of a workflow whose activity failed after its retries (spec 13, R2). Required and injected
+     *     eagerly: without it the context fails to start, so a failure cannot be dropped silently. The
+     *     Postgres persistence adapter provides it, so a Temporal deployment needs that adapter.
      * @param props the bound {@code sequeless.automation.temporal.*} configuration, supplying the
      *     task queue name and retry policy
      * @return the {@link WorkerFactory}, kept as a bean so its lifecycle is visible to (and
@@ -138,6 +143,7 @@ public class TemporalAutomationAutoConfiguration {
             ActionExecutor actionExecutor,
             TriggerEvaluator triggerEvaluator,
             AutomationSource automationSource,
+            AutomationFailureRecorder failureRecorder,
             TemporalAutomationProperties props) {
         TemporalActivityOptions.ACTIVITY_OPTIONS = buildActivityOptions(props.getRetry());
 
@@ -147,7 +153,8 @@ public class TemporalAutomationAutoConfiguration {
                 TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(actionExecutor, automationSource),
-                new TriggerActivitiesImpl(triggerEvaluator));
+                new TriggerActivitiesImpl(triggerEvaluator),
+                new AutomationFailureActivitiesImpl(failureRecorder));
         try {
             factory.start();
         } catch (RuntimeException e) {
