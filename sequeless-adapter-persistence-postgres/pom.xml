@@ -106,13 +106,14 @@
     </dependency>
     <!--
       Spec 17 P2a: the Query migration set (postgres-query) now ships in the released jar, not in this module.
-      Tests that migrate that location, and the byte-identity check against it, need the released files on the
-      test classpath. The jar's files are identical to the frozen post-P7 copies.
+      PostgresMigrations and PostgresObjectStore read that set from this jar's classpath resources at run time, so
+      the jar is a runtime dependency. The jar's files are identical to the frozen copies that PostgresMigrationFrozenSetsTest
+      pins.
     -->
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>query-postgres-jsonb-adapter</artifactId>
-      <scope>test</scope>
+      <scope>runtime</scope>
     </dependency>
 
     <!--
@@ -193,7 +194,7 @@
             <id>analyze-only</id>
             <configuration>
               <!--
-                query-postgres-jsonb-adapter is used at test time only through its classpath resources (the
+                query-postgres-jsonb-adapter is used at run time only through its classpath resources (the
                 postgres-query Flyway set), so no class of it is named in code. The Spring Boot starter entry
                 is the parent's own ignore, repeated because a child list replaces the parent's list.
               -->
