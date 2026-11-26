@@ -15,12 +15,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.config.BeanPostProcessor;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.sequeless.adapter.automation.temporal.TimerWorkflow;
 import org.sequeless.app.support.TemporalTestcontainersSupport;
 import org.sequeless.kernel.identity.Principal;
@@ -31,6 +25,12 @@ import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TimerScheduledEntry;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
  * The Postgres end of the timer failure record (spec 13, R2): a real Temporal server, a real Postgres, and the
@@ -123,8 +123,8 @@ class TimerFailureRecordEndToEndTest extends TemporalTestcontainersSupport {
         return jdbcClient
                 .sql("SELECT workflow_type, tenant_id, cause FROM sq_automation_failure WHERE workflow_id = :id")
                 .param("id", workflowId)
-                .query((rs, rowNum) -> new Row(
-                        rs.getString("workflow_type"), rs.getString("tenant_id"), rs.getString("cause")))
+                .query((rs, rowNum) ->
+                        new Row(rs.getString("workflow_type"), rs.getString("tenant_id"), rs.getString("cause")))
                 .list();
     }
 

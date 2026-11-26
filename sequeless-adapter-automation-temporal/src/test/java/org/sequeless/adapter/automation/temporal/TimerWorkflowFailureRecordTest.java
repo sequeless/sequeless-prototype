@@ -128,8 +128,8 @@ class TimerWorkflowFailureRecordTest {
         ObjectId objectId = ObjectId.parse(UUID.randomUUID().toString());
         String timerKey = OutboxEntry.timerKey(objectId, STATE, TRANSITION);
 
-        Throwable thrown = catchThrowable(
-                () -> startTimer(timer(objectId), timerKey).getResult(5, TimeUnit.SECONDS, Void.class));
+        Throwable thrown =
+                catchThrowable(() -> startTimer(timer(objectId), timerKey).getResult(5, TimeUnit.SECONDS, Void.class));
 
         assertThat(thrown).isInstanceOf(WorkflowFailedException.class);
         assertThat(thrown.getCause()).isInstanceOf(ActivityFailure.class);
@@ -161,8 +161,10 @@ class TimerWorkflowFailureRecordTest {
         assertThat(history.getEvents())
                 .as("the record command is scheduled after the failed onTimerElapsed")
                 .anyMatch(event -> event.getEventType() == EventType.EVENT_TYPE_ACTIVITY_TASK_SCHEDULED
-                        && "RecordFailure".equals(
-                                event.getActivityTaskScheduledEventAttributes().getActivityType().getName()));
+                        && "RecordFailure"
+                                .equals(event.getActivityTaskScheduledEventAttributes()
+                                        .getActivityType()
+                                        .getName()));
 
         assertThatCode(() -> WorkflowReplayer.replayWorkflowExecution(history, TimerWorkflowImpl.class))
                 .doesNotThrowAnyException();
