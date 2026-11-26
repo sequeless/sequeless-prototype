@@ -8,11 +8,11 @@ import org.sequeless.automation.api.StoreEventRow;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.automation.AutomationFailure;
-import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
-import org.sequeless.spi.outbox.OutboxPort;
+import org.sequeless.store.spi.AutomationFailure;
+import org.sequeless.store.spi.AutomationFailureRecorder;
+import org.sequeless.store.spi.OutboxPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -211,7 +211,7 @@ public class OutboxRelay {
      * <p>{@code principalId} is used as {@link Principal#id()}: there is no richer identity to recover from the frozen
      * outbox payload, and no "system principal" concept exists anywhere in this codebase. {@code roles} is the empty set.
      * The automated writes run through the Command use cases ({@code BusinessObjectService} and {@code TransitionService}),
-     * which call the {@link org.sequeless.spi.authz.AuthorizationPort} with this principal. So the configured
+     * which call the {@link org.sequeless.store.spi.AuthorizationPort} with this principal. So the configured
      * authorization adapter decides what a principal with no roles may do. The relay does not widen the principal to let
      * a write pass.
      *

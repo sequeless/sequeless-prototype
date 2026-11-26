@@ -1,9 +1,10 @@
-package org.sequeless.spi.query;
+package org.sequeless.store.spi;
 
 import java.util.Objects;
 import java.util.Optional;
 import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.Value;
+import org.sequeless.spi.query.Query;
 
 /**
  * A single filter clause in a {@link Query}: match {@code property} against {@code operator} and

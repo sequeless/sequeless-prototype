@@ -16,8 +16,8 @@ import org.sequeless.ontology.behaviour.api.RollupRule;
 import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.ontology.jena.ReasonerSetting;
 import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 /**
  * Runs the criteria bridge end to end against the released loader under the OWL reasoner, the

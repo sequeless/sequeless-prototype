@@ -4,12 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.IndexPreparationPort;
-import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.ReadPort;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.QueryPort;
+import org.sequeless.store.spi.SearchVectorBackfillPort;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

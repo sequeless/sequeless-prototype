@@ -15,7 +15,7 @@
  * <p>{@link org.sequeless.core.validation.ValueCoercer#coerce} turns a {@code Map<String,
  * Object>} of raw property input into a {@link org.sequeless.core.validation.CoercionResult}: a
  * fully typed {@code Map<PropertyRef, Value>} on success, or the {@link
- * org.sequeless.spi.validation.Violation}s found on failure — unknown properties, read-only
+ * org.sequeless.store.spi.Violation}s found on failure — unknown properties, read-only
  * properties supplied by the caller, datatype mismatches, and scalar/list cardinality mismatches.
  * {@link org.sequeless.core.validation.StructuralValidator} then checks the coerced properties
  * against the meta-model's required-property and cardinality rules, and against reference

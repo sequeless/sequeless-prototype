@@ -19,8 +19,8 @@ import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Reference implementation of {@link MetaModelService}.

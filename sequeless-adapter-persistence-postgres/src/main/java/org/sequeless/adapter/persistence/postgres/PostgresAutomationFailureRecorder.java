@@ -2,8 +2,8 @@ package org.sequeless.adapter.persistence.postgres;
 
 import java.util.Objects;
 import org.sequeless.ontology.automation.api.TransitionRef;
-import org.sequeless.spi.automation.AutomationFailure;
-import org.sequeless.spi.automation.AutomationFailureRecorder;
+import org.sequeless.store.spi.AutomationFailure;
+import org.sequeless.store.spi.AutomationFailureRecorder;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**

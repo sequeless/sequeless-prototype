@@ -1,6 +1,6 @@
 package org.sequeless.adapter.authz.permitall;
 
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.store.spi.AuthorizationPort;
 import org.sequeless.testkit.authz.AuthorizationContract;
 
 /**

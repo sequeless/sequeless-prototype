@@ -23,8 +23,8 @@ import org.sequeless.kernel.values.ListValue;
 import org.sequeless.kernel.values.ReferenceValue;
 import org.sequeless.kernel.values.TextValue;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 /**
  * Maps the prototype's {@link Criterion}s to the released filter tree. The operator names are the released filter's

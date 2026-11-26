@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  *
  * <p>{@code sequeless-spi-testkit} (a test-scope dependency of this module, per its {@code pom.xml})
  * already puts both {@code ontology/reference-plugin.ttl} and {@code WorkloadDerivationPlugin}'s
- * {@code META-INF/services/org.sequeless.spi.derivation.DerivationPlugin} registration on this
+ * {@code META-INF/services/org.sequeless.store.spi.DerivationPlugin} registration on this
  * module's test classpath for every test in the module — that classpath wiring is inert but present
  * everywhere else (per prior findings), so this test is the first one that actually points {@code
  * sequeless.ontology.source} at the plug-in-bearing fixture and reads the computed value back,

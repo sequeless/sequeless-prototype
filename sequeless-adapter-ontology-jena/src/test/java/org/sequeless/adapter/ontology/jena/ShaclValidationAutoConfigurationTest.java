@@ -3,7 +3,7 @@ package org.sequeless.adapter.ontology.jena;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.validation.ValidationPort;
+import org.sequeless.store.spi.ValidationPort;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 

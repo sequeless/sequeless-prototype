@@ -3,7 +3,7 @@ package org.sequeless.testkit.object;
 import java.util.List;
 import java.util.UUID;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * This module's own proof that {@link ObjectStoreContract} is implementable without SQL, JSONB, or

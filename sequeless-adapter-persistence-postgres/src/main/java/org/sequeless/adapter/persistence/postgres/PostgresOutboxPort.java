@@ -12,7 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.sequeless.spi.outbox.OutboxEntry;
-import org.sequeless.spi.outbox.OutboxPort;
+import org.sequeless.store.spi.OutboxPort;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;

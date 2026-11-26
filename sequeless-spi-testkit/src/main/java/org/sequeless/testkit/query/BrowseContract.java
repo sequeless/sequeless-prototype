@@ -35,19 +35,19 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.BrowsePort;
-import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
 import org.sequeless.spi.query.ObjectView;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.query.Sort;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.Operator;
 import org.sequeless.testkit.Fixtures;
 
 /**
@@ -122,7 +122,7 @@ public abstract class BrowseContract {
      * underlying storage — a conforming {@link BrowsePort} implementation only makes sense against
      * objects committed through a particular store, exactly as {@link
      * org.sequeless.testkit.validation.ValidationContract.Fixture} pairs a {@link
-     * org.sequeless.spi.validation.ValidationPort} with the {@link Schema} it
+     * org.sequeless.store.spi.ValidationPort} with the {@link Schema} it
      * validates against.
      *
      * @param store the store to seed fixture data into via {@link ObjectStorePort#commit}; must

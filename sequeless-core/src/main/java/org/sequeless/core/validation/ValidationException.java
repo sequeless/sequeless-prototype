@@ -2,7 +2,7 @@ package org.sequeless.core.validation;
 
 import java.util.List;
 import java.util.Objects;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /**
  * Thrown by a use case when a {@link Violation} is found while adding or editing a {@link

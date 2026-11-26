@@ -35,10 +35,10 @@ import org.sequeless.query.field.api.TraversalConfig;
 import org.sequeless.query.field.api.VersionPolicy;
 import org.sequeless.query.field.spi.FieldSource;
 import org.sequeless.spi.object.Page;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.Sort;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 /** Shared fixtures for the query adapter tests: a tenant, a schema, hand-built released scopes and fakes. */
 final class QueryFixtures {

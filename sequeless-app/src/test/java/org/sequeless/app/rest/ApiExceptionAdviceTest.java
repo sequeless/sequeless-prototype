@@ -16,7 +16,7 @@ import org.sequeless.ontology.api.OntologyIssue;
 import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.ontology.api.Severity;
 import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;

@@ -33,7 +33,7 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /**
  * Unit tests for {@link ValueCoercer}. The {@code Task} fixture is built directly from SPI records

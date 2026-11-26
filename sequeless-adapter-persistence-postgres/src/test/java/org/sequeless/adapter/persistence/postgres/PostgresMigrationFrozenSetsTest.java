@@ -31,6 +31,20 @@ class PostgresMigrationFrozenSetsTest {
     private static final String FROZEN_POST_P3_COMMAND = "frozen-migrations/post-p3/command";
     private static final String FROZEN_POST_P4_COMMAND = "frozen-migrations/post-p4/command";
 
+    /** The live command set is V1 and V3 to V12. There is no V2: the V2 deleted at 859a118 was the query set. */
+    private static final List<Integer> LIVE_COMMAND_VERSIONS = List.of(1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+
+    @Test
+    void liveCommandSetIsV1AndV3ToV12WithNoV2() {
+        List<String> names = sqlFileNames(LIVE_COMMAND);
+        assertThat(names).allMatch(name -> name.matches("V\\d+__.*\\.sql"));
+        assertThat(names.stream()
+                        .map(PostgresMigrationFrozenSetsTest::versionOf)
+                        .toList())
+                .containsAll(LIVE_COMMAND_VERSIONS)
+                .doesNotContain(2);
+    }
+
     @Test
     void frozenCommandSetIsASubsetOfTheLiveCommandSet() {
         assertThat(sqlFileNames(LIVE_COMMAND)).containsAll(sqlFileNames(FROZEN_COMMAND));
@@ -79,12 +93,20 @@ class PostgresMigrationFrozenSetsTest {
         assertIdentical(FROZEN_POST_P4_COMMAND, LIVE_COMMAND);
     }
 
+    /**
+     * Pairs each frozen file with the live file of the same name and compares bytes. Identity is the file name and
+     * the content, never the directory the frozen copy sits in, so moving a frozen set does not change the check.
+     */
     private static void assertIdentical(String frozenDirectory, String liveDirectory) {
         for (String name : sqlFileNames(frozenDirectory)) {
             assertThat(readResource(frozenDirectory + "/" + name))
                     .as("%s/%s must match the live file byte for byte", frozenDirectory, name)
                     .isEqualTo(readResource(liveDirectory + "/" + name));
         }
+    }
+
+    private static int versionOf(String fileName) {
+        return Integer.parseInt(fileName.substring(1, fileName.indexOf("__")));
     }
 
     private static List<String> sqlFileNames(String directory) {

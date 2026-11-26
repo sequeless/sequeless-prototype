@@ -18,7 +18,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * <p>{@code unknown-plugin.ttl} (from {@code sequeless-spi-testkit}, a test-scope dependency of
  * this module) is {@code reference.ttl} plus one extra derived property, {@code ex:workload} on
  * {@code ex:Person}, whose {@code sq:pluginName} is {@code "does-not-exist"} — a name no {@code
- * META-INF/services/org.sequeless.spi.derivation.DerivationPlugin} entry on this classpath
+ * META-INF/services/org.sequeless.store.spi.DerivationPlugin} entry on this classpath
  * provides. {@code JenaOntologyPort.buildStateFrom}'s {@code ServiceLoader}-backed plug-in name
  * check (T4) is what makes this observable at all: it runs on every activation path, including
  * this one, the application's own eager startup load.

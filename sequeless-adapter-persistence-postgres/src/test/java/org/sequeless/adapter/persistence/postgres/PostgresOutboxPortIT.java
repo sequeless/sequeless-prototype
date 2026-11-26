@@ -16,7 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.outbox.OutboxEntry;
-import org.sequeless.spi.outbox.OutboxPort;
+import org.sequeless.store.spi.OutboxPort;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -38,7 +38,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * message is recorded with its exception's class name.
  *
  * <p>{@code sq_outbox} rows are inserted directly via SQL in these tests rather than through
- * {@link org.sequeless.spi.object.ObjectStorePort#commit}, since the point here is {@link
+ * {@link org.sequeless.store.spi.ObjectStorePort#commit}, since the point here is {@link
  * OutboxPort} alone, not the object store's own outbox-writing path (already covered by {@link
  * PostgresObjectStoreContractIT}/{@code ObjectStoreContract}).
  */

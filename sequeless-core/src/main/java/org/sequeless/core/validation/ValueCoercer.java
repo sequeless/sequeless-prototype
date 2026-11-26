@@ -19,7 +19,7 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /**
  * Turns raw, JSON-like input (a {@code Map<String, Object>} whose values are {@code String},

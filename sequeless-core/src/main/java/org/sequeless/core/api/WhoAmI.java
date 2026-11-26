@@ -2,7 +2,7 @@ package org.sequeless.core.api;
 
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Reports the caller's own tenant, principal, and authorization decision. This is the first use

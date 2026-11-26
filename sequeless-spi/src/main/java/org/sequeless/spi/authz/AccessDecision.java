@@ -1,6 +1,7 @@
 package org.sequeless.spi.authz;
 
 import java.util.Objects;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * The outcome of an {@link AuthorizationPort#decide(org.sequeless.kernel.identity.Scope, Operation, String)}

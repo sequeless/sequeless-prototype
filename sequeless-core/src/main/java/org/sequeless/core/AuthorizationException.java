@@ -4,7 +4,7 @@ import java.util.Objects;
 import org.sequeless.spi.authz.AccessDecision;
 
 /**
- * Thrown by a use case when an {@link org.sequeless.spi.authz.AuthorizationPort} denies the
+ * Thrown by a use case when an {@link org.sequeless.store.spi.AuthorizationPort} denies the
  * operation the use case was about to perform.
  *
  * <p>This is deliberately unchecked: authorization failure is a core-internal outcome, not a

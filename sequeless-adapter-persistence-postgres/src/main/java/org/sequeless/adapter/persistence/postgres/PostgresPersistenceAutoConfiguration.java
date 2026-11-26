@@ -2,10 +2,10 @@ package org.sequeless.adapter.persistence.postgres;
 
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
-import org.sequeless.spi.automation.AutomationFailureRecorder;
-import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.outbox.OutboxPort;
-import org.sequeless.spi.query.QueryPort;
+import org.sequeless.store.spi.AutomationFailureRecorder;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.OutboxPort;
+import org.sequeless.store.spi.QueryPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

@@ -3,7 +3,7 @@
  *
  * <p>{@link org.sequeless.app.automation.OutboxRelay} is a thin {@code @Scheduled} poller that
  * claims one unprocessed outbox row at a time, of the dispatchable kinds (via {@link
- * org.sequeless.spi.outbox.OutboxPort}): {@code TransitionFired} and the three object-lifecycle
+ * org.sequeless.store.spi.OutboxPort}): {@code TransitionFired} and the three object-lifecycle
  * kinds. Timers have no kind of their own: the adapter starts them from the {@code TransitionFired}
  * row. The relay maps each row to the Store event it records, an {@code ObjectChangedEvent} or a
  * {@code TransitionFiredEvent}, and feeds that event to the ingress of whichever {@link

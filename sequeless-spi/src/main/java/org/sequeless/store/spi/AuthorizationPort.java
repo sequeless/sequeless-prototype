@@ -1,6 +1,8 @@
-package org.sequeless.spi.authz;
+package org.sequeless.store.spi;
 
 import org.sequeless.kernel.identity.Scope;
+import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.spi.authz.Operation;
 
 /**
  * The outbound port every authorization decision in Sequeless goes through. Exactly one

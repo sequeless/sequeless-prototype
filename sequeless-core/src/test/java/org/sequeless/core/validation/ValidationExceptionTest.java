@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /** Unit tests for {@link ValidationException}. */
 class ValidationExceptionTest {

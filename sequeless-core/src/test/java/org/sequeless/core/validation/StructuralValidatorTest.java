@@ -30,10 +30,10 @@ import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.Violation;
 
 /** Unit tests for {@link StructuralValidator}. */
 class StructuralValidatorTest {

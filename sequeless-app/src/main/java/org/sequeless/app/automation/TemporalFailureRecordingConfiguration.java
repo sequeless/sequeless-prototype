@@ -2,7 +2,7 @@ package org.sequeless.app.automation;
 
 import org.sequeless.automation.api.ActionExecutor;
 import org.sequeless.automation.api.TriggerEvaluator;
-import org.sequeless.spi.automation.AutomationFailureRecorder;
+import org.sequeless.store.spi.AutomationFailureRecorder;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;

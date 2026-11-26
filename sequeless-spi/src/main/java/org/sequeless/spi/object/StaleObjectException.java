@@ -2,6 +2,7 @@ package org.sequeless.spi.object;
 
 import java.util.Objects;
 import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * Thrown by {@link ObjectStorePort#commit} when an {@link Update} or {@link Delete}'s {@code

@@ -21,11 +21,11 @@ import org.sequeless.automation.api.ObjectChangedEvent;
 import org.sequeless.automation.api.StoreEvent;
 import org.sequeless.automation.api.TransitionFiredEvent;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.automation.AutomationFailure;
-import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.DerivationRecomputer;
 import org.sequeless.spi.outbox.OutboxEntry;
-import org.sequeless.spi.outbox.OutboxPort;
+import org.sequeless.store.spi.AutomationFailure;
+import org.sequeless.store.spi.AutomationFailureRecorder;
+import org.sequeless.store.spi.OutboxPort;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**

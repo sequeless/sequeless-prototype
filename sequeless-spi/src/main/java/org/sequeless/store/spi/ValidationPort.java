@@ -1,4 +1,4 @@
-package org.sequeless.spi.validation;
+package org.sequeless.store.spi;
 
 import java.util.List;
 import org.sequeless.kernel.identity.Scope;

@@ -4,8 +4,8 @@ import java.util.Objects;
 import org.sequeless.automation.api.StoreEventRow;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.automation.api.TransitionRef;
-import org.sequeless.spi.automation.AutomationFailure;
-import org.sequeless.spi.automation.AutomationFailureRecorder;
+import org.sequeless.store.spi.AutomationFailure;
+import org.sequeless.store.spi.AutomationFailureRecorder;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**

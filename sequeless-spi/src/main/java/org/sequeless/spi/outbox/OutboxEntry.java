@@ -9,8 +9,8 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
 import org.sequeless.spi.object.Mutation;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.Update;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * A domain event recorded alongside a {@link Mutation} in the same atomic {@link ObjectStorePort#commit}

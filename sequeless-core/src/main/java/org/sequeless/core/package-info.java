@@ -8,7 +8,7 @@
  * on Lombok. A {@code maven-enforcer-plugin} {@code bannedDependencies} rule in this module's POM
  * enforces that mechanically, and an ArchUnit rule in {@code sequeless-app} enforces it
  * structurally. {@link org.sequeless.core.AuthorizationException} is the unchecked exception a use
- * case throws when an {@link org.sequeless.spi.authz.AuthorizationPort} denies an operation; {@link
+ * case throws when an {@link org.sequeless.store.spi.AuthorizationPort} denies an operation; {@link
  * org.sequeless.core.validation.ValidationException} is the analogous exception for a structural
  * or SHACL validation failure.
  */

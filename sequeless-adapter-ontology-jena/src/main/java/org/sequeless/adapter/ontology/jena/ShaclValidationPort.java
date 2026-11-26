@@ -12,8 +12,8 @@ import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.validation.ValidationPort;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.ValidationPort;
+import org.sequeless.store.spi.Violation;
 
 /**
  * The Command-side {@link ValidationPort}. It holds no SHACL logic: it maps the prototype's

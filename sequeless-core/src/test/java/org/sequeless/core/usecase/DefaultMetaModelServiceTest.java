@@ -36,8 +36,8 @@ import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Unit tests for {@link DefaultMetaModelService}. Neither the ports nor {@link AuthorizationPort} is

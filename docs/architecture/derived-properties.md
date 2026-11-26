@@ -13,7 +13,7 @@ before it ever reaches the store.
 The vocabulary terms this phase adds — `sq:derivedBy`, `sq:Rollup`, `sq:Plugin`, `sq:Criterion`,
 `sq:function`, `sq:over`, `sq:via`, `sq:of`, `sq:filter`, `sq:property`, `sq:operator`, `sq:value`,
 `sq:pluginName`, plus the five function individuals (`sq:count sq:sum sq:min sq:max sq:avg`) and
-the eleven operator individuals mirroring `org.sequeless.spi.query.Operator` — are catalogued in
+the eleven operator individuals mirroring `org.sequeless.store.spi.Operator` — are catalogued in
 `docs/architecture/sq-vocabulary.md`'s "Terms in use (phase 4)" table; this document describes the
 shapes and code paths built on top of them, following the same plain-language-then-shapes structure
 as `docs/architecture/query-port.md`.
@@ -87,7 +87,7 @@ every requested target id; `SUM`/`MIN`/`MAX`/`AVG` are simply absent from the re
 target with no matching source rows, so "no tasks" stays distinguishable from "tasks totalling
 zero."
 
-`org.sequeless.spi.derivation` is the plug-in SPI:
+`org.sequeless.store.spi` holds the plug-in SPI (spec 18):
 
 ```java
 public interface DerivationPlugin {
@@ -98,7 +98,7 @@ public record DerivationContext(Scope scope, Schema schema, QueryPort queryPort)
 ```
 
 `DerivationPlugin` is the direct `ServiceLoader` service type — no wrapper interface. A plug-in is
-discovered by `META-INF/services/org.sequeless.spi.derivation.DerivationPlugin` and dispatched to
+discovered by `META-INF/services/org.sequeless.store.spi.DerivationPlugin` and dispatched to
 by `sq:pluginName`. `DerivationContext` gives a plug-in `QueryPort` access precisely so it can
 follow the same "one request per rule per page" discipline a declarative `sq:Rollup` gets for free
 — see `WorkloadDerivationPlugin` below.

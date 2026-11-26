@@ -7,8 +7,8 @@ import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.query.IndexPreparationPort;
+import org.sequeless.store.spi.SearchVectorBackfillPort;
 import org.springframework.transaction.support.TransactionOperations;
 
 /**

@@ -2,7 +2,7 @@ package org.sequeless.adapter.persistence.postgres;
 
 import org.sequeless.spi.AdapterDescriptor;
 import org.sequeless.spi.AdapterDescriptorProvider;
-import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * Publishes this module's {@link AdapterDescriptor} for discovery via {@link

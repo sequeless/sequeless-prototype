@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.sequeless.spi.object.Page;
+import org.sequeless.store.spi.Criterion;
 
 /**
  * A single request to {@link BrowsePort#browse}: which types to search, how to filter, sort, and

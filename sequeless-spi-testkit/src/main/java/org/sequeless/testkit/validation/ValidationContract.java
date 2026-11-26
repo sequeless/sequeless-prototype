@@ -27,8 +27,8 @@ import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.validation.ValidationPort;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.ValidationPort;
+import org.sequeless.store.spi.Violation;
 import org.sequeless.testkit.Fixtures;
 
 /**

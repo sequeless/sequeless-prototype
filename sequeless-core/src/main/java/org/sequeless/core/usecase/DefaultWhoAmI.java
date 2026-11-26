@@ -6,8 +6,8 @@ import org.sequeless.core.api.WhoAmI;
 import org.sequeless.core.api.WhoAmIResult;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Reference implementation of {@link WhoAmI}.

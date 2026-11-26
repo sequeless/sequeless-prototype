@@ -3,6 +3,7 @@ package org.sequeless.spi.object;
 import java.util.List;
 import java.util.Objects;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * A batch of {@link Mutation}s and {@link OutboxEntry} events to apply atomically in a single

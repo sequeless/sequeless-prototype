@@ -1,4 +1,4 @@
-package org.sequeless.spi.derivation;
+package org.sequeless.store.spi;
 
 import java.util.List;
 import java.util.Map;
@@ -10,7 +10,7 @@ import org.sequeless.spi.object.BusinessObject;
  * Computes a {@code sq:Plugin}-derived property's value for a batch of objects, named by {@link
  * #name()} and matched against a type's {@code sq:pluginName}. This is itself the {@link
  * java.util.ServiceLoader} service type adapters register under {@code
- * META-INF/services/org.sequeless.spi.derivation.DerivationPlugin} — unlike {@link
+ * META-INF/services/org.sequeless.store.spi.DerivationPlugin} — unlike {@link
  * org.sequeless.spi.AdapterDescriptorProvider}, which exists only as an indirection because {@link
  * org.sequeless.spi.AdapterDescriptor} is a record and {@code ServiceLoader} cannot instantiate a
  * record reflectively. A {@link DerivationPlugin} implementation is an ordinary class with a no-arg
@@ -21,7 +21,7 @@ import org.sequeless.spi.object.BusinessObject;
  * org.sequeless.ontology.behaviour.api.PluginRule} by {@link #name()} and calls {@link #derive} once per plug-in
  * per page with every target object across that page — never once per object — exactly as it groups
  * {@code org.sequeless.ontology.behaviour.api.RollupRule}s into batched {@link
- * org.sequeless.spi.query.AggregateRequest}s. A plug-in that needs to look up related objects
+ * org.sequeless.store.spi.AggregateRequest}s. A plug-in that needs to look up related objects
  * itself does so through {@link DerivationContext#queryPort()}, which is subject to the same
  * bounded-query expectation.
  */
@@ -44,7 +44,7 @@ public interface DerivationPlugin {
      *     matches {@link #name()}; must not be {@code null}; may be empty
      * @return the computed value per object id; an id absent from the returned map means this
      *     plug-in has no value for that object, mirroring the empty-result contract documented on
-     *     {@link org.sequeless.spi.query.QueryPort#aggregate} for {@code sum}/{@code min}/{@code
+     *     {@link org.sequeless.store.spi.QueryPort#aggregate} for {@code sum}/{@code min}/{@code
      *     max}/{@code avg}; must never be {@code null}
      */
     Map<ObjectId, Value> derive(DerivationContext context, List<BusinessObject> objects);

@@ -35,13 +35,13 @@ import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.query.BrowsePort;
-import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
 import org.sequeless.spi.query.FacetBucket;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.query.Sort;
+import org.sequeless.store.spi.Criterion;
 
 /**
  * An in-memory {@link BrowsePort}, the double {@link BrowseContract} is proven against. It is a

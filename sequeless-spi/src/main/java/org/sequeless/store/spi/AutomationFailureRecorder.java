@@ -1,4 +1,4 @@
-package org.sequeless.spi.automation;
+package org.sequeless.store.spi;
 
 /**
  * The outbound port an automation adapter calls to persist an {@link AutomationFailure}, so that a

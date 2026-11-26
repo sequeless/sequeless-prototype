@@ -21,8 +21,8 @@ import org.sequeless.filter.api.AndFilter;
 import org.sequeless.filter.api.FieldFilter;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 class CriterionMapperTest {
 

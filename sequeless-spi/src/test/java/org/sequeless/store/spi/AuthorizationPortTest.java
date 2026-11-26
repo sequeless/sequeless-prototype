@@ -1,4 +1,4 @@
-package org.sequeless.spi.authz;
+package org.sequeless.store.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.spi.authz.Operation;
 
 /**
  * Unit-level tests for the {@link AuthorizationPort} interface shape itself. The full behavioural

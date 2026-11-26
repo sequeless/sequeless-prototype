@@ -1,5 +1,5 @@
 /**
- * The mechanical contract test for {@link org.sequeless.spi.authz.AuthorizationPort}.
+ * The mechanical contract test for {@link org.sequeless.store.spi.AuthorizationPort}.
  *
  * <p>{@link org.sequeless.testkit.authz.AuthorizationContract} asserts every clause of the
  * behavioural contract documented on {@code AuthorizationPort} itself, against any implementation

@@ -24,7 +24,7 @@ import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.schema.api.Cardinality;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /**
  * Unit tests for {@link BusinessObjectStoreCommandPort}. Each write goes through the Command use case fake, and a

@@ -36,12 +36,12 @@ import org.sequeless.query.field.api.ClassRef;
 import org.sequeless.query.field.api.FieldPath;
 import org.sequeless.query.field.api.FieldScope;
 import org.sequeless.query.schema.SchemaFieldSource;
-import org.sequeless.spi.query.Criterion;
 import org.sequeless.spi.query.Direction;
-import org.sequeless.spi.query.Operator;
 import org.sequeless.spi.query.Query;
 import org.sequeless.spi.query.QueryResult;
 import org.sequeless.spi.query.Sort;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 class ReleasedBrowsePortAdapterTest {
 
