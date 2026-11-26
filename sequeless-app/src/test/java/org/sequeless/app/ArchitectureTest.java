@@ -157,16 +157,18 @@ class ArchitectureTest {
                     + "the web layer.");
 
     @ArchTest
-    static final ArchRule onlyAppRestAndConfigMayDependOnCore = noClasses()
+    static final ArchRule onlyAppRestConfigAndAutomationMayDependOnCore = noClasses()
             .that()
             .resideInAPackage(APP_PACKAGE)
             .and()
-            .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..")
+            .resideOutsideOfPackages(
+                    "org.sequeless.app.rest..", "org.sequeless.app.config..", "org.sequeless.app.automation..")
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
-            .because("Within sequeless-app, only the REST inbound adapter and the wiring/configuration "
-                    + "packages may reach into core use cases; other app packages, such as the port "
+            .because("Within sequeless-app, only the REST inbound adapter, the wiring/configuration packages and "
+                    + "the automation bindings (spec 17 P3: the host's ObjectReadPort and StoreCommandPort call the "
+                    + "Command use cases) may reach into core use cases; other app packages, such as the port "
                     + "registry, must stay ignorant of the domain core.");
 
     @ArchTest

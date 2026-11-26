@@ -118,6 +118,15 @@
       <artifactId>expression-api</artifactId>
     </dependency>
 
+    <!--
+      Spec 17 P3: the released automation API. The host's ObjectReadPort and StoreCommandPort bindings
+      (org.sequeless.app.automation) implement its ports. No version here: the BOM manages it.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-api</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-adapter-automation-temporal</artifactId>

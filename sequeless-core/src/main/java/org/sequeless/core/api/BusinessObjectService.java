@@ -105,6 +105,27 @@ public interface BusinessObjectService {
     BusinessObject add(Scope scope, String type, Map<String, Object> properties);
 
     /**
+     * Creates a new object of {@code type} with the caller's id {@code id} and {@code properties}. Runs the
+     * same checks and writes the same {@code ObjectCreated} outbox entry as {@link #add(Scope, String, Map)}.
+     *
+     * <p>The caller chooses the id, so a retry that derives the same id can detect the object it already
+     * created (spec 17, section 3: the automation CreateObject command). The id must not already belong to a
+     * live object; if it does, the Store's commit rejects the create.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code null}
+     * @param type the type's short name or full IRI; must not be {@code null}
+     * @param id the id of the new object; must not be {@code null}
+     * @param properties JSON-like raw property values, keyed by property short name or full IRI; must not be
+     *     {@code null}
+     * @return the newly created object, at version 1
+     * @throws NullPointerException if any argument is {@code null}
+     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
+     * @throws AuthorizationException if the authorization port denies the operation
+     * @throws ValidationException if coercion, the structural checks, or the SHACL check finds a violation
+     */
+    BusinessObject add(Scope scope, String type, ObjectId id, Map<String, Object> properties);
+
+    /**
      * Fully replaces the properties of an existing object of {@code type} (or a subtype of it).
      *
      * <p>Authorizes {@link Operation#EDIT} against the resolved type's IRI, reads the existing
