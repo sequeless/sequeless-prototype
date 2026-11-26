@@ -37,8 +37,10 @@ class PostgresMigrationFrozenSetsTest {
     }
 
     @Test
-    void frozenQuerySetHasTheSameFileNamesAsTheLiveQuerySet() {
-        assertThat(sqlFileNames(FROZEN_QUERY)).isEqualTo(sqlFileNames(LIVE_QUERY));
+    void frozenQuerySetIsTheReleasedTwoFileSet() {
+        // The live Query set ships in query-postgres-jsonb-adapter (spec 17 P2a), which is a jar, so its
+        // directory cannot be listed as a file system path. Its files are checked by name here and by bytes below.
+        assertThat(sqlFileNames(FROZEN_QUERY)).containsExactly("V1__index_registry.sql", "V2__search_gin_index.sql");
     }
 
     @Test

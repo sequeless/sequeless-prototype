@@ -559,6 +559,24 @@ class DefaultBusinessObjectServiceTest {
     }
 
     @Test
+    void browseSetsRootIriToTheResolvedTypeAndConcreteTypesToItsSubtypes() {
+        FakeQueryPort queryPort = new FakeQueryPort();
+        DefaultBusinessObjectService service =
+                service(new FakeObjectStorePort(), noViolations(), permitAll(), queryPort);
+
+        service.browse(ALICE, "Task", browseQuery(new Page(0, 20)));
+        service.browse(ALICE, "WorkItem", browseQuery(new Page(0, 20)));
+
+        assertThat(queryPort.queries).hasSize(2);
+        Query subtype = queryPort.queries.get(0);
+        assertThat(subtype.rootIri()).isEqualTo(TASK_IRI);
+        assertThat(subtype.types()).containsExactly(TASK_IRI);
+        Query abstractRoot = queryPort.queries.get(1);
+        assertThat(abstractRoot.rootIri()).isEqualTo(WORK_ITEM_IRI);
+        assertThat(abstractRoot.types()).containsExactlyInAnyOrder(TASK_IRI, PROJECT_IRI);
+    }
+
+    @Test
     void browseBuildsCriteriaSortsAndFacetsOnQuery() {
         FakeObjectStorePort store = new FakeObjectStorePort();
         FakeQueryPort queryPort = new FakeQueryPort();

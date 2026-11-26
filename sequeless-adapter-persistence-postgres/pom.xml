@@ -104,6 +104,16 @@
       <artifactId>ontology-testfixtures</artifactId>
       <scope>test</scope>
     </dependency>
+    <!--
+      Spec 17 P2a: the Query migration set (postgres-query) now ships in the released jar, not in this module.
+      Tests that migrate that location, and the byte-identity check against it, need the released files on the
+      test classpath. The jar's files are identical to the frozen post-P7 copies.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-postgres-jsonb-adapter</artifactId>
+      <scope>test</scope>
+    </dependency>
 
     <!--
       Unlike sequeless-adapter-ontology-jena/sequeless-adapter-authz-permitall's reflection-only
@@ -172,5 +182,30 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>analyze-only</id>
+            <configuration>
+              <!--
+                query-postgres-jsonb-adapter is used at test time only through its classpath resources (the
+                postgres-query Flyway set), so no class of it is named in code. The Spring Boot starter entry
+                is the parent's own ignore, repeated because a child list replaces the parent's list.
+              -->
+              <ignoredUnusedDeclaredDependencies>
+                <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter*</ignoredUnusedDeclaredDependency>
+                <ignoredUnusedDeclaredDependency>org.sequeless:query-postgres-jsonb-adapter</ignoredUnusedDeclaredDependency>
+              </ignoredUnusedDeclaredDependencies>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 
 </project>

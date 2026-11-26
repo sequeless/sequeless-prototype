@@ -138,6 +138,27 @@ public class ApiExceptionAdvice {
     }
 
     /**
+     * The released query service's rejection of a browse (spec 17 P2a): a filter, sort or facet its scope does not
+     * accept. Its problems are messages, not properties, so each renders as a violation with no property. The same
+     * 400 as {@link #handleInvalidQuery}.
+     *
+     * @param exception the released invalid-query exception; must not be {@code null}
+     * @return 400 with a {@link ProblemDetail} carrying a {@code violations} array
+     */
+    @ExceptionHandler(org.sequeless.query.api.InvalidQueryException.class)
+    public ProblemDetail handleReleasedInvalidQuery(org.sequeless.query.api.InvalidQueryException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/invalid-query"));
+        detail.setTitle("Invalid query");
+        detail.setProperty(
+                "violations",
+                exception.problems().stream()
+                        .map(problem -> new ViolationResponse(null, null, problem))
+                        .toList());
+        return detail;
+    }
+
+    /**
      * @param exception the missing/deleted/mismatched-type object escaping from {@link
      *     org.sequeless.core.api.BusinessObjectService}; must not be {@code null}
      * @return 404 with a {@link ProblemDetail} carrying the exception's own pre-formatted message

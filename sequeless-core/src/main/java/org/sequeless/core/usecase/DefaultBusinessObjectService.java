@@ -216,7 +216,8 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
             return new QueryResult(List.of(), 0, Map.of());
         }
 
-        Query spiQuery = new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false);
+        Query spiQuery =
+                new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false, resolved.iri());
         QueryResult result = browsePort.browse(scope, schema, spiQuery);
         List<BusinessObject> stored =
                 result.items().stream().map(ObjectViewMapper::toBusinessObject).toList();

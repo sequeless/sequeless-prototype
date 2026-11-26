@@ -47,7 +47,9 @@ class PostgresPersistenceAutoConfigurationTest {
     }
 
     @Test
-    void wiresReadBrowseIndexPreparationAndQueryPortsAsOneSharedBean() {
+    void exposesOnlyQueryPortAmongTheQuerySidePorts() {
+        // Spec 17 P2a: the Query-side ports (read, browse, index preparation) come from the host's adapters over the
+        // released QueryService, so this adapter's query bean is the Command-side QueryPort alone.
         runner.withPropertyValues(
                         "sequeless.persistence.adapter=postgres",
                         "sequeless.persistence.url=jdbc:postgresql://localhost:5432/test",
@@ -55,13 +57,10 @@ class PostgresPersistenceAutoConfigurationTest {
                         "sequeless.persistence.password=test")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(ReadPort.class);
-                    assertThat(context).hasSingleBean(BrowsePort.class);
-                    assertThat(context).hasSingleBean(IndexPreparationPort.class);
                     assertThat(context).hasSingleBean(QueryPort.class);
-                    assertThat(context.getBean(ReadPort.class)).isSameAs(context.getBean(QueryPort.class));
-                    assertThat(context.getBean(BrowsePort.class)).isSameAs(context.getBean(QueryPort.class));
-                    assertThat(context.getBean(IndexPreparationPort.class)).isSameAs(context.getBean(QueryPort.class));
+                    assertThat(context).doesNotHaveBean(ReadPort.class);
+                    assertThat(context).doesNotHaveBean(BrowsePort.class);
+                    assertThat(context).doesNotHaveBean(IndexPreparationPort.class);
                 });
     }
 
