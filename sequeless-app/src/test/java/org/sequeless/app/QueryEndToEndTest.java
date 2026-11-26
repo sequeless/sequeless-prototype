@@ -317,6 +317,62 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
                 .exists();
     }
 
+    // --- subtype-only properties on the abstract root, WorkItem (spec 17 P2) --------------------
+    //
+    // priority and assignedTo are declared on Task only, so WorkItem reaches them through the released subtype
+    // union. Each expected value comes from this test's own fixture, not from the released code. A released scope
+    // that dropped the subtype-only property would answer 400 here, and the test would fail.
+
+    @Test
+    void sortingWorkItemsOnASubtypeOnlyPropertyOrdersThemByThatProperty() {
+        BusinessObjectResponse seven = createTask(Map.of("title", List.of("Subtype sort fixture A"), "priority", 7));
+        BusinessObjectResponse five = createTask(Map.of("title", List.of("Subtype sort fixture B"), "priority", 5));
+        BusinessObjectResponse six = createTask(Map.of("title", List.of("Subtype sort fixture C"), "priority", 6));
+        Set<String> fixtureIds =
+                Set.of(seven.id().toString(), five.id().toString(), six.id().toString());
+
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?sort=priority&size=200");
+
+        assertThat(orderedIdsAmong(result, fixtureIds))
+                .as("ascending priority over WorkItem, by the fixture's priorities 5, 6 and 7")
+                .containsExactly(
+                        five.id().toString(), six.id().toString(), seven.id().toString());
+    }
+
+    @Test
+    void facetingWorkItemsOnASubtypeOnlyReferencePropertyCountsEachLabelledTarget() {
+        String name = "Subtype facet person " + UUID.randomUUID();
+        BusinessObjectResponse person = createPerson(name);
+        createTask(Map.of("title", List.of("Subtype facet A")), person.id());
+        createTask(Map.of("title", List.of("Subtype facet B")), person.id());
+        createTask(Map.of("title", List.of("Subtype facet unassigned")));
+
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?facets=assignedTo&size=1");
+
+        Map<String, Long> counts = facetCounts(result, "assignedTo");
+        assertThat(counts)
+                .as("the two tasks assigned to the fixture person, under its name")
+                .containsEntry(name, 2L);
+        assertThat(counts.keySet())
+                .as("labelled by name, not by the raw person id")
+                .doesNotContain(person.id().toString());
+    }
+
+    @Test
+    void filteringWorkItemsOnASubtypeOnlyReferencePropertyReturnsExactlyTheMatchingIds() {
+        BusinessObjectResponse person = createPerson("Subtype filter person " + UUID.randomUUID());
+        BusinessObjectResponse assignedA = createTask(Map.of("title", List.of("Subtype filter A")), person.id());
+        BusinessObjectResponse assignedB = createTask(Map.of("title", List.of("Subtype filter B")), person.id());
+        createTask(Map.of("title", List.of("Subtype filter unassigned")));
+
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?filter[assignedTo][eq]=" + person.id() + "&size=200");
+
+        assertThat(idsOf(result))
+                .as("exactly the two tasks assigned to the fixture person")
+                .containsExactlyInAnyOrder(
+                        assignedA.id().toString(), assignedB.id().toString());
+    }
+
     // --- the core's pre-check keeps multi-valued and derived properties out of browse -------------
     //
     // The core checks every filter, sort and facet against the scope before the released browse runs. A
