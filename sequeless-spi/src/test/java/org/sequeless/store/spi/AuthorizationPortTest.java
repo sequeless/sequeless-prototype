@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
 
 /**
  * Unit-level tests for the {@link AuthorizationPort} interface shape itself. The full behavioural

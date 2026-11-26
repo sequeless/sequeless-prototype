@@ -5,8 +5,8 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.api.WhoAmI;
 import org.sequeless.core.api.WhoAmIResult;
 import org.sequeless.kernel.identity.Scope;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**

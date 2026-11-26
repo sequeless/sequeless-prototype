@@ -21,7 +21,7 @@ public interface MetaModelService {
     /**
      * Returns the current schema for {@code scope}, without re-reading the backing source.
      *
-     * <p>Authorizes {@link org.sequeless.spi.authz.Operation#BROWSE} against {@link
+     * <p>Authorizes {@link org.sequeless.store.api.Operation#BROWSE} against {@link
      * AuthorizationPort#EVERYTHING} before delegating to {@link
      * org.sequeless.ontology.schema.spi.SchemaSource#schema}.
      *
@@ -36,7 +36,7 @@ public interface MetaModelService {
     /**
      * Returns the current behaviour for {@code scope}, without re-reading the backing source.
      *
-     * <p>Authorizes {@link org.sequeless.spi.authz.Operation#BROWSE} against {@link
+     * <p>Authorizes {@link org.sequeless.store.api.Operation#BROWSE} against {@link
      * AuthorizationPort#EVERYTHING} before delegating to {@link
      * org.sequeless.ontology.behaviour.spi.BehaviourSource#behaviour}.
      *
@@ -58,7 +58,7 @@ public interface MetaModelService {
      * TypeNotFoundException}) from "forbidden" (an {@link AuthorizationException}) — this is
      * acceptable because the type vocabulary itself is public by design; per-type visibility arrives
      * with {@code sq:permission} in a later phase. Authorizes {@link
-     * org.sequeless.spi.authz.Operation#READ} against the resolved type's IRI.
+     * org.sequeless.store.api.Operation#READ} against the resolved type's IRI.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}
@@ -74,7 +74,7 @@ public interface MetaModelService {
      * Re-reads and re-validates the ontology from its backing source and returns the resulting
      * report.
      *
-     * <p>Authorizes {@link org.sequeless.spi.authz.Operation#ADMIN} against {@link
+     * <p>Authorizes {@link org.sequeless.store.api.Operation#ADMIN} against {@link
      * AuthorizationPort#EVERYTHING} before delegating to {@link
      * org.sequeless.ontology.api.OntologyAdministration#reload}.
      *

@@ -17,7 +17,7 @@
  * org.sequeless.spi.SpiVersion}, {@link org.sequeless.spi.AdapterDescriptor}, and {@link
  * org.sequeless.spi.AdapterDescriptorProvider} support runtime adapter discovery and
  * compatibility checking. Per-port contracts (the first being authorization) live in subpackages
- * such as {@link org.sequeless.spi.authz}, the three halves of the ontology in {@link
+ * such as {@link org.sequeless.store.api}, the three halves of the ontology in {@link
  * org.sequeless.ontology.schema.api}, {@code org.sequeless.ontology.behaviour.api} and {@code
  * org.sequeless.ontology.automation.api}, {@link org.sequeless.spi.object}, {@link
  * org.sequeless.ontology.api}, {@link org.sequeless.spi.query}, the Store's outbound ports in

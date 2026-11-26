@@ -14,7 +14,7 @@ import org.sequeless.core.AuthorizationException;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.kernel.values.Value;
-import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.store.api.AccessDecision;
 
 /** Unit tests for {@link BusinessObjectReadPort}: absent is empty, present is a snapshot, a denial is thrown. */
 class BusinessObjectReadPortTest {

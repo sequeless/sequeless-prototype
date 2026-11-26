@@ -44,6 +44,12 @@ class ArchitectureTest {
      * this package alongside {@link #SPI_PACKAGE}, which still holds the value types the ports use until they move.
      */
     private static final String STORE_SPI_PACKAGE = "org.sequeless.store.spi..";
+    /**
+     * The Store's inbound Command vocabulary that spec 18 U3 moved out of {@code org.sequeless.spi} into
+     * {@code org.sequeless.store.api} (decision Q12). The SPI rules cover this package alongside {@link #SPI_PACKAGE}
+     * and {@link #STORE_SPI_PACKAGE}.
+     */
+    private static final String STORE_API_PACKAGE = "org.sequeless.store.api..";
 
     private static final String CORE_PACKAGE = "org.sequeless.core..";
     private static final String APP_PACKAGE = "org.sequeless.app..";
@@ -93,12 +99,13 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule spiDependsOnlyOnJdkAndItself = classes()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, STORE_API_PACKAGE)
             .should()
             .onlyDependOnClassesThat(resideInAnyPackage(
                             "java..",
                             SPI_PACKAGE,
                             STORE_SPI_PACKAGE,
+                            STORE_API_PACKAGE,
                             KERNEL_PACKAGE,
                             ONTOLOGY_PACKAGE,
                             ONTOLOGY_SPI_PACKAGE,
@@ -133,6 +140,7 @@ class ArchitectureTest {
                             CORE_PACKAGE,
                             SPI_PACKAGE,
                             STORE_SPI_PACKAGE,
+                            STORE_API_PACKAGE,
                             KERNEL_PACKAGE,
                             EXPRESSION_PACKAGE,
                             SLF4J_PACKAGE,
@@ -160,7 +168,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule spiAndCoreDoNotDependOnSpring = noClasses()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, CORE_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, STORE_API_PACKAGE, CORE_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage("org.springframework..")
@@ -238,7 +246,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule noLombokInSpiOrCore = noClasses()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, CORE_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, STORE_API_PACKAGE, CORE_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage("lombok..")
@@ -279,7 +287,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule noJenaInSpiOrCore = noClasses()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, CORE_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, STORE_API_PACKAGE, CORE_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage("org.apache.jena..")

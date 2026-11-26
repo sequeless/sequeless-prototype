@@ -1,4 +1,4 @@
-package org.sequeless.spi.authz;
+package org.sequeless.store.api;
 
 import org.sequeless.store.spi.AuthorizationPort;
 

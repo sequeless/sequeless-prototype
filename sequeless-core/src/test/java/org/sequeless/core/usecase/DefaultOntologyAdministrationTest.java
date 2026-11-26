@@ -19,8 +19,8 @@ import org.sequeless.ontology.api.OntologyAdministration;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.ontology.api.OntologyReport;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**

@@ -3,7 +3,7 @@ package org.sequeless.core.api;
 import java.util.Objects;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.TenantId;
-import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.store.api.AccessDecision;
 
 /**
  * The result of a successful {@link WhoAmI#whoAmI(org.sequeless.kernel.identity.Scope)} call.

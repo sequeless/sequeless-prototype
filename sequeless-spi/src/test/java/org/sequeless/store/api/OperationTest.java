@@ -1,4 +1,4 @@
-package org.sequeless.spi.authz;
+package org.sequeless.store.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

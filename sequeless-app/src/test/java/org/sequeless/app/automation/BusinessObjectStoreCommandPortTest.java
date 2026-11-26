@@ -22,8 +22,8 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.schema.api.Cardinality;
-import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.store.api.AccessDecision;
 import org.sequeless.store.spi.Violation;
 
 /**
