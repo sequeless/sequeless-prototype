@@ -3,7 +3,7 @@
  * org.sequeless.adapter.automation.temporal.TemporalAutomationPort#ingest} durably starts, for
  * each {@code TransitionFired} Store event, one {@link
  * org.sequeless.adapter.automation.temporal.TransitionActionWorkflow} execution per action of the
- * fired transition, keyed {@code "<entryId>:<index>"}, so each action has its own run and its own
+ * fired transition, keyed {@code "<eventId>:<index>"}, so each action has its own run and its own
  * idempotency (Temporal's own {@code WorkflowExecutionAlreadyStarted} semantics). Each execution
  * calls {@link org.sequeless.adapter.automation.temporal.ActionActivities#applyTransitionAction},
  * a thin wrapper over an injected {@code ActionExecutor}. The exception is a webhook action, which

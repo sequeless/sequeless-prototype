@@ -274,7 +274,7 @@ class InProcessAutomationPortTransitionFiredTest {
      * must not move the due instant to 40 minutes, so the timer fires at 30 minutes and not after.
      */
     @Test
-    void redispatchAfterTheClockAdvancesFiresTheTimerAtItsFirstDueInstant() {
+    void reingestAfterTheClockAdvancesFiresTheTimerAtItsFirstDueInstant() {
         MutableClock clock = new MutableClock(CLOCK_START);
         RecordingTriggerEvaluator triggerEvaluator = new RecordingTriggerEvaluator();
         triggerEvaluator.setTimersStartedBy(List.of(expireHoldTimer()));

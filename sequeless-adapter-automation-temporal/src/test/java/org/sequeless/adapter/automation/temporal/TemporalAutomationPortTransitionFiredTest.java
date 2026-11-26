@@ -161,7 +161,7 @@ class TemporalAutomationPortTransitionFiredTest {
     }
 
     @Test
-    void redispatchStartsNoIndexAgain() {
+    void reingestStartsNoIndexAgain() {
         SwappableAutomationSource.current = twoActionAutomation(1);
         TransitionFiredEvent event = transitionFired(1);
         port.ingest(SCOPE, event);

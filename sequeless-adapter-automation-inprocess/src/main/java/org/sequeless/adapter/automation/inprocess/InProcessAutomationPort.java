@@ -91,12 +91,12 @@ public final class InProcessAutomationPort implements AutomationPort {
     private final InProcessTimerScheduler timerScheduler;
     private final HttpClient httpClient;
     private final AutomationSource automationSource;
-    private final Set<UUID> dispatched = ConcurrentHashMap.newKeySet();
-    private final Set<ActionKey> dispatchedActions = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> ingested = ConcurrentHashMap.newKeySet();
+    private final Set<ActionKey> ingestedActions = ConcurrentHashMap.newKeySet();
 
     /**
      * Identifies one action of one {@link TransitionFiredEvent}, for {@code applyTransitionFired}'s
-     * redelivery record. Kept separate from {@link #dispatched}, which is keyed by event id alone.
+     * redelivery record. Kept separate from {@link #ingested}, which is keyed by event id alone.
      */
     private record ActionKey(UUID eventId, int actionIndex) {}
 
@@ -132,7 +132,7 @@ public final class InProcessAutomationPort implements AutomationPort {
 
         switch (event) {
             case ObjectChangedEvent changed -> {
-                if (dispatched.add(changed.id())) {
+                if (ingested.add(changed.id())) {
                     triggerEvaluator.onChange(scope, changed);
                 }
             }
@@ -190,17 +190,17 @@ public final class InProcessAutomationPort implements AutomationPort {
         OutboxEntry entry = new OutboxEntry(event.id(), OutboxEntry.KIND_TRANSITION_FIRED, payload, event.occurredAt());
         for (int i = 0; i < actions.size(); i++) {
             ActionKey key = new ActionKey(event.id(), i);
-            if (dispatchedActions.contains(key)) {
+            if (ingestedActions.contains(key)) {
                 continue;
             }
             Action action = actions.get(i);
             if (action instanceof WebhookAction webhook) {
                 deliver(actionExecutor.resolveWebhookAction(scope, entry, webhook, i));
-                dispatchedActions.add(key);
+                ingestedActions.add(key);
             } else {
                 actionExecutor.applyAction(scope, entry, action, i);
                 if (action instanceof LogAction) {
-                    dispatchedActions.add(key);
+                    ingestedActions.add(key);
                 }
             }
         }

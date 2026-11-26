@@ -116,7 +116,7 @@ public final class TemporalAutomationPort implements AutomationPort {
      * timers are then resolved through {@link TriggerEvaluator#timersStartedBy}, and one {@link
      * TimerWorkflow} starts for each, keyed by its {@code timerKey}, before the action loop. Each action of
      * the transition then starts one {@link TransitionActionWorkflow}, in the automation's order, with
-     * workflow id {@code entryId + ":" + index}.
+     * workflow id {@code eventId + ":" + index}.
      *
      * <p>A transition with no actions starts no action workflow and throws nothing, and the row's timers
      * still start.
