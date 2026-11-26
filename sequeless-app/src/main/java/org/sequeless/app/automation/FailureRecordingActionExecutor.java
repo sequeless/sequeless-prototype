@@ -9,7 +9,10 @@ import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.WebhookAction;
 
 /**
- * Wraps the released {@link ActionExecutor} so that a transition action's final failure is recorded, as the prototype's
+ * Replaces the prototype's core.automation.DefaultActionExecutor, deleted in spec 17 P4; the released executor is in
+ * sequeless/sequeless-automation at 5159284 ({@code org.sequeless.automation.api.ActionExecutor}).
+ *
+ * <p>Wraps the released {@link ActionExecutor} so that a transition action's final failure is recorded, as the prototype's
  * {@code TransitionActionWorkflow} recorded it (spec 17, section 9).
  *
  * <p>{@link #applyAction} is the case the prototype covered. Its final failure is recorded and then swallowed, so the

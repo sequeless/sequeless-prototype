@@ -8,6 +8,9 @@ import org.sequeless.automation.api.TransitionFiredEvent;
 /**
  * Maps a claimed outbox row, as the released {@link StoreEventRow}, to the Store event it records.
  *
+ * <p>Replaces the prototype's spi.automation Store event copies, deleted in spec 17 P4. The released types are in
+ * sequeless/sequeless-automation at 5159284 ({@code org.sequeless.automation.api}).
+ *
  * <p>The three object-lifecycle kinds map to an {@link ObjectChangedEvent} with the matching change, and
  * {@link StoreEventRow#KIND_TRANSITION_FIRED} maps to a {@link TransitionFiredEvent}. The event id is the row id,
  * unchanged: the released adapters derive their idempotency keys and workflow ids from it, so a changed id would

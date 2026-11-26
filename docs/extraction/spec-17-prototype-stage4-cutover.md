@@ -47,11 +47,11 @@ Source: `sequeless/sequeless-prototype` at `48a0cc6` (the prototype's `origin/ma
 
 | Prototype path | Released home | Move |
 |---|---|---|
-| `sequeless-spi/.../spi/query/{BrowsePort,ReadPort,IndexPreparationPort,Query,QueryResult,FacetBucket,ObjectView,ReadRequest,Sort,Direction}.java` | `query-core`, `org.sequeless.query.spi` and `org.sequeless.query.api` | Ported |
-| `sequeless-spi/.../spi/object/{Page,Audit,PropertyRef,TypeRef}.java` | `query-core`, `org.sequeless.query.api` | Ported. `Page` is Query-side only and leaves in P4. `Audit`, `PropertyRef` and `TypeRef` keep a Command-side copy in `spi.object` (decision Q1, section 10), so the duplication is deliberate and their prototype copies are not deleted. |
+| `sequeless-spi/.../spi/query/{BrowsePort,ReadPort,IndexPreparationPort,Query,QueryResult,FacetBucket,ObjectView,ReadRequest,Sort,Direction}.java` | `query-core`, `org.sequeless.query.spi` and `org.sequeless.query.api` | Ported. **Retained: host contract, not deleted** (Navigator decision, batch 14, Q1; section 2.4). The released `sequeless-query` implements these ports through the host's `ReleasedBrowsePortAdapter`, `ReleasedReadPortAdapter` and `ReleasedIndexPreparationPortAdapter`. |
+| `sequeless-spi/.../spi/object/{Page,Audit,PropertyRef,TypeRef}.java` | `query-core`, `org.sequeless.query.api` | Ported. **`Page`: retained, host contract, not deleted** (Navigator decision, batch 14, Q1; section 2.4). Its PageResult and the core's `BrowseQuery` use it. `Audit`, `PropertyRef` and `TypeRef` keep a Command-side copy in `spi.object` (decision Q1, section 10), so the duplication is deliberate and their prototype copies are not deleted. |
 | `sequeless-spi-testkit/.../testkit/query/{BrowseContract,ReadContract,ObjectViews,QueryFixtures}.java` | `query-testkit` | Ported |
 | `sequeless-spi-testkit/src/test/.../testkit/query/{InMemoryBrowsePort,InMemoryReadPort}.java` | `query-testkit` | Ported |
-| `sequeless-adapter-persistence-postgres/.../PostgresQueryStore.java` (`query`, `ensureIndexes`, `castExpression`) | `query-postgres-jsonb-adapter`, split into `PostgresBrowsePort`, `PostgresReadPort`, `PostgresIndexPreparation` | Ported and split |
+| `sequeless-adapter-persistence-postgres/.../PostgresQueryStore.java` (`query`, `ensureIndexes`, `castExpression`) | `query-postgres-jsonb-adapter`, split into `PostgresBrowsePort`, `PostgresReadPort`, `PostgresIndexPreparation` | Ported and split. The browse, read and index methods were deleted in the query implementation commit of P4; the class keeps the aggregate `QueryPort` methods (section 2.4). |
 | `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres-query/V1__index_registry.sql` | `query-postgres-jsonb-adapter`, same path | Copied unchanged; deleted from the prototype in P2 (`617e2f8`), not P4 (deviation, below) |
 | `sequeless-adapter-persistence-postgres/src/main/resources/db/migration/sequeless/postgres-query/V2__search_gin_index.sql` | `query-postgres-jsonb-adapter`, same path | Copied unchanged; deleted from the prototype in P2 (`617e2f8`), not P4 (deviation, below) |
 
@@ -59,7 +59,7 @@ Not moved, and staying in the prototype: `Criterion`, `Operator`, `AggregateRequ
 
 **Deviation from spec 14: the V1 and V2 copies are deleted in P2, not P4.** Commit `617e2f8` deletes the prototype's `V1__index_registry.sql` and `V2__search_gin_index.sql` and moves the released `query-postgres-jsonb-adapter` jar from test to runtime scope (`e1c9299`). The reason, as recorded in `617e2f8`: Flyway rejects two copies of one migration at one location, so the prototype's copies cannot stay on the classpath beside the released files. The released files are byte-identical to the copies (checked by byte comparison in `617e2f8`). The released jar and the prototype's `PostgresMigrations` both run this set against the history table `flyway_schema_history_query` (`PostgresMigrations.java` line 34). `PostgresMigrationFrozenSetsTest` pins the file names and checks the frozen copy against the released bytes. Section 2.3 leaves V1 and V2 out of the P4 deletion.
 
-**Import commit (to confirm).** The released repo's PROVENANCE names the prototype source SHA, not the import commit. The code commits that carry the ported paths are `072a6a3` (query-core ports, use cases), `6ef2b78` (`query-postgres-jsonb-adapter`), `1d59e5f` (read port with contract) and `6060d76` (query-testkit contracts). P4 names the commit that first carries each path, and this list is checked with `git log --diff-filter=A` before P4.
+**Import commit (confirmed in P4).** The released repo's PROVENANCE names the prototype source SHA, not the import commits. `git -C sequeless-query log --diff-filter=A origin/main` (fetched in P4) gives the first commit that added each ported file. The query-core ports and api types (`BrowsePort`, `ReadPort`, `IndexPreparationPort`, `Audit`, `Direction`, `FacetBucket`, `ObjectView`, `Page`, `PropertyRef`, `ReadRequest`, `Sort`, `TypeRef`, and `BrowseQuery`, `BrowseResult`) first land in `072a6a3`. The query-testkit contracts and in-memory references (`BrowseContract`, `ReadContract`, `ObjectViews`, `QueryFixtures`, `InMemoryBrowsePort`, `InMemoryReadPort`) land in `6060d76`. `PostgresBrowsePort` and `PostgresIndexPreparation` land in `6ef2b78`, and `PostgresReadPort` in `1d59e5f`. The history is four commits, not one, so the import is this list. `Query.java` and `QueryResult.java` have no file of that name in the released repo (the released side uses `BrowseQuery` and `BrowseResult`). The query deletion, when it lands, names `072a6a3` as the primary query import commit, because it carries the port and type paths that are most of the list, and names the other three commits in its body. The query side is blocked in P4 (section 2.4).
 
 ### 2.2 Automation (`sequeless-automation`)
 
@@ -86,7 +86,33 @@ The released automation repo has no failure port or failure activities (verified
 
 ### 2.3 Deletion commit (P4)
 
-P4 deletes the moved copies in one commit. The deletion list is section 2.1 and 2.2, minus V1 and V2 (deleted in P2, section 2.1), minus three exceptions settled by decision Q1 (section 10): `spi/object/Audit.java`, `PropertyRef.java` and `TypeRef.java` stay in the prototype as Command-side value types. `Page.java` is deleted, because every code user of it is on the Query side. The commit message names `sequeless/sequeless-automation` and `5159284`, and names `sequeless/sequeless-query` with its confirmed import commit (section 2.1). The commit also adds reverse pointers in the prototype: the `docs/extraction/` note, and a comment in each host file that now imports the released package. Nothing the list does not name is deleted.
+P4 deletes the moved copies in one commit. The deletion list is section 2.1 and 2.2, minus V1 and V2 (deleted in P2, section 2.1), minus three exceptions settled by decision Q1 (section 10): `spi/object/Audit.java`, `PropertyRef.java` and `TypeRef.java` stay in the prototype as Command-side value types. `Page.java` is **retained** too, with the spi query ports, as the host's Query contract (Navigator decision, batch 14, Q1; section 2.4). The Query-side ports are not deleted. The commit message names `sequeless/sequeless-automation` and `5159284`, and names `sequeless/sequeless-query` with its confirmed import commit (section 2.1). The commit also adds reverse pointers in the prototype: the `docs/extraction/` note, and a comment in each host file that now imports the released package. Nothing the list does not name is deleted.
+
+**As built in P4.** The automation side is deleted in `56e46de`. The query side keeps its contract (section 2.4). The query implementations that the released adapters replace are deleted in the P4 commit titled "delete the prototype's query implementations that the released adapters replace".
+
+### 2.4 Reverse pointers and P4 status
+
+**Status.** The automation side is deleted in `56e46de` (`Spec 17 P4: delete the moved automation runtime copies`). The query side keeps its contract and deletes only the implementations that the released adapters replace (below).
+
+**Reverse pointers, grouped by target repo.** No deleted package keeps a stub. The `56e46de` commit body names the target repo and the import SHA. The host classes that replace a deleted class carry a one-line javadoc pointer: `org.sequeless.app.automation.StoreEvents`, `FailureRecordingActionExecutor` and `FailureRecordingTriggerEvaluator`.
+
+- `sequeless/sequeless-automation`, import commit `5159284` (verify with `git -C <automation repo> show --stat 5159284`):
+  - `sequeless-spi/.../spi/automation/{AutomationPort,ActionExecutor,TriggerEvaluator,ObjectChangedEvent,TransitionFiredEvent,StoreEvent,ResolvedTimer,ResolvedWebhookRequest,TimerScheduledEntry}.java` and tests `StoreEventTest`, `TimerScheduledEntryTest`: `automation-api`, `org.sequeless.automation.api`.
+  - `sequeless-core/.../core/automation/{DefaultActionExecutor,DefaultTriggerEvaluator,package-info}.java` and their two tests: `automation-core`, `org.sequeless.automation.core`.
+  - `sequeless-spi-testkit/.../testkit/automation/{AutomationContract,RecordingActionExecutor,RecordingTriggerEvaluator,package-info}.java`: `automation-testkit`, `org.sequeless.automation.testkit`.
+  - `sequeless-adapter-automation-inprocess/` (module): `automation-inprocess-adapter`, `org.sequeless.automation.inprocess`.
+  - `sequeless-adapter-automation-temporal/` (module): `automation-temporal-adapter`, `org.sequeless.automation.temporal`. The module held the temporal failure activities (`ActivityFailureCauses`, `AutomationFailureActivities`, `AutomationFailureActivitiesImpl`). The host does not use them; host failure recording is `TemporalFailureRecorder` in `sequeless-app`.
+- `sequeless/sequeless-query`: the import commits are the four in section 2.1: `072a6a3` (primary), `6060d76`, `6ef2b78`, `1d59e5f`. The prototype's implementations that the released adapters replace are deleted in the P4 query commit, and its body names these SHAs and gives the reason for each deletion.
+
+**Query side: retained as the host contract (decision, Navigator batch 14, Q1).** The P4 list does not delete the spi query contract. The host still uses it, and the released ports have different signatures (`BrowsePort.browse` takes `(FieldScope, BrowseQuery)` and returns `BrowseResult`; `IndexPreparationPort.prepare` returns `IndexPreparationResult`). Changing imports would change the core's contract, which Q7 (section 10) kept as the host's own. The Navigator decided, in batch 14 (Q1): keep the spi query ports and `Page` as the host's Query contract, and do not retarget core to query-core types. That retarget is a backlog item.
+
+**Retained: host contract, not deleted.** These were ported to a host-owned role. The released `sequeless-query` is their implementation, through the three `ReleasedXPortAdapter` classes in `sequeless-app`. The copies are not deleted in P4, which is the explicit exception to the deletion list and to section 11:
+
+- `sequeless-spi`, `org.sequeless.spi.query`: `BrowsePort`, `ReadPort`, `IndexPreparationPort`, `Query`, `QueryResult`, `FacetBucket`, `ObjectView`, `ReadRequest`, `Sort`, `Direction`.
+- `sequeless-spi`, `org.sequeless.spi.object`: `Page`.
+- `sequeless-spi-testkit`, `org.sequeless.testkit.query`: `BrowseContract`, `ReadContract`, `ObjectViews`, `QueryFixtures`, and the test in-memory ports `InMemoryBrowsePort` and `InMemoryReadPort`.
+
+What P4 deletes on the query side is the implementation that the released adapters replace: the browse, read and index methods of `PostgresQueryStore` (`read`, `browse`, `prepare`), and the persistence tests that exercised only them, where the released testkit already covers the same contract. `PostgresQueryStore` keeps the aggregate `QueryPort` methods. The released coverage used for each test deletion is listed in the P4 query commit body.
 
 ## 3. Prerequisite refactors
 
@@ -240,6 +266,7 @@ Settled in P3, by the owner's decisions for this step (not by the Navigator):
 - The BOM's CI, which runs every testkit contract, is green. The BOM is released at 0.2.0 (`sequeless-bom-v0.2.0`).
 - The release and the BOM re-release are done for the released repos. The prototype is not released.
 - For cut-over specs, the prototype deletes the moved code in a commit that names the target repo and the import SHA. That commit is P4 (section 2.3).
+- Explicit exception (Navigator decision, batch 14, Q1): the spi query ports (`BrowsePort`, `ReadPort`, `IndexPreparationPort`, `Query`, `QueryResult`, `FacetBucket`, `ObjectView`, `ReadRequest`, `Sort`, `Direction`), `spi.object.Page` and the testkit query contracts are retained as the host's Query contract, not deleted. They are ported to a host-owned role, and the released `sequeless-query` implements them through the `ReleasedXPortAdapter` classes. The DoD is met for the query side by this exception, and the exception is recorded in section 2.4.
 
 ## 12. Verification
 
