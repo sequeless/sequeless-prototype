@@ -16,8 +16,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.BusinessObjectResponse;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
+import org.sequeless.query.api.QueryService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -55,6 +58,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
     @LocalServerPort
     private int port;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -162,6 +168,15 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     // --- acceptance criteria -----------------------------------------------------------------
+
+    /**
+     * The production autoconfiguration (no test-only schema source) wires exactly one released {@link QueryService}
+     * into the context, which is the host's Query side since spec 17 P2a.
+     */
+    @Test
+    void theProductionContextHasExactlyOneReleasedQueryService() {
+        assertThat(applicationContext.getBeansOfType(QueryService.class)).hasSize(1);
+    }
 
     @Test
     void facetCountsForStatusAndAssignedToMatchFixtureIncludingDisplayLabel() {
