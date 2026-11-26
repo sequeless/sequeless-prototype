@@ -1,6 +1,7 @@
 package org.sequeless.core.api;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import org.sequeless.core.AuthorizationException;
 import org.sequeless.core.validation.ValidationException;
@@ -11,6 +12,7 @@ import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
 
@@ -80,6 +82,23 @@ public interface BusinessObjectService {
      *     subtype of it exists with {@code id}
      */
     ObjectView read(Scope scope, String type, ObjectId id);
+
+    /**
+     * Returns the type of the live object {@code id} in the tenant of {@code scope}, or empty if there is none. An id
+     * that is absent, soft-deleted, or belongs to another tenant gives the same empty result, so the lookup never
+     * reveals an object of another tenant.
+     *
+     * <p>This is a lookup, not a read, and it authorizes nothing: the type is what an authorization decision needs.
+     * {@link #read}, {@link #edit} and {@link #delete} each authorize their own operation against the type. The
+     * automation bindings use it to resolve the type of an object id (spec 17, section 10), since the released
+     * automation ports carry an id and no type.
+     *
+     * @param scope the tenant the lookup is made in; must not be {@code null}
+     * @param id the object's id; must not be {@code null}
+     * @return the object's type, or empty if no live object of the tenant has this id
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    Optional<TypeRef> typeOf(Scope scope, ObjectId id);
 
     /**
      * Creates a new object of {@code type} with {@code properties}.

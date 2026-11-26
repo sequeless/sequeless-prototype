@@ -247,6 +247,14 @@ public final class DefaultBusinessObjectService implements BusinessObjectService
     }
 
     @Override
+    public Optional<TypeRef> typeOf(Scope scope, ObjectId id) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        // The store's own tenant filter decides: an object of another tenant is absent from the result.
+        return Optional.ofNullable(objectStorePort.typesOf(scope, Set.of(id)).get(id));
+    }
+
+    @Override
     public BusinessObject add(Scope scope, String type, Map<String, Object> properties) {
         Objects.requireNonNull(properties, "properties must not be null");
         return add(scope, type, ObjectId.random(), properties);

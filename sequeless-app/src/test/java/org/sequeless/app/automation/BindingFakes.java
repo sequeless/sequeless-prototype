@@ -95,6 +95,11 @@ final class BindingFakes {
         record Edited(ObjectId id, long expectedVersion, Map<String, Object> properties) {}
 
         @Override
+        public Optional<TypeRef> typeOf(Scope scope, ObjectId id) {
+            return Optional.ofNullable(views.get(id)).map(ObjectView::type);
+        }
+
+        @Override
         public ObjectView read(Scope scope, String type, ObjectId id) {
             if (readFailure != null) {
                 throw readFailure;
