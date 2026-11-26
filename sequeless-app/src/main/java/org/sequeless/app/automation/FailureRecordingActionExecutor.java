@@ -9,11 +9,12 @@ import org.sequeless.ontology.automation.api.Action;
 import org.sequeless.ontology.automation.api.WebhookAction;
 
 /**
- * Replaces the prototype's core.automation.DefaultActionExecutor, deleted in spec 17 P4; the released executor is in
- * sequeless/sequeless-automation at 5159284 ({@code org.sequeless.automation.api.ActionExecutor}).
+ * Wraps the released {@code org.sequeless.automation.api.ActionExecutor} (sequeless/sequeless-automation at 5159284).
+ * The prototype's core.automation.DefaultActionExecutor, which the released ActionExecutor replaces, was deleted
+ * in spec 17 P4.
  *
- * <p>Wraps the released {@link ActionExecutor} so that a transition action's final failure is recorded, as the prototype's
- * {@code TransitionActionWorkflow} recorded it (spec 17, section 9).
+ * <p>Records a transition action's final failure, as the prototype's {@code TransitionActionWorkflow} did (spec 17,
+ * section 9).
  *
  * <p>{@link #applyAction} is the case the prototype covered. Its final failure is recorded and then swallowed, so the
  * activity, and the workflow, end normally. A non-final failure is rethrown, so Temporal retries the activity.

@@ -51,13 +51,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  * <p>The rows are seeded as raw JSON in {@code sq_object}. The domain write path holds no JSON null, so an explicit
  * null can only be stored this way. The property under test is {@code status} on {@code Task}, a single-valued string.
  * An empty list is stored in the tagged list form {@code {"list": []}} on that same single-valued property, because
- * both readers decode the tagged form and a bare {@code []} is not decodable by either of them. Each test seeds its
+ * the released reader decodes the tagged form and a bare {@code []} is not decodable by it. Each test seeds its
  * own tenant, so the rows of one test do not reach another.
  *
- * <p>An explicit JSON null is different: neither reader decodes it (the tagged-value decoder throws on a bare null), so
- * a browse that returns that row fails with the same exception the prototype's reader raised. The test {@link
- * #explicitJsonNullFailsTheSameWayOnBothSides} pins that failure, not an id set, because no id set is produced for that
- * case.
+ * <p>The released reader does not decode an explicit JSON null: its tagged-value decoder throws on a bare null. A browse
+ * that returns that row therefore fails, and the test {@link #explicitJsonNullFailsWithTheDecoderError} pins that failure
+ * rather than an id set, because no id set is produced for that case.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = "sequeless.ontology.reasoner=owl")
 class ReleasedNullParityIT extends PostgresTestcontainersSupport {
@@ -95,7 +94,7 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
     // --- the four stored shapes, on one tenant ---------------------------------------------------
 
     @Test
-    void isNullAndTheEmptyListAgreeOnAMissingKeyAndAnEmptyList() {
+    void isNullMatchesAMissingKeyAndATaggedEmptyList() {
         ObjectId missing = insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         ObjectId present = insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         ObjectId emptyList = insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
@@ -106,7 +105,7 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
     }
 
     @Test
-    void notNullAgreesOnAPresentValue() {
+    void notNullMatchesAPresentValue() {
         insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         ObjectId present = insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
@@ -117,7 +116,7 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
     }
 
     @Test
-    void theNegatedNotNullFilterOnTheReleasedQueryServiceAgreesWithNotNull() {
+    void theNegatedNotNullFilterOnTheReleasedQueryServiceMatchesNotNull() {
         insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         ObjectId present = insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
@@ -128,7 +127,7 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
     }
 
     @Test
-    void aCombinedFilterWithAComparisonAgrees() {
+    void aCombinedIsNullFilterWithAComparisonMatchesTheExpectedRow() {
         ObjectId missing = insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
         ObjectId emptyList = insert("{\"" + PRIORITY + "\": {\"integer\": 4}, \"" + STATUS + "\": {\"list\": []}}");
@@ -142,7 +141,7 @@ class ReleasedNullParityIT extends PostgresTestcontainersSupport {
     // --- the explicit JSON null ------------------------------------------------------------------
 
     @Test
-    void explicitJsonNullFailsTheSameWayOnBothSides() {
+    void explicitJsonNullFailsWithTheDecoderError() {
         insert("{\"" + PRIORITY + "\": {\"integer\": 1}}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 2}, \"" + STATUS + "\": null}");
         insert("{\"" + PRIORITY + "\": {\"integer\": 3}, \"" + STATUS + "\": {\"text\": \"OPEN\"}}");
