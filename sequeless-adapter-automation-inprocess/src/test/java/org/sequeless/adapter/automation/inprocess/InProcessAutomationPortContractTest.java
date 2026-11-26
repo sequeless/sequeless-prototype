@@ -22,7 +22,7 @@ import org.sequeless.testkit.automation.RecordingTriggerEvaluator;
 
 /**
  * Proves {@link InProcessAutomationPort} satisfies every clause of {@link AutomationPort}'s
- * behavioural contract, including {@link AutomationContract}'s idempotent-redispatch test: this
+ * behavioural contract, including {@link AutomationContract}'s idempotent-reingest test: this
  * adapter's own {@code Set<UUID>} guard (not any built-in mechanism, since it has none) is what
  * makes that test pass.
  *

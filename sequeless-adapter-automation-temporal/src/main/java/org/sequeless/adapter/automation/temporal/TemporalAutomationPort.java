@@ -39,7 +39,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * keeps.</b> A second {@link #ingest} call for an event (or, for a timer, its {@code timerKey}) whose
  * workflow has already been started raises {@link WorkflowExecutionAlreadyStarted}, which this class
  * catches and treats as a successful no-op — unlike {@code
- * org.sequeless.adapter.automation.inprocess.InProcessAutomationPort}, which has to track dispatched ids
+ * org.sequeless.adapter.automation.inprocess.InProcessAutomationPort}, which has to track ingested ids
  * itself because it has no equivalent durable-engine mechanism to lean on.
  *
  * <p><b>{@code WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE} is set explicitly,
@@ -47,7 +47,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * TestWorkflowEnvironment} contract test caught this): the SDK's default reuse policy is {@code
  * ALLOW_DUPLICATE}, under which starting a workflow whose previous run with the same id has already
  * <em>completed</em> silently starts a brand-new execution instead of raising {@link
- * WorkflowExecutionAlreadyStarted} — which would re-run the action a second time on redispatch,
+ * WorkflowExecutionAlreadyStarted} — which would re-run the action a second time on re-ingest,
  * exactly the bug {@link org.sequeless.spi.automation.AutomationPort#ingest}'s idempotency clause
  * forbids. {@code REJECT_DUPLICATE} makes {@link WorkflowExecutionAlreadyStarted} unconditional for
  * any duplicate workflow id — running, completed, failed, or otherwise — which is what this class's
