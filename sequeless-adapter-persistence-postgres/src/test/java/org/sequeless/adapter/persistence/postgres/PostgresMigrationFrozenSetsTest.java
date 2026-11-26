@@ -35,7 +35,7 @@ class PostgresMigrationFrozenSetsTest {
     private static final List<Integer> LIVE_COMMAND_VERSIONS = List.of(1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
 
     @Test
-    void liveCommandSetIsV1AndV3ToV12WithNoV2() {
+    void liveCommandSetContainsV1AndV3ToV12AndNoV2() {
         List<String> names = sqlFileNames(LIVE_COMMAND);
         assertThat(names).allMatch(name -> name.matches("V\\d+__.*\\.sql"));
         assertThat(names.stream()

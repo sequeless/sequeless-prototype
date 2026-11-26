@@ -1,5 +1,7 @@
 package org.sequeless.spi.object;
 
+import org.sequeless.store.spi.ObjectStorePort;
+
 /**
  * The IRI of an ontology type, as carried by a {@link BusinessObject} or returned by {@link
  * ObjectStorePort#typesOf}. This is a plain IRI reference, not a {@code

@@ -291,12 +291,12 @@ Alternatives: keep `org.sequeless.spi` in the released artifacts (clashes with t
 Consequences: the released package names freeze at 0.1.0.
 Reversibility: low after 0.1.0.
 
-### DR-31 The Store owns migrations V1 to V12 on the default history; the query set runs separately
+### DR-31 The Store owns migrations V1 and V3 to V12 on the default history; the query set runs separately
 Context: V1 creates `sq_object`, `sq_ontology_document` and `sq_outbox` in one file on one Flyway history. V12 creates `sq_automation_failure`. The query set has its own history, `flyway_schema_history_query`. V1 is frozen by `PostgresMigrationFrozenSetsTest`.
-Decision: (a) `store-postgres-jsonb-adapter` owns V1 to V12, byte-identical, including `sq_ontology_document`, as the published table contract (Q2, Q4). (b) Its `PostgresMigrations` runs the command set only, on `flyway_schema_history` (Q23). (c) The host runs the command set and then the query set, in that order (Q23). (d) The frozen command sets that move are `post-p2`, `post-p3`, `post-p4` and `post-p7` (Q15). `frozen-migrations/3328993` and `frozen-migrations/fbb82c5` stay in the host (Q-B). `post-p7/query` is retired from the Store repository.
+Decision: (a) `store-postgres-jsonb-adapter` owns V1 and V3 to V12 (there is no V2), byte-identical, including `sq_ontology_document`, as the published table contract (Q2, Q4). (b) Its `PostgresMigrations` runs the command set only, on `flyway_schema_history` (Q23). (c) The host runs the command set and then the query set, in that order (Q23). (d) The frozen command sets that move are `post-p2`, `post-p3`, `post-p4` and `post-p7` (Q15). `frozen-migrations/3328993` and `frozen-migrations/fbb82c5` stay in the host (Q-B). `post-p7/query` is retired from the Store repository.
 Alternatives: the Store runs both sets (couples the Store release to the query migration history; rejected); the ontology document table in its own history (forks V1; rejected).
 Consequences: the table layout is a published contract. A breaking change to it is a major version of the module. The host's migrate order is recorded here so the cut-over can name it.
-Reversibility: low. V1 to V12 are frozen, and a change to their bytes or their history breaks deployed databases.
+Reversibility: low. V1 and V3 to V12 are frozen, and a change to their bytes or their history breaks deployed databases.
 
 ### DR-32 Command contract doubles move to `store-testkit`; Query contracts stay with `query-testkit`
 Context: `query-testkit` 0.2.1 publishes the Query contracts and their in-memory doubles. The prototype's `sequeless-spi-testkit` holds both the Command and the Query doubles.
