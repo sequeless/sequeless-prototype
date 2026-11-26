@@ -1,7 +1,12 @@
 package org.sequeless.adapter.automation.inprocess;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.sequeless.ontology.automation.api.Automation;
@@ -54,5 +59,29 @@ class InProcessAutomationAutoConfigurationTest {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(AutomationPort.class);
         });
+    }
+
+    @Test
+    void aSweepFailureOutsideATimerDoesNotEscapeTheTick() {
+        Clock failingClock = new Clock() {
+            @Override
+            public ZoneId getZone() {
+                return ZoneOffset.UTC;
+            }
+
+            @Override
+            public Clock withZone(ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public Instant instant() {
+                throw new IllegalStateException("clock failed");
+            }
+        };
+        InProcessTimerScheduler scheduler = new InProcessTimerScheduler(failingClock, new RecordingTriggerEvaluator());
+
+        assertThatCode(() -> InProcessAutomationAutoConfiguration.sweepOnce(scheduler))
+                .doesNotThrowAnyException();
     }
 }
