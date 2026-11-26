@@ -316,4 +316,84 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
                 .jsonPath("$.violations[?(@.property == 'nonexistentProperty')]")
                 .exists();
     }
+
+    // --- the core's pre-check keeps multi-valued and derived properties out of browse -------------
+    //
+    // The core checks every filter, sort and facet against the scope before the released browse runs. A
+    // rejection the core makes carries the property IRI (propertyIri); a rejection the released query makes
+    // has no property IRI, because a released problem is a message. So each assertion names the core's violation
+    // by its IRI, and fails whenever the core's check for that clause is removed.
+
+    private static final String TITLE_IRI = "https://sequeless.dev/ns/ref#title";
+    private static final String TOTAL_ESTIMATED_HOURS_IRI = "https://sequeless.dev/ns/ref#totalEstimatedHours";
+
+    /** (a) {@code title} is multi-valued (no maximum cardinality), so a filter on it is refused. */
+    @Test
+    void aFilterOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?filter[title][eq]=x");
+
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
+    }
+
+    /** (b) {@code totalEstimatedHours} is a derived property the reference ontology does not materialise. */
+    @Test
+    void aFilterOnANonMaterialisedDerivedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Project?filter[totalEstimatedHours][eq]=0");
+
+        assertCoreInvalidQuery(problem, TOTAL_ESTIMATED_HOURS_IRI, "not materialised");
+    }
+
+    /** (c) A sort on the multi-valued {@code title} is refused by the core, not by the released sort. */
+    @Test
+    void aSortOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?sort=title");
+
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
+    }
+
+    /** (d) A facet on the multi-valued {@code title} is refused by the core before the facet check runs. */
+    @Test
+    void aFacetOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?facets=title");
+
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
+    }
+
+    /** Fetches a request the core must refuse: a 400 problem with the invalid-query type, read as JSON. */
+    private JsonNode fetchProblemAsJson(String uri) {
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        try {
+            return objectMapper.readTree(responseBody);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    /**
+     * The problem is the invalid-query type, and it has a violation whose {@code propertyIri} is {@code propertyIri}
+     * and whose message names the reason the core gives ({@code reason}).
+     */
+    private static void assertCoreInvalidQuery(JsonNode problem, String propertyIri, String reason) {
+        assertThat(problem.get("type").asText()).isEqualTo("https://sequeless.dev/problems/invalid-query");
+        JsonNode violation = null;
+        for (JsonNode candidate : problem.get("violations")) {
+            if (propertyIri.equals(candidate.path("propertyIri").asText())) {
+                violation = candidate;
+            }
+        }
+        assertThat(violation)
+                .as("the core's violation for %s, with its propertyIri", propertyIri)
+                .isNotNull();
+        assertThat(violation.get("message").asText()).contains(reason);
+    }
 }
