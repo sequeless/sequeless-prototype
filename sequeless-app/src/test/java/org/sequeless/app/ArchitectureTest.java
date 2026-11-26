@@ -156,19 +156,39 @@ class ArchitectureTest {
                     + "org.springframework.context.. to wire themselves, but must never depend on "
                     + "the web layer.");
 
+    /**
+     * The four automation classes that call the Command use cases: the host's ObjectReadPort and StoreCommandPort
+     * bindings, the type lookup they share, and the configuration that registers them (spec 17 P3, Q3). No other
+     * automation class may reach into core. The outbox relay in particular must not (spec 13 P5b).
+     */
+    private static final String AUTOMATION_BINDING_CONFIGURATION =
+            "org.sequeless.app.automation.AutomationBindingConfiguration";
+
+    private static final String BUSINESS_OBJECT_READ_PORT = "org.sequeless.app.automation.BusinessObjectReadPort";
+    private static final String BUSINESS_OBJECT_STORE_COMMAND_PORT =
+            "org.sequeless.app.automation.BusinessObjectStoreCommandPort";
+    private static final String OBJECT_TYPES = "org.sequeless.app.automation.ObjectTypes";
+
     @ArchTest
-    static final ArchRule onlyAppRestConfigAndAutomationMayDependOnCore = noClasses()
+    static final ArchRule onlyAppRestConfigAndAutomationBindingsMayDependOnCore = noClasses()
             .that()
             .resideInAPackage(APP_PACKAGE)
             .and()
-            .resideOutsideOfPackages(
-                    "org.sequeless.app.rest..", "org.sequeless.app.config..", "org.sequeless.app.automation..")
+            .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..")
+            .and()
+            .doNotHaveFullyQualifiedName(AUTOMATION_BINDING_CONFIGURATION)
+            .and()
+            .doNotHaveFullyQualifiedName(BUSINESS_OBJECT_READ_PORT)
+            .and()
+            .doNotHaveFullyQualifiedName(BUSINESS_OBJECT_STORE_COMMAND_PORT)
+            .and()
+            .doNotHaveFullyQualifiedName(OBJECT_TYPES)
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
             .because("Within sequeless-app, only the REST inbound adapter, the wiring/configuration packages and "
-                    + "the automation bindings (spec 17 P3: the host's ObjectReadPort and StoreCommandPort call the "
-                    + "Command use cases) may reach into core use cases; other app packages, such as the port "
+                    + "the four automation bindings (spec 17 P3: the host's ObjectReadPort and StoreCommandPort call "
+                    + "the Command use cases) may reach into core use cases; other app packages, such as the port "
                     + "registry, must stay ignorant of the domain core.");
 
     @ArchTest
