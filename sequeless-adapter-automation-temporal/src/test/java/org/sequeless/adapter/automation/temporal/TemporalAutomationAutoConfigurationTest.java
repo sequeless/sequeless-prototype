@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.testkit.automation.RecordingActionExecutor;
@@ -56,11 +57,28 @@ class TemporalAutomationAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(TemporalAutomationAutoConfiguration.class))
             .withBean(ActionExecutor.class, RecordingActionExecutor::new)
             .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
-            .withBean(AutomationSource.class, SwappableAutomationSource::new);
+            .withBean(AutomationSource.class, SwappableAutomationSource::new)
+            .withBean(AutomationFailureRecorder.class, RecordingAutomationFailureRecorder::new);
 
     @BeforeEach
     void resetAutomationSource() {
         SwappableAutomationSource.reset();
+    }
+
+    @Test
+    void failsToStartWhenTheAutomationFailureRecorderBeanIsMissing() {
+        // The recorder is required (spec 13, R2): without it a failure could be dropped silently, so the
+        // worker refuses to build, and the context fails with a message that names the missing type.
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(TemporalAutomationAutoConfiguration.class))
+                .withBean(ActionExecutor.class, RecordingActionExecutor::new)
+                .withBean(TriggerEvaluator.class, RecordingTriggerEvaluator::new)
+                .withBean(AutomationSource.class, SwappableAutomationSource::new)
+                .withPropertyValues("sequeless.automation.adapter=temporal")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).hasMessageContaining("AutomationFailureRecorder");
+                });
     }
 
     @Test

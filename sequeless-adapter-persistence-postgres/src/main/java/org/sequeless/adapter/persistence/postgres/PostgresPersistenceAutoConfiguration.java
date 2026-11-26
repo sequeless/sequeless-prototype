@@ -2,6 +2,7 @@ package org.sequeless.adapter.persistence.postgres;
 
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
+import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.outbox.OutboxPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -140,5 +141,19 @@ public class PostgresPersistenceAutoConfiguration {
         PlatformTransactionManager transactionManager =
                 new DataSourceTransactionManager(sequelessPersistenceDataSource);
         return new PostgresOutboxPort(jdbcClient, transactionManager);
+    }
+
+    /**
+     * The durable failure record an automation workflow writes when its activity fails after its retries
+     * are exhausted (spec 13, R2). The Temporal adapter requires this bean: without it, its worker fails to
+     * start, so a failure can never be dropped silently. A Temporal deployment therefore needs this
+     * persistence adapter.
+     *
+     * @param sequelessPersistenceDataSource the migrated persistence {@link DataSource}
+     * @return the Postgres recorder over {@code sq_automation_failure}
+     */
+    @Bean
+    public AutomationFailureRecorder automationFailureRecorder(DataSource sequelessPersistenceDataSource) {
+        return new PostgresAutomationFailureRecorder(JdbcClient.create(sequelessPersistenceDataSource));
     }
 }

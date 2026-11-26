@@ -1,18 +1,13 @@
 package org.sequeless.adapter.automation.temporal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.sun.net.httpserver.HttpServer;
 import io.temporal.activity.ActivityOptions;
-import io.temporal.api.enums.v1.RetryState;
 import io.temporal.client.WorkflowClient;
-import io.temporal.client.WorkflowFailedException;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
-import io.temporal.failure.ActivityFailure;
-import io.temporal.failure.ApplicationFailure;
 import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.worker.Worker;
 import java.io.IOException;
@@ -43,6 +38,7 @@ import org.sequeless.ontology.automation.api.SetPropertyAction;
 import org.sequeless.ontology.automation.api.TransitionRef;
 import org.sequeless.ontology.automation.api.WebhookAction;
 import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.spi.automation.AutomationFailure;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
@@ -52,9 +48,12 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * starts, so going through it would never reach the activity's own checks, which is what this test is
  * for.
  *
- * <p>The activity-level stamp and index failures are non-retryable, so each one makes exactly one
+ * <p>The activity-level stamp and index refusals are non-retryable, so each one makes exactly one
  * attempt. A control case makes every call throw a plain {@link RuntimeException}, which Temporal
  * retries up to the configured maximum, so the attempt counter is shown to detect retries.
+ *
+ * <p>Every failure is caught by the workflow and recorded (spec 13, R2), so each failing case asserts
+ * that the workflow <em>completes</em> and that exactly one {@link AutomationFailure} was written for it.
  */
 class TransitionActionWorkflowTest {
 
@@ -70,6 +69,7 @@ class TransitionActionWorkflowTest {
     private static final AtomicInteger webhookHits = new AtomicInteger();
     private static HttpServer webhookServer;
     private static RecordingTransitionExecutor executor;
+    private static RecordingAutomationFailureRecorder recorder;
     private static TestWorkflowEnvironment env;
 
     @BeforeAll
@@ -97,11 +97,14 @@ class TransitionActionWorkflowTest {
 
         executor = new RecordingTransitionExecutor();
         executor.setWebhookUrl("http://localhost:" + webhookServer.getAddress().getPort() + HOOK_PATH);
+        recorder = new RecordingAutomationFailureRecorder();
 
         env = TestWorkflowEnvironment.newInstance();
         Worker worker = env.newWorker(TASK_QUEUE);
         worker.registerWorkflowImplementationTypes(TransitionActionWorkflowImpl.class);
-        worker.registerActivitiesImplementations(new ActionActivitiesImpl(executor, new SwappableAutomationSource()));
+        worker.registerActivitiesImplementations(
+                new ActionActivitiesImpl(executor, new SwappableAutomationSource()),
+                new AutomationFailureActivitiesImpl(recorder));
         env.start();
     }
 
@@ -115,6 +118,7 @@ class TransitionActionWorkflowTest {
     void resetDoubles() {
         SwappableAutomationSource.reset();
         executor.reset();
+        recorder.reset();
         webhookHits.set(0);
     }
 
@@ -138,6 +142,7 @@ class TransitionActionWorkflowTest {
                                 RecordingTransitionExecutor.METHOD_APPLY_ACTION, 1, entry.id(), createObject),
                         new RecordingTransitionExecutor.Call(
                                 RecordingTransitionExecutor.METHOD_APPLY_ACTION, 2, entry.id(), setProperty));
+        assertThat(recorder.records()).isEmpty();
     }
 
     @Test
@@ -152,6 +157,7 @@ class TransitionActionWorkflowTest {
                 .containsExactly(new RecordingTransitionExecutor.Call(
                         RecordingTransitionExecutor.METHOD_RESOLVE_WEBHOOK_ACTION, 1, entry.id(), webhook));
         assertThat(webhookHits.get()).isEqualTo(1);
+        assertThat(recorder.records()).isEmpty();
     }
 
     @Test
@@ -159,7 +165,7 @@ class TransitionActionWorkflowTest {
         SwappableAutomationSource.current = automationAt(1, new LogAction("project activated"));
         OutboxEntry entry = transitionFired(null);
 
-        assertNonRetryableFailure(
+        assertRefusalIsRecorded(
                 entry,
                 0,
                 "TransitionFiredStampMissing",
@@ -171,7 +177,7 @@ class TransitionActionWorkflowTest {
         SwappableAutomationSource.current = automationAt(1, new LogAction("project activated"));
         OutboxEntry entry = transitionFired("1");
 
-        assertNonRetryableFailure(
+        assertRefusalIsRecorded(
                 entry,
                 0,
                 "TransitionFiredStampMissing",
@@ -183,7 +189,7 @@ class TransitionActionWorkflowTest {
         SwappableAutomationSource.current = automationAt(2, new LogAction("project activated"));
         OutboxEntry entry = transitionFired(1);
 
-        assertNonRetryableFailure(
+        assertRefusalIsRecorded(
                 entry,
                 0,
                 "TransitionFiredStampMismatch",
@@ -196,7 +202,7 @@ class TransitionActionWorkflowTest {
         SwappableAutomationSource.current = automationAt(1, new LogAction("project activated"));
         OutboxEntry entry = transitionFired(1);
 
-        assertNonRetryableFailure(
+        assertRefusalIsRecorded(
                 entry,
                 1,
                 "TransitionFiredIndexOutOfRange",
@@ -208,7 +214,7 @@ class TransitionActionWorkflowTest {
         SwappableAutomationSource.current = automationAt(1, new LogAction("project activated"));
         OutboxEntry entry = transitionFired(1);
 
-        assertNonRetryableFailure(
+        assertRefusalIsRecorded(
                 entry,
                 -1,
                 "TransitionFiredIndexOutOfRange",
@@ -216,44 +222,41 @@ class TransitionActionWorkflowTest {
     }
 
     @Test
-    void retriesAnActivityThatKeepsThrowingUntilItsMaximumAttempts() {
+    void retriesAnActivityThatKeepsThrowingUntilItsMaximumAttemptsThenRecordsTheFailure() {
         SwappableAutomationSource.current = automationAt(1, new LogAction("project activated"));
         SwappableAutomationSource.failEveryCall = true;
         OutboxEntry entry = transitionFired(1);
 
-        ApplicationFailure failure = failureOf(runToFailure(entry, 0), RetryState.RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED);
+        runToCompletion(entry, 0);
 
-        assertThat(failure.getType()).isEqualTo("java.lang.RuntimeException");
-        assertThat(failure.isNonRetryable()).isFalse();
+        AutomationFailure record = onlyRecord();
+        assertThat(record.workflowId()).isEqualTo(entry.id() + ":0");
+        assertThat(record.cause()).startsWith("java.lang.RuntimeException: ");
         assertThat(SwappableAutomationSource.calls.get()).isEqualTo(3);
     }
 
     /**
-     * Runs the workflow for {@code entry} at {@code index}, asserts it failed with a non-retryable
-     * {@link ApplicationFailure} of {@code type} whose message is exactly {@code message}, and asserts
-     * that the activity made one attempt and applied nothing.
+     * Runs the workflow for {@code entry} at {@code index}. The refusal is caught and recorded, so the workflow
+     * completes. Asserts the one record it wrote (the workflow id, the type, the transition, and the cause, which
+     * is the refusal's type and message), and that the activity made one attempt and applied nothing.
      */
-    private static void assertNonRetryableFailure(OutboxEntry entry, int index, String type, String message) {
-        ApplicationFailure failure =
-                failureOf(runToFailure(entry, index), RetryState.RETRY_STATE_NON_RETRYABLE_FAILURE);
+    private static void assertRefusalIsRecorded(OutboxEntry entry, int index, String type, String message) {
+        runToCompletion(entry, index);
 
-        assertThat(failure.getType()).isEqualTo(type);
-        assertThat(failure.isNonRetryable()).isTrue();
-        assertThat(failure.getOriginalMessage()).isEqualTo(message);
+        AutomationFailure record = onlyRecord();
+        assertThat(record.workflowId()).isEqualTo(entry.id() + ":" + index);
+        assertThat(record.workflowType()).isEqualTo("TransitionActionWorkflow");
+        assertThat(record.transition()).isEqualTo(new TransitionRef(MACHINE_IRI, DRAFT_IRI, TRANSITION_NAME));
+        assertThat(record.cause()).isEqualTo(type + ": " + message);
         assertThat(SwappableAutomationSource.calls.get()).isEqualTo(1);
         assertThat(executor.calls()).isEmpty();
     }
 
-    /**
-     * Unwraps the workflow failure's chain, {@link WorkflowFailedException} then {@link ActivityFailure}
-     * then {@link ApplicationFailure}, asserting the activity-level retry state on the way.
-     */
-    private static ApplicationFailure failureOf(WorkflowFailedException failed, RetryState expectedRetryState) {
-        assertThat(failed.getCause()).isInstanceOf(ActivityFailure.class);
-        ActivityFailure activityFailure = (ActivityFailure) failed.getCause();
-        assertThat(activityFailure.getRetryState()).isEqualTo(expectedRetryState);
-        assertThat(activityFailure.getCause()).isInstanceOf(ApplicationFailure.class);
-        return (ApplicationFailure) activityFailure.getCause();
+    /** The single failure record the recorder holds, asserting that there is exactly one. */
+    private static AutomationFailure onlyRecord() {
+        List<AutomationFailure> records = recorder.records();
+        assertThat(records).hasSize(1);
+        return records.get(0);
     }
 
     /** Starts the {@link TransitionActionWorkflow} for {@code entry} at {@code index} without waiting for it. */
@@ -276,17 +279,6 @@ class TransitionActionWorkflowTest {
         } catch (TimeoutException e) {
             throw new AssertionError("Workflow " + entry.id() + ":" + index + " did not close within 5 seconds", e);
         }
-    }
-
-    /**
-     * Starts the workflow for {@code entry} at {@code index}, waits, bounded, for it to close, and
-     * returns the {@link WorkflowFailedException} it closed with.
-     */
-    private static WorkflowFailedException runToFailure(OutboxEntry entry, int index) {
-        WorkflowStub stub = startWorkflow(entry, index);
-        Throwable thrown = catchThrowable(() -> stub.getResult(5, TimeUnit.SECONDS, Void.class));
-        assertThat(thrown).isInstanceOf(WorkflowFailedException.class);
-        return (WorkflowFailedException) thrown;
     }
 
     /** An automation at {@code ontologyVersion} whose transition has the given actions, in order. */

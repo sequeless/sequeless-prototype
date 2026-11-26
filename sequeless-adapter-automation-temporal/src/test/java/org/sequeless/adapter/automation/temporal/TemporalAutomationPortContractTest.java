@@ -123,7 +123,8 @@ class TemporalAutomationPortContractTest extends AutomationContract {
                 TransitionActionWorkflowImpl.class, ChangeEventWorkflowImpl.class, TimerWorkflowImpl.class);
         worker.registerActivitiesImplementations(
                 new ActionActivitiesImpl(executorHolder, automationSource),
-                new TriggerActivitiesImpl(triggerEvaluatorHolder));
+                new TriggerActivitiesImpl(triggerEvaluatorHolder),
+                new AutomationFailureActivitiesImpl(new RecordingAutomationFailureRecorder()));
         env.start();
 
         port = new TemporalAutomationPort(

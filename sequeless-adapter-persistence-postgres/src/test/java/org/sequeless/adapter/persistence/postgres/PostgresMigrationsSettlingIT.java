@@ -60,7 +60,8 @@ class PostgresMigrationsSettlingIT {
             "8 SUCCESS",
             "9 SUCCESS",
             "10 SUCCESS",
-            "11 SUCCESS");
+            "11 SUCCESS",
+            "12 SUCCESS");
 
     private static DataSource dataSource;
 
@@ -221,7 +222,8 @@ class PostgresMigrationsSettlingIT {
                         "8 SUCCESS",
                         "9 SUCCESS",
                         "10 SUCCESS",
-                        "11 SUCCESS");
+                        "11 SUCCESS",
+                        "12 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
@@ -254,7 +256,8 @@ class PostgresMigrationsSettlingIT {
                         "8 SUCCESS",
                         "9 SUCCESS",
                         "10 SUCCESS",
-                        "11 SUCCESS");
+                        "11 SUCCESS",
+                        "12 SUCCESS");
         assertSearchSchemaPresent();
         assertQueryHistory();
         assertRowCounts(2, 1);
