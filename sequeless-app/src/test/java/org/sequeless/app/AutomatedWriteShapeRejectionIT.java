@@ -3,6 +3,7 @@ package org.sequeless.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,10 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  * <p>The bound {@code ActionExecutor} is the one the Temporal failure recorder wraps. Applying an action outside an
  * activity is its final attempt, so a final failure is recorded and swallowed, as the prototype's
  * {@code TransitionActionWorkflow} recorded it. The refusal is the Store's {@code StoreCommandRejectedException}.
+ *
+ * <p>The TransitionFired row below carries the same keys the prototype's transition service writes, including the
+ * {@code self} snapshot the released executor reads. The object has no properties before the transition, so the snapshot
+ * is an empty map.
  *
  * <p>Run this class on its own. It starts Postgres and Temporal containers.
  */
@@ -74,6 +79,7 @@ class AutomatedWriteShapeRejectionIT extends TemporalTestcontainersSupport {
                 .contains("Validation failed (STRUCTURAL)")
                 .contains(PRIORITY_IRI)
                 .contains("expected an integer");
+        assertThat(tasksContaining("urgent")).isZero();
     }
 
     @Test
@@ -85,31 +91,25 @@ class AutomatedWriteShapeRejectionIT extends TemporalTestcontainersSupport {
         actionExecutor.applyAction(SCOPE, row, action, 0);
 
         assertThat(recordsFor(row.id() + ":0")).isEmpty();
+        assertThat(tasksContaining("one title")).isEqualTo(1L);
     }
 
     private static Action createTask(PropertyAssignment assignment) {
         return new CreateObjectAction(TASK_IRI, List.of(assignment));
     }
 
-    /** A TransitionFired row carrying its provenance stamp, so the released core accepts it. */
+    /** A TransitionFired row with the keys the transition service writes, and the provenance stamp the core needs. */
     private static StoreEventRow transitionFired() {
-        Map<String, Object> payload = Map.of(
-                "objectId",
-                UUID.randomUUID().toString(),
-                "tenantId",
-                SCOPE.tenantId().value(),
-                "principalId",
-                SCOPE.principal().id(),
-                "machineIri",
-                "https://sequeless.dev/ns/ref#WorkItemLifecycle",
-                "fromState",
-                "https://sequeless.dev/ns/ref#Open",
-                "transitionName",
-                "activate",
-                "toState",
-                "https://sequeless.dev/ns/ref#Active",
-                "ontologyVersion",
-                1);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", UUID.randomUUID().toString());
+        payload.put("tenantId", SCOPE.tenantId().value());
+        payload.put("principalId", SCOPE.principal().id());
+        payload.put("machineIri", "https://sequeless.dev/ns/ref#WorkItemLifecycle");
+        payload.put("fromState", "https://sequeless.dev/ns/ref#Open");
+        payload.put("transitionName", "activate");
+        payload.put("toState", "https://sequeless.dev/ns/ref#Active");
+        payload.put("ontologyVersion", 1);
+        payload.put("self", new HashMap<String, Object>());
         return new StoreEventRow(UUID.randomUUID(), StoreEventRow.KIND_TRANSITION_FIRED, payload, Instant.now());
     }
 
@@ -119,6 +119,18 @@ class AutomatedWriteShapeRejectionIT extends TemporalTestcontainersSupport {
                 .param("id", workflowId)
                 .query((rs, rowNum) -> new FailureRow(rs.getString("workflow_type"), rs.getString("cause")))
                 .list();
+    }
+
+    /** The number of Task objects of this tenant whose stored properties contain {@code text}. */
+    private Long tasksContaining(String text) {
+        return jdbcClient
+                .sql("SELECT count(*) FROM sq_object WHERE tenant_id = :tenant AND type_iri = :type"
+                        + " AND CAST(props AS text) LIKE :needle")
+                .param("tenant", SCOPE.tenantId().value())
+                .param("type", TASK_IRI)
+                .param("needle", "%" + text + "%")
+                .query(Long.class)
+                .single();
     }
 
     private record FailureRow(String workflowType, String cause) {}
