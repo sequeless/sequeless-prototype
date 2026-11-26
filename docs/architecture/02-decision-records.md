@@ -276,3 +276,59 @@ under. (c) Each workflow guards the new command with `Workflow.getVersion` under
 Alternatives: a retry cap on the timer's activity, so an endlessly failing timer is dropped (rejected: a timer that fails after its retries is recorded, not lost); leaving timers out of the record (rejected: the same silent loss); a table per workflow type (more schema for the same shape); no guard, so the new command reaches histories written before the deploy (rejected: an old execution replays into a command it never issued, which is non-determinism).
 Consequences: each guarded workflow's history gains one marker and, on a failure, one record command. A deploy stops every old worker before it starts a new one, and it runs V12 first (the operator steps are in `automation.md`, "Deploying the failure record"). The guards stay until no open execution predates them (has no marker for its change id), then they can be removed. The R2 commit `d3c0fb5` must never be deployed alone. A record write that keeps failing fails its workflow, so the failure stays visible. `maximumAttempts` must stay above zero, because zero means unlimited retries.
 Reversibility: low after the first record. A reverted worker cannot replay a history that holds a record command, so a rollback needs the same stop-then-start order and strands those executions. Roll forward instead.
+
+### DR-29 One Store repository, and the ontology Postgres adapter stays in the ontology repository
+Context: spec 18 (`docs/extraction/spec-18-prototype-stage5-final-fold.md`, issue #46) folds the Store out of the prototype. #46 names four artifacts: `store-core`, `store-testkit`, `store-postgres-jsonb-adapter` and `ontology-postgres-adapter`.
+Decision: (a) One new repository, `sequeless-store`, with the three Store modules (spec section 2, Q1). (b) `ontology-postgres-adapter` is a module of `sequeless-ontology`, released with it (Q13). It has no compile-time dependency on the Store adapter and ships no migration; its tests take the Store adapter at test scope (Q2, Q-F). (c) The host keeps all Spring wiring, including the Postgres autoconfiguration and the adapter descriptor (Q8, Q-A).
+Alternatives: four repositories (four release pipelines for one table contract); an ontology adapter inside the Store repository (the wrong family).
+Consequences: one release train for the Store. The ontology adapter ships with `sequeless-ontology`, which keeps its own release order.
+Reversibility: moderate until 0.1.0 is released, then low.
+
+### DR-30 Store packages are `org.sequeless.store.{spi,api,core,postgres}`, renamed before the move
+Context: the prototype's packages are `org.sequeless.spi` and `org.sequeless.core`. Every released family has its own `org.sequeless.<family>` root, and publishing the prototype's names would put them into a released contract.
+Decision: (a) The four packages are `store.spi` (outbound ports that adapters implement and the core calls), `store.api` (the inbound Store Command port and its types), `store.core` (use cases) and `store.postgres` (the Postgres adapter) (Q7). (b) The renames land in the prototype as rename-only commits with CI green, before the import SHA, so the move is a pure copy (units U2 to U4). (c) `DerivationRecomputer` is in `store.api`; `DerivationPlugin`, `DerivationContext` and `QueryPort` are in `store.spi` (Q12). `AuthorizationPort` is in `store.spi`; `AccessDecision` and `Operation` move to `store.api` in U3 (Q-C). (d) The Flyway location is unchanged, and `app.*` and the host stay under `org.sequeless.app`.
+Alternatives: keep `org.sequeless.spi` in the released artifacts (clashes with the query and automation families); Option C of Q7 (`store.spi` for ports, `store.api` for types, `store.core`, `store.postgres`) as the fallback if one shape is needed.
+Consequences: the released package names freeze at 0.1.0.
+Reversibility: low after 0.1.0.
+
+### DR-31 The Store owns migrations V1 to V12 on the default history; the query set runs separately
+Context: V1 creates `sq_object`, `sq_ontology_document` and `sq_outbox` in one file on one Flyway history. V12 creates `sq_automation_failure`. The query set has its own history, `flyway_schema_history_query`. V1 is frozen by `PostgresMigrationFrozenSetsTest`.
+Decision: (a) `store-postgres-jsonb-adapter` owns V1 to V12, byte-identical, including `sq_ontology_document`, as the published table contract (Q2, Q4). (b) Its `PostgresMigrations` runs the command set only, on `flyway_schema_history` (Q23). (c) The host runs the command set and then the query set, in that order (Q23). (d) The frozen command sets that move are `post-p2`, `post-p3`, `post-p4` and `post-p7` (Q15). `frozen-migrations/3328993` and `frozen-migrations/fbb82c5` stay in the host (Q-B). `post-p7/query` is retired from the Store repository.
+Alternatives: the Store runs both sets (couples the Store release to the query migration history; rejected); the ontology document table in its own history (forks V1; rejected).
+Consequences: the table layout is a published contract. A breaking change to it is a major version of the module. The host's migrate order is recorded here so the cut-over can name it.
+Reversibility: low. V1 to V12 are frozen, and a change to their bytes or their history breaks deployed databases.
+
+### DR-32 Command contract doubles move to `store-testkit`; Query contracts stay with `query-testkit`
+Context: `query-testkit` 0.2.1 publishes the Query contracts and their in-memory doubles. The prototype's `sequeless-spi-testkit` holds both the Command and the Query doubles.
+Decision: (a) The Command doubles (`InMemoryObjectStorePort`, `InMemoryAggregateQueryPort`, `InMemoryAggregateObjectStorePort`, `WorkloadDerivationPlugin` with its service entry and `ontology/unknown-plugin.ttl`) move to `store-testkit`'s main sources (Q20). The Command-side `schema()` builder is split out of `QueryFixtures` into `store-testkit` (Q19). (b) The Query-side testkit files are deleted from the prototype when browse and read move to the host (Q24, U6). (c) `store-core`'s tests do not depend on `store-testkit`, so there is no Maven cycle (Q21).
+Alternatives: keep duplicate Query contracts in the Store (duplicates a released contract; rejected).
+Consequences: the `store-testkit` surface is published at 0.1.0. U6 lists each class, because the surface is a one-way door.
+Reversibility: moderate before 0.1.0; low after.
+
+### DR-33 Browse and read are host use cases; Command code does not depend on Query types
+Context: `DefaultBusinessObjectService` holds both the Command and the browse and read use cases. `StateMachineInterpreter` and `PostgresObjectStore` import `ObjectView`, a Query type.
+Decision: (a) The browse and read use cases, with `ObjectViewMapper`, move to the host's query package (Q18, U6). `ObjectView` leaves the Command code. (b) `QueryPort`, `Criterion`, `Operator`, `AggregateRequest` and `AggregateResult` move to `store.spi` as one group, because the Command side needs them for derivation rollups (Q18). (c) The rest of `spi.query` stays in the host.
+Alternatives: move the Query types into `store-core` (duplicates a released contract; rejected); keep the Command code importing Query types (reverses the family dependency; rejected).
+Consequences: the import SHA gives a pure copy, and the Command side needs no new contract.
+Reversibility: moderate.
+
+### DR-34 First versions are 0.1.0, and the BOM moves in feature steps
+Context: #23 requires first versions at 0.1.0. `sequeless-build`'s release-please uses `bump-minor-pre-major`, so a `feat` commit on the BOM releases a minor and a `fix` commit releases a patch (unverified against the current release config; U10 checks it).
+Decision: (a) `store-core`, `store-testkit` and `store-postgres-jsonb-adapter` start at 0.1.0 (Q6, U9). (b) The BOM goes from 0.3.2 to 0.4.0 with a `feat(bom)` commit that lists the Store artifacts (Q6, U10). (c) `ontology-postgres-adapter` starts at 0.1.0 in `sequeless-ontology`, and the BOM goes to 0.5.0 with a `feat(bom)` commit that lists its entries and pins `ontology-core` 0.2.0 in `bom-contracts` (Q13, U13, U13b). (d) The release order is the Store release, then the BOM, then the prototype cut-over.
+Alternatives: a `fix(bom)` commit (releases a patch, which signals no new surface to consumers; rejected).
+Consequences: every release PR gets a user empty-commit re-trigger, and it merges only on green required checks.
+Reversibility: low. Released versions are immutable.
+
+### DR-35 The host is one module, and the emptied modules go after the fold
+Context: #46 says "the single host". #19 keeps all Spring wiring in the host, and the adapter modules depend on the root `sequeless-spi` for the descriptor types until they fold in.
+Decision: (a) `sequeless-app` is the one host module. The persistence, Jena and permit-all wiring fold into it, in that order, one module at a time, each as a CI-green commit (Q9, U12a to U12c). (b) The root `sequeless-spi` keeps `AdapterDescriptor`, `AdapterDescriptorProvider` and `SpiVersion` until the fold, because moving them earlier makes a Maven cycle. The fold moves them into `sequeless-app` and deletes the module (Q22, U12d). This withdraws Q17.
+Alternatives: move the descriptor types into `sequeless-app` in U6 (a Maven cycle until the fold; rejected).
+Consequences: `FatJarServesUiAndApiIT` stays green on every fold unit.
+Reversibility: moderate. The host is not published.
+
+### DR-36 The automation failure record is part of the Store contract at 0.1.0
+Context: `V12` and `sq_automation_failure` are owned by the Store adapter, and the recorder writes that table. `sequeless-automation` #4 tracks an upstream failure port that does not exist yet.
+Decision: (a) `AutomationFailure` and `AutomationFailureRecorder` move to `store.spi`, and `PostgresAutomationFailureRecorder` moves to `store.postgres` unchanged (Q11). (b) The recorder SPI is frozen at 0.1.0. `sequeless-automation` #4 adds an upstream port later, additively, which the Store recorder then implements. (c) The fix to #4 is behaviour work and does not block the move.
+Alternatives: keep the recorder in the host (it would split the table contract; rejected).
+Consequences: the recorder's signature is part of the 0.1.0 Store contract.
+Reversibility: low after 0.1.0.
