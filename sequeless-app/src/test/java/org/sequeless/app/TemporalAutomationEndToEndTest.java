@@ -64,7 +64,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * that {@link org.sequeless.adapter.automation.temporal.TemporalAutomationPort}'s explicit {@code
  * WorkflowIdReusePolicy.REJECT_DUPLICATE} (finding F40 from T10) actually prevents a duplicate
  * side effect when the same {@link TransitionFiredEvent} is ingested twice — the realistic shape of "the
- * relay crashed between committing an outbox row and finishing its dispatch, then redispatched the
+ * relay crashed between committing an outbox row and finishing its ingest, then re-ingested the
  * same row after restart."
  *
  * <p><b>Deliberately hand-builds its own {@code TransitionFired} {@link OutboxEntry} rows rather
@@ -210,7 +210,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
     }
 
     @Test
-    void dispatchingSameActionTwiceCreatesOnlyOneTask() {
+    void ingestingSameActionTwiceCreatesOnlyOneTask() {
         String uniqueTitle = "Idempotency Task " + UUID.randomUUID();
         servedAutomationSource.serve(automation(
                 "createIdempotent",
@@ -229,8 +229,8 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
 
         objectStorePort.commit(SCOPE, new ChangeSet(List.<Mutation>of(touch), List.of(transitionFired)));
 
-        // Simulates "the relay crashed between committing this row and finishing its dispatch,
-        // then redispatched the identical row after restart": call ingest() directly, twice,
+        // Simulates "the relay crashed between committing this row and finishing its ingest,
+        // then re-ingested the identical row after restart": call ingest() directly, twice,
         // bypassing OutboxPort's own claim mechanism (already covered by T8's contract tests).
         TransitionFiredEvent fired =
                 new TransitionFiredEvent(transitionFired.id(), transitionFired.payload(), transitionFired.occurredAt());
@@ -317,7 +317,7 @@ class TemporalAutomationEndToEndTest extends TemporalTestcontainersSupport {
                 .as("exactly one Task titled '%s' exists", expectedTitle)
                 .isEqualTo(1);
 
-        // Give any redundant (would-be duplicate) dispatch a moment to land, then confirm the
+        // Give any redundant (would-be duplicate) ingest a moment to land, then confirm the
         // count never rises above one.
         sleep(Duration.ofSeconds(2));
         assertThat(countTasksTitled(expectedTitle))

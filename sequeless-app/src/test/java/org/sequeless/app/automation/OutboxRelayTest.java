@@ -38,7 +38,7 @@ import org.springframework.beans.factory.ObjectProvider;
 class OutboxRelayTest {
 
     /**
-     * The recomputer for every test that dispatches only non-lifecycle kinds. Such a row must never
+     * The recomputer for every test that ingests only non-lifecycle kinds. Such a row must never
      * reach the recompute, so this throws if it is ever called.
      */
     private static final DerivationRecomputer UNUSED_RECOMPUTER = (scope, changeEvent) -> {
@@ -64,19 +64,19 @@ class OutboxRelayTest {
     }
 
     @Test
-    void dispatchExceptionStopsDrainAndLeavesRemainingRowsUnclaimed() {
+    void ingestExceptionStopsDrainAndLeavesRemainingRowsUnclaimed() {
         InMemoryOutboxPort outboxPort = new InMemoryOutboxPort();
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         outboxPort.enqueue("tenant-a", transitionFired("tenant-a", "alice"));
         RecordingAutomationPort automationPort = new RecordingAutomationPort();
-        automationPort.throwOnCall(2); // the second dispatched row fails
+        automationPort.throwOnCall(2); // the second ingested row fails
 
         OutboxRelay relay = new OutboxRelay(outboxPort, providerOf(automationPort), UNUSED_RECOMPUTER);
 
         relay.pollOnce();
 
-        // Only the first row was successfully dispatched; pollOnce() must not rethrow.
+        // Only the first row was successfully ingested; pollOnce() must not rethrow.
         assertThat(automationPort.ingestedEvents).hasSize(1);
         // The second row (whose handler call threw) and the third (never reached) both remain
         // claimable — the queue still holds 2 rows.
@@ -148,7 +148,7 @@ class OutboxRelayTest {
 
     /**
      * The relay claims only its dispatchable kinds. An {@code ActionRequest} row is not one of them,
-     * so it stays unprocessed and nothing is dispatched for it.
+     * so it stays unprocessed and nothing is ingested for it.
      */
     @Test
     void relayDoesNotClaimActionRequestRows() {
