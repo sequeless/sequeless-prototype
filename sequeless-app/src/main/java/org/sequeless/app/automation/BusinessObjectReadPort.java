@@ -5,11 +5,11 @@ import java.util.Optional;
 import org.sequeless.automation.api.ObjectReadDeniedException;
 import org.sequeless.automation.api.ObjectReadPort;
 import org.sequeless.automation.api.ObjectSnapshot;
-import org.sequeless.core.AuthorizationException;
-import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.BusinessObjectService;
 
 /**
  * The host's {@link ObjectReadPort}: reads an object through {@link BusinessObjectService#read}, so the READ

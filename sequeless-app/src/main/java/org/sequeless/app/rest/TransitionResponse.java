@@ -1,6 +1,6 @@
 package org.sequeless.app.rest;
 
-import org.sequeless.core.statemachine.TransitionAvailability;
+import org.sequeless.store.core.statemachine.TransitionAvailability;
 
 /**
  * JSON response body for one element of {@code GET /objects/{type}/{id}/transitions}: whether a

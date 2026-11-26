@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.sequeless.core.derivation.FilterNodeToCriterion;
 import org.sequeless.filter.api.FilterNode;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.Value;
@@ -16,6 +15,7 @@ import org.sequeless.ontology.behaviour.api.RollupRule;
 import org.sequeless.ontology.jena.JenaOntologyPort;
 import org.sequeless.ontology.jena.ReasonerSetting;
 import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.store.core.derivation.FilterNodeToCriterion;
 import org.sequeless.store.spi.Criterion;
 import org.sequeless.store.spi.Operator;
 

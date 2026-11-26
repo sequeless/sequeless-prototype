@@ -6,9 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.sequeless.core.api.BrowseQuery;
-import org.sequeless.core.api.BusinessObjectService;
-import org.sequeless.core.api.TransitionService;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
@@ -32,6 +29,9 @@ import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.core.api.BrowseQuery;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.TransitionService;
 
 /**
  * Hand-built doubles for the automation binding tests, in the repo's no-mocking-library style. Each double records

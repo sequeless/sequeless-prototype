@@ -1,11 +1,11 @@
 package org.sequeless.app.rest;
 
 import java.util.Objects;
-import org.sequeless.core.api.WhoAmI;
-import org.sequeless.core.api.WhoAmIResult;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.store.core.api.WhoAmI;
+import org.sequeless.store.core.api.WhoAmIResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 

@@ -2,10 +2,10 @@ package org.sequeless.app.automation;
 
 import org.sequeless.automation.api.ObjectReadPort;
 import org.sequeless.automation.api.StoreCommandPort;
-import org.sequeless.core.api.BusinessObjectService;
-import org.sequeless.core.api.TransitionService;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.TransitionService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;

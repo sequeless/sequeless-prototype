@@ -1,0 +1,739 @@
+package org.sequeless.store.core.usecase;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
+import java.util.Set;
+import java.util.UUID;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.DerivationRule;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.spi.object.Audit;
+import org.sequeless.spi.object.BusinessObject;
+import org.sequeless.spi.object.ChangeSet;
+import org.sequeless.spi.object.CommitResult;
+import org.sequeless.spi.object.Create;
+import org.sequeless.spi.object.Delete;
+import org.sequeless.spi.object.Mutation;
+import org.sequeless.spi.object.PropertyRef;
+import org.sequeless.spi.object.TypeRef;
+import org.sequeless.spi.object.Update;
+import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.spi.query.BrowsePort;
+import org.sequeless.spi.query.Direction;
+import org.sequeless.spi.query.ObjectView;
+import org.sequeless.spi.query.Query;
+import org.sequeless.spi.query.QueryResult;
+import org.sequeless.spi.query.ReadPort;
+import org.sequeless.spi.query.ReadRequest;
+import org.sequeless.spi.query.Sort;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.api.Operation;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.BrowseQuery;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.InvalidQueryException;
+import org.sequeless.store.core.api.TypeNotFoundException;
+import org.sequeless.store.core.derivation.DerivationPlanner;
+import org.sequeless.store.core.derivation.DerivationPluginRegistry;
+import org.sequeless.store.core.ontology.SchemaAndBehaviour;
+import org.sequeless.store.core.statemachine.PayloadValueCodec;
+import org.sequeless.store.core.validation.CoercionResult;
+import org.sequeless.store.core.validation.StructuralValidator;
+import org.sequeless.store.core.validation.TypeHierarchy;
+import org.sequeless.store.core.validation.ValidationException;
+import org.sequeless.store.core.validation.ValueCoercer;
+import org.sequeless.store.spi.AuthorizationPort;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.Operator;
+import org.sequeless.store.spi.QueryPort;
+import org.sequeless.store.spi.ValidationPort;
+import org.sequeless.store.spi.Violation;
+
+/**
+ * Reference implementation of {@link BusinessObjectService}.
+ *
+ * <p>Every method resolves {@code type} against the current schema first — the same order {@link
+ * DefaultMetaModelService#describeType} uses — because authorization happens against the resolved
+ * canonical type IRI, which is only known once resolution succeeds. Consulting the injected {@link
+ * AuthorizationPort} is never optional, never cached, and never short-circuited.
+ *
+ * <p>{@link #edit} and {@link #delete} both read the existing object before doing anything else,
+ * even though {@link #delete}'s {@code expectedVersion} may be absent: this is not an
+ * optimisation, it is required to preserve {@code createdAt}/{@code createdBy} on edit and to know
+ * what "the current version" even is for a version-less delete. Both also treat "found, but of an
+ * unrelated type" identically to "not found", using {@link TypeHierarchy#isSubtypeOf} — the same
+ * helper {@link #browse} uses to list a type's subtypes and {@code StructuralValidator} uses for
+ * reference-target checking — rather than a hand-rolled equality check.
+ *
+ * <p>{@code state} on a freshly {@link #add added} object is {@link Optional#of} the resolved
+ * type's {@link org.sequeless.ontology.behaviour.api.StateMachineDefinition#initialState()} IRI when the
+ * resolved type has a state machine, or {@link Optional#empty()} otherwise; {@link #edit} never
+ * changes an existing object's {@code state} itself — moving an object through its state machine
+ * after creation is {@link org.sequeless.store.core.usecase.DefaultTransitionService}'s job, not this
+ * class's. Every {@link Instant} this class produces — {@code Audit.createdAt}/{@code updatedAt},
+ * {@code Delete.at}, {@code OutboxEntry.occurredAt} — is truncated to {@link ChronoUnit#MICROS},
+ * since the object store may only round-trip microsecond precision.
+ */
+public final class DefaultBusinessObjectService implements BusinessObjectService {
+
+    private final SchemaSource schemaSource;
+    private final BehaviourSource behaviourSource;
+    private final ObjectStorePort objectStorePort;
+    private final ValidationPort validationPort;
+    private final AuthorizationPort authorizationPort;
+    private final ReadPort readPort;
+    private final BrowsePort browsePort;
+    private final Clock clock;
+    private final DerivationPlanner derivationPlanner;
+
+    /**
+     * Builds the service with a {@link DerivationPlanner} over {@code queryPort} and the service
+     * loader's {@link DerivationPluginRegistry}.
+     *
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
+     * @param objectStorePort the port every write, and every existence check before a write, goes
+     *     through; must not be {@code null}
+     * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
+     *     must not be {@code null}
+     * @param authorizationPort the port every call consults; must not be {@code null}
+     * @param readPort the port {@link #read} resolves a single object through; must not be {@code
+     *     null}
+     * @param browsePort the port {@link #browse} runs its query through once its {@link BrowseQuery}
+     *     resolves cleanly against the current schema; must not be {@code null}
+     * @param queryPort the port the {@link DerivationPlanner} built here uses to resolve rollups; must
+     *     not be {@code null}
+     * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
+     *     {@code null}
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    public DefaultBusinessObjectService(
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
+            ObjectStorePort objectStorePort,
+            ValidationPort validationPort,
+            AuthorizationPort authorizationPort,
+            ReadPort readPort,
+            BrowsePort browsePort,
+            QueryPort queryPort,
+            Clock clock) {
+        this(
+                schemaSource,
+                behaviourSource,
+                objectStorePort,
+                validationPort,
+                authorizationPort,
+                readPort,
+                browsePort,
+                clock,
+                new DerivationPlanner(queryPort, DerivationPluginRegistry.fromServiceLoader()));
+    }
+
+    /**
+     * @param schemaSource the port the schema half is read from; must not be {@code null}
+     * @param behaviourSource the port the behaviour half is read from; must not be {@code null}
+     * @param objectStorePort the port every write, and every existence check before a write, goes
+     *     through; must not be {@code null}
+     * @param validationPort the port consulted for the SHACL check on {@link #add}/{@link #edit};
+     *     must not be {@code null}
+     * @param authorizationPort the port every call consults; must not be {@code null}
+     * @param readPort the port {@link #read} resolves a single object through; must not be {@code
+     *     null}
+     * @param browsePort the port {@link #browse} runs its query through once its {@link BrowseQuery}
+     *     resolves cleanly against the current schema; must not be {@code null}
+     * @param clock the clock every {@link Instant} this class produces is drawn from; must not be
+     *     {@code null}
+     * @param derivationPlanner computes every derived property on the object(s) {@link #read} and
+     *     {@link #browse} return; must not be {@code null}
+     * @throws NullPointerException if any argument is {@code null}
+     */
+    public DefaultBusinessObjectService(
+            SchemaSource schemaSource,
+            BehaviourSource behaviourSource,
+            ObjectStorePort objectStorePort,
+            ValidationPort validationPort,
+            AuthorizationPort authorizationPort,
+            ReadPort readPort,
+            BrowsePort browsePort,
+            Clock clock,
+            DerivationPlanner derivationPlanner) {
+        this.schemaSource = Objects.requireNonNull(schemaSource, "schemaSource must not be null");
+        this.behaviourSource = Objects.requireNonNull(behaviourSource, "behaviourSource must not be null");
+        this.objectStorePort = Objects.requireNonNull(objectStorePort, "objectStorePort must not be null");
+        this.validationPort = Objects.requireNonNull(validationPort, "validationPort must not be null");
+        this.authorizationPort = Objects.requireNonNull(authorizationPort, "authorizationPort must not be null");
+        this.readPort = Objects.requireNonNull(readPort, "readPort must not be null");
+        this.browsePort = Objects.requireNonNull(browsePort, "browsePort must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.derivationPlanner = Objects.requireNonNull(derivationPlanner, "derivationPlanner must not be null");
+    }
+
+    @Override
+    public QueryResult browse(Scope scope, String type, BrowseQuery query) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(query, "query must not be null");
+
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
+        authorize(scope, Operation.BROWSE, resolved.iri());
+
+        Map<String, PropertyDefinition> propertyIndex = propertyIndex(schema, resolved.iri());
+        List<Violation> violations = new ArrayList<>();
+        List<Criterion> criteria = buildCriteria(query.filters(), behaviour, propertyIndex, violations);
+        List<Sort> sorts = buildSorts(query.sorts(), behaviour, propertyIndex, violations);
+        List<String> facetIris = buildFacets(query.facets(), behaviour, propertyIndex, violations);
+        if (!violations.isEmpty()) {
+            throw new InvalidQueryException(violations);
+        }
+
+        Set<String> concreteTypes = TypeHierarchy.concreteTypeAndSubtypes(schema, resolved.iri());
+        if (concreteTypes.isEmpty()) {
+            return new QueryResult(List.of(), 0, Map.of());
+        }
+
+        Query spiQuery =
+                new Query(concreteTypes, criteria, query.text(), sorts, query.page(), facetIris, false, resolved.iri());
+        QueryResult result = browsePort.browse(scope, schema, spiQuery);
+        List<BusinessObject> stored =
+                result.items().stream().map(ObjectViewMapper::toBusinessObject).toList();
+        List<ObjectView> derived = derivationPlanner.apply(scope, schema, behaviour, resolved, stored).stream()
+                .map(ObjectViewMapper::toView)
+                .toList();
+        return new QueryResult(derived, result.total(), result.facets());
+    }
+
+    @Override
+    public ObjectView read(Scope scope, String type, ObjectId id) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        TypeDefinition resolved = resolveType(schema, type);
+        authorize(scope, Operation.READ, resolved.iri());
+
+        ObjectView found = readPort.read(scope, new ReadRequest(id)).orElseThrow(() -> new ObjectNotFoundException(id));
+        requireMatchingType(schema, found.type(), resolved, id);
+        BusinessObject stored = ObjectViewMapper.toBusinessObject(found);
+        return ObjectViewMapper.toView(derivationPlanner
+                .apply(scope, schema, halves.behaviour(), resolved, List.of(stored))
+                .get(0));
+    }
+
+    @Override
+    public Optional<TypeRef> typeOf(Scope scope, ObjectId id) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        // The store's own tenant filter decides: an object of another tenant is absent from the result.
+        return Optional.ofNullable(objectStorePort.typesOf(scope, Set.of(id)).get(id));
+    }
+
+    @Override
+    public BusinessObject add(Scope scope, String type, Map<String, Object> properties) {
+        Objects.requireNonNull(properties, "properties must not be null");
+        return add(scope, type, ObjectId.random(), properties);
+    }
+
+    @Override
+    public BusinessObject add(Scope scope, String type, ObjectId id, Map<String, Object> properties) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        Objects.requireNonNull(properties, "properties must not be null");
+
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
+        authorize(scope, Operation.ADD, resolved.iri());
+
+        Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, behaviour, properties);
+        List<Violation> structural =
+                StructuralValidator.validateForCreate(scope, schema, behaviour, resolved, coerced, objectStorePort);
+        if (!structural.isEmpty()) {
+            throw new ValidationException(ValidationException.Source.STRUCTURAL, structural);
+        }
+
+        Instant now = now();
+        String by = scope.principal().id();
+        Optional<String> initialState =
+                behaviour.stateMachine(resolved.iri()).map(m -> m.initialState().iri());
+        BusinessObject candidate = new BusinessObject(
+                id,
+                new TypeRef(resolved.iri()),
+                scope.tenantId(),
+                1,
+                initialState,
+                coerced,
+                new Audit(now, by, now, by),
+                false);
+
+        List<Violation> shaclViolations = validationPort.validate(scope, schema, candidate);
+        if (!shaclViolations.isEmpty()) {
+            throw new ValidationException(ValidationException.Source.SHACL, shaclViolations);
+        }
+
+        OutboxEntry outboxEntry = new OutboxEntry(
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_CREATED,
+                outboxPayload(
+                        candidate.id(),
+                        1L,
+                        candidate.type().iri(),
+                        schema.ontologyVersion().value()),
+                now);
+        ChangeSet changeSet = new ChangeSet(List.<Mutation>of(new Create(candidate)), List.of(outboxEntry));
+
+        CommitResult result = objectStorePort.commit(scope, changeSet);
+        return result.objects().get(0);
+    }
+
+    @Override
+    public BusinessObject edit(
+            Scope scope, String type, ObjectId id, long expectedVersion, Map<String, Object> properties) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        Objects.requireNonNull(properties, "properties must not be null");
+
+        SchemaAndBehaviour halves = SchemaAndBehaviour.read(scope.tenantId(), schemaSource, behaviourSource);
+        Schema schema = halves.schema();
+        Behaviour behaviour = halves.behaviour();
+        TypeDefinition resolved = resolveType(schema, type);
+        authorize(scope, Operation.EDIT, resolved.iri());
+
+        BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        requireMatchingType(schema, existing.type(), resolved, id);
+
+        Map<PropertyRef, Value> coerced = coerceOrThrow(resolved, behaviour, properties);
+        List<Violation> structural =
+                StructuralValidator.validateForUpdate(scope, schema, behaviour, resolved, coerced, objectStorePort);
+        if (!structural.isEmpty()) {
+            throw new ValidationException(ValidationException.Source.STRUCTURAL, structural);
+        }
+
+        Instant now = now();
+        String by = scope.principal().id();
+        Audit audit = new Audit(existing.audit().createdAt(), existing.audit().createdBy(), now, by);
+        BusinessObject candidate = new BusinessObject(
+                id, existing.type(), existing.tenant(), expectedVersion + 1, existing.state(), coerced, audit, false);
+
+        List<Violation> shaclViolations = validationPort.validate(scope, schema, candidate);
+        if (!shaclViolations.isEmpty()) {
+            throw new ValidationException(ValidationException.Source.SHACL, shaclViolations);
+        }
+
+        OutboxEntry outboxEntry = new OutboxEntry(
+                UUID.randomUUID(),
+                OutboxEntry.KIND_OBJECT_UPDATED,
+                outboxPayload(
+                        id,
+                        expectedVersion + 1,
+                        existing.type().iri(),
+                        schema.ontologyVersion().value()),
+                now);
+        ChangeSet changeSet =
+                new ChangeSet(List.<Mutation>of(new Update(candidate, expectedVersion)), List.of(outboxEntry));
+
+        CommitResult result = objectStorePort.commit(scope, changeSet);
+        return result.objects().get(0);
+    }
+
+    @Override
+    public void delete(Scope scope, String type, ObjectId id, OptionalLong expectedVersion) {
+        Objects.requireNonNull(scope, "scope must not be null");
+        Objects.requireNonNull(type, "type must not be null");
+        Objects.requireNonNull(id, "id must not be null");
+        Objects.requireNonNull(expectedVersion, "expectedVersion must not be null");
+
+        Schema schema = schemaSource.schema(scope.tenantId());
+        TypeDefinition resolved = resolveType(schema, type);
+        authorize(scope, Operation.DELETE, resolved.iri());
+
+        BusinessObject existing = objectStorePort.find(scope, id).orElseThrow(() -> new ObjectNotFoundException(id));
+        requireMatchingType(schema, existing.type(), resolved, id);
+
+        long versionToDelete = expectedVersion.orElse(existing.version());
+        Instant now = now();
+        String by = scope.principal().id();
+        Delete deletion = new Delete(id, versionToDelete, now, by);
+        Map<String, Object> payload = outboxPayload(
+                id,
+                versionToDelete + 1,
+                existing.type().iri(),
+                schema.ontologyVersion().value());
+        payload.put("properties", propertiesSnapshot(existing));
+        OutboxEntry outboxEntry = new OutboxEntry(UUID.randomUUID(), OutboxEntry.KIND_OBJECT_DELETED, payload, now);
+        ChangeSet changeSet = new ChangeSet(List.<Mutation>of(deletion), List.of(outboxEntry));
+
+        objectStorePort.commit(scope, changeSet);
+    }
+
+    private TypeDefinition resolveType(Schema schema, String nameOrIri) {
+        return schema.typeByName(nameOrIri)
+                .or(() -> schema.type(nameOrIri))
+                .orElseThrow(() -> new TypeNotFoundException(nameOrIri));
+    }
+
+    /**
+     * Builds the property lookup a {@link BrowseQuery}'s filter/sort/facet property names resolve
+     * against: every property (by both IRI and short name) attributed to {@code typeIri} or any of
+     * its transitive subtypes — a deliberately wider set than {@link
+     * TypeHierarchy#concreteTypeAndSubtypes}, since a filter/sort/facet property declared only on a
+     * concrete subtype must still resolve when browsing its abstract supertype.
+     */
+    private Map<String, PropertyDefinition> propertyIndex(Schema schema, String typeIri) {
+        Map<String, PropertyDefinition> index = new HashMap<>();
+        for (TypeRef typeRef : TypeHierarchy.typeAndSubtypes(schema, typeIri)) {
+            TypeDefinition type = schema.type(typeRef.iri()).orElseThrow();
+            for (PropertyDefinition property : type.properties()) {
+                index.put(property.iri(), property);
+                index.put(shortName(property.iri()), property);
+            }
+        }
+        return index;
+    }
+
+    /**
+     * Resolves a filter/sort/facet property reference (short name or full IRI) against {@code
+     * index}, rejecting an unknown property, a multi-valued one — every one of the three query
+     * clauses this method backs requires a scalar property, per phase-3's explicit scope — or a
+     * derived property whose rule is not materialised, since only a materialised rule's value ever
+     * reaches {@code sq_object.props} for {@code BrowsePort} to filter, sort, or facet on. Records a
+     * {@link Violation} and returns {@code null} on any failure, rather than throwing, so a
+     * single {@link BrowseQuery} can report every violation it contains at once.
+     */
+    private PropertyDefinition resolveQueryableProperty(
+            String nameOrIri,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations,
+            String kind) {
+        PropertyDefinition property = index.get(nameOrIri);
+        if (property == null) {
+            violations.add(new Violation(nameOrIri, "Unknown property '" + nameOrIri + "'"));
+            return null;
+        }
+        if (!isScalar(property)) {
+            violations.add(new Violation(
+                    property.iri(),
+                    "Property '" + shortName(property.iri()) + "' is multi-valued and cannot be used in a " + kind));
+            return null;
+        }
+        Optional<DerivationRule> derivation = behaviour.derivation(property.iri());
+        if (derivation.isPresent() && !derivation.get().materialised()) {
+            violations.add(new Violation(
+                    property.iri(),
+                    "Property '" + shortName(property.iri()) + "' is a derived property that is not materialised "
+                            + "and cannot be used in a " + kind));
+            return null;
+        }
+        return property;
+    }
+
+    private static boolean isScalar(PropertyDefinition property) {
+        OptionalInt max = property.cardinality().max();
+        return max.isPresent() && max.getAsInt() == 1;
+    }
+
+    private List<Criterion> buildCriteria(
+            List<BrowseQuery.Filter> filters,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations) {
+        List<Criterion> criteria = new ArrayList<>();
+        for (BrowseQuery.Filter filter : filters) {
+            PropertyDefinition property =
+                    resolveQueryableProperty(filter.property(), behaviour, index, violations, "filter");
+            if (property == null) {
+                continue;
+            }
+            Optional<Operator> operator = parseOperatorToken(filter.operator());
+            if (operator.isEmpty()) {
+                violations.add(new Violation(filter.property(), "Unknown filter operator '" + filter.operator() + "'"));
+                continue;
+            }
+            if (!operatorApplicable(operator.get(), property)) {
+                violations.add(new Violation(
+                        property.iri(),
+                        "Operator '" + filter.operator() + "' is not applicable to property '"
+                                + shortName(property.iri()) + "'"));
+                continue;
+            }
+            Optional<Value> value = buildCriterionValue(property, operator.get(), filter.rawValue(), violations);
+            criteria.add(new Criterion(property.iri(), operator.get(), value));
+        }
+        return criteria;
+    }
+
+    private Optional<Value> buildCriterionValue(
+            PropertyDefinition property, Operator operator, Optional<String> rawValue, List<Violation> violations) {
+        if (operator == Operator.IS_NULL || operator == Operator.NOT_NULL) {
+            return Optional.empty();
+        }
+        if (rawValue.isEmpty()) {
+            violations.add(new Violation(property.iri(), "value required for operator " + operator));
+            return Optional.empty();
+        }
+        String raw = rawValue.get();
+        if (operator == Operator.IN) {
+            String[] tokens = raw.split(",", -1);
+            List<Value> values = new ArrayList<>();
+            boolean allSucceeded = true;
+            for (String token : tokens) {
+                String trimmed = token.trim();
+                if (trimmed.isEmpty()) {
+                    violations.add(new Violation(property.iri(), "IN operator candidate value must not be blank"));
+                    allSucceeded = false;
+                    continue;
+                }
+                Optional<Value> coerced = coerceFilterScalar(property, trimmed, violations);
+                if (coerced.isEmpty()) {
+                    allSucceeded = false;
+                    continue;
+                }
+                values.add(coerced.get());
+            }
+            if (!allSucceeded) {
+                return Optional.empty();
+            }
+            return Optional.of(Value.list(values));
+        }
+        return coerceFilterScalar(property, raw, violations);
+    }
+
+    /**
+     * Coerces one raw filter token to a {@link Value} per {@code property}'s datatype, via {@link
+     * ValueCoercer#coerceScalarValue}. {@link ValueCoercer#coerceScalarValue}'s {@code INTEGER}/
+     * {@code LONG} branch requires a {@link Number}, and its {@code BOOLEAN} branch requires a
+     * {@link Boolean} — neither parses a numeric/boolean string itself — but a filter value always
+     * arrives here as a raw {@link String}, so those two datatype families are pre-parsed before
+     * the call. Every other datatype family (including relationship UUIDs) already accepts a raw
+     * {@link String} as-is.
+     */
+    private Optional<Value> coerceFilterScalar(PropertyDefinition property, String raw, List<Violation> violations) {
+        Object nativeValue = raw;
+        if (property instanceof AttributeDefinition attribute) {
+            switch (attribute.datatype()) {
+                case INTEGER, LONG -> {
+                    try {
+                        nativeValue = new BigDecimal(raw);
+                    } catch (NumberFormatException e) {
+                        violations.add(new Violation(property.iri(), "expected an integer"));
+                        return Optional.empty();
+                    }
+                }
+                case BOOLEAN -> {
+                    if ("true".equalsIgnoreCase(raw)) {
+                        nativeValue = Boolean.TRUE;
+                    } else if ("false".equalsIgnoreCase(raw)) {
+                        nativeValue = Boolean.FALSE;
+                    } else {
+                        violations.add(new Violation(property.iri(), "expected a boolean"));
+                        return Optional.empty();
+                    }
+                }
+                default -> {
+                    // DECIMAL/DOUBLE, STRING, DATE, DATE_TIME, ANY_URI, TIME, DURATION already
+                    // accept the raw string as-is; ValueCoercer.coerceScalarValue parses it.
+                }
+            }
+        }
+        ValueCoercer.ScalarResult result = ValueCoercer.coerceScalarValue(property, nativeValue);
+        if (!result.isSuccess()) {
+            violations.add(new Violation(property.iri(), result.errorReason()));
+            return Optional.empty();
+        }
+        return Optional.of(result.value());
+    }
+
+    private List<Sort> buildSorts(
+            List<BrowseQuery.SortKey> sortKeys,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations) {
+        List<Sort> sorts = new ArrayList<>();
+        for (BrowseQuery.SortKey sortKey : sortKeys) {
+            PropertyDefinition property =
+                    resolveQueryableProperty(sortKey.property(), behaviour, index, violations, "sort");
+            if (property == null) {
+                continue;
+            }
+            Optional<Direction> direction = parseDirectionToken(sortKey.direction());
+            if (direction.isEmpty()) {
+                violations.add(
+                        new Violation(sortKey.property(), "Unknown sort direction '" + sortKey.direction() + "'"));
+                continue;
+            }
+            sorts.add(new Sort(property.iri(), direction.get()));
+        }
+        return sorts;
+    }
+
+    private List<String> buildFacets(
+            List<String> facets,
+            Behaviour behaviour,
+            Map<String, PropertyDefinition> index,
+            List<Violation> violations) {
+        List<String> facetIris = new ArrayList<>();
+        for (String nameOrIri : facets) {
+            PropertyDefinition property = resolveQueryableProperty(nameOrIri, behaviour, index, violations, "facet");
+            if (property == null) {
+                continue;
+            }
+            if (!property.facet()) {
+                violations.add(new Violation(
+                        property.iri(), "Property '" + shortName(property.iri()) + "' is not a facet property"));
+                continue;
+            }
+            facetIris.add(property.iri());
+        }
+        return facetIris;
+    }
+
+    private static boolean operatorApplicable(Operator operator, PropertyDefinition property) {
+        return switch (operator) {
+            case EQ, NE, IN, IS_NULL, NOT_NULL -> true;
+            case LT, LTE, GT, GTE ->
+                property instanceof AttributeDefinition attribute
+                        && switch (attribute.datatype()) {
+                            case INTEGER, LONG, DECIMAL, DOUBLE, DATE, DATE_TIME -> true;
+                            default -> false;
+                        };
+            case CONTAINS, STARTS_WITH ->
+                property instanceof AttributeDefinition attribute && attribute.datatype() == Datatype.STRING;
+        };
+    }
+
+    private static Optional<Operator> parseOperatorToken(String token) {
+        return switch (token.toLowerCase(Locale.ROOT)) {
+            case "eq" -> Optional.of(Operator.EQ);
+            case "ne" -> Optional.of(Operator.NE);
+            case "in" -> Optional.of(Operator.IN);
+            case "lt" -> Optional.of(Operator.LT);
+            case "lte" -> Optional.of(Operator.LTE);
+            case "gt" -> Optional.of(Operator.GT);
+            case "gte" -> Optional.of(Operator.GTE);
+            case "contains" -> Optional.of(Operator.CONTAINS);
+            case "startswith" -> Optional.of(Operator.STARTS_WITH);
+            case "isnull" -> Optional.of(Operator.IS_NULL);
+            case "notnull" -> Optional.of(Operator.NOT_NULL);
+            default -> Optional.empty();
+        };
+    }
+
+    private static Optional<Direction> parseDirectionToken(String token) {
+        return switch (token.toLowerCase(Locale.ROOT)) {
+            case "asc" -> Optional.of(Direction.ASC);
+            case "desc" -> Optional.of(Direction.DESC);
+            default -> Optional.empty();
+        };
+    }
+
+    /**
+     * Duplicated from {@link ValueCoercer}'s private identically-named helper rather than shared:
+     * this codebase's established convention for this specific short pure function (the substring
+     * after an IRI's last {@code #}, else after its last {@code /}, else the whole IRI) is to
+     * duplicate it at each use site rather than introduce a shared dependency for one line of logic.
+     */
+    private static String shortName(String iri) {
+        int hash = iri.lastIndexOf('#');
+        if (hash >= 0) {
+            return iri.substring(hash + 1);
+        }
+        int slash = iri.lastIndexOf('/');
+        return slash >= 0 ? iri.substring(slash + 1) : iri;
+    }
+
+    private void requireMatchingType(Schema schema, TypeRef storedType, TypeDefinition resolved, ObjectId id) {
+        if (!TypeHierarchy.isSubtypeOf(schema, storedType.iri(), resolved.iri())) {
+            throw new ObjectNotFoundException(id);
+        }
+    }
+
+    private Map<PropertyRef, Value> coerceOrThrow(
+            TypeDefinition type, Behaviour behaviour, Map<String, Object> rawProperties) {
+        CoercionResult coercion = ValueCoercer.coerce(type, behaviour, rawProperties);
+        if (!coercion.isSuccess()) {
+            throw new ValidationException(ValidationException.Source.STRUCTURAL, coercion.violations());
+        }
+        return coercion.properties();
+    }
+
+    private Instant now() {
+        return clock.instant().truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /**
+     * Builds the payload of an object-lifecycle Store event. {@code ontologyVersion} is the version of
+     * the schema the write validated against, so the event records which ontology it was committed under.
+     */
+    private static Map<String, Object> outboxPayload(ObjectId id, long version, String typeIri, int ontologyVersion) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("objectId", id.value().toString());
+        payload.put("version", version);
+        payload.put("typeIri", typeIri);
+        payload.put("ontologyVersion", ontologyVersion);
+        return payload;
+    }
+
+    /**
+     * Encodes {@code object}'s stored properties, keyed by their <b>full IRI</b> (not short name),
+     * into the tagged, JSON-compatible shape {@link PayloadValueCodec#toPayload} produces — the same
+     * scheme {@code DefaultTransitionService.selfPayload} uses for a {@code TransitionFired} row's {@code
+     * self} map, except keyed differently on purpose: {@code self} is short-name-keyed because it
+     * feeds an {@link org.sequeless.expression.api.ExpressionContext}, whereas this snapshot is
+     * consulted by {@code DefaultTriggerEvaluator}/{@code DefaultDerivationRecomputer} matching
+     * against {@code sq:watch}/{@code sq:via} IRIs directly, so short names would force those
+     * consumers to re-derive full IRIs from a name they don't otherwise need.
+     *
+     * <p>This snapshot exists solely because {@link ObjectStorePort#find} contractually returns
+     * {@link Optional#empty()} for a soft-deleted object (see that method's own javadoc) — once
+     * {@link #delete} commits, there is no port method left that can read the deleted object's
+     * properties. Without this snapshot embedded in the {@code ObjectDeleted} payload itself, a
+     * consumer reacting to a Task's deletion could never learn which Project it belonged to. {@code
+     * ObjectCreated}/{@code ObjectUpdated} consumers do not need this: they read the still-live
+     * object straight from {@link ObjectStorePort#find}, which is the intended, simpler, convergent
+     * path when the object still exists.
+     */
+    private static Map<String, Object> propertiesSnapshot(BusinessObject object) {
+        Map<String, Object> snapshot = new HashMap<>();
+        for (Map.Entry<PropertyRef, Value> entry : object.properties().entrySet()) {
+            snapshot.put(entry.getKey().iri(), PayloadValueCodec.toPayload(entry.getValue()));
+        }
+        return snapshot;
+    }
+
+    private void authorize(Scope scope, Operation operation, String resource) {
+        AccessDecision decision = authorizationPort.decide(scope, operation, resource);
+        if (!decision.allowed()) {
+            throw new AuthorizationException(decision);
+        }
+    }
+}

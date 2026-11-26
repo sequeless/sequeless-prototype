@@ -51,9 +51,12 @@ class ArchitectureTest {
      */
     private static final String STORE_API_PACKAGE = "org.sequeless.store.api..";
 
-    private static final String CORE_PACKAGE = "org.sequeless.core..";
+    private static final String CORE_PACKAGE = "org.sequeless.store.core..";
     private static final String APP_PACKAGE = "org.sequeless.app..";
     private static final String ADAPTER_PACKAGE = "org.sequeless.adapter..";
+    /** The Postgres command adapter, renamed from {@code org.sequeless.adapter.persistence.postgres} in spec 18 U4. */
+    private static final String STORE_POSTGRES_PACKAGE = "org.sequeless.store.postgres..";
+
     private static final String KERNEL_PACKAGE = "org.sequeless.kernel..";
     private static final String EXPRESSION_PACKAGE = "org.sequeless.expression..";
     private static final String BEHAVIOUR_PACKAGE = "org.sequeless.ontology.behaviour..";
@@ -227,7 +230,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule noAdapterDependsOnCore = noClasses()
             .that()
-            .resideInAPackage(ADAPTER_PACKAGE)
+            .resideInAnyPackage(ADAPTER_PACKAGE, STORE_POSTGRES_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
@@ -371,8 +374,8 @@ class ArchitectureTest {
     static void suiteActuallyAnalyzesEveryModule(JavaClasses classes) {
         assertThat(classes.get("org.sequeless.kernel.identity.Scope").getFullName())
                 .isEqualTo("org.sequeless.kernel.identity.Scope");
-        assertThat(classes.get("org.sequeless.core.usecase.DefaultWhoAmI").getFullName())
-                .isEqualTo("org.sequeless.core.usecase.DefaultWhoAmI");
+        assertThat(classes.get("org.sequeless.store.core.usecase.DefaultWhoAmI").getFullName())
+                .isEqualTo("org.sequeless.store.core.usecase.DefaultWhoAmI");
         assertThat(classes.get("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort")
                         .getFullName())
                 .isEqualTo("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort");

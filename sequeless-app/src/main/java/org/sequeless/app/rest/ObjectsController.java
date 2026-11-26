@@ -18,11 +18,6 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.sequeless.core.api.BrowseQuery;
-import org.sequeless.core.api.BusinessObjectService;
-import org.sequeless.core.api.MetaModelService;
-import org.sequeless.core.api.TransitionService;
-import org.sequeless.core.statemachine.StateMachineInterpreter;
 import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
@@ -36,6 +31,12 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.api.ObjectState;
+import org.sequeless.store.core.api.BrowseQuery;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.MetaModelService;
+import org.sequeless.store.core.api.TransitionService;
+import org.sequeless.store.core.statemachine.StateMachineInterpreter;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
@@ -102,7 +103,7 @@ public class ObjectsController {
      *     {@code null}
      * @param expressionPort the port {@link #transitions} evaluates transition guards through, via
      *     a fresh {@link StateMachineInterpreter} built per request, exactly as {@link
-     *     org.sequeless.core.usecase.DefaultTransitionService} does internally on the write path;
+     *     org.sequeless.store.core.usecase.DefaultTransitionService} does internally on the write path;
      *     must not be {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
@@ -405,10 +406,18 @@ public class ObjectsController {
         Behaviour behaviour = metaModelService.behaviour(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
         Set<String> userActionTransitionNames = userActionTransitionNames(behaviour, object);
-        return interpreter.availableTransitions(scope, behaviour, object).stream()
+        return interpreter.availableTransitions(scope, behaviour, toObjectState(object)).stream()
                 .filter(availability -> userActionTransitionNames.contains(availability.name()))
                 .map(TransitionResponse::from)
                 .toList();
+    }
+
+    /**
+     * @param view the object view to take the transition inputs from; must not be {@code null}
+     * @return the state a transition is evaluated against: the view's type, state and properties
+     */
+    private static ObjectState toObjectState(ObjectView view) {
+        return new ObjectState(view.type().iri(), view.state(), view.properties());
     }
 
     /**

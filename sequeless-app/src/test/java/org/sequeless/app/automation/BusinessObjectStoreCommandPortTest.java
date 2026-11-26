@@ -16,14 +16,14 @@ import org.sequeless.automation.api.CreateObjectCommand;
 import org.sequeless.automation.api.FireTransitionCommand;
 import org.sequeless.automation.api.SetPropertyCommand;
 import org.sequeless.automation.api.StoreCommandRejectedException;
-import org.sequeless.core.AuthorizationException;
-import org.sequeless.core.validation.ValidationException;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.schema.api.Cardinality;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.validation.ValidationException;
 import org.sequeless.store.spi.Violation;
 
 /**

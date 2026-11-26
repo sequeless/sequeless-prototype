@@ -2,10 +2,10 @@ package org.sequeless.app.automation;
 
 import java.util.Objects;
 import java.util.Optional;
-import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.spi.object.TypeRef;
+import org.sequeless.store.core.api.BusinessObjectService;
 
 /**
  * Resolves an object id to its type IRI for the automation bindings.

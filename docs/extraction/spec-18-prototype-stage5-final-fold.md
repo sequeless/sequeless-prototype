@@ -21,7 +21,7 @@ The decisions below are the Navigator's and the parent's, as recorded in the pla
 |---|---|
 | Q1 | One new repository, `sequeless-store`, with modules `store-core`, `store-testkit` and `store-postgres-jsonb-adapter`. `ontology-postgres-adapter` is a module of `sequeless-ontology`, not of the store repository (see Q13). |
 | Q2 | `store-postgres-jsonb-adapter` owns migrations V1 to V12, including `sq_ontology_document`, as the published table contract. V1 creates `sq_object`, `sq_ontology_document` and `sq_outbox` in one file on one Flyway history. `ontology-postgres-adapter` ships no migration and has no compile-time dependency on the store adapter; it requires the migrated schema. |
-| Q3 | `store-core` takes the Command packages of `sequeless-spi` (object, outbox, derivation, validation, the `DerivationRecomputer` and the failure SPI from automation, the authz SPI, the aggregate query types) and the Command use cases of `sequeless-core`. The permit-all authz adapter and every Spring autoconfiguration stay in the host. Amended by Q18, Q-C and section 3. |
+| Q3 | `store-core` takes the Command packages of `sequeless-spi` (object, outbox, derivation, validation, the `DerivationRecomputer` and the failure SPI from automation, the authz SPI, the aggregate query types) and the Command use cases of `sequeless-core`, except `MetaModelService`, `OntologyAdministration`, `WhoAmI` and their `Default*` use cases, which stay in the host (O12, Option A). The permit-all authz adapter and every Spring autoconfiguration stay in the host. Amended by Q18, Q-C and section 3. |
 | Q4 | `store-postgres-jsonb-adapter` keeps the location `db/migration/sequeless/postgres` and the default `flyway_schema_history` table, with V1 to V12 byte-identical. `PostgresMigrationFrozenSetsTest` moves with it. The prototype deletes its copies in the cut-over commit, which names `sequeless-store` and the import SHA. |
 | Q5 | `Page`, `Audit`, `PropertyRef` and `TypeRef` move to `store-core`. The host imports them from there. The query-side copies in `sequeless-query` stay; the Released* adapters map between the two sides. |
 | Q6 | `store-core`, `store-testkit` and `store-postgres-jsonb-adapter` start at 0.1.0. `sequeless-bom` moves from 0.3.2 to 0.4.0 with a `feat(bom)` commit. Release order: store release, then the BOM release, then the prototype cut-over. |
@@ -63,7 +63,7 @@ The amended unit list (section 10) and the scope of each unit are the parent's r
 #19 (closed) set the shape of the Command side. Its clauses below are superseded for spec 18. Its other clauses stand.
 
 - **Item 2, autoconfiguration and adapter descriptor.** #19 put "their autoconfig and adapter descriptor" in `store-postgres-jsonb-adapter`. They stay in the host (Q-A, Q8).
-- **Item 2, the use cases.** #19 lists `store-core` use cases and does not name `MetaModelService`, `OntologyAdministration` or `WhoAmI`. The cycle 19 brief treats them as superseded under Q3, which places them in the host. The Q3 text as recorded takes all of `sequeless-core`, so the placement of these three is **open** (O12, to be settled before the import SHA in U5 or U6, not in U2).
+- **Item 2, the use cases.** #19 lists `store-core` use cases and does not name `MetaModelService`, `OntologyAdministration` or `WhoAmI`. Under Q3, as amended in section 2, `MetaModelService`, `OntologyAdministration` and `WhoAmI` and their `Default*` use cases stay in the host. This placement is **closed as Option A** (O12, section 12), by the parent's cycle 21 ruling. U4 renames them to `org.sequeless.store.core` with the rest of `sequeless-core`, and U5 or U6 moves them to the host.
 - **Item 3, tables.** #19 gave `store-postgres-jsonb-adapter` the object and outbox tables and their migrations. It owns V1 to V12, including `sq_ontology_document` (Q2).
 - **Item 4, `ontology-postgres-adapter` "with its own migrations".** It ships no migration. Its tests use the store's `PostgresMigrations` at test scope (Q2, Q-F).
 - **Item 6, `AuthorizationPort` stays in the host.** The interface moves to `store.spi` (Q-C). The permit-all adapter and its wiring stay in the host.
@@ -92,7 +92,7 @@ The PROVENANCE is recorded as the spec requires; the import SHA is not known unt
 
 ## 6. Prerequisite refactors and package renames
 
-### 6.1 U2 (this PR): rename-only, `org.sequeless.store.spi`
+### 6.1 U2 (done, #226): rename-only, `org.sequeless.store.spi`
 
 Rename only. No behaviour changes. Each type moves with its package-info; the old package-infos are deleted only when their package empties.
 
@@ -114,10 +114,10 @@ Also in U2:
 - A new `org.sequeless.store.spi` package-info documents the package.
 - Javadoc and imports of every importer are rewritten to the new names. The importer list comes from a grep of `origin/main`, which found more files than the count of 37 in the brief; the grep is the authority.
 
-### 6.2 U3 and U4 (planned)
+### 6.2 U3 (done, #227) and U4 (this PR)
 
 - U3: the `store.api` rename of `AccessDecision`, `Operation` and `DerivationRecomputer` (Q12, Q-C), and the store-side ArchUnit rule for `org.sequeless.store.api..`, which is added only once that package exists (the parent's ruling).
-- U4: `store.core` and `store.postgres` renames, and the minimal `ObjectState` type (Q-D, open item O5).
+- U4: `store.core` and `store.postgres` renames, and the minimal `ObjectState` type (Q-D, open item O5). The rename and the `ObjectState` change are separate commits. `ObjectState` holds the type IRI, state and properties that the interpreter reads. `ObjectView` leaves `StateMachineInterpreter` and `PostgresObjectStore`, following the Navigator's option B for the interpreter overload.
 
 ### 6.3 Other prerequisite units (planned, amended list)
 
@@ -156,9 +156,9 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 
 | Unit | Scope | Status |
 |---|---|---|
-| U2 | Spec doc, DR-29 to DR-36, the `store.spi` rename (section 6.1), the frozen-sets check (section 13), the ArchitectureTest retarget. Carries U1. | This PR |
-| U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | This PR |
-| U4 | `store.core` and `store.postgres` rename; minimal `ObjectState` (Q-D, O5). | Planned |
+| U2 | Spec doc, DR-29 to DR-36, the `store.spi` rename (section 6.1), the frozen-sets check (section 13), the ArchitectureTest retarget. Carries U1. | Done: #226, `9ecfea1` |
+| U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | Done: #227, `c6ddb55` |
+| U4 | `store.core` and `store.postgres` rename; minimal `ObjectState` (Q-D, O5). | This PR |
 | U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | Planned |
 | U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | Planned |
 | U7 | Scaffold `sequeless-store` from `sequeless-template`; CI calls `maven-ci` and `maven-release`; CODEOWNERS; GitHub Packages write; release-please for three modules; placeholder build green. | Planned |
@@ -199,7 +199,7 @@ The Refs on the PRs are `#46`, never a closing keyword, until every item above h
 - The `dependency:analyze` claim (unverified; no unit settles it yet).
 - O1: the V6 harness choice, decided at U8. O5: the `ObjectState` fields, sized at U4. O9: the settling case map, settled at U5.
 - O7: `sequeless-automation` #4 (the upstream failure port) is additive later; the recorder SPI is frozen at 0.1.0 (Q11).
-- O12: the host or store placement of `MetaModelService`, `OntologyAdministration` and `WhoAmI` (section 3). Q3 as recorded and the cycle 19 brief disagree. Settle before the import SHA.
+- O12, closed as Option A (host placement), by the parent's cycle 21 ruling: `MetaModelService`, `OntologyAdministration` and `WhoAmI`, with their `Default*` use cases, stay in the host (section 3, Q3). U4 renames them to `org.sequeless.store.core`, and U5 or U6 moves them to the host.
 - Divergence: the prototype's behaviour and the new repositories' behaviour must match at each cut-over. Spec 17's integration tests carry the prototype side.
 - `sequeless-ui` is untouched. `FatJarServesUiAndApiIT` must stay green on every U12 unit.
 
@@ -209,5 +209,5 @@ The Refs on the PRs are `#46`, never a closing keyword, until every item above h
 - **Frozen-sets check.** `PostgresMigrationFrozenSetsTest` gains `liveCommandSetContainsV1AndV3ToV12AndNoV2`: every live command migration name matches `V<n>__*.sql`, the live set contains V1 and V3 to V12, and it contains no V2. It asserts containment, not an exact set, so a later V13 does not need an edit here. The check that frozen files match live files pairs them by file name and compares their bytes; the directories are the only paths, and they are where the test reads its inputs, not what it identifies. The check does not depend on the Java package of the test.
 - **ArchitectureTest.** The SPI rules (`spiDependsOnlyOnJdkAndItself`, `coreDependsOnlyOnJdkSpiAndItself`, `spiAndCoreDoNotDependOnSpring`, `noLombokInSpiOrCore`, `noJenaInSpiOrCore`) cover `org.sequeless.store.spi..` as well as `org.sequeless.spi..`. The parent's ruling said "retarget the SPI rule to `org.sequeless.store.spi..` only". Applied literally, that would fail: the moved ports import value types that stay in `org.sequeless.spi..` (`Page`, `Mutation`, `BusinessObject` and others), and `spiDependsOnlyOnJdkAndItself` would reject them. So the rules name both packages. They cover the classes they covered before, plus the moved ones.
 - **ArchitectureTest, query rule.** `querySeesOnlySchema` now covers the five moved aggregate query types as well as `org.sequeless.spi.query..` (`MOVED_QUERY_TYPES`), so the rule does not lose them when they leave the query package.
-- **No `org.sequeless.store.api..` rule yet.** The parent's ruling: the `store.api` rule is added in U3, when the package exists, because an ArchUnit rule over an empty package can fail the build.
+- **`org.sequeless.store.api..` is in the SPI rules (U3).** U3 added `store.api` to the same five rules, once the package existed, as the parent ruled: an ArchUnit rule over an empty package can fail the build. The rules are `spiDependsOnlyOnJdkAndItself`, `coreDependsOnlyOnJdkSpiAndItself`, `spiAndCoreDoNotDependOnSpring`, `noLombokInSpiOrCore` and `noJenaInSpiOrCore`.
 - DR-29 to DR-36 are added to `docs/architecture/02-decision-records.md`.

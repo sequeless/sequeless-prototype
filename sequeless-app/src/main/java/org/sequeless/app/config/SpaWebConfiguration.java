@@ -63,7 +63,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * avoids a third bean whose existence in the context would be an accident of Spring wiring
  * rather than a documented dependency.
  *
- * <p><b>Deliberately no {@code org.sequeless.core} imports.</b> Same rule as {@code
+ * <p><b>Deliberately no {@code org.sequeless.store.core} imports.</b> Same rule as {@code
  * SpaFallbackResourceResolver}: the ArchUnit rule {@code onlyAppRestAndConfigMayDependOnCore} in
  * {@code ArchitectureTest} allows classes in {@code org.sequeless.app.config} to depend on the
  * core; this class simply has no need to, and is pure JDK + Spring.

@@ -10,7 +10,7 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * ex:Project.openTaskCount} filterable via {@code filter[openTaskCount][eq]=0} instead of only
  * ever visible on read. Its dependency direction is the mirror image of every outbound port in
  * this SPI: {@code sequeless-core} implements this interface ({@code
- * org.sequeless.core.usecase.DefaultDerivationRecomputer}), and the host's outbox relay calls it,
+ * org.sequeless.store.core.usecase.DefaultDerivationRecomputer}), and the host's outbox relay calls it,
  * rather than the other way around.
  *
  * <p>{@code recompute}'s payload carries {@code objectId}, {@code tenantId}, and {@code

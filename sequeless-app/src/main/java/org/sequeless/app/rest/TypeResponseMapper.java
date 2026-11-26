@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.sequeless.core.api.TypeDescription;
-import org.sequeless.core.derivation.FilterNodeToCriterion;
 import org.sequeless.kernel.values.BoolValue;
 import org.sequeless.kernel.values.DateTimeValue;
 import org.sequeless.kernel.values.DateValue;
@@ -33,6 +31,8 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.store.core.api.TypeDescription;
+import org.sequeless.store.core.derivation.FilterNodeToCriterion;
 import org.sequeless.store.spi.Criterion;
 import org.sequeless.store.spi.Operator;
 
@@ -40,7 +40,7 @@ import org.sequeless.store.spi.Operator;
  * Maps the {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.ontology.behaviour.api}
  * types, and core's {@link
  * TypeDescription}, onto their {@link TypesController} wire representations. Factored out of {@link
- * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.core.api.WhoAmIResult)},
+ * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.store.core.api.WhoAmIResult)},
  * because both {@link TypeSummaryResponse} and {@link TypeDetailResponse} need the same
  * superTypes-to-short-names rendering.
  *

@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import org.junit.jupiter.api.Test;
-import org.sequeless.core.api.TypeDescription;
 import org.sequeless.filter.api.FieldFilter;
 import org.sequeless.ontology.behaviour.api.DerivationRule;
 import org.sequeless.ontology.behaviour.api.RollupRule;
@@ -20,6 +19,7 @@ import org.sequeless.ontology.schema.api.DisplayHints;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.store.core.api.TypeDescription;
 
 /**
  * Unit-tests the rollup summary that {@link TypeResponseMapper#toDetail} renders for a rollup with an
