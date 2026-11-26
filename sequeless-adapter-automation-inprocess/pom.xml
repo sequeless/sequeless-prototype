@@ -75,6 +75,12 @@
       <artifactId>spring-beans</artifactId>
     </dependency>
 
+    <!-- The timer sweep logs a failed timer; the same API the Temporal adapter already declares. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot</artifactId>

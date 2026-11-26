@@ -42,13 +42,22 @@ import org.sequeless.spi.outbox.OutboxEntry;
  * must not invoke the underlying {@link ActionExecutor} method a second time.
  * A Temporal adapter gets this for free from workflow-id semantics ({@code
  * WorkflowExecutionAlreadyStarted}); this adapter has no such built-in mechanism, so it keeps an
- * in-memory, thread-safe set of every {@link ObjectChangedEvent#id()} it has already passed to
- * {@link TriggerEvaluator#onChange} and short-circuits a repeat as a no-op. The exception is a
- * {@link TransitionFiredEvent}, which is keyed by event id and action index. This set grows unbounded
- * for the process's lifetime and is
- * <b>not crash-safe</b> — a process restart forgets every id it ever saw. Both are accepted
- * limitations, not bugs: durability across restarts is Temporal's job, not this adapter's, which
- * exists only for tests and local development.
+ * in-memory, thread-safe set of every {@link ObjectChangedEvent#id()} whose {@link
+ * TriggerEvaluator#onChange} call has returned normally, and short-circuits a repeat as a no-op. An id
+ * whose {@code onChange} threw is not recorded, so its redelivery runs {@code onChange} again. The
+ * exception is a {@link TransitionFiredEvent}, which is keyed by event id and action index. The
+ * check-then-add for an {@link ObjectChangedEvent} is safe only because the relay holds the row's lock
+ * while it calls {@link #ingest}, so a caller that ingests one id concurrently would break it. This set
+ * grows unbounded for the process's lifetime and is <b>not crash-safe</b> — a process restart forgets
+ * every id it ever saw. Both are accepted limitations, not bugs: durability across restarts is
+ * Temporal's job, not this adapter's, which exists only for tests and local development.
+ *
+ * <p><b>Known limit: the commit window.</b> The relay runs {@link TriggerEvaluator#onChange} inside
+ * its claim transaction. If that transaction fails after {@code onChange} has returned and before it
+ * commits, the transaction's writes roll back, but the id stays recorded here. The redelivery then
+ * skips {@code onChange}, the row is marked processed, and the transition is lost. This adapter
+ * accepts that window rather than coupling to the relay's transaction. It is a limit of this test/dev
+ * adapter, not a closed case.
  *
  * <p><b>This class does not wire its own {@link ActionExecutor}.</b> The real implementation
  * ({@code org.sequeless.core.automation.DefaultActionExecutor}) lives in {@code sequeless-core},
@@ -132,8 +141,12 @@ public final class InProcessAutomationPort implements AutomationPort {
 
         switch (event) {
             case ObjectChangedEvent changed -> {
-                if (ingested.add(changed.id())) {
+                // Recorded only after onChange returns. A throw propagates to the relay, which counts the
+                // failure and redelivers the row, and the id is still unrecorded, so onChange runs again.
+                // The relay holds the row's lock while it calls ingest, so one id is never in flight twice.
+                if (!ingested.contains(changed.id())) {
                     triggerEvaluator.onChange(scope, changed);
+                    ingested.add(changed.id());
                 }
             }
             case TransitionFiredEvent fired -> applyTransitionFired(scope, fired);

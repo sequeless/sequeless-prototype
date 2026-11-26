@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
@@ -11,6 +12,8 @@ import org.sequeless.spi.automation.ResolvedTimer;
 import org.sequeless.spi.automation.TimerScheduledEntry;
 import org.sequeless.spi.automation.TriggerEvaluator;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The in-process substitute for a durable timer engine (a future Temporal adapter's {@code
@@ -42,9 +45,18 @@ final class InProcessTimerScheduler {
     private record ScheduledTimer(
             Instant dueAt, Scope scope, ObjectId objectId, String typeIri, int ontologyVersion, ResolvedTimer timer) {}
 
+    private static final Logger log = LoggerFactory.getLogger(InProcessTimerScheduler.class);
+
     private final Clock clock;
     private final TriggerEvaluator triggerEvaluator;
     private final Map<String, ScheduledTimer> pending = new ConcurrentHashMap<>();
+
+    /**
+     * The keys whose failure has already been logged with a stack trace and not since succeeded. A timer
+     * that keeps failing logs its trace once, then one line per later failure, so a stuck timer does not
+     * flood the log every tick.
+     */
+    private final Set<String> reportedFailures = ConcurrentHashMap.newKeySet();
 
     /**
      * @param clock this scheduler's notion of "now"; {@link Clock#systemUTC()} in production, a
@@ -62,8 +74,11 @@ final class InProcessTimerScheduler {
      * from {@link #clock}'s current instant. The timer is keyed by {@link ResolvedTimer#timerKey()}.
      *
      * <p>A {@code timerKey} that is already pending is left alone: the map uses {@code putIfAbsent},
-     * so the original due instant survives. A {@code TransitionFired} row is redelivered when a retry
-     * re-enters {@link InProcessAutomationPort#ingest}, and this keeps such a retry
+     * so the original due instant survives. A timer whose firing keeps failing stays pending under its
+     * key, so a later {@code schedule} for that key does not replace it and does not move its due
+     * instant. There is no retry cap: a failing timer is retried on every sweep, by decision of the
+     * Navigator. A {@code TransitionFired} row is redelivered when a retry re-enters {@link
+     * InProcessAutomationPort#ingest}, and this keeps such a retry
      * from moving the due time. A timer that {@link #sweep()} has already fired and removed is armed
      * again; the staleness check in {@link TriggerEvaluator#onTimerElapsed} makes that second firing
      * a no-op.
@@ -83,32 +98,55 @@ final class InProcessTimerScheduler {
         Objects.requireNonNull(objectId, "objectId must not be null");
         Objects.requireNonNull(typeIri, "typeIri must not be null");
         Objects.requireNonNull(timer, "timer must not be null");
-        pending.putIfAbsent(
-                timer.timerKey(),
-                new ScheduledTimer(
-                        clock.instant().plus(timer.after()), scope, objectId, typeIri, ontologyVersion, timer));
+        ScheduledTimer armed = new ScheduledTimer(
+                clock.instant().plus(timer.after()), scope, objectId, typeIri, ontologyVersion, timer);
+        if (pending.putIfAbsent(timer.timerKey(), armed) == null) {
+            // A newly armed timer starts with no failure on record, so its first failure logs a full trace.
+            reportedFailures.remove(timer.timerKey());
+        }
     }
 
     /**
-     * Fires {@link TriggerEvaluator#onTimerElapsed} for, and removes, every pending timer whose
-     * {@code dueAt} is not after {@link #clock}'s current instant. The entry passed to {@code
+     * Fires {@link TriggerEvaluator#onTimerElapsed} for every pending timer whose {@code dueAt} is not
+     * after {@link #clock}'s current instant, and removes each one only after its firing returns
+     * normally. The entry passed to {@code
      * onTimerElapsed} is a {@code TimerScheduled}-shaped entry rebuilt from the stored timer with
      * {@link TimerScheduledEntry#of}, and its {@code occurredAt} is the instant of this sweep. Called
      * both by a background tick (production) and directly, synchronously, by test code via {@code
      * advanceTime} (see this class's javadoc) — the same method serves both, since sweeping is
      * idempotent and cheap.
+     *
+     * <p>Each timer is isolated. A {@link RuntimeException} from {@code onTimerElapsed} is logged, and
+     * that timer stays pending, so the next sweep retries it. Every other due timer still fires in this
+     * sweep, and the sweep itself does not throw. A timer is removed only after its {@code onTimerElapsed}
+     * returns normally.
      */
     void sweep() {
         Instant now = clock.instant();
-        pending.entrySet().removeIf(e -> {
-            ScheduledTimer timer = e.getValue();
-            if (!timer.dueAt().isAfter(now)) {
-                OutboxEntry entry = TimerScheduledEntry.of(
-                        timer.scope(), timer.objectId(), timer.typeIri(), timer.ontologyVersion(), timer.timer(), now);
-                triggerEvaluator.onTimerElapsed(timer.scope(), entry);
-                return true;
+        for (Map.Entry<String, ScheduledTimer> pendingEntry : pending.entrySet()) {
+            ScheduledTimer timer = pendingEntry.getValue();
+            if (timer.dueAt().isAfter(now)) {
+                continue;
             }
-            return false;
-        });
+            try {
+                OutboxEntry elapsed = TimerScheduledEntry.of(
+                        timer.scope(), timer.objectId(), timer.typeIri(), timer.ontologyVersion(), timer.timer(), now);
+                triggerEvaluator.onTimerElapsed(timer.scope(), elapsed);
+                pending.remove(pendingEntry.getKey(), timer);
+                reportedFailures.remove(pendingEntry.getKey());
+            } catch (RuntimeException failure) {
+                String key = pendingEntry.getKey();
+                if (reportedFailures.add(key)) {
+                    log.error(
+                            "Timer {} failed to elapse; it stays pending and the next sweep retries it", key, failure);
+                } else {
+                    log.error(
+                            "Timer {} failed to elapse again: {}: {}",
+                            key,
+                            failure.getClass().getName(),
+                            failure.getMessage());
+                }
+            }
+        }
     }
 }

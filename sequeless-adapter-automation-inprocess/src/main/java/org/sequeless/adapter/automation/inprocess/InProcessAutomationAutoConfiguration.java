@@ -8,6 +8,8 @@ import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.spi.automation.ActionExecutor;
 import org.sequeless.spi.automation.AutomationPort;
 import org.sequeless.spi.automation.TriggerEvaluator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -35,6 +37,8 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnProperty(name = "sequeless.automation.adapter", havingValue = "inprocess")
 @EnableConfigurationProperties(InProcessAutomationProperties.class)
 public class InProcessAutomationAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(InProcessAutomationAutoConfiguration.class);
 
     /**
      * The single-thread executor {@link #timerScheduler}'s periodic sweep runs on. Bound to the
@@ -95,8 +99,27 @@ public class InProcessAutomationAutoConfiguration {
             @Value("${sequeless.automation.inprocess.timer-tick-ms:100}") long tickMillis,
             Clock clock) {
         InProcessTimerScheduler scheduler = new InProcessTimerScheduler(clock, triggerEvaluator);
-        timerTickExecutor.scheduleWithFixedDelay(scheduler::sweep, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
+        timerTickExecutor.scheduleWithFixedDelay(
+                () -> sweepOnce(scheduler), tickMillis, tickMillis, TimeUnit.MILLISECONDS);
         return scheduler;
+    }
+
+    /**
+     * One tick of the periodic sweep. A {@link ScheduledExecutorService} stops running a periodic task
+     * for good once one of its runs throws, so any {@link RuntimeException} that escapes {@link
+     * InProcessTimerScheduler#sweep()} is caught and logged here, and the next tick runs as scheduled.
+     * {@link InProcessTimerScheduler#sweep()} already isolates each timer, so this catches only a failure
+     * outside a timer's own callback. An {@link Error} is not caught: it is not a per-timer failure, and
+     * a virtual-machine error should not be swallowed. It still ends the periodic task.
+     *
+     * @param scheduler the scheduler to sweep
+     */
+    static void sweepOnce(InProcessTimerScheduler scheduler) {
+        try {
+            scheduler.sweep();
+        } catch (RuntimeException failure) {
+            log.error("Timer sweep failed outside a single timer; the next tick runs as scheduled", failure);
+        }
     }
 
     /**
