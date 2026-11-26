@@ -5,6 +5,7 @@ import org.sequeless.automation.api.StoreCommandPort;
 import org.sequeless.core.api.BusinessObjectService;
 import org.sequeless.core.api.TransitionService;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -37,14 +38,20 @@ public class AutomationBindingConfiguration {
      *     types
      * @param transitionService the Command use case that fires automated transitions
      * @param behaviourSource the behaviour the derived properties are read from; lazily resolved
+     * @param schemaSource the schema the declared cardinalities are read from, for the value shaping; lazily resolved
      * @return the host's {@link StoreCommandPort}
      */
     @Bean
     public StoreCommandPort storeCommandPort(
             BusinessObjectService businessObjectService,
             TransitionService transitionService,
-            @Lazy BehaviourSource behaviourSource) {
+            @Lazy BehaviourSource behaviourSource,
+            @Lazy SchemaSource schemaSource) {
         return new BusinessObjectStoreCommandPort(
-                new ObjectTypes(businessObjectService), businessObjectService, transitionService, behaviourSource);
+                new ObjectTypes(businessObjectService),
+                businessObjectService,
+                transitionService,
+                behaviourSource,
+                new ShapeCoercion(schemaSource));
     }
 }

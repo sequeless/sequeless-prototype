@@ -17,7 +17,15 @@ import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.behaviour.api.PluginRule;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.AttributeDefinition;
+import org.sequeless.ontology.schema.api.Cardinality;
+import org.sequeless.ontology.schema.api.Datatype;
+import org.sequeless.ontology.schema.api.DisplayHints;
 import org.sequeless.ontology.schema.api.OntologyVersion;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
@@ -137,6 +145,30 @@ final class BindingFakes {
         public void signal(Scope scope, String type, ObjectId id, String signalName, Map<String, Object> body) {
             throw unsupported();
         }
+    }
+
+    /**
+     * A {@link SchemaSource} with one type, {@code typeIri}, that declares each given property with its cardinality. The
+     * shaping reads the declared cardinality from here, so a test chooses which properties are multi-valued.
+     */
+    static SchemaSource schemaDeclaring(String typeIri, Map<String, Cardinality> cardinalities) {
+        List<PropertyDefinition> properties = cardinalities.entrySet().stream()
+                .<PropertyDefinition>map(entry -> new AttributeDefinition(
+                        entry.getKey(),
+                        entry.getKey(),
+                        entry.getValue(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        DisplayHints.none(),
+                        Datatype.STRING))
+                .toList();
+        TypeDefinition type = new TypeDefinition(typeIri, "Thing", List.of(), properties, DisplayHints.none(), false);
+        Schema schema = new Schema(
+                new OntologyVersion(1), "https://sequeless.dev/ns/test", Optional.empty(), Map.of(), List.of(type));
+        return tenant -> schema;
     }
 
     /** A {@link BehaviourSource} whose behaviour marks the given property IRIs as derived. */

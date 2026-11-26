@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.automation.BindingFakes.RecordingObjects;
@@ -20,6 +21,7 @@ import org.sequeless.core.validation.ValidationException;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.schema.api.Cardinality;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.validation.Violation;
@@ -34,6 +36,7 @@ class BusinessObjectStoreCommandPortTest {
     private static final String NAME = "https://sequeless.dev/ns/test#name";
     private static final String COUNT = "https://sequeless.dev/ns/test#count";
     private static final String TOTAL = "https://sequeless.dev/ns/test#total";
+    private static final String TAGS = "https://sequeless.dev/ns/test#tags";
     private static final ObjectId OBJECT = new ObjectId(UUID.fromString("00000000-0000-0000-0000-0000000000b1"));
     private static final ObjectId NEW_OBJECT = new ObjectId(UUID.fromString("00000000-0000-0000-0000-0000000000b2"));
     private static final CommandProvenance PROVENANCE =
@@ -42,8 +45,19 @@ class BusinessObjectStoreCommandPortTest {
     private final RecordingObjects objects = new RecordingObjects();
     private final RecordingTransitions transitions = new RecordingTransitions();
 
+    /** NAME, COUNT and TOTAL are single-valued in the fixture schema; TAGS is unbounded. */
     private final BusinessObjectStoreCommandPort port = new BusinessObjectStoreCommandPort(
-            new ObjectTypes(objects), objects, transitions, BindingFakes.behaviourWithDerived(TOTAL));
+            new ObjectTypes(objects),
+            objects,
+            transitions,
+            BindingFakes.behaviourWithDerived(TOTAL),
+            new ShapeCoercion(BindingFakes.schemaDeclaring(
+                    TYPE,
+                    Map.of(
+                            NAME, Cardinality.atMost(1),
+                            COUNT, Cardinality.atMost(1),
+                            TOTAL, Cardinality.atMost(1),
+                            TAGS, new Cardinality(0, OptionalInt.empty())))));
 
     private void storeOneObject() {
         objects.views.put(
@@ -125,6 +139,16 @@ class BusinessObjectStoreCommandPortTest {
         assertThat(add.id()).isEqualTo(NEW_OBJECT);
         assertThat(add.type()).isEqualTo(TYPE);
         assertThat(add.properties()).isEqualTo(Map.of(NAME, "made"));
+    }
+
+    @Test
+    void aScalarOnAMultiValuedPropertyReachesTheCommandSideAsAOneElementList() {
+        port.createObject(
+                BindingFakes.SCOPE,
+                new CreateObjectCommand(NEW_OBJECT, TYPE, Map.of(TAGS, Value.text("one")), PROVENANCE));
+
+        assertThat(objects.added).hasSize(1);
+        assertThat(objects.added.get(0).properties()).isEqualTo(Map.of(TAGS, List.of("one")));
     }
 
     @Test

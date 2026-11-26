@@ -42,6 +42,9 @@ import org.sequeless.spi.query.ObjectView;
  * {@link StoreCommandRejectedException} with the cause attached. The claim then fails and is retried, and no part
  * of the action is applied.
  *
+ * <p>Before a create or a set, the raw values are shaped to the declared cardinality by {@link ShapeCoercion}: a scalar
+ * on a multi-valued property becomes a one-element list (spec 17, H7, decision b). The released executor emits scalars.
+ *
  * <p>The {@link org.sequeless.automation.api.CommandProvenance} is checked by its record but is not written to the
  * object or its outbox row. The prototype's automation path did not write it either. Idempotency comes from the
  * derived id of a create and from the value comparison that the released executor makes before a set.
@@ -52,22 +55,26 @@ final class BusinessObjectStoreCommandPort implements StoreCommandPort {
     private final BusinessObjectService objects;
     private final TransitionService transitions;
     private final BehaviourSource behaviours;
+    private final ShapeCoercion shape;
 
     /**
      * @param types the id-to-type lookup; must not be {@code null}
      * @param objects the Command use case for reads, writes and creates; must not be {@code null}
      * @param transitions the Command use case that fires automated transitions; must not be {@code null}
      * @param behaviours the behaviour the derived properties are read from; must not be {@code null}
+     * @param shape shapes each raw value to its declared cardinality before the write; must not be {@code null}
      */
     BusinessObjectStoreCommandPort(
             ObjectTypes types,
             BusinessObjectService objects,
             TransitionService transitions,
-            BehaviourSource behaviours) {
+            BehaviourSource behaviours,
+            ShapeCoercion shape) {
         this.types = Objects.requireNonNull(types, "types must not be null");
         this.objects = Objects.requireNonNull(objects, "objects must not be null");
         this.transitions = Objects.requireNonNull(transitions, "transitions must not be null");
         this.behaviours = Objects.requireNonNull(behaviours, "behaviours must not be null");
+        this.shape = Objects.requireNonNull(shape, "shape must not be null");
     }
 
     @Override
@@ -91,7 +98,7 @@ final class BusinessObjectStoreCommandPort implements StoreCommandPort {
         raw.put(command.propertyIri(), ValueWire.toRaw(command.value()));
 
         try {
-            objects.edit(scope, type, id, current.version(), raw);
+            objects.edit(scope, type, id, current.version(), shape.coerce(scope, type, raw));
         } catch (StaleObjectException conflict) {
             throw new StoreCommandRejectedException(
                     "setProperty was rejected: version conflict, the object is no longer at version "
@@ -111,7 +118,11 @@ final class BusinessObjectStoreCommandPort implements StoreCommandPort {
             return;
         }
         try {
-            objects.add(scope, command.typeIri(), command.objectId(), ValueWire.toRawProperties(command.properties()));
+            objects.add(
+                    scope,
+                    command.typeIri(),
+                    command.objectId(),
+                    shape.coerce(scope, command.typeIri(), ValueWire.toRawProperties(command.properties())));
         } catch (AuthorizationException | ValidationException | TypeNotFoundException e) {
             throw rejected("createObject", e);
         }

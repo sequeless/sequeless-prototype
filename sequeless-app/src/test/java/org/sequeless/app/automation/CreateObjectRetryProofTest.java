@@ -55,6 +55,7 @@ import org.sequeless.ontology.schema.api.DisplayHints;
 import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
+import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.authz.AccessDecision;
 import org.sequeless.spi.object.BusinessObject;
@@ -276,6 +277,11 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
         @Bean
         BehaviourSource behaviourSource() {
             return tenant -> BEHAVIOUR;
+        }
+
+        @Bean
+        SchemaSource schemaSource() {
+            return tenant -> SCHEMA;
         }
 
         @Bean
