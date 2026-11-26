@@ -32,6 +32,12 @@ import org.sequeless.spi.query.QueryResult;
  * <p>The released scope is resolved here as well, because sorts and facets are mapped to the released paths of its
  * fields. The released service resolves it again inside {@link QueryService#browse}; the cost is one extra schema
  * read per browse.
+ *
+ * <p>This adapter is reached only through the core's browse ({@code BusinessObjectService#browse}), which has already
+ * run its pre-checks: a filter, sort or facet on a multi-valued property, or on a derived property that is not
+ * materialised, is refused before this port is called. A caller that skips the core must not rely on what the
+ * released scope allows. The released filter does not gate on cardinality, and it accepts a derived property that
+ * the core would refuse, so a browse that bypasses the core can return results the core would not.
  */
 public final class ReleasedBrowsePortAdapter implements BrowsePort {
 
