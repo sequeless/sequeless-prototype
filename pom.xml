@@ -39,7 +39,7 @@
     <!-- The in-memory doubles were test code until spec 18 U5 moved them to testkit src/main (Q20).
          Their duplication is a test-support artifact, so they are excluded from copy-paste detection.
          Narrow on purpose: only these two classes. -->
-    <sonar.cpd.exclusions>sequeless-spi-testkit/src/main/java/org/sequeless/testkit/query/InMemoryAggregateObjectStorePort.java,sequeless-spi-testkit/src/main/java/org/sequeless/testkit/object/InMemoryObjectStorePort.java</sonar.cpd.exclusions>
+    <sonar.cpd.exclusions>**/testkit/query/InMemoryAggregateObjectStorePort.java,**/testkit/object/InMemoryObjectStorePort.java</sonar.cpd.exclusions>
 
     <spring-boot.version>4.1.1</spring-boot.version>
     <japicmp.version>0.26.2</japicmp.version>
