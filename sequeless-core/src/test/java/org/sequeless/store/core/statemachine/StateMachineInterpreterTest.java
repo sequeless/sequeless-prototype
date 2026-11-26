@@ -25,12 +25,12 @@ import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.query.ObjectView;
+import org.sequeless.store.api.ObjectState;
 
 /**
  * Proves the two {@link StateMachineInterpreter#availableTransitions} overloads answer identically
  * for the same object: the {@link BusinessObject} one that the commit path uses, and the {@link
- * ObjectView} one that the Read path uses. Both feed one private implementation, so these tests
+ * ObjectState} one that the Read path uses. Both feed one private implementation, so these tests
  * guard against the two ever drifting apart.
  */
 class StateMachineInterpreterTest {
@@ -67,10 +67,10 @@ class StateMachineInterpreterTest {
         BusinessObject object = draftProject(Map.of(new PropertyRef(OWNER_IRI), Value.text("alice")));
 
         List<TransitionAvailability> fromObject = interpreter.availableTransitions(ALICE, BEHAVIOUR, object);
-        List<TransitionAvailability> fromView = interpreter.availableTransitions(ALICE, BEHAVIOUR, viewOf(object));
+        List<TransitionAvailability> fromState = interpreter.availableTransitions(ALICE, BEHAVIOUR, stateOf(object));
 
-        assertThat(fromView).isEqualTo(fromObject);
-        assertThat(fromView).containsExactly(new TransitionAvailability("activate", true, Optional.empty()));
+        assertThat(fromState).isEqualTo(fromObject);
+        assertThat(fromState).containsExactly(new TransitionAvailability("activate", true, Optional.empty()));
     }
 
     @Test
@@ -78,30 +78,31 @@ class StateMachineInterpreterTest {
         BusinessObject object = draftProject(Map.of());
 
         List<TransitionAvailability> fromObject = interpreter.availableTransitions(ALICE, BEHAVIOUR, object);
-        List<TransitionAvailability> fromView = interpreter.availableTransitions(ALICE, BEHAVIOUR, viewOf(object));
+        List<TransitionAvailability> fromState = interpreter.availableTransitions(ALICE, BEHAVIOUR, stateOf(object));
 
-        assertThat(fromView).isEqualTo(fromObject);
-        assertThat(fromView).containsExactly(new TransitionAvailability("activate", false, Optional.of(GUARD_MESSAGE)));
+        assertThat(fromState).isEqualTo(fromObject);
+        assertThat(fromState)
+                .containsExactly(new TransitionAvailability("activate", false, Optional.of(GUARD_MESSAGE)));
     }
 
     @Test
     void bothOverloadsReturnNothingForAnObjectWithoutAState() {
         BusinessObject object = object(new TypeRef(PROJECT_IRI), Optional.empty(), Map.of());
 
-        List<TransitionAvailability> fromView = interpreter.availableTransitions(ALICE, BEHAVIOUR, viewOf(object));
+        List<TransitionAvailability> fromState = interpreter.availableTransitions(ALICE, BEHAVIOUR, stateOf(object));
 
-        assertThat(fromView).isEmpty();
-        assertThat(fromView).isEqualTo(interpreter.availableTransitions(ALICE, BEHAVIOUR, object));
+        assertThat(fromState).isEmpty();
+        assertThat(fromState).isEqualTo(interpreter.availableTransitions(ALICE, BEHAVIOUR, object));
     }
 
     @Test
     void bothOverloadsReturnNothingForATypeWithoutAStateMachine() {
         BusinessObject object = object(new TypeRef(TASK_IRI), Optional.of(DRAFT_IRI), Map.of());
 
-        List<TransitionAvailability> fromView = interpreter.availableTransitions(ALICE, BEHAVIOUR, viewOf(object));
+        List<TransitionAvailability> fromState = interpreter.availableTransitions(ALICE, BEHAVIOUR, stateOf(object));
 
-        assertThat(fromView).isEmpty();
-        assertThat(fromView).isEqualTo(interpreter.availableTransitions(ALICE, BEHAVIOUR, object));
+        assertThat(fromState).isEmpty();
+        assertThat(fromState).isEqualTo(interpreter.availableTransitions(ALICE, BEHAVIOUR, object));
     }
 
     private static BusinessObject draftProject(Map<PropertyRef, Value> properties) {
@@ -120,16 +121,8 @@ class StateMachineInterpreterTest {
                 false);
     }
 
-    private static ObjectView viewOf(BusinessObject object) {
-        return new ObjectView(
-                object.id(),
-                object.type(),
-                object.tenant(),
-                object.version(),
-                object.state(),
-                object.properties(),
-                object.audit(),
-                object.deleted());
+    private static ObjectState stateOf(BusinessObject object) {
+        return new ObjectState(object.type().iri(), object.state(), object.properties());
     }
 
     /** Evaluates the one guard these fixtures use: a project is owned when it has an {@code owner}. */

@@ -31,6 +31,7 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.Page;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.api.ObjectState;
 import org.sequeless.store.core.api.BrowseQuery;
 import org.sequeless.store.core.api.BusinessObjectService;
 import org.sequeless.store.core.api.MetaModelService;
@@ -405,10 +406,18 @@ public class ObjectsController {
         Behaviour behaviour = metaModelService.behaviour(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
         Set<String> userActionTransitionNames = userActionTransitionNames(behaviour, object);
-        return interpreter.availableTransitions(scope, behaviour, object).stream()
+        return interpreter.availableTransitions(scope, behaviour, toObjectState(object)).stream()
                 .filter(availability -> userActionTransitionNames.contains(availability.name()))
                 .map(TransitionResponse::from)
                 .toList();
+    }
+
+    /**
+     * @param view the object view to take the transition inputs from; must not be {@code null}
+     * @return the state a transition is evaluated against: the view's type, state and properties
+     */
+    private static ObjectState toObjectState(ObjectView view) {
+        return new ObjectState(view.type().iri(), view.state(), view.properties());
     }
 
     /**

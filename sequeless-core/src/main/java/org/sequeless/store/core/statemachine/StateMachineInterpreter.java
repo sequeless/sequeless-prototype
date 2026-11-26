@@ -17,11 +17,11 @@ import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
 import org.sequeless.ontology.behaviour.api.Transition;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.query.ObjectView;
+import org.sequeless.store.api.ObjectState;
 
 /**
  * Resolves every {@link Transition} available from an object's current state, whether the object
- * is given as a {@link BusinessObject} or as its {@link ObjectView}, evaluating each transition's
+ * is given as a {@link BusinessObject} or as its {@link ObjectState}, evaluating each transition's
  * optional {@link Transition#guard()}
  * through an {@link ExpressionPort}. This is the one place both {@code
  * org.sequeless.store.core.usecase.DefaultTransitionService} (the write path, which uses this to decide
@@ -67,22 +67,22 @@ public final class StateMachineInterpreter {
 
     /**
      * The same computation as {@link #availableTransitions(Scope, Behaviour, BusinessObject)}, for the
-     * Query side's {@link ObjectView} of an object: the form a Read returns. Both overloads feed one
+     * {@link ObjectState} of an object: the only parts of it a transition needs. Both overloads feed one
      * private implementation, so they cannot disagree about which transitions are available.
      *
      * @param scope the tenant and principal a guard is evaluated on behalf of; must not be {@code
      *     null}
-     * @param behaviour the behaviour whose state machine for {@code object}'s type is used; must not
-     *     be {@code null}
-     * @param object the view whose available transitions are computed; must not be {@code null}
+     * @param behaviour the behaviour whose state machine for the object's type is used; must not be
+     *     {@code null}
+     * @param object the state whose available transitions are computed; must not be {@code null}
      * @return the same list {@link #availableTransitions(Scope, Behaviour, BusinessObject)} returns
-     *     for the object the view describes
+     *     for the object the state was taken from
      * @throws NullPointerException if any argument is {@code null}
      * @throws ExpressionException if evaluating a guard fails
      */
-    public List<TransitionAvailability> availableTransitions(Scope scope, Behaviour behaviour, ObjectView object) {
+    public List<TransitionAvailability> availableTransitions(Scope scope, Behaviour behaviour, ObjectState object) {
         Objects.requireNonNull(object, "object must not be null");
-        return availableTransitions(scope, behaviour, object.type().iri(), object.state(), object.properties());
+        return availableTransitions(scope, behaviour, object.typeIri(), object.state(), object.properties());
     }
 
     private List<TransitionAvailability> availableTransitions(
