@@ -29,8 +29,9 @@ public final class ReleasedIndexPreparationPortAdapter implements IndexPreparati
     }
 
     /**
-     * @return {@code true} when the released prepare registered at least one index for the first time, which is the
-     *     case the host's search-vector backfill runs for
+     * @return {@code true} when the released result lists the Fields newly registered for search ({@link
+     *     org.sequeless.query.api.IndexPreparationResult}), which is the case the host's search-vector backfill runs
+     *     for
      */
     @Override
     public boolean prepare(Scope scope, OntologyVersion version, Schema schema) {
