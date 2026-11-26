@@ -12,26 +12,26 @@
  * org.sequeless.spi.object}, plus the object-shape types {@link org.sequeless.spi.object.Audit}, {@link
  * org.sequeless.spi.object.PropertyRef}, and {@link org.sequeless.spi.object.TypeRef}. {@link
  * org.sequeless.spi.query.ReadPort}, {@link org.sequeless.spi.query.BrowsePort},
- * {@link org.sequeless.spi.query.IndexPreparationPort}, and {@link org.sequeless.spi.query.QueryPort} are
+ * {@link org.sequeless.spi.query.IndexPreparationPort}, and {@link org.sequeless.store.spi.QueryPort} are
  * the port interfaces. {@link org.sequeless.spi.query.Query},
- * {@link org.sequeless.spi.query.Criterion}, {@link org.sequeless.spi.query.Operator}, {@link
+ * {@link org.sequeless.store.spi.Criterion}, {@link org.sequeless.store.spi.Operator}, {@link
  * org.sequeless.spi.query.Sort}, {@link org.sequeless.spi.query.Direction}, {@link
  * org.sequeless.spi.query.QueryResult}, and {@link org.sequeless.spi.query.FacetBucket} are its
  * filter/search request/response vocabulary: a {@link org.sequeless.spi.query.Query} bundles the
- * types to search, a list of {@link org.sequeless.spi.query.Criterion} filter clauses, an optional
+ * types to search, a list of {@link org.sequeless.store.spi.Criterion} filter clauses, an optional
  * free-text term, a list of {@link org.sequeless.spi.query.Sort} clauses, a {@link
  * org.sequeless.spi.object.Page}, and the property IRIs to compute {@link
  * org.sequeless.spi.query.FacetBucket} counts for; a {@link org.sequeless.spi.query.QueryResult}
  * carries back the matching page, the total match count, and the computed facets. {@link
- * org.sequeless.spi.query.AggregateRequest} and {@link org.sequeless.spi.query.AggregateResult} are
- * the analogous request/response pair for {@link org.sequeless.spi.query.QueryPort#aggregate},
+ * org.sequeless.store.spi.AggregateRequest} and {@link org.sequeless.store.spi.AggregateResult} are
+ * the analogous request/response pair for {@link org.sequeless.store.spi.QueryPort#aggregate},
  * which backs {@code sq:Rollup}-derived properties: a request bundles the source types to aggregate,
  * the relationship pointing back to the targets, the target ids, the {@link
  * org.sequeless.ontology.schema.api.AggregateFunction} to compute, an optional aggregated property, and filter
  * criteria; a result carries back the computed value per target id.
  *
  * <p>This package deliberately reuses {@link org.sequeless.kernel.values.Value} for {@link
- * org.sequeless.spi.query.Criterion} values and {@link org.sequeless.spi.query.AggregateResult}
+ * org.sequeless.store.spi.Criterion} values and {@link org.sequeless.store.spi.AggregateResult}
  * values rather than inventing a parallel value type — a criterion compares a property against, and
  * an aggregate computes, the same {@code TextValue}/{@code IntegerValue}/{@code DecimalValue}/{@code
  * BoolValue}/{@code DateTimeValue}/{@code DateValue}/{@code ReferenceValue}/{@code ListValue} shapes

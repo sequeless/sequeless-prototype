@@ -29,14 +29,14 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
-import org.sequeless.spi.query.QueryPort;
+import org.sequeless.store.spi.AggregateRequest;
+import org.sequeless.store.spi.AggregateResult;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.Operator;
+import org.sequeless.store.spi.QueryPort;
 import org.sequeless.testkit.Fixtures;
 
 /**

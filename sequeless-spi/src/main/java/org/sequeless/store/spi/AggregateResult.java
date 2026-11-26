@@ -1,4 +1,4 @@
-package org.sequeless.spi.query;
+package org.sequeless.store.spi;
 
 import java.util.Map;
 import java.util.Objects;

@@ -5,10 +5,12 @@
  * JDK ({@code java.*}) and the released sequeless-kernel ({@code org.sequeless.kernel.*}). That
  * constraint is enforced twice: once mechanically at build time by a {@code
  * maven-enforcer-plugin} {@code bannedDependencies} rule, and once structurally by an ArchUnit rule
- * in {@code sequeless-app} that asserts no class under {@code org.sequeless.spi..} depends on
- * anything outside {@code java..}, {@code org.sequeless.kernel..} and {@code org.sequeless.spi..}
- * itself. Adapters and the application depend on this module; this module depends on the kernel
- * and on nothing else of Sequeless's own.
+ * in {@code sequeless-app} that asserts no class under {@code org.sequeless.spi..} or {@code
+ * org.sequeless.store.spi..} depends on anything outside {@code java..}, {@code
+ * org.sequeless.kernel..}, the released ontology contracts and their own packages. Adapters and the
+ * application depend on this module; this module depends on the kernel and on nothing else of
+ * Sequeless's own. The outbound ports renamed into {@code org.sequeless.store.spi} by spec 18 are
+ * documented in that package.
  *
  * <p>{@link org.sequeless.kernel.identity.TenantId}, {@link org.sequeless.kernel.identity.Principal}, and {@link
  * org.sequeless.kernel.identity.Scope} carry request context across every port boundary. {@link
@@ -18,10 +20,10 @@
  * such as {@link org.sequeless.spi.authz}, the three halves of the ontology in {@link
  * org.sequeless.ontology.schema.api}, {@code org.sequeless.ontology.behaviour.api} and {@code
  * org.sequeless.ontology.automation.api}, {@link org.sequeless.spi.object}, {@link
- * org.sequeless.ontology.api}, {@link org.sequeless.spi.query},
- * {@link org.sequeless.spi.validation}, {@link org.sequeless.spi.derivation} — the {@code
- * sq:Plugin} vocabulary for derived properties computed by named, {@code ServiceLoader}-discovered
- * code rather than declaratively — and {@code org.sequeless.expression.api} — the {@code
+ * org.sequeless.ontology.api}, {@link org.sequeless.spi.query}, the Store's outbound ports in
+ * {@link org.sequeless.store.spi} (validation, derivation — the {@code sq:Plugin} vocabulary for
+ * derived properties computed by named, {@code ServiceLoader}-discovered code rather than
+ * declaratively — and the rest), and {@code org.sequeless.expression.api} — the {@code
  * ExpressionPort} that evaluates JEXL-family expressions authored in the ontology, such as {@code
  * sq:guard}.
  */

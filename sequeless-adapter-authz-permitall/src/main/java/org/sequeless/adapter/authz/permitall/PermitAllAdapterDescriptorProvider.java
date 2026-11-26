@@ -2,7 +2,7 @@ package org.sequeless.adapter.authz.permitall;
 
 import org.sequeless.spi.AdapterDescriptor;
 import org.sequeless.spi.AdapterDescriptorProvider;
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Publishes this module's {@link AdapterDescriptor} for discovery via {@link

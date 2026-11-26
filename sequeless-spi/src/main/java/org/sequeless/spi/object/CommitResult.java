@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * The outcome of a successful {@link ObjectStorePort#commit}: every affected object at its

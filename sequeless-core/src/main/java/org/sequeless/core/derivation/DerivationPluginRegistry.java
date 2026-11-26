@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
-import org.sequeless.spi.derivation.DerivationPlugin;
+import org.sequeless.store.spi.DerivationPlugin;
 
 /**
  * Every {@link DerivationPlugin} on the classpath, indexed by {@link DerivationPlugin#name()},

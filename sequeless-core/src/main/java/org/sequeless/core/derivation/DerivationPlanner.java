@@ -19,14 +19,14 @@ import org.sequeless.ontology.behaviour.api.RollupRule;
 import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.spi.derivation.DerivationContext;
-import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.QueryPort;
+import org.sequeless.store.spi.AggregateRequest;
+import org.sequeless.store.spi.AggregateResult;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.DerivationContext;
+import org.sequeless.store.spi.DerivationPlugin;
+import org.sequeless.store.spi.QueryPort;
 
 /**
  * Computes every {@code sq:Rollup}/{@code sq:Plugin}-derived property across a page of {@link
@@ -154,7 +154,7 @@ public final class DerivationPlanner {
      * @param objects the objects {@code targetIds} may be drawn from, needed only for a {@link
      *     PluginRule} (a {@link RollupRule} never inspects this list); must not be {@code null}
      * @return the computed value per target id, per {@link AggregateResult}'s density contract for a
-     *     {@link RollupRule}, or whatever {@link org.sequeless.spi.derivation.DerivationPlugin#derive}
+     *     {@link RollupRule}, or whatever {@link org.sequeless.store.spi.DerivationPlugin#derive}
      *     returns for a {@link PluginRule}
      * @throws NullPointerException if any argument is {@code null}
      */

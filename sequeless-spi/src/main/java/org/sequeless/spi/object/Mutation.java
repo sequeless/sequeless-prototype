@@ -1,5 +1,7 @@
 package org.sequeless.spi.object;
 
+import org.sequeless.store.spi.ObjectStorePort;
+
 /**
  * A single change to apply as part of a {@link ChangeSet}: {@link Create}, {@link Update}, or
  * {@link Delete}. Every {@link ObjectStorePort#commit} call applies a list of these atomically —

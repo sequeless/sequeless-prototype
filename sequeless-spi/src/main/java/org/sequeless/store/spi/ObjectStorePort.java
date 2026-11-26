@@ -1,4 +1,4 @@
-package org.sequeless.spi.object;
+package org.sequeless.store.spi;
 
 import java.util.Map;
 import java.util.Optional;
@@ -7,6 +7,15 @@ import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.ontology.spi.OntologyDocumentStore;
+import org.sequeless.spi.object.BusinessObject;
+import org.sequeless.spi.object.ChangeSet;
+import org.sequeless.spi.object.CommitResult;
+import org.sequeless.spi.object.Create;
+import org.sequeless.spi.object.Delete;
+import org.sequeless.spi.object.Mutation;
+import org.sequeless.spi.object.StaleObjectException;
+import org.sequeless.spi.object.TypeRef;
+import org.sequeless.spi.object.Update;
 import org.sequeless.spi.outbox.OutboxEntry;
 
 /**

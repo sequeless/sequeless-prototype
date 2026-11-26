@@ -129,7 +129,7 @@ plain `@Component` with one `@Scheduled(fixedDelayString =
 
 **Claim → dispatch → mark processed, in one short transaction.** `OutboxRelay` doesn't touch SQL
 itself; it calls `OutboxPort#claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T>
-handler)` (`sequeless-spi/src/main/java/org/sequeless/spi/outbox/OutboxPort.java`) — Phase 6
+handler)` (`sequeless-spi/src/main/java/org/sequeless/store/spi/OutboxPort.java`) — Phase 6
 (DR-12) widened this from the original `claimNextActionRequest()` (no `kinds` parameter, hardcoded
 to `ActionRequest` alone) to take an explicit, caller-chosen kind set, because a single relay now
 fans its one polling loop out to several inbound ports (`ActionExecutor`, `TriggerEvaluator`,

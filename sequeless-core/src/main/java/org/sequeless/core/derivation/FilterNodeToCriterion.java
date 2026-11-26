@@ -24,12 +24,12 @@ import org.sequeless.ontology.schema.api.Datatype;
 import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 /**
  * Bridges the released filter tree of a rollup's {@code sq:filter} (filter-core's {@link FilterNode})
- * to the flat {@link Criterion} list the prototype's {@link org.sequeless.spi.query.AggregateRequest}
+ * to the flat {@link Criterion} list the prototype's {@link org.sequeless.store.spi.AggregateRequest}
  * takes. The bridge accepts only AND-combined {@link FieldFilter} trees: an {@link AndFilter} is
  * flattened and each {@link FieldFilter} becomes one {@link Criterion}. Any other node is rejected.
  *

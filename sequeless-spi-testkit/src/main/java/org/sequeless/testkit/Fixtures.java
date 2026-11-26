@@ -20,7 +20,7 @@ public final class Fixtures {
 
     /**
      * An opaque resource identifier with no special meaning to any port — distinct from {@link
-     * org.sequeless.spi.authz.AuthorizationPort#EVERYTHING}, so a contract can assert that
+     * org.sequeless.store.spi.AuthorizationPort#EVERYTHING}, so a contract can assert that
      * implementations accept arbitrary resource strings and not just the sentinel.
      */
     public static final String OPAQUE_RESOURCE = "sq:SampleType/1";

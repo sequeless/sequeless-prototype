@@ -20,15 +20,15 @@ import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
 import org.sequeless.ontology.schema.spi.SchemaSource;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.automation.DerivationRecomputer;
-import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.SearchVectorBackfillPort;
 import org.sequeless.spi.query.BrowsePort;
 import org.sequeless.spi.query.IndexPreparationPort;
-import org.sequeless.spi.query.QueryPort;
 import org.sequeless.spi.query.ReadPort;
-import org.sequeless.spi.validation.ValidationPort;
+import org.sequeless.store.spi.AuthorizationPort;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.QueryPort;
+import org.sequeless.store.spi.SearchVectorBackfillPort;
+import org.sequeless.store.spi.ValidationPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -145,7 +145,7 @@ public class CoreConfiguration {
      * @param queryPort the lazily-resolved query port adapter, used both to resolve rollups and to
      *     hand to plug-ins
      * @return a {@link DerivationPlanner} backed by every {@link
-     *     org.sequeless.spi.derivation.DerivationPlugin} on the classpath
+     *     org.sequeless.store.spi.DerivationPlugin} on the classpath
      */
     @Bean
     public DerivationPlanner derivationPlanner(@Lazy QueryPort queryPort) {

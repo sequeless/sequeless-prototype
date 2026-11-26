@@ -6,7 +6,7 @@ package org.sequeless.app.rest;
  *
  * <p>{@code property}/{@code propertyIri} are both {@code null} for a violation that applies to
  * the object as a whole rather than to any single property — {@code
- * org.sequeless.spi.validation.Violation#path()} blank, per that record's own javadoc — since
+ * org.sequeless.store.spi.Violation#path()} blank, per that record's own javadoc — since
  * there is no property to name in that case.
  *
  * @param property the short name of the property the violation applies to, or {@code null} for an

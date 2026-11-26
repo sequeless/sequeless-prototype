@@ -1,8 +1,12 @@
-package org.sequeless.spi.query;
+package org.sequeless.store.spi;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.schema.api.AggregateFunction;
 import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.spi.query.BrowsePort;
+import org.sequeless.spi.query.IndexPreparationPort;
+import org.sequeless.spi.query.Query;
+import org.sequeless.spi.query.ReadPort;
 
 /**
  * The outbound port that computes aggregates over stored {@link org.sequeless.spi.object.BusinessObject}s,

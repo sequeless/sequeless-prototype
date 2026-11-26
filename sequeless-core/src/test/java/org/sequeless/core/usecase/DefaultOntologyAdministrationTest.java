@@ -20,8 +20,8 @@ import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Unit tests for {@link DefaultOntologyAdministration}, mirroring {@link DefaultWhoAmITest}'s shape:

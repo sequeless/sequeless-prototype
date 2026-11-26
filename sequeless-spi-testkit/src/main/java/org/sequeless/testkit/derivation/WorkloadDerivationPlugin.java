@@ -12,24 +12,24 @@ import java.util.stream.Collectors;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.schema.api.AggregateFunction;
-import org.sequeless.spi.derivation.DerivationContext;
-import org.sequeless.spi.derivation.DerivationPlugin;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
+import org.sequeless.store.spi.AggregateRequest;
+import org.sequeless.store.spi.AggregateResult;
+import org.sequeless.store.spi.DerivationContext;
+import org.sequeless.store.spi.DerivationPlugin;
 
 /**
  * Sample {@code sq:Plugin}-backed derivation: {@code ex:Person.workload} is the sum of {@code
  * ex:estimatedHours} over every {@code ex:Task} assigned to that person ({@code ex:assignedTo}).
  * Registered as a {@link java.util.ServiceLoader} provider for {@link DerivationPlugin} under this
- * module's {@code META-INF/services/org.sequeless.spi.derivation.DerivationPlugin}, and referenced
+ * module's {@code META-INF/services/org.sequeless.store.spi.DerivationPlugin}, and referenced
  * by name ({@code "workload"}) from {@code reference-plugin.ttl}'s {@code ex:workload} declaration
  * ({@code sq:derivedBy [ a sq:Plugin ; sq:pluginName "workload" ]}).
  *
  * <p>This is deliberately written to demonstrate the pattern a real plug-in is expected to follow,
  * rather than the simplest possible implementation: instead of loading every {@code ex:Task}
  * assigned to any of {@code objects} into memory and summing them here, it issues a single {@link
- * org.sequeless.spi.query.QueryPort#aggregate} call for the whole batch of Person ids at once —
+ * org.sequeless.store.spi.QueryPort#aggregate} call for the whole batch of Person ids at once —
  * exactly the "one request per rule per page, never one per object" bound the planner already
  * gives a declarative {@code sq:Rollup} for free. A plug-in that instead queried once per object,
  * or pulled an unbounded working set into memory to compute its own aggregate, would defeat the

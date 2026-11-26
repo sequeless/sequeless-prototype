@@ -33,8 +33,8 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 /**
  * Maps the {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.ontology.behaviour.api}

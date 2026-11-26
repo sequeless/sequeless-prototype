@@ -9,7 +9,7 @@ import org.springframework.jdbc.datasource.DelegatingDataSource;
 /**
  * Wraps a {@link DataSource} so {@link PostgresMigrations#migrate(DataSource)} runs exactly once,
  * lazily, the first time a connection is actually requested — not when this wrapper (or the {@link
- * org.sequeless.spi.object.ObjectStorePort} bean built on top of it) is constructed.
+ * org.sequeless.store.spi.ObjectStorePort} bean built on top of it) is constructed.
  *
  * <p>This is deliberate, not an oversight: {@link PostgresPersistenceAutoConfiguration}'s beans must
  * be constructible, by {@code ApplicationContextRunner}-driven tests with no real PostgreSQL

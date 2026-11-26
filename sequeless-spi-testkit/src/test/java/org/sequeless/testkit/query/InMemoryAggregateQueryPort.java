@@ -16,10 +16,10 @@ import org.sequeless.kernel.values.Value;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.QueryPort;
+import org.sequeless.store.spi.AggregateRequest;
+import org.sequeless.store.spi.AggregateResult;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.QueryPort;
 
 /**
  * A minimal {@link QueryPort} test double, existing purely to prove {@link AggregateContract}

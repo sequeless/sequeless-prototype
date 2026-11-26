@@ -2,7 +2,7 @@ package org.sequeless.core.api;
 
 import java.util.List;
 import java.util.Objects;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /**
  * Thrown by the browse use case (Phase 3, {@code org.sequeless.core.usecase}, out of scope here)

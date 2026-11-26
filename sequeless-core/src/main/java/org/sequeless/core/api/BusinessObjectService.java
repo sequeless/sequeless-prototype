@@ -10,11 +10,11 @@ import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.authz.Operation;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.spi.ObjectStorePort;
 
 /**
  * The BREAD (browse/read/edit/add/delete) use case over ontology-typed business objects. Every

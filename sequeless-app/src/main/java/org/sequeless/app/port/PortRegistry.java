@@ -28,7 +28,7 @@ import org.springframework.core.env.Environment;
  * SmartInitializingSingleton#afterSingletonsInstantiated()} runs in a dedicated second pass, after
  * every singleton (including the {@code @Lazy} proxy in {@code CoreConfiguration.whoAmI}) is
  * already constructed, which is exactly when counting real {@link
- * org.sequeless.spi.authz.AuthorizationPort} beans becomes meaningful.
+ * org.sequeless.store.spi.AuthorizationPort} beans becomes meaningful.
  *
  * <p>Bean counting uses {@link ListableBeanFactory#getBeanNamesForType(Class, boolean, boolean)}
  * with {@code allowEagerInit = false}, so counting itself can never instantiate a bean — this

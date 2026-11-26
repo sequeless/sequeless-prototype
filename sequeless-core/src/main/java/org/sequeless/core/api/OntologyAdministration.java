@@ -7,8 +7,8 @@ import org.sequeless.ontology.api.ImportReport;
 import org.sequeless.ontology.api.OntologyDocument;
 import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.ontology.api.OntologyFormat;
-import org.sequeless.spi.authz.AuthorizationPort;
 import org.sequeless.spi.authz.Operation;
+import org.sequeless.store.spi.AuthorizationPort;
 
 /**
  * Administrative export/import of the ontology as a whole, distinct from the read-only, per-type

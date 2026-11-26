@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.AdapterDescriptor;
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.store.spi.AuthorizationPort;
 import org.springframework.boot.diagnostics.FailureAnalysis;
 
 /**

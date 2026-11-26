@@ -3,6 +3,7 @@ package org.sequeless.app;
 import static com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn;
 import static com.tngtech.archunit.core.domain.JavaCall.Predicates.target;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.name;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
@@ -17,6 +18,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import java.util.Set;
 import org.sequeless.automation.api.AutomationPort;
 import org.sequeless.spi.query.IndexPreparationPort;
 
@@ -37,6 +39,12 @@ import org.sequeless.spi.query.IndexPreparationPort;
 class ArchitectureTest {
 
     private static final String SPI_PACKAGE = "org.sequeless.spi..";
+    /**
+     * The outbound ports that spec 18 renamed out of {@code org.sequeless.spi} (decision Q7). The SPI rules cover
+     * this package alongside {@link #SPI_PACKAGE}, which still holds the value types the ports use until they move.
+     */
+    private static final String STORE_SPI_PACKAGE = "org.sequeless.store.spi..";
+
     private static final String CORE_PACKAGE = "org.sequeless.core..";
     private static final String APP_PACKAGE = "org.sequeless.app..";
     private static final String ADAPTER_PACKAGE = "org.sequeless.adapter..";
@@ -66,14 +74,31 @@ class ArchitectureTest {
             "is a primitive or array type (ArchUnit places these in the default package)",
             javaClass -> javaClass.isPrimitive() || javaClass.isArray());
 
+    /**
+     * The aggregate query types that spec 18 U2 moved from {@code org.sequeless.spi.query} into
+     * {@code org.sequeless.store.spi}. {@link #querySeesOnlySchema} keeps covering them after the move, so the
+     * rule does not lose them when they leave the query package.
+     */
+    private static final Set<String> MOVED_QUERY_TYPE_NAMES = Set.of(
+            "org.sequeless.store.spi.QueryPort",
+            "org.sequeless.store.spi.Criterion",
+            "org.sequeless.store.spi.Operator",
+            "org.sequeless.store.spi.AggregateRequest",
+            "org.sequeless.store.spi.AggregateResult");
+
+    private static final DescribedPredicate<JavaClass> MOVED_QUERY_TYPES = DescribedPredicate.describe(
+            "is a moved aggregate query type (spec 18 U2)",
+            javaClass -> MOVED_QUERY_TYPE_NAMES.contains(javaClass.getName()));
+
     @ArchTest
     static final ArchRule spiDependsOnlyOnJdkAndItself = classes()
             .that()
-            .resideInAPackage(SPI_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE)
             .should()
             .onlyDependOnClassesThat(resideInAnyPackage(
                             "java..",
                             SPI_PACKAGE,
+                            STORE_SPI_PACKAGE,
                             KERNEL_PACKAGE,
                             ONTOLOGY_PACKAGE,
                             ONTOLOGY_SPI_PACKAGE,
@@ -107,6 +132,7 @@ class ArchitectureTest {
                             "java..",
                             CORE_PACKAGE,
                             SPI_PACKAGE,
+                            STORE_SPI_PACKAGE,
                             KERNEL_PACKAGE,
                             EXPRESSION_PACKAGE,
                             SLF4J_PACKAGE,
@@ -134,7 +160,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule spiAndCoreDoNotDependOnSpring = noClasses()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, CORE_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, CORE_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage("org.springframework..")
@@ -212,7 +238,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule noLombokInSpiOrCore = noClasses()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, CORE_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, CORE_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage("lombok..")
@@ -253,7 +279,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule noJenaInSpiOrCore = noClasses()
             .that()
-            .resideInAnyPackage(SPI_PACKAGE, CORE_PACKAGE)
+            .resideInAnyPackage(SPI_PACKAGE, STORE_SPI_PACKAGE, CORE_PACKAGE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage("org.apache.jena..")
@@ -268,8 +294,7 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule querySeesOnlySchema = noClasses()
-            .that()
-            .resideInAPackage(QUERY_PACKAGE)
+            .that(resideInAPackage(QUERY_PACKAGE).or(MOVED_QUERY_TYPES))
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(BEHAVIOUR_PACKAGE, AUTOMATION_PACKAGE, ONTOLOGY_PACKAGE)

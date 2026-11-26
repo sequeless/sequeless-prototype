@@ -1,4 +1,4 @@
-package org.sequeless.spi.automation;
+package org.sequeless.store.spi;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;

@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.sequeless.kernel.values.Value;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 
 /**
  * The outcome of {@link ValueCoercer#coerce}: either every raw property coerced successfully to a

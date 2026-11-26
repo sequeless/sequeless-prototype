@@ -1,8 +1,8 @@
 /**
  * The automation pieces the prototype host keeps: the derivation recompute port ({@link
  * org.sequeless.spi.automation.DerivationRecomputer}) and the failure record ({@link
- * org.sequeless.spi.automation.AutomationFailure} and {@link
- * org.sequeless.spi.automation.AutomationFailureRecorder}).
+ * org.sequeless.store.spi.AutomationFailure} and {@link
+ * org.sequeless.store.spi.AutomationFailureRecorder}).
  *
  * <p>The automation ports and Store event types moved to {@code sequeless-automation} in spec 17
  * P4: they are now {@code org.sequeless.automation.api}. The move is recorded in

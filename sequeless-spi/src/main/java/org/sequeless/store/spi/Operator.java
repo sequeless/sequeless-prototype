@@ -1,4 +1,4 @@
-package org.sequeless.spi.query;
+package org.sequeless.store.spi;
 
 /**
  * A comparison a {@link Criterion} applies to a property's value. Each constant's javadoc notes

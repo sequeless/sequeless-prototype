@@ -11,7 +11,7 @@ import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.ontology.automation.api.TransitionRef;
-import org.sequeless.spi.automation.AutomationFailure;
+import org.sequeless.store.spi.AutomationFailure;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;

@@ -10,7 +10,7 @@ import org.sequeless.testkit.validation.ValidationContract;
 
 /**
  * Proves {@link ShaclValidationPort} satisfies every clause of {@link
- * org.sequeless.spi.validation.ValidationPort}'s behavioural contract, wired against a real {@link
+ * org.sequeless.store.spi.ValidationPort}'s behavioural contract, wired against a real {@link
  * JenaOntologyPort} built straight from an {@link OntologyDocument} (no store, no Spring context —
  * see {@link ShaclValidationAutoConfigurationTest} for the Spring-wired proof).
  */

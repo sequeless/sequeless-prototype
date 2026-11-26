@@ -1,4 +1,4 @@
-package org.sequeless.spi.object;
+package org.sequeless.store.spi;
 
 import org.sequeless.kernel.identity.Scope;
 

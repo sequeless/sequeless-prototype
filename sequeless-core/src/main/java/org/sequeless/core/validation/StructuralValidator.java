@@ -19,10 +19,10 @@ import org.sequeless.ontology.schema.api.PropertyDefinition;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.Violation;
 
 /**
  * Checks a {@link ValueCoercer}-coerced property map against a {@link TypeDefinition}'s required

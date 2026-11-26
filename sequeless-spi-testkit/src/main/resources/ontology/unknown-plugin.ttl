@@ -9,7 +9,7 @@
 # The sq: vocabulary imported here (https://sequeless.dev/ns/meta) is owned by sequeless-ontology.
 #
 # reference.ttl plus one sq:Plugin-derived property, ex:workload on ex:Person, whose sq:pluginName
-# ("does-not-exist") matches no registered org.sequeless.spi.derivation.DerivationPlugin on the
+# ("does-not-exist") matches no registered org.sequeless.store.spi.DerivationPlugin on the
 # classpath -- unlike reference-plugin.ttl's "workload" (now in sequeless-ontology's
 # ontology-testfixtures), which the sample WorkloadDerivationPlugin does register. Exists to prove
 # ontology activation fails, at startup, on an unresolvable sq:pluginName (T4's ServiceLoader-backed
@@ -249,7 +249,7 @@ ex:totalEstimatedHours
 
 #
 # Derived property backed by a code plug-in rather than a declarative rollup (Phase 4, DR-08):
-# dispatches by name to a registered org.sequeless.spi.derivation.DerivationPlugin, exactly as
+# dispatches by name to a registered org.sequeless.store.spi.DerivationPlugin, exactly as
 # ex:openTaskCount/ex:totalEstimatedHours above dispatch to a declarative sq:Rollup.
 #
 

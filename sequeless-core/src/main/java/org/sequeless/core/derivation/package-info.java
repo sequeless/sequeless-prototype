@@ -2,8 +2,8 @@
  * Computing derived properties on read: {@link org.sequeless.core.derivation.DerivationPlanner}
  * batches every {@code sq:Rollup}/{@code sq:Plugin}-derived property across a page of {@link
  * org.sequeless.spi.object.BusinessObject}s into a bounded number of {@link
- * org.sequeless.spi.query.QueryPort#aggregate} / {@link
- * org.sequeless.spi.derivation.DerivationPlugin#derive} calls — one per distinct {@link
+ * org.sequeless.store.spi.QueryPort#aggregate} / {@link
+ * org.sequeless.store.spi.DerivationPlugin#derive} calls — one per distinct {@link
  * org.sequeless.ontology.behaviour.api.DerivationRule} per page, never one per object — and merges the computed
  * values back into fresh copies of those objects. {@link
  * org.sequeless.core.derivation.DerivationPluginRegistry} is the {@link java.util.ServiceLoader}

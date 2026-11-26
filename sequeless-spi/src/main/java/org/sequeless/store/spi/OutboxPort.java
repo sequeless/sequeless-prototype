@@ -1,9 +1,9 @@
-package org.sequeless.spi.outbox;
+package org.sequeless.store.spi;
 
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import org.sequeless.spi.object.ObjectStorePort;
+import org.sequeless.spi.outbox.OutboxEntry;
 
 /**
  * The outbound port a relay polls to claim one unprocessed outbox row of a caller-chosen kind at a

@@ -10,7 +10,7 @@ import org.sequeless.core.validation.ValidationException;
 import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.spi.Violation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;

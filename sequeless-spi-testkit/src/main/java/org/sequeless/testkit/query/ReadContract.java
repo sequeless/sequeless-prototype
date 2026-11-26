@@ -21,13 +21,13 @@ import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.Create;
 import org.sequeless.spi.object.Delete;
-import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.object.PropertyRef;
 import org.sequeless.spi.object.TypeRef;
 import org.sequeless.spi.object.Update;
 import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.ReadPort;
 import org.sequeless.spi.query.ReadRequest;
+import org.sequeless.store.spi.ObjectStorePort;
 import org.sequeless.testkit.Fixtures;
 
 /**

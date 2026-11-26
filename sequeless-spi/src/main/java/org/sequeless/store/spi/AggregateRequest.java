@@ -1,4 +1,4 @@
-package org.sequeless.spi.query;
+package org.sequeless.store.spi;
 
 import java.util.List;
 import java.util.Objects;
@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.sequeless.kernel.values.ObjectId;
 import org.sequeless.ontology.schema.api.AggregateFunction;
+import org.sequeless.spi.query.Query;
 
 /**
  * A single request to {@link QueryPort#aggregate}: compute one {@link AggregateFunction} over the

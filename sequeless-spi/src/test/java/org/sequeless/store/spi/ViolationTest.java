@@ -1,4 +1,4 @@
-package org.sequeless.spi.validation;
+package org.sequeless.store.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

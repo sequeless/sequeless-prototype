@@ -2,6 +2,7 @@ package org.sequeless.spi.query;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.store.spi.Criterion;
 
 /**
  * The outbound port that runs filtered, sorted, paged, faceted, and free-text browse queries over
@@ -34,7 +35,7 @@ import org.sequeless.ontology.schema.api.Schema;
  *       ascending. Otherwise: {@code createdAt} ascending, then {@code id} ascending. An object
  *       with no value for a sort key sorts last when the key is ascending and first when it is
  *       descending. {@code createdAt} compares as stored, at the precision the adapter keeps (see
- *       {@link org.sequeless.spi.object.ObjectStorePort}). Ids compare in unsigned byte order of
+ *       {@link org.sequeless.store.spi.ObjectStorePort}). Ids compare in unsigned byte order of
  *       the 16-byte UUID, most significant byte first, which equals the order of the lowercase
  *       canonical strings; this is not {@link java.util.UUID#compareTo}, which is signed. A sort
  *       key on a relationship property orders by target id in the same order. {@code

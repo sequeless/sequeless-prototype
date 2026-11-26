@@ -1,5 +1,7 @@
 package org.sequeless.spi.authz;
 
+import org.sequeless.store.spi.AuthorizationPort;
+
 /**
  * The kinds of action an {@link AuthorizationPort} is asked to authorize against a resource.
  *

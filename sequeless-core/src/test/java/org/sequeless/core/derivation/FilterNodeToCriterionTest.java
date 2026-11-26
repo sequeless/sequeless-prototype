@@ -36,8 +36,8 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.RelationshipDefinition;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
-import org.sequeless.spi.query.Criterion;
-import org.sequeless.spi.query.Operator;
+import org.sequeless.store.spi.Criterion;
+import org.sequeless.store.spi.Operator;
 
 class FilterNodeToCriterionTest {
 

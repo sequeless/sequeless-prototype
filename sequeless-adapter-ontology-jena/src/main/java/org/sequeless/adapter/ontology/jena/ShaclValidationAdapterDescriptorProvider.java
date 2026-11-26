@@ -2,7 +2,7 @@ package org.sequeless.adapter.ontology.jena;
 
 import org.sequeless.spi.AdapterDescriptor;
 import org.sequeless.spi.AdapterDescriptorProvider;
-import org.sequeless.spi.validation.ValidationPort;
+import org.sequeless.store.spi.ValidationPort;
 
 /**
  * Publishes {@link ShaclValidationPort}'s {@link AdapterDescriptor} for discovery via {@link

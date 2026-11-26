@@ -1,9 +1,8 @@
-package org.sequeless.spi.derivation;
+package org.sequeless.store.spi;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.spi.query.QueryPort;
 
 /**
  * The context a {@link DerivationPlugin} is invoked with: the tenant/principal the request is made

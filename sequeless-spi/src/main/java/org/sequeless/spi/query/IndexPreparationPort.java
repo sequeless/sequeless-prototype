@@ -40,7 +40,7 @@ public interface IndexPreparationPort {
      * <p>Preparing a searchable property registers it for the tenant, but does not change the
      * objects already stored. The caller learns from the return value whether the existing objects
      * need their full-text data recomputed, and recomputes it through {@link
-     * org.sequeless.spi.object.SearchVectorBackfillPort}.
+     * org.sequeless.store.spi.SearchVectorBackfillPort}.
      *
      * @param scope the tenant and principal the request is made on behalf of; must not be {@code
      *     null}

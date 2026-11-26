@@ -18,7 +18,7 @@
  * {@link org.sequeless.spi.object.Update}, and {@link org.sequeless.spi.object.Delete}, together
  * with {@link org.sequeless.spi.outbox.OutboxEntry} form a {@link
  * org.sequeless.spi.object.ChangeSet}: the unit of atomic change an {@link
- * org.sequeless.spi.object.ObjectStorePort#commit} call applies, producing a {@link
+ * org.sequeless.store.spi.ObjectStorePort#commit} call applies, producing a {@link
  * org.sequeless.spi.object.CommitResult}. {@link org.sequeless.spi.object.Page} and {@link
  * org.sequeless.spi.object.PageResult} are the paging vocabulary: a {@link
  * org.sequeless.spi.object.Page} is the request for one page, and a {@link
@@ -27,23 +27,23 @@
  * org.sequeless.kernel.values.ObjectNotFoundException} are the unchecked exceptions {@code commit}
  * throws when a mutation's optimistic-locking expectation is not met or its target does not exist.
  *
- * <p>The {@link org.sequeless.spi.object.ObjectStorePort} outbound port interface (together with
+ * <p>The {@link org.sequeless.store.spi.ObjectStorePort} outbound port interface (together with
  * {@link org.sequeless.ontology.spi.OntologyDocumentStore} and {@link
  * org.sequeless.ontology.spi.StoredOntologyDocument}, its ontology-persistence companion) lives in
  * this same package, added alongside these value types. Its full behavioural contract is documented
  * on the port interface itself, and asserted mechanically by {@code sequeless-spi-testkit}'s {@code
  * ObjectStoreContract}.
  *
- * <p>{@link org.sequeless.spi.outbox.OutboxPort} is a sibling outbound port, not a method on
- * {@link org.sequeless.spi.object.ObjectStorePort}: it lets a relay claim, one row at a time, an
+ * <p>{@link org.sequeless.store.spi.OutboxPort} is a sibling outbound port, not a method on
+ * {@link org.sequeless.store.spi.ObjectStorePort}: it lets a relay claim, one row at a time, an
  * unprocessed {@link org.sequeless.spi.outbox.OutboxEntry#KIND_TRANSITION_FIRED} row written by
  * {@code commit} above, which names the fired transition and its ontology version, and from which the
  * adapters apply its actions by index, without forcing every {@code
  * ObjectStorePort} implementation — including
  * test doubles that have no use for outbox claiming — to implement it.
  *
- * <p>{@link org.sequeless.spi.object.SearchVectorBackfillPort} is a sibling outbound port, not a
- * method on {@link org.sequeless.spi.object.ObjectStorePort}: it recomputes the full-text search data
+ * <p>{@link org.sequeless.store.spi.SearchVectorBackfillPort} is a sibling outbound port, not a
+ * method on {@link org.sequeless.store.spi.ObjectStorePort}: it recomputes the full-text search data
  * of a tenant's stored objects after index preparation registers a new searchable property. Keeping
  * it separate leaves every {@code ObjectStorePort} implementation as it was.
  */

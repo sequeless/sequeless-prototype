@@ -1,5 +1,5 @@
 /**
- * The mechanical contract test for {@link org.sequeless.spi.validation.ValidationPort}.
+ * The mechanical contract test for {@link org.sequeless.store.spi.ValidationPort}.
  *
  * <p>{@link org.sequeless.testkit.validation.ValidationContract} asserts every clause of the
  * behavioural contract documented on {@code ValidationPort} itself, against any implementation a
