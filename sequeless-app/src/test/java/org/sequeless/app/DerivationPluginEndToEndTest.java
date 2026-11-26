@@ -69,8 +69,6 @@ class DerivationPluginEndToEndTest extends PostgresTestcontainersSupport {
 
         // WorkloadDerivationPlugin sums ex:estimatedHours over every ex:Task assigned to the
         // Person via ex:assignedTo (F29): 4 + 6 = 10.
-        // This class runs on reference-plugin.ttl (the released ontology-testfixtures copy), which leaves
-        // Task.title unbounded, so the titles stay JSON lists here (spec 17 section 9, H7).
         create("Task", Map.of("title", List.of("First assignment"), "estimatedHours", 4, "assignedTo", personId));
         create("Task", Map.of("title", List.of("Second assignment"), "estimatedHours", 6, "assignedTo", personId));
 

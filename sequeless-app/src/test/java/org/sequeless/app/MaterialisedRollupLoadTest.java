@@ -291,7 +291,7 @@ class MaterialisedRollupLoadTest extends PostgresTestcontainersSupport {
                         "properties",
                         Map.of(
                                 "title",
-                                title,
+                                List.of(title),
                                 "belongsToProject",
                                 belongsToProjectId,
                                 "status",

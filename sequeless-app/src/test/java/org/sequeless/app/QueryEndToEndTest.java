@@ -185,9 +185,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         Map<String, Long> assignedToBaseline = facetCounts(baseline, "assignedTo");
 
         BusinessObjectResponse ada = createPerson("Ada Lovelace");
-        createTask(Map.of("title", "Facet fixture open assigned", "status", "OPEN"), ada.id());
-        createTask(Map.of("title", "Facet fixture open unassigned", "status", "OPEN"));
-        createTask(Map.of("title", "Facet fixture closed assigned", "status", "CLOSED"), ada.id());
+        createTask(Map.of("title", List.of("Facet fixture open assigned"), "status", "OPEN"), ada.id());
+        createTask(Map.of("title", List.of("Facet fixture open unassigned"), "status", "OPEN"));
+        createTask(Map.of("title", List.of("Facet fixture closed assigned"), "status", "CLOSED"), ada.id());
 
         JsonNode after = fetchAsJson("/api/objects/Task?facets=status,assignedTo&size=1");
         Map<String, Long> statusAfter = facetCounts(after, "status");
@@ -212,8 +212,8 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void filteringOnReferencePropertyWorks() {
         BusinessObjectResponse person = createPerson("Grace Hopper");
-        BusinessObjectResponse assigned = createTask(Map.of("title", "Ref filter assigned"), person.id());
-        BusinessObjectResponse unassigned = createTask(Map.of("title", "Ref filter unassigned"));
+        BusinessObjectResponse assigned = createTask(Map.of("title", List.of("Ref filter assigned")), person.id());
+        BusinessObjectResponse unassigned = createTask(Map.of("title", List.of("Ref filter unassigned")));
 
         JsonNode result = fetchAsJson("/api/objects/Task?filter[assignedTo][eq]=" + person.id() + "&size=200");
         Set<String> ids = idsOf(result);
@@ -228,9 +228,10 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void filteringOnDateRangeWorks() {
-        BusinessObjectResponse early = createTask(Map.of("title", "Date range early", "dueDate", "2026-01-05"));
-        BusinessObjectResponse mid = createTask(Map.of("title", "Date range mid", "dueDate", "2026-06-15"));
-        BusinessObjectResponse late = createTask(Map.of("title", "Date range late", "dueDate", "2026-12-25"));
+        BusinessObjectResponse early =
+                createTask(Map.of("title", List.of("Date range early"), "dueDate", "2026-01-05"));
+        BusinessObjectResponse mid = createTask(Map.of("title", List.of("Date range mid"), "dueDate", "2026-06-15"));
+        BusinessObjectResponse late = createTask(Map.of("title", List.of("Date range late"), "dueDate", "2026-12-25"));
 
         JsonNode result = fetchAsJson(
                 "/api/objects/Task?filter[dueDate][gte]=2026-02-01&filter[dueDate][lte]=2026-09-01&size=200");
@@ -242,9 +243,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void sortingOnNumericPropertyIsNumericNotLexical() {
         // 2, 3, 10: lexical ordering would put "10" before "2"/"3"; numeric ordering must not.
-        BusinessObjectResponse p2 = createTask(Map.of("title", "Numeric sort fixture A", "priority", 2));
-        BusinessObjectResponse p10 = createTask(Map.of("title", "Numeric sort fixture B", "priority", 10));
-        BusinessObjectResponse p3 = createTask(Map.of("title", "Numeric sort fixture C", "priority", 3));
+        BusinessObjectResponse p2 = createTask(Map.of("title", List.of("Numeric sort fixture A"), "priority", 2));
+        BusinessObjectResponse p10 = createTask(Map.of("title", List.of("Numeric sort fixture B"), "priority", 10));
+        BusinessObjectResponse p3 = createTask(Map.of("title", List.of("Numeric sort fixture C"), "priority", 3));
         Set<String> fixtureIds =
                 Set.of(p2.id().toString(), p10.id().toString(), p3.id().toString());
 
@@ -266,7 +267,7 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void queryingWorkItemReturnsBothTasksAndProjects() {
         String tag = "WorkItemFixture-" + UUID.randomUUID();
-        BusinessObjectResponse task = createTask(Map.of("title", tag + " Task"));
+        BusinessObjectResponse task = createTask(Map.of("title", List.of(tag + " Task")));
         BusinessObjectResponse project = createProject(Map.of("title", List.of(tag + " Project")));
 
         JsonNode result = fetchAsJson("/api/objects/WorkItem?size=200");
@@ -285,7 +286,8 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     void textSearchRanksMatchingTaskFirst() {
         String token = "roadmap" + Long.toHexString(System.nanoTime());
         BusinessObjectResponse task = createTask(Map.of(
-                "title", "Roadmap task", "description", List.of("The quarterly " + token + " review meeting notes")));
+                "title", List.of("Roadmap task"),
+                "description", List.of("The quarterly " + token + " review meeting notes")));
         BusinessObjectResponse project = createProject(Map.of(
                 "title", List.of("Other project"),
                 "description", List.of("Unrelated project description")));
@@ -323,9 +325,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
     @Test
     void sortingWorkItemsOnASubtypeOnlyPropertyOrdersThemByThatProperty() {
-        BusinessObjectResponse seven = createTask(Map.of("title", "Subtype sort fixture A", "priority", 7));
-        BusinessObjectResponse five = createTask(Map.of("title", "Subtype sort fixture B", "priority", 5));
-        BusinessObjectResponse six = createTask(Map.of("title", "Subtype sort fixture C", "priority", 6));
+        BusinessObjectResponse seven = createTask(Map.of("title", List.of("Subtype sort fixture A"), "priority", 7));
+        BusinessObjectResponse five = createTask(Map.of("title", List.of("Subtype sort fixture B"), "priority", 5));
+        BusinessObjectResponse six = createTask(Map.of("title", List.of("Subtype sort fixture C"), "priority", 6));
         Set<String> fixtureIds =
                 Set.of(seven.id().toString(), five.id().toString(), six.id().toString());
 
@@ -341,9 +343,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     void facetingWorkItemsOnASubtypeOnlyReferencePropertyCountsEachLabelledTarget() {
         String name = "Subtype facet person " + UUID.randomUUID();
         BusinessObjectResponse person = createPerson(name);
-        createTask(Map.of("title", "Subtype facet A"), person.id());
-        createTask(Map.of("title", "Subtype facet B"), person.id());
-        createTask(Map.of("title", "Subtype facet unassigned"));
+        createTask(Map.of("title", List.of("Subtype facet A")), person.id());
+        createTask(Map.of("title", List.of("Subtype facet B")), person.id());
+        createTask(Map.of("title", List.of("Subtype facet unassigned")));
 
         JsonNode result = fetchAsJson("/api/objects/WorkItem?facets=assignedTo&size=1");
 
@@ -359,9 +361,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void filteringWorkItemsOnASubtypeOnlyReferencePropertyReturnsExactlyTheMatchingIds() {
         BusinessObjectResponse person = createPerson("Subtype filter person " + UUID.randomUUID());
-        BusinessObjectResponse assignedA = createTask(Map.of("title", "Subtype filter A"), person.id());
-        BusinessObjectResponse assignedB = createTask(Map.of("title", "Subtype filter B"), person.id());
-        createTask(Map.of("title", "Subtype filter unassigned"));
+        BusinessObjectResponse assignedA = createTask(Map.of("title", List.of("Subtype filter A")), person.id());
+        BusinessObjectResponse assignedB = createTask(Map.of("title", List.of("Subtype filter B")), person.id());
+        createTask(Map.of("title", List.of("Subtype filter unassigned")));
 
         JsonNode result = fetchAsJson("/api/objects/WorkItem?filter[assignedTo][eq]=" + person.id() + "&size=200");
 
@@ -378,17 +380,15 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     // has no property IRI, because a released problem is a message. So each assertion names the core's violation
     // by its IRI, and fails whenever the core's check for that clause is removed.
 
-    // Task.title is single-valued (spec 17 section 9, H7), so the multi-valued cases use description, which the
-    // reference ontology leaves unrestricted.
-    private static final String DESCRIPTION_IRI = "https://sequeless.dev/ns/ref#description";
+    private static final String TITLE_IRI = "https://sequeless.dev/ns/ref#title";
     private static final String TOTAL_ESTIMATED_HOURS_IRI = "https://sequeless.dev/ns/ref#totalEstimatedHours";
 
-    /** (a) {@code description} is multi-valued (no maximum cardinality), so a filter on it is refused. */
+    /** (a) {@code title} is multi-valued (no maximum cardinality), so a filter on it is refused. */
     @Test
     void aFilterOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
-        JsonNode problem = fetchProblemAsJson("/api/objects/Task?filter[description][eq]=x");
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?filter[title][eq]=x");
 
-        assertCoreInvalidQuery(problem, DESCRIPTION_IRI, "multi-valued");
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
     }
 
     /** (b) {@code totalEstimatedHours} is a derived property the reference ontology does not materialise. */
@@ -399,20 +399,20 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
         assertCoreInvalidQuery(problem, TOTAL_ESTIMATED_HOURS_IRI, "not materialised");
     }
 
-    /** (c) A sort on the multi-valued {@code description} is refused by the core, not by the released sort. */
+    /** (c) A sort on the multi-valued {@code title} is refused by the core, not by the released sort. */
     @Test
     void aSortOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
-        JsonNode problem = fetchProblemAsJson("/api/objects/Task?sort=description");
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?sort=title");
 
-        assertCoreInvalidQuery(problem, DESCRIPTION_IRI, "multi-valued");
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
     }
 
-    /** (d) A facet on the multi-valued {@code description} is refused by the core before the facet check runs. */
+    /** (d) A facet on the multi-valued {@code title} is refused by the core before the facet check runs. */
     @Test
     void aFacetOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
-        JsonNode problem = fetchProblemAsJson("/api/objects/Task?facets=description");
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?facets=title");
 
-        assertCoreInvalidQuery(problem, DESCRIPTION_IRI, "multi-valued");
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
     }
 
     /** Fetches a request the core must refuse: a 400 problem with the invalid-query type, read as JSON. */

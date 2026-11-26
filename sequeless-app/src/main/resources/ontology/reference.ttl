@@ -21,11 +21,9 @@
 # sq:indexed. estimatedHours (on Task) gained the same restriction in Phase 4 (derived properties,
 # T5): ex:totalEstimatedHours below is a sq:Rollup that sums it with SQL sum(), which needs
 # ValueCoercer to have stored a bare tagged value ({"decimal": ...}) rather than a JSON list, for
-# exactly the reason filter/sort/facet resolution does above. Task.title carries an owl:maxCardinality
-# 1 restriction beside its owl:minCardinality 1 (spec 17 section 9, H7): a single-valued title is
-# sortable and filterable on Task, and a Task whose title is a JSON list is rejected by the Store.
-# ex:title on Project and ex:description stay deliberately unrestricted (max unbounded): nothing
-# filters/sorts/facets/aggregates on them, and existing tests (F39) post them as JSON lists.
+# exactly the reason filter/sort/facet resolution does above. title/description remain
+# deliberately unrestricted (max unbounded) — nothing filters/sorts/facets/aggregates on them, and
+# existing tests (F39) rely on posting them as JSON lists.
 #
 # ex:Project also declares two Phase 4 derived properties, openTaskCount and totalEstimatedHours:
 # both are sq:Rollup-derived, computed on read from ex:Task via ex:belongsToProject, and never
@@ -62,9 +60,6 @@ ex:Task
         [ a owl:Restriction ;
           owl:onProperty ex:title ;
           owl:minCardinality "1"^^xsd:nonNegativeInteger ] ,
-        [ a owl:Restriction ;
-          owl:onProperty ex:title ;
-          owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
         [ a owl:Restriction ;
           owl:onProperty ex:assignedTo ;
           owl:maxCardinality "1"^^xsd:nonNegativeInteger ] ,
