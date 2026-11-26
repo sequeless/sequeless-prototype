@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.adapter.persistence.postgres.PostgresObjectStore;
 import org.sequeless.adapter.persistence.postgres.PostgresPersistenceAutoConfiguration;
+import org.sequeless.app.query.ReleasedQueryConfiguration;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
@@ -31,6 +32,8 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.query.autoconfig.QueryAutoConfiguration;
+import org.sequeless.query.autoconfig.QueryServiceAutoConfiguration;
 import org.sequeless.spi.object.Audit;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
@@ -124,10 +127,17 @@ class IndexPreparationTransactionProofTest extends PostgresTestcontainersSupport
         });
     }
 
+    /**
+     * The index preparation port is the host's adapter over the released query service (spec 17 P2a), so the
+     * context carries the released query autoconfigurations, whose Postgres preparation writes the registry row.
+     */
     private static ApplicationContextRunner runner(Class<?>... extraConfigurations) {
         return new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(PostgresPersistenceAutoConfiguration.class))
-                .withUserConfiguration(CoreConfiguration.class)
+                .withConfiguration(AutoConfigurations.of(
+                        PostgresPersistenceAutoConfiguration.class,
+                        QueryAutoConfiguration.class,
+                        QueryServiceAutoConfiguration.class))
+                .withUserConfiguration(CoreConfiguration.class, ReleasedQueryConfiguration.class)
                 .withUserConfiguration(extraConfigurations)
                 .withPropertyValues(
                         "sequeless.persistence.adapter=postgres",

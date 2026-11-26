@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.sequeless.core.AuthorizationException;
+import org.sequeless.core.api.InvalidQueryException;
 import org.sequeless.core.api.TransitionNotAvailableException;
 import org.sequeless.core.api.TypeNotFoundException;
 import org.sequeless.core.api.UnknownSignalException;
@@ -15,6 +16,7 @@ import org.sequeless.ontology.api.OntologyIssue;
 import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.ontology.api.Severity;
 import org.sequeless.spi.authz.AccessDecision;
+import org.sequeless.spi.validation.Violation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -65,6 +67,22 @@ class ApiExceptionAdviceTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isEqualTo(new ErrorResponse("no ADMIN role"));
+    }
+
+    @Test
+    void releasedInvalidQueryExceptionMapsTo400WithTheCoreProblemTypeAndViolations() {
+        ProblemDetail released = advice.handleReleasedInvalidQuery(
+                new org.sequeless.query.api.InvalidQueryException(List.of("sort on 'title' is not sortable")));
+        ProblemDetail core = advice.handleInvalidQuery(new InvalidQueryException(
+                List.of(new Violation("https://sequeless.dev/ns/ref#title", "sort on 'title' is not sortable"))));
+
+        assertThat(released.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(released.getStatus()).isEqualTo(core.getStatus());
+        assertThat(released.getType()).isEqualTo(URI.create("https://sequeless.dev/problems/invalid-query"));
+        assertThat(released.getType()).isEqualTo(core.getType());
+        assertThat(released.getProperties())
+                .containsEntry(
+                        "violations", List.of(new ViolationResponse(null, null, "sort on 'title' is not sortable")));
     }
 
     @Test

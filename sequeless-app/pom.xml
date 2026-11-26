@@ -64,6 +64,33 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!--
+      Spec 17 P2a: the Query side is the released QueryService. The host's ReleasedBrowsePortAdapter,
+      ReleasedReadPortAdapter and ReleasedIndexPreparationPortAdapter (org.sequeless.app.query) call it, and
+      the released autoconfigs (query-spring-boot-autoconfig) build it over the released Postgres ports. No
+      version here: the BOM manages them.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-field</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-schema-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-postgres-jsonb-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-spring-boot-autoconfig</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-adapter-authz-permitall</artifactId>

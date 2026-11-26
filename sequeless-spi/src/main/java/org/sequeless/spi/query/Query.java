@@ -30,6 +30,10 @@ import org.sequeless.spi.object.Page;
  *     unmodifiable copy so callers cannot mutate this query after construction
  * @param includeDeleted whether soft-deleted objects should be included; phase 3 callers always
  *     pass {@code false}
+ * @param rootIri the IRI of the type the browse was requested on, as the caller resolved it (it may
+ *     be abstract, such as {@code WorkItem}, while {@code types} holds its concrete subtypes); must
+ *     not be {@code null} or blank. A host that delegates to a Query-side service names the root
+ *     class from this IRI and does not infer it from {@code types}.
  */
 public record Query(
         Set<String> types,
@@ -38,7 +42,8 @@ public record Query(
         List<Sort> sorts,
         Page page,
         List<String> facetProperties,
-        boolean includeDeleted) {
+        boolean includeDeleted,
+        String rootIri) {
 
     public Query {
         Objects.requireNonNull(types, "types must not be null");
@@ -54,5 +59,8 @@ public record Query(
         Objects.requireNonNull(page, "page must not be null");
         Objects.requireNonNull(facetProperties, "facetProperties must not be null");
         facetProperties = List.copyOf(facetProperties);
+        if (rootIri == null || rootIri.isBlank()) {
+            throw new IllegalArgumentException("Query rootIri must not be blank");
+        }
     }
 }

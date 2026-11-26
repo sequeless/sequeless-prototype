@@ -16,8 +16,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.BusinessObjectResponse;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
+import org.sequeless.query.api.QueryService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
@@ -55,6 +58,9 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
 
     @LocalServerPort
     private int port;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -162,6 +168,15 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     // --- acceptance criteria -----------------------------------------------------------------
+
+    /**
+     * The production autoconfiguration (no test-only schema source) wires exactly one released {@link QueryService}
+     * into the context, which is the host's Query side since spec 17 P2a.
+     */
+    @Test
+    void theProductionContextHasExactlyOneReleasedQueryService() {
+        assertThat(applicationContext.getBeansOfType(QueryService.class)).hasSize(1);
+    }
 
     @Test
     void facetCountsForStatusAndAssignedToMatchFixtureIncludingDisplayLabel() {
@@ -300,5 +315,141 @@ class QueryEndToEndTest extends PostgresTestcontainersSupport {
                 .expectBody()
                 .jsonPath("$.violations[?(@.property == 'nonexistentProperty')]")
                 .exists();
+    }
+
+    // --- subtype-only properties on the abstract root, WorkItem (spec 17 P2) --------------------
+    //
+    // priority and assignedTo are declared on Task only, so WorkItem reaches them through the released subtype
+    // union. Each expected value comes from this test's own fixture, not from the released code. A released scope
+    // that dropped the subtype-only property would answer 400 here, and the test would fail.
+
+    @Test
+    void sortingWorkItemsOnASubtypeOnlyPropertyOrdersThemByThatProperty() {
+        BusinessObjectResponse seven = createTask(Map.of("title", List.of("Subtype sort fixture A"), "priority", 7));
+        BusinessObjectResponse five = createTask(Map.of("title", List.of("Subtype sort fixture B"), "priority", 5));
+        BusinessObjectResponse six = createTask(Map.of("title", List.of("Subtype sort fixture C"), "priority", 6));
+        Set<String> fixtureIds =
+                Set.of(seven.id().toString(), five.id().toString(), six.id().toString());
+
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?sort=priority&size=200");
+
+        assertThat(orderedIdsAmong(result, fixtureIds))
+                .as("ascending priority over WorkItem, by the fixture's priorities 5, 6 and 7")
+                .containsExactly(
+                        five.id().toString(), six.id().toString(), seven.id().toString());
+    }
+
+    @Test
+    void facetingWorkItemsOnASubtypeOnlyReferencePropertyCountsEachLabelledTarget() {
+        String name = "Subtype facet person " + UUID.randomUUID();
+        BusinessObjectResponse person = createPerson(name);
+        createTask(Map.of("title", List.of("Subtype facet A")), person.id());
+        createTask(Map.of("title", List.of("Subtype facet B")), person.id());
+        createTask(Map.of("title", List.of("Subtype facet unassigned")));
+
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?facets=assignedTo&size=1");
+
+        Map<String, Long> counts = facetCounts(result, "assignedTo");
+        assertThat(counts)
+                .as("the two tasks assigned to the fixture person, under its name")
+                .containsEntry(name, 2L);
+        assertThat(counts.keySet())
+                .as("labelled by name, not by the raw person id")
+                .doesNotContain(person.id().toString());
+    }
+
+    @Test
+    void filteringWorkItemsOnASubtypeOnlyReferencePropertyReturnsExactlyTheMatchingIds() {
+        BusinessObjectResponse person = createPerson("Subtype filter person " + UUID.randomUUID());
+        BusinessObjectResponse assignedA = createTask(Map.of("title", List.of("Subtype filter A")), person.id());
+        BusinessObjectResponse assignedB = createTask(Map.of("title", List.of("Subtype filter B")), person.id());
+        createTask(Map.of("title", List.of("Subtype filter unassigned")));
+
+        JsonNode result = fetchAsJson("/api/objects/WorkItem?filter[assignedTo][eq]=" + person.id() + "&size=200");
+
+        assertThat(idsOf(result))
+                .as("exactly the two tasks assigned to the fixture person")
+                .containsExactlyInAnyOrder(
+                        assignedA.id().toString(), assignedB.id().toString());
+    }
+
+    // --- the core's pre-check keeps multi-valued and derived properties out of browse -------------
+    //
+    // The core checks every filter, sort and facet against the scope before the released browse runs. A
+    // rejection the core makes carries the property IRI (propertyIri); a rejection the released query makes
+    // has no property IRI, because a released problem is a message. So each assertion names the core's violation
+    // by its IRI, and fails whenever the core's check for that clause is removed.
+
+    private static final String TITLE_IRI = "https://sequeless.dev/ns/ref#title";
+    private static final String TOTAL_ESTIMATED_HOURS_IRI = "https://sequeless.dev/ns/ref#totalEstimatedHours";
+
+    /** (a) {@code title} is multi-valued (no maximum cardinality), so a filter on it is refused. */
+    @Test
+    void aFilterOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?filter[title][eq]=x");
+
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
+    }
+
+    /** (b) {@code totalEstimatedHours} is a derived property the reference ontology does not materialise. */
+    @Test
+    void aFilterOnANonMaterialisedDerivedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Project?filter[totalEstimatedHours][eq]=0");
+
+        assertCoreInvalidQuery(problem, TOTAL_ESTIMATED_HOURS_IRI, "not materialised");
+    }
+
+    /** (c) A sort on the multi-valued {@code title} is refused by the core, not by the released sort. */
+    @Test
+    void aSortOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?sort=title");
+
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
+    }
+
+    /** (d) A facet on the multi-valued {@code title} is refused by the core before the facet check runs. */
+    @Test
+    void aFacetOnAMultiValuedPropertyIsRefusedByTheCorePreCheck() {
+        JsonNode problem = fetchProblemAsJson("/api/objects/Task?facets=title");
+
+        assertCoreInvalidQuery(problem, TITLE_IRI, "multi-valued");
+    }
+
+    /** Fetches a request the core must refuse: a 400 problem with the invalid-query type, read as JSON. */
+    private JsonNode fetchProblemAsJson(String uri) {
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        try {
+            return objectMapper.readTree(responseBody);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    /**
+     * The problem is the invalid-query type, and it has a violation whose {@code propertyIri} is {@code propertyIri}
+     * and whose message names the reason the core gives ({@code reason}).
+     */
+    private static void assertCoreInvalidQuery(JsonNode problem, String propertyIri, String reason) {
+        assertThat(problem.get("type").asText()).isEqualTo("https://sequeless.dev/problems/invalid-query");
+        JsonNode violation = null;
+        for (JsonNode candidate : problem.get("violations")) {
+            if (propertyIri.equals(candidate.path("propertyIri").asText())) {
+                violation = candidate;
+            }
+        }
+        assertThat(violation)
+                .as("the core's violation for %s, with its propertyIri", propertyIri)
+                .isNotNull();
+        assertThat(violation.get("message").asText()).contains(reason);
     }
 }

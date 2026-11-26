@@ -12,6 +12,7 @@ import static org.sequeless.ontology.testfixtures.Fixtures.PROJECT_IRI;
 import static org.sequeless.ontology.testfixtures.Fixtures.STATUS_IRI;
 import static org.sequeless.ontology.testfixtures.Fixtures.TASK_IRI;
 import static org.sequeless.ontology.testfixtures.Fixtures.TITLE_IRI;
+import static org.sequeless.ontology.testfixtures.Fixtures.WORK_ITEM_IRI;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -160,8 +161,8 @@ public abstract class BrowseContract {
         Set<String> withNull = new HashSet<>();
         withNull.add(null);
         assertThatNullPointerException()
-                .isThrownBy(() ->
-                        new Query(withNull, List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false));
+                .isThrownBy(() -> new Query(
+                        withNull, List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false, TASK_IRI));
     }
 
     @Test
@@ -284,7 +285,8 @@ public abstract class BrowseContract {
                 List.of(),
                 new Page(0, 20),
                 List.of(STATUS_IRI),
-                false);
+                false,
+                TASK_IRI);
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
@@ -538,7 +540,8 @@ public abstract class BrowseContract {
                 List.of(),
                 new Page(0, 20),
                 List.of(),
-                false);
+                false,
+                TASK_IRI);
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
@@ -612,8 +615,8 @@ public abstract class BrowseContract {
         ObjectId id = seedTask(env, scope, base, "Soon deleted", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
         env.store().commit(scope, new ChangeSet(List.of(new Delete(id, 1, base.plusSeconds(1), "tester")), List.of()));
 
-        Query query =
-                new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false);
+        Query query = new Query(
+                Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), false, TASK_IRI);
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
@@ -659,8 +662,8 @@ public abstract class BrowseContract {
         ObjectId id = seedTask(env, scope, base, "Soon deleted", "OPEN", 1, LocalDate.of(2026, 2, 1), null, null);
         env.store().commit(scope, new ChangeSet(List.of(new Delete(id, 1, base.plusSeconds(1), "tester")), List.of()));
 
-        Query query =
-                new Query(Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), true);
+        Query query = new Query(
+                Set.of(TASK_IRI), List.of(), Optional.empty(), List.of(), new Page(0, 20), List.of(), true, TASK_IRI);
 
         QueryResult result = env.browsePort().browse(scope, QueryFixtures.schema(), query);
 
@@ -739,7 +742,14 @@ public abstract class BrowseContract {
         seedTaskWithId(env, scope, ID_C, base, "Tied task", 1);
 
         Query query = new Query(
-                Set.of(TASK_IRI), List.of(), Optional.of("tied"), List.of(), new Page(0, 20), List.of(), false);
+                Set.of(TASK_IRI),
+                List.of(),
+                Optional.of("tied"),
+                List.of(),
+                new Page(0, 20),
+                List.of(),
+                false,
+                TASK_IRI);
 
         assertThat(browseIds(env, scope, query)).isEqualTo(List.of(ID_C, ID_D, ID_A));
     }
@@ -783,7 +793,10 @@ public abstract class BrowseContract {
 
     private static Query queryOf(
             Set<String> types, List<Criterion> criteria, List<Sort> sorts, Page page, List<String> facetProperties) {
-        return new Query(types, criteria, Optional.empty(), sorts, page, facetProperties, false);
+        // The contract browses one type, Task, or its abstract parent WorkItem when two types are passed; a
+        // single type is its own root.
+        String rootIri = types.size() == 1 ? types.iterator().next() : WORK_ITEM_IRI;
+        return new Query(types, criteria, Optional.empty(), sorts, page, facetProperties, false, rootIri);
     }
 
     private static ObjectId seedPerson(Environment env, Scope scope, Instant createdAt, String name, String email) {

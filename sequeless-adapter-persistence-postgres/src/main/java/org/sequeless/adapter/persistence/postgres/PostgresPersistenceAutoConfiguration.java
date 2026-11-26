@@ -5,6 +5,7 @@ import javax.sql.DataSource;
 import org.sequeless.spi.automation.AutomationFailureRecorder;
 import org.sequeless.spi.object.ObjectStorePort;
 import org.sequeless.spi.outbox.OutboxPort;
+import org.sequeless.spi.query.QueryPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -111,11 +112,15 @@ public class PostgresPersistenceAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(name = "sequeless.query.adapter", havingValue = "postgres", matchIfMissing = true)
-    public PostgresQueryStore queryPort(DataSource sequelessPersistenceDataSource) {
+    public QueryPort queryPort(DataSource sequelessPersistenceDataSource) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         PlatformTransactionManager transactionManager =
                 new DataSourceTransactionManager(sequelessPersistenceDataSource);
-        return new PostgresQueryStore(jdbcClient, transactionManager);
+        PostgresQueryStore store = new PostgresQueryStore(jdbcClient, transactionManager);
+        // Spec 17 P2a: the bean is a QueryPort and nothing else. A narrowed return type is not enough on its own: once
+        // the singleton exists, Spring matches a type against the instance, and PostgresQueryStore is also a ReadPort,
+        // BrowsePort and IndexPreparationPort. QueryPort has one method, so the view is a lambda over the store.
+        return (scope, schema, request) -> store.aggregate(scope, schema, request);
     }
 
     /**
