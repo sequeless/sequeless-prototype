@@ -13,7 +13,7 @@
  * {@code QueryPort#aggregate}. Unlike {@link org.sequeless.testkit.object.ObjectStoreContract},
  * these contracts are not ontology-agnostic: exercising filters, sorts, and facets on real
  * properties needs a real {@link org.sequeless.ontology.schema.api.Schema}, so {@link
- * org.sequeless.testkit.query.QueryFixtures} hand-builds one mirroring {@code reference.ttl}
+ * org.sequeless.testkit.Fixtures#schema()} hand-builds one mirroring {@code reference.ttl}
  * directly from SPI records, without any RDF/OWL library.
  */
 package org.sequeless.testkit.query;

@@ -25,7 +25,7 @@ import org.sequeless.ontology.schema.api.OntologyVersion;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.spi.query.IndexPreparationPort;
-import org.sequeless.testkit.query.QueryFixtures;
+import org.sequeless.testkit.Fixtures;
 import org.springframework.transaction.support.TransactionOperations;
 
 /**
@@ -130,7 +130,7 @@ class IndexPreparingOntologyAdministrationTest {
      */
     private static final class ActivatingAdministration implements OntologyAdministration {
 
-        private final AtomicReference<Schema> active = new AtomicReference<>(QueryFixtures.schema());
+        private final AtomicReference<Schema> active = new AtomicReference<>(Fixtures.schema());
         private final OntologyReport reloadReport = new OntologyReport(true, List.of());
         private final ImportReport importReport = new ImportReport(true, new OntologyReport(true, List.of()), 0);
         private final OntologyDocument exportDocument = new OntologyDocument("exported", OntologyFormat.TURTLE);
