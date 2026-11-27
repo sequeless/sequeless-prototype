@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.sequeless.app.query.ObjectQueryService;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.kernel.values.ObjectId;
@@ -54,7 +55,7 @@ final class BindingFakes {
      * record their call, unless a failure is configured, in which case the failure is thrown first and nothing is
      * recorded.
      */
-    static final class RecordingObjects implements BusinessObjectService {
+    static final class RecordingObjects implements BusinessObjectService, ObjectQueryService {
 
         final Map<ObjectId, ObjectView> views = new HashMap<>();
         final List<Added> added = new ArrayList<>();

@@ -121,7 +121,7 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the invalid filter/sort/facet property or operator escaping from {@link
-     *     org.sequeless.store.core.api.BusinessObjectService#browse}; must not be {@code null}
+     *     org.sequeless.app.query.ObjectQueryService#browse}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying a {@code violations} array
      */
     @ExceptionHandler(InvalidQueryException.class)

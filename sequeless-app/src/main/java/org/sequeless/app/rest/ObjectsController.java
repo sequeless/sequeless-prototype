@@ -19,6 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.sequeless.app.admin.MetaModelService;
+import org.sequeless.app.query.ObjectQueryService;
 import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
@@ -52,7 +53,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Exposes {@link BusinessObjectService} over HTTP: browse/read/add/edit/delete against {@code
+ * Exposes {@link BusinessObjectService} and {@link ObjectQueryService} over HTTP: browse/read/add/edit/delete against {@code
  * /objects/{type}} and {@code /objects/{type}/{id}}, per plan.md §8. Also exposes {@link
  * TransitionService} over HTTP: {@code GET .../transitions} ({@link #transitions}) and {@code POST
  * .../transitions/{name}} ({@link #fireTransition}), per plan.md §8's state-machine addendum —
@@ -89,13 +90,16 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class ObjectsController {
 
     private final BusinessObjectService businessObjectService;
+    private final ObjectQueryService objectQueryService;
     private final MetaModelService metaModelService;
     private final TransitionService transitionService;
     private final ExpressionPort expressionPort;
 
     /**
-     * @param businessObjectService the use case this controller delegates every BREAD operation
-     *     to; must not be {@code null}
+     * @param businessObjectService the command use case this controller delegates add, edit and delete to; must not be
+     *     {@code null}
+     * @param objectQueryService the query use case this controller delegates browse and read to; must not be {@code
+     *     null}
      * @param metaModelService the use case consulted for the current request's resolved {@link
      *     TypeDefinition}, used only to render the response's property names; must not be {@code
      *     null}
@@ -109,11 +113,13 @@ public class ObjectsController {
      */
     public ObjectsController(
             BusinessObjectService businessObjectService,
+            ObjectQueryService objectQueryService,
             MetaModelService metaModelService,
             TransitionService transitionService,
             ExpressionPort expressionPort) {
         this.businessObjectService =
                 Objects.requireNonNull(businessObjectService, "businessObjectService must not be null");
+        this.objectQueryService = Objects.requireNonNull(objectQueryService, "objectQueryService must not be null");
         this.metaModelService = Objects.requireNonNull(metaModelService, "metaModelService must not be null");
         this.transitionService = Objects.requireNonNull(transitionService, "transitionService must not be null");
         this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
@@ -179,7 +185,7 @@ public class ObjectsController {
                 sortKeys,
                 new Page(page, effectiveSize),
                 facetNames);
-        QueryResult result = businessObjectService.browse(scope, type, browseQuery);
+        QueryResult result = objectQueryService.browse(scope, type, browseQuery);
         TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return QueryResultResponse.from(result, requestType, page, effectiveSize);
     }
@@ -266,7 +272,7 @@ public class ObjectsController {
     @GetMapping("/objects/{type}/{id}")
     public ResponseEntity<BusinessObjectResponse> read(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
-        ObjectView found = businessObjectService.read(scope, type, new ObjectId(id));
+        ObjectView found = objectQueryService.read(scope, type, new ObjectId(id));
         TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(found.version()))
@@ -402,7 +408,7 @@ public class ObjectsController {
     @GetMapping("/objects/{type}/{id}/transitions")
     public List<TransitionResponse> transitions(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
-        ObjectView object = businessObjectService.read(scope, type, new ObjectId(id));
+        ObjectView object = objectQueryService.read(scope, type, new ObjectId(id));
         Behaviour behaviour = metaModelService.behaviour(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
         Set<String> userActionTransitionNames = userActionTransitionNames(behaviour, object);

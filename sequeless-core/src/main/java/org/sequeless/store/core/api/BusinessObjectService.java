@@ -9,79 +9,27 @@ import org.sequeless.kernel.values.ObjectNotFoundException;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.StaleObjectException;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.query.ObjectView;
-import org.sequeless.spi.query.QueryResult;
 import org.sequeless.store.api.Operation;
 import org.sequeless.store.core.AuthorizationException;
 import org.sequeless.store.core.validation.ValidationException;
 import org.sequeless.store.spi.ObjectStorePort;
 
 /**
- * The BREAD (browse/read/edit/add/delete) use case over ontology-typed business objects. Every
- * method authorizes its own {@link Operation} against the resolved type's IRI before touching the
- * {@link ObjectStorePort} — the same never-cached, never-short-circuited idiom {@code
- * org.sequeless.app.admin.DefaultWhoAmI} and {@code MetaModelService} establish — and every
- * write funnels its structural checks ({@code ValueCoercer}, {@code StructuralValidator}) through
- * before the shape-based {@code ValidationPort} SHACL check runs.
+ * The command side of the BREAD use case over ontology-typed business objects: {@code add}, {@code edit},
+ * {@code delete} and the {@code typeOf} lookup. The query side, browse and read, is {@code
+ * org.sequeless.app.query.ObjectQueryService} in the host (spec 18 U6). Every method here authorizes its own
+ * {@link Operation} against the resolved type's IRI before touching the {@link ObjectStorePort} — the same
+ * never-cached, never-short-circuited idiom {@code org.sequeless.app.admin.DefaultWhoAmI} and {@code
+ * MetaModelService} establish — and every write funnels its structural checks ({@code ValueCoercer}, {@code
+ * StructuralValidator}) through before the shape-based {@code ValidationPort} SHACL check runs.
  *
- * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against
- * the current {@link org.sequeless.ontology.schema.api.Schema} the same way {@code
- * MetaModelService#describeType} resolves its own {@code nameOrIri} argument.
+ * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against the current
+ * {@link org.sequeless.ontology.schema.api.Schema} the same way {@code MetaModelService#describeType} resolves its
+ * own {@code nameOrIri} argument.
  *
  * @see org.sequeless.store.core.usecase.DefaultBusinessObjectService
  */
 public interface BusinessObjectService {
-
-    /**
-     * Lists non-deleted objects of {@code type} and its subtypes, one page at a time, with
-     * filtering, free-text search, sorting, and facet counts.
-     *
-     * <p>Authorizes {@link Operation#BROWSE} against the resolved type's IRI, then resolves {@code
-     * type} to its concrete subtype IRIs against the current {@link
-     * org.sequeless.ontology.schema.api.Schema} — the set a {@link
-     * org.sequeless.spi.query.Query#types()} is built from, since a query port never sees an
-     * abstract type IRI — validates {@code query}'s filter, sort, and facet property names (each
-     * given as a property short name or full IRI) and operator applicability against that
-     * schema, coerces raw filter values to the properties' declared datatypes, and delegates to
-     * {@link org.sequeless.spi.query.BrowsePort#browse}.
-     *
-     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
-     *     null}
-     * @param type the type's short name or full IRI; must not be {@code null}
-     * @param query the filter, free-text, sort, paging, and facet request to run; must not be
-     *     {@code null}
-     * @return a non-null result containing the matching page of objects, the total match count, and
-     *     the computed facet buckets
-     * @throws NullPointerException if any argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
-     * @throws AuthorizationException if the authorization port denies the operation
-     * @throws InvalidQueryException if a filter, sort, or facet property name does not resolve, an
-     *     operator is not applicable to its property, or a multi-valued property is used somewhere
-     *     only a scalar is supported
-     */
-    QueryResult browse(Scope scope, String type, BrowseQuery query);
-
-    /**
-     * Reads a single object of {@code type} (or a subtype of it) by id, returned as its {@link
-     * ObjectView} with the derived properties computed.
-     *
-     * <p>Authorizes {@link Operation#READ} against the resolved type's IRI. An id that does not
-     * exist, is soft-deleted, or belongs to an unrelated type — one that is not {@code type} itself
-     * or a subtype of it — is reported identically as {@link ObjectNotFoundException}, so a caller
-     * cannot distinguish "no such object" from "object exists but is a different type" by probing.
-     *
-     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
-     *     null}
-     * @param type the type's short name or full IRI; must not be {@code null}
-     * @param id the object's id; must not be {@code null}
-     * @return the matching object's view
-     * @throws NullPointerException if any argument is {@code null}
-     * @throws TypeNotFoundException if no type in the current schema matches {@code type}
-     * @throws AuthorizationException if the authorization port denies the operation
-     * @throws ObjectNotFoundException if no matching, non-deleted object of {@code type} or a
-     *     subtype of it exists with {@code id}
-     */
-    ObjectView read(Scope scope, String type, ObjectId id);
 
     /**
      * Returns the type of the live object {@code id} in the tenant of {@code scope}, or empty if there is none. An id
@@ -89,7 +37,7 @@ public interface BusinessObjectService {
      * reveals an object of another tenant.
      *
      * <p>This is a lookup, not a read, and it authorizes nothing: the type is what an authorization decision needs.
-     * {@link #read}, {@link #edit} and {@link #delete} each authorize their own operation against the type. The
+     * {@code ObjectQueryService#read}, {@link #edit} and {@link #delete} each authorize their own operation against the type. The
      * automation bindings use it to resolve the type of an object id (spec 17, section 10), since the released
      * automation ports carry an id and no type.
      *

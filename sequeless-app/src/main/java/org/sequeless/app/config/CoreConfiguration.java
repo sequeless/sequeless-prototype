@@ -9,6 +9,8 @@ import org.sequeless.app.admin.DefaultWhoAmI;
 import org.sequeless.app.admin.MetaModelService;
 import org.sequeless.app.admin.OntologyAdministration;
 import org.sequeless.app.admin.WhoAmI;
+import org.sequeless.app.query.DefaultObjectQueryService;
+import org.sequeless.app.query.ObjectQueryService;
 import org.sequeless.expression.api.ExpressionPort;
 import org.sequeless.ontology.automation.spi.AutomationSource;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
@@ -153,9 +155,9 @@ public class CoreConfiguration {
     }
 
     /**
-     * Builds the {@link BusinessObjectService} use case around whichever schema and behaviour read
-     * ports, {@link ObjectStorePort}, {@link ValidationPort}, {@link AuthorizationPort}, {@link
-     * ReadPort}, {@link BrowsePort} and {@link QueryPort} adapters are configured; QueryPort is reached through the DerivationPlanner.
+     * Builds the {@link BusinessObjectService} use case, the command side of BREAD (add, edit, delete and the type
+     * lookup), around whichever schema and behaviour read ports, {@link ObjectStorePort}, {@link ValidationPort} and
+     * {@link AuthorizationPort} adapters are configured. Browse and read are {@link #objectQueryService}.
      *
      * <p><b>All port-typed parameters are {@code @Lazy} for exactly the reason spelled out on {@link
      * #whoAmI(AuthorizationPort)} above, and none may be "simplified" away.</b> {@code
@@ -168,12 +170,6 @@ public class CoreConfiguration {
      * @param objectStorePort the lazily-resolved object store port adapter
      * @param validationPort the lazily-resolved validation port adapter
      * @param authorizationPort the lazily-resolved authorization port adapter
-     * @param readPort the lazily-resolved ReadPort adapter, which {@code read} resolves one object
-     *     through
-     * @param browsePort the lazily-resolved browse port adapter, which {@code browse} runs its query
-     *     through
-     * @param derivationPlanner the {@link DerivationPlanner} bean built above, shared with {@link
-     *     #derivationRecomputer}
      * @return a {@link DefaultBusinessObjectService} consulting all of its ports on every call, with
      *     its clock drawn from {@link Clock#systemUTC()}
      */
@@ -183,20 +179,38 @@ public class CoreConfiguration {
             @Lazy BehaviourSource behaviourSource,
             @Lazy ObjectStorePort objectStorePort,
             @Lazy ValidationPort validationPort,
+            @Lazy AuthorizationPort authorizationPort) {
+        return new DefaultBusinessObjectService(
+                schemaSource, behaviourSource, objectStorePort, validationPort, authorizationPort, Clock.systemUTC());
+    }
+
+    /**
+     * Builds the {@link ObjectQueryService} use case, the query side of BREAD (browse and read), around the schema and
+     * behaviour read ports, {@link AuthorizationPort}, the {@link ReadPort} and {@link BrowsePort} adapters, and the
+     * shared {@link DerivationPlanner}.
+     *
+     * <p>Its port parameters are {@code @Lazy} for exactly the reason spelled out on {@link
+     * #businessObjectService}, and none may be "simplified" away.
+     *
+     * @param schemaSource the lazily-resolved schema read port
+     * @param behaviourSource the lazily-resolved behaviour read port
+     * @param authorizationPort the lazily-resolved authorization port adapter
+     * @param readPort the lazily-resolved ReadPort adapter, which {@code read} resolves one object through
+     * @param browsePort the lazily-resolved browse port adapter, which {@code browse} runs its query through
+     * @param derivationPlanner the {@link DerivationPlanner} bean, which computes every derived property a response
+     *     returns
+     * @return a {@link DefaultObjectQueryService} consulting all of its ports on every call
+     */
+    @Bean
+    public ObjectQueryService objectQueryService(
+            @Lazy SchemaSource schemaSource,
+            @Lazy BehaviourSource behaviourSource,
             @Lazy AuthorizationPort authorizationPort,
             @Lazy ReadPort readPort,
             @Lazy BrowsePort browsePort,
             DerivationPlanner derivationPlanner) {
-        return new DefaultBusinessObjectService(
-                schemaSource,
-                behaviourSource,
-                objectStorePort,
-                validationPort,
-                authorizationPort,
-                readPort,
-                browsePort,
-                Clock.systemUTC(),
-                derivationPlanner);
+        return new DefaultObjectQueryService(
+                schemaSource, behaviourSource, authorizationPort, readPort, browsePort, derivationPlanner);
     }
 
     /**

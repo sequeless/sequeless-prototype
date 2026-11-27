@@ -12,7 +12,7 @@ import org.sequeless.spi.object.TypeRef;
 /**
  * Walks {@link TypeDefinition#superTypes()} transitively against a {@link Schema}, the one place
  * this walk is written so {@link StructuralValidator} (reference-target subtype checking) and {@code
- * DefaultBusinessObjectService} ({@code browse}'s "type plus its subtypes", and the subtype-inclusive
+ * DefaultBusinessObjectService} and {@code DefaultObjectQueryService} ({@code browse}'s "type plus its subtypes", and the subtype-inclusive
  * type match on {@code read}/{@code edit}/{@code delete}) do not each hand-roll their own version and
  * drift apart.
  *
@@ -91,7 +91,7 @@ public final class TypeHierarchy {
      * The narrower, concrete-only counterpart to {@link #typeAndSubtypes}: a {@link
      * org.sequeless.spi.query.Query#types()} must never contain an abstract type IRI (the query port
      * never does hierarchy reasoning and never sees one), so {@code
-     * DefaultBusinessObjectService#browse} resolves against this set rather than {@link
+     * DefaultObjectQueryService#browse} resolves against this set rather than {@link
      * #typeAndSubtypes} when building a {@code Query}.
      *
      * @param schema the schema to search; must not be {@code null}

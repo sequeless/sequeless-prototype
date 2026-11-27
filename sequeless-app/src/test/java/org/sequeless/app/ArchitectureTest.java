@@ -67,6 +67,8 @@ class ArchitectureTest {
     private static final String ONTOLOGY_SCHEMA_PACKAGE = "org.sequeless.ontology.schema..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
     private static final String HOST_ADMIN_PACKAGE = "org.sequeless.app.admin..";
+    private static final String OBJECT_QUERY_SERVICE = "org.sequeless.app.query.ObjectQueryService";
+    private static final String DEFAULT_OBJECT_QUERY_SERVICE = "org.sequeless.app.query.DefaultObjectQueryService";
     private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
     private static final String PREPARE = "prepare";
     private static final String INGEST = "ingest";
@@ -220,15 +222,21 @@ class ArchitectureTest {
             .doNotHaveFullyQualifiedName(BUSINESS_OBJECT_STORE_COMMAND_PORT)
             .and()
             .doNotHaveFullyQualifiedName(OBJECT_TYPES)
+            .and()
+            .doNotHaveFullyQualifiedName(OBJECT_QUERY_SERVICE)
+            .and()
+            .doNotHaveFullyQualifiedName(DEFAULT_OBJECT_QUERY_SERVICE)
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
             .because(
                     "Within sequeless-app, only the REST inbound adapter, the wiring/configuration packages, the admin "
                             + "use cases (spec 18 O12: MetaModelService, OntologyAdministration and WhoAmI, whose implementations "
-                            + "call core helpers by design) and the four automation bindings (spec 17 P3: the host's ObjectReadPort "
-                            + "and StoreCommandPort call the Command use cases) may reach into core use cases; other app packages, "
-                            + "such as the port registry, must stay ignorant of the domain core.");
+                            + "call core helpers by design), the two query use cases (spec 18 U6: ObjectQueryService and its "
+                            + "DefaultObjectQueryService, which share core's type and authorization checks) and the four automation "
+                            + "bindings (spec 17 P3: the host's ObjectReadPort and StoreCommandPort call the Command use cases) may "
+                            + "reach into core use cases; other app packages, such as the port registry, must stay ignorant of "
+                            + "the domain core.");
 
     @ArchTest
     static final ArchRule noAdapterDependsOnCore = noClasses()

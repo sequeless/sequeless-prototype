@@ -11,7 +11,7 @@ import org.sequeless.store.core.api.BusinessObjectService;
  * Resolves an object id to its type IRI for the automation bindings.
  *
  * <p>The released {@code ObjectReadPort} and {@code StoreCommandPort} carry an object id and no type, while the Command
- * use cases {@code BusinessObjectService.read} and {@code edit} take the type. The lookup goes through
+ * use cases {@code ObjectQueryService.read} and {@code BusinessObjectService.edit} take the type. The lookup goes through
  * {@link BusinessObjectService#typeOf}, so the bindings never import {@code ObjectStorePort} (spec 17 section 10,
  * decision 2). Every read, write and transition still goes through a Command use case, which runs its own
  * authorization and validation.

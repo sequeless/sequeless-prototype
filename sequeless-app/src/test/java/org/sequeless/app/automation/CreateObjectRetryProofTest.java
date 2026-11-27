@@ -17,6 +17,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
+import org.sequeless.app.query.DefaultObjectQueryService;
+import org.sequeless.app.query.ObjectQueryService;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
 import org.sequeless.automation.api.ActionExecutor;
 import org.sequeless.automation.api.AutomationPort;
@@ -262,11 +264,19 @@ class CreateObjectRetryProofTest extends PostgresTestcontainersSupport {
                     faultOnceObjectStore,
                     (scope, schema, object) -> List.of(),
                     (scope, operation, resource) -> new AccessDecision(true, "permitted"),
+                    Clock.systemUTC());
+        }
+
+        @Bean
+        ObjectQueryService objectQueryService() {
+            return new DefaultObjectQueryService(
+                    tenant -> SCHEMA,
+                    tenant -> BEHAVIOUR,
+                    (scope, operation, resource) -> new AccessDecision(true, "permitted"),
                     (scope, request) -> Optional.empty(),
                     (scope, schema, query) -> {
                         throw new UnsupportedOperationException("not needed by this test");
                     },
-                    Clock.systemUTC(),
                     new DerivationPlanner(
                             (scope, schema, request) -> {
                                 throw new UnsupportedOperationException("not needed by this test");

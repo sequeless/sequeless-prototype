@@ -14,7 +14,7 @@ import org.sequeless.spi.query.FacetBucket;
  * factoring-out.
  *
  * <p>A requested facet property need not be declared directly on {@code requestType} itself: {@code
- * DefaultBusinessObjectService.browse} resolves a {@link org.sequeless.store.core.api.BrowseQuery}'s
+ * DefaultObjectQueryService.browse} resolves a {@link org.sequeless.store.core.api.BrowseQuery}'s
  * facet names against every property attributed to the resolved type <em>or any of its transitive
  * subtypes</em> — a deliberately wider set than {@code requestType.properties()} — so that a facet
  * declared only on a concrete subtype still resolves when browsing an abstract supertype. {@link
