@@ -66,7 +66,13 @@ class ArchitectureTest {
     private static final String ONTOLOGY_SPI_PACKAGE = "org.sequeless.ontology.spi..";
     private static final String ONTOLOGY_SCHEMA_PACKAGE = "org.sequeless.ontology.schema..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
-    private static final String HOST_ADMIN_PACKAGE = "org.sequeless.app.admin..";
+    private static final String ADMIN_META_MODEL_SERVICE = "org.sequeless.app.admin.MetaModelService";
+    private static final String ADMIN_DEFAULT_META_MODEL_SERVICE = "org.sequeless.app.admin.DefaultMetaModelService";
+    private static final String ADMIN_ONTOLOGY_ADMINISTRATION = "org.sequeless.app.admin.OntologyAdministration";
+    private static final String ADMIN_DEFAULT_ONTOLOGY_ADMINISTRATION =
+            "org.sequeless.app.admin.DefaultOntologyAdministration";
+    private static final String ADMIN_WHO_AM_I = "org.sequeless.app.admin.WhoAmI";
+    private static final String ADMIN_DEFAULT_WHO_AM_I = "org.sequeless.app.admin.DefaultWhoAmI";
     private static final String OBJECT_QUERY_SERVICE = "org.sequeless.app.query.ObjectQueryService";
     private static final String DEFAULT_OBJECT_QUERY_SERVICE = "org.sequeless.app.query.DefaultObjectQueryService";
     private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
@@ -213,7 +219,7 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(APP_PACKAGE)
             .and()
-            .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..", HOST_ADMIN_PACKAGE)
+            .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..")
             .and()
             .doNotHaveFullyQualifiedName(AUTOMATION_BINDING_CONFIGURATION)
             .and()
@@ -226,6 +232,18 @@ class ArchitectureTest {
             .doNotHaveFullyQualifiedName(OBJECT_QUERY_SERVICE)
             .and()
             .doNotHaveFullyQualifiedName(DEFAULT_OBJECT_QUERY_SERVICE)
+            .and()
+            .doNotHaveFullyQualifiedName(ADMIN_META_MODEL_SERVICE)
+            .and()
+            .doNotHaveFullyQualifiedName(ADMIN_DEFAULT_META_MODEL_SERVICE)
+            .and()
+            .doNotHaveFullyQualifiedName(ADMIN_ONTOLOGY_ADMINISTRATION)
+            .and()
+            .doNotHaveFullyQualifiedName(ADMIN_DEFAULT_ONTOLOGY_ADMINISTRATION)
+            .and()
+            .doNotHaveFullyQualifiedName(ADMIN_WHO_AM_I)
+            .and()
+            .doNotHaveFullyQualifiedName(ADMIN_DEFAULT_WHO_AM_I)
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
