@@ -10,7 +10,7 @@ Where this spec gives a decision, its number is the Navigator's (Q1 to Q24, Q-A 
 
 - Stage 5, the final fold. Spec 18 of 19. The Store (the Command side of a Sequeless host: object state, outbox, validation, derivation and the Postgres adapter for them) leaves the prototype and is published from its own repository, `sequeless-store`, with modules `store-core`, `store-testkit` and `store-postgres-jsonb-adapter`. The ontology's Postgres adapter moves into `sequeless-ontology`. The prototype keeps its name and its single host. `sequeless-ui/` is out of scope and is not moved or renamed.
 - Waits for spec 17 ([#45](https://github.com/sequeless/sequeless-prototype/issues/45), closed). Spec 17 leaves the prototype consuming the released Query and automation artifacts.
-- Released artifacts this spec depends on: `query-testkit` 0.2.1, `query-postgres-jsonb-adapter` 0.2.x (the prototype's Released* tests compile against `query-testkit` 0.2.1; unverified until U6), `automation-*` 0.1.0, `sequeless-bom` 0.3.2 (the pin on `origin/main` at 5c0fffa), `ontology-core` 0.1.0 and `schema-contract`, `behaviour-contract` and `automation-contract` as the BOM carries them.
+- Released artifacts this spec depends on: `query-testkit` 0.2.1, `query-postgres-jsonb-adapter` 0.2.x (the prototype's Released* tests compile against `query-testkit` 0.2.1; verified at U6 PR-2, `#232`), `automation-*` 0.1.0, `sequeless-bom` 0.3.2 (the pin on `origin/main` at 5c0fffa), `ontology-core` 0.1.0 and `schema-contract`, `behaviour-contract` and `automation-contract` as the BOM carries them.
 - No spec-18 unit changes the behaviour of the prototype. The rename units (U2 to U4) are rename-only commits, each with CI green. Behaviour changes, if any, live in the new repositories and reach the prototype only through the cut-over (U11, U14).
 
 ## 2. Decisions
@@ -160,7 +160,7 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 | U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | Done: #227, `c6ddb55` |
 | U4 | `store.core` and `store.postgres` rename; minimal `ObjectState` (Q-D, O5). | This PR |
 | U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | Done: PR-A `#229` (`9e83a48`): doubles, `schema()` split, Spring guard. PR-B `#230` (`d3d9afc`): `queryFlyway` removed, the hook (Q-E amended), the bare-database cases; the settling cases stay in the host (G4 amended). The aggregate contract and the O12 host move wait for U6. |
-| U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | PR-1 (browse and read, O12): this PR. PR-2 (testkit): planned. |
+| U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | Done: PR-1 `#231` (`b54d395`): browse and read to the host, O12 move. PR-2 `#232`: query-side testkit deleted (Q24), `query-testkit` 0.2.1 test dependency in `sequeless-app`; `Released*` compile against it. |
 | U7 | Scaffold `sequeless-store` from `sequeless-template`; CI calls `maven-ci` and `maven-release`; CODEOWNERS; GitHub Packages write; release-please for three modules; placeholder build green. | Planned |
 | U8 | Move `store-core`, `store-testkit` and `store-postgres-jsonb-adapter` from the import SHA (pure copy); V1 and V3 to V12 byte-identical; `PostgresMigrationFrozenSetsTest` with the four command sets (Q15 as amended by Q-B: `post-p2`, `post-p3`, `post-p4` and `post-p7`); store ITs with copied DDL (G1); the store ArchUnit rules (G3); the no-op hook between V6 and V7 (Q-E); `docs/adr/0001` in the store. | Planned |
 | U9 | Release 0.1.0 of the three store modules. The release PR merges before any dependant runs. | Planned |
@@ -191,7 +191,7 @@ The Refs on the PRs are `#46`, never a closing keyword, until every item above h
 - No `V2` exists in the command set. The V2 deleted at 859a118 was the query set. Do not renumber; V1 and V3 to V12 stay as they are.
 - V6's trigger reads `sq_searchable_property`. A bare command-only V6 fails, so the store ITs need the copied DDL (G1).
 - `*:missing` and `transactional.lock=false` stay in the store's command configuration.
-- The Released* tests compile against `query-testkit` 0.2.1 (unverified until U6).
+- The Released* tests compile against `query-testkit` 0.2.1 (verified at U6 PR-2, `#232`: compile-only use, no contract subclasses).
 - The store-testkit test-scope dependency in `store-postgres` (unverified until U8).
 - The ontology adapter's test-scope use of the command-only runner (unverified until U13).
 - The `store-core` compile against `ontology-core` 0.1.0 (unverified until U8 and U10; fallback 0.2.0, G2).

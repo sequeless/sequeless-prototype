@@ -24,7 +24,7 @@ import org.sequeless.store.spi.QueryPort;
 /**
  * A minimal {@link QueryPort} test double, existing purely to prove {@link AggregateContract}
  * itself is correct before the Postgres adapter extends it. {@link QueryPort} holds only aggregation
- * now: browsing and reads are proven by {@link BrowseContract} and {@link ReadContract}, and index
+ * now: browsing and reads are proven by {@code BrowseContract} and {@code ReadContract}, and index
  * preparation by its own null-argument test, so this double implements {@link QueryPort#aggregate}
  * alone and nothing else.
  *
