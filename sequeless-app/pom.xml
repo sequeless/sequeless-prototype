@@ -157,6 +157,12 @@
       <artifactId>ontology-testfixtures</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Released query contracts and doubles (org.sequeless.query.testkit). Version from sequeless-bom. -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-testkit</artifactId>
+      <scope>test</scope>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
