@@ -6,6 +6,7 @@ import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.store.core.AuthorizationException;
 import org.sequeless.store.core.api.TypeDescription;
+import org.sequeless.store.core.api.TypeNotFoundException;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**

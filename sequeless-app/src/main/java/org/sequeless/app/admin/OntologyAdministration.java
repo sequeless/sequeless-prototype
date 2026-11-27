@@ -8,6 +8,7 @@ import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.store.api.Operation;
 import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.BusinessObjectService;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**
