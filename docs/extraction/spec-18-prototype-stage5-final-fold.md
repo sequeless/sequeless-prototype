@@ -200,6 +200,7 @@ The Refs on the PRs are `#46`, never a closing keyword, until every item above h
 - O1: the V6 harness choice, decided at U8. O5: the `ObjectState` fields, sized at U4. O9: the settling case map, settled at U5.
 - O7: `sequeless-automation` #4 (the upstream failure port) is additive later; the recorder SPI is frozen at 0.1.0 (Q11).
 - O12, closed as Option A (host placement), by the parent's cycle 21 ruling: `MetaModelService`, `OntologyAdministration` and `WhoAmI`, with their `Default*` use cases, stay in the host (section 3, Q3). U4 renames them to `org.sequeless.store.core`, and U5 or U6 moves them to the host.
+- Deviation (U6 PR-1): `sequeless-core` declares `ontology-core` at test scope. Its main code imports nothing from `org.sequeless.ontology.api` or `.spi`, and the build parent's `dependency:analyze` (failOnWarning) rejects an unused compile-scope dependency. Section 7's wording (`ontology-core` 0.1.0 as a dependency of `store-core`) therefore holds for the tests only. Re-check at U8 and U10, and align section 7 then.
 - Divergence: the prototype's behaviour and the new repositories' behaviour must match at each cut-over. Spec 17's integration tests carry the prototype side.
 - `sequeless-ui` is untouched. `FatJarServesUiAndApiIT` must stay green on every U12 unit.
 
