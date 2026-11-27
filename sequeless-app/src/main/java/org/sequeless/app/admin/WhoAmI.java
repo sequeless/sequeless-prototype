@@ -1,4 +1,4 @@
-package org.sequeless.store.core.api;
+package org.sequeless.app.admin;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.store.core.AuthorizationException;
@@ -10,7 +10,7 @@ import org.sequeless.store.spi.AuthorizationPort;
  * AuthorizationPort} SPI through core rather than around it: every implementation must consult the
  * port for each call, never answer from cached or hardcoded state.
  *
- * @see org.sequeless.store.core.usecase.DefaultWhoAmI
+ * @see org.sequeless.app.admin.DefaultWhoAmI
  */
 public interface WhoAmI {
 

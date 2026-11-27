@@ -49,6 +49,7 @@ class BusinessObjectStoreCommandPortTest {
     private final BusinessObjectStoreCommandPort port = new BusinessObjectStoreCommandPort(
             new ObjectTypes(objects),
             objects,
+            objects,
             transitions,
             BindingFakes.behaviourWithDerived(TOTAL),
             new ShapeCoercion(BindingFakes.schemaDeclaring(

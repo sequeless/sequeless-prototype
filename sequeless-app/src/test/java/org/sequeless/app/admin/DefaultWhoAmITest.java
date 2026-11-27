@@ -1,4 +1,4 @@
-package org.sequeless.store.core.usecase;
+package org.sequeless.app.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -14,7 +14,6 @@ import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.store.api.AccessDecision;
 import org.sequeless.store.api.Operation;
 import org.sequeless.store.core.AuthorizationException;
-import org.sequeless.store.core.api.WhoAmIResult;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**

@@ -2,12 +2,12 @@ package org.sequeless.app.rest;
 
 import java.util.List;
 import java.util.Objects;
+import org.sequeless.app.admin.MetaModelService;
 import org.sequeless.app.config.TomcatEncodedSlashConfiguration;
 import org.sequeless.kernel.identity.Principal;
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.kernel.identity.TenantId;
 import org.sequeless.ontology.schema.api.Schema;
-import org.sequeless.store.core.api.MetaModelService;
 import org.sequeless.store.core.api.TypeDescription;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

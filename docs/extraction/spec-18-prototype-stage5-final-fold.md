@@ -159,8 +159,8 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 | U2 | Spec doc, DR-29 to DR-36, the `store.spi` rename (section 6.1), the frozen-sets check (section 13), the ArchitectureTest retarget. Carries U1. | Done: #226, `9ecfea1` |
 | U3 | `store.api` rename: `AccessDecision`, `Operation`, `DerivationRecomputer`; the `store.api` ArchUnit rule. | Done: #227, `c6ddb55` |
 | U4 | `store.core` and `store.postgres` rename; minimal `ObjectState` (Q-D, O5). | This PR |
-| U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | PR-A `#229` (`9e83a48`): doubles, `schema()` split, Spring guard. PR-B: `queryFlyway` removed, the hook (Q-E amended), the bare-database cases; the settling cases stay in the host (G4 amended). The aggregate contract and the O12 host move wait for U6. |
-| U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | Planned |
+| U5 | Fixtures and contract split; Command doubles to `store-testkit` `src/main`; `schema()` split; `queryFlyway` removed; settling split (G4, O9). | Done: PR-A `#229` (`9e83a48`): doubles, `schema()` split, Spring guard. PR-B `#230` (`d3d9afc`): `queryFlyway` removed, the hook (Q-E amended), the bare-database cases; the settling cases stay in the host (G4 amended). The aggregate contract and the O12 host move wait for U6. |
+| U6 | Browse and read split to the host; query-side testkit files deleted (Q24); host Released* tests against `query-testkit` 0.2.1. | PR-1 (browse and read, O12): this PR. PR-2 (testkit): planned. |
 | U7 | Scaffold `sequeless-store` from `sequeless-template`; CI calls `maven-ci` and `maven-release`; CODEOWNERS; GitHub Packages write; release-please for three modules; placeholder build green. | Planned |
 | U8 | Move `store-core`, `store-testkit` and `store-postgres-jsonb-adapter` from the import SHA (pure copy); V1 and V3 to V12 byte-identical; `PostgresMigrationFrozenSetsTest` with the four command sets (Q15 as amended by Q-B: `post-p2`, `post-p3`, `post-p4` and `post-p7`); store ITs with copied DDL (G1); the store ArchUnit rules (G3); the no-op hook between V6 and V7 (Q-E); `docs/adr/0001` in the store. | Planned |
 | U9 | Release 0.1.0 of the three store modules. The release PR merges before any dependant runs. | Planned |
@@ -200,6 +200,7 @@ The Refs on the PRs are `#46`, never a closing keyword, until every item above h
 - O1: the V6 harness choice, decided at U8. O5: the `ObjectState` fields, sized at U4. O9: the settling case map, settled at U5.
 - O7: `sequeless-automation` #4 (the upstream failure port) is additive later; the recorder SPI is frozen at 0.1.0 (Q11).
 - O12, closed as Option A (host placement), by the parent's cycle 21 ruling: `MetaModelService`, `OntologyAdministration` and `WhoAmI`, with their `Default*` use cases, stay in the host (section 3, Q3). U4 renames them to `org.sequeless.store.core`, and U5 or U6 moves them to the host.
+- Deviation (U6 PR-1): `sequeless-core` declares `ontology-core` at test scope. Its main code imports nothing from `org.sequeless.ontology.api` or `.spi`, and the build parent's `dependency:analyze` (failOnWarning) rejects an unused compile-scope dependency. Section 7's wording (`ontology-core` 0.1.0 as a dependency of `store-core`) therefore holds for the tests only. Re-check at U8 and U10, and align section 7 then.
 - Divergence: the prototype's behaviour and the new repositories' behaviour must match at each cut-over. Spec 17's integration tests carry the prototype side.
 - `sequeless-ui` is untouched. `FatJarServesUiAndApiIT` must stay green on every U12 unit.
 

@@ -1,4 +1,4 @@
-package org.sequeless.store.core.usecase;
+package org.sequeless.app.admin;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Scope;
@@ -9,7 +9,6 @@ import org.sequeless.ontology.api.OntologyFormat;
 import org.sequeless.store.api.AccessDecision;
 import org.sequeless.store.api.Operation;
 import org.sequeless.store.core.AuthorizationException;
-import org.sequeless.store.core.api.OntologyAdministration;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**

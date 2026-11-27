@@ -1,4 +1,4 @@
-package org.sequeless.store.core.api;
+package org.sequeless.app.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;

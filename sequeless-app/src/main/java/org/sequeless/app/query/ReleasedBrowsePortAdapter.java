@@ -33,7 +33,7 @@ import org.sequeless.spi.query.QueryResult;
  * fields. The released service resolves it again inside {@link QueryService#browse}; the cost is one extra schema
  * read per browse.
  *
- * <p>This adapter is reached only through the core's browse ({@code BusinessObjectService#browse}), which has already
+ * <p>This adapter is reached only through the core's browse ({@code ObjectQueryService#browse}), which has already
  * run its pre-checks: a filter, sort or facet on a multi-valued property, or on a derived property that is not
  * materialised, is refused before this port is called. A caller that skips the core must not rely on what the
  * released scope allows. The released filter does not gate on cardinality, and it accepts a derived property that

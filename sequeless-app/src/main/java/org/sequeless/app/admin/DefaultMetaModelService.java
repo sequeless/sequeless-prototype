@@ -1,4 +1,4 @@
-package org.sequeless.store.core.usecase;
+package org.sequeless.app.admin;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,7 +16,6 @@ import org.sequeless.ontology.schema.spi.SchemaSource;
 import org.sequeless.store.api.AccessDecision;
 import org.sequeless.store.api.Operation;
 import org.sequeless.store.core.AuthorizationException;
-import org.sequeless.store.core.api.MetaModelService;
 import org.sequeless.store.core.api.TypeDescription;
 import org.sequeless.store.core.api.TypeNotFoundException;
 import org.sequeless.store.core.ontology.SchemaAndBehaviour;

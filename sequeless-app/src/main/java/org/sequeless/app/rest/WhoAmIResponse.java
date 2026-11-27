@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.Set;
-import org.sequeless.store.core.api.WhoAmIResult;
+import org.sequeless.app.admin.WhoAmIResult;
 
 /**
  * JSON response body for {@code GET /whoami}.

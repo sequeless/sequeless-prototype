@@ -40,7 +40,7 @@ import org.sequeless.store.spi.Operator;
  * Maps the {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.ontology.behaviour.api}
  * types, and core's {@link
  * TypeDescription}, onto their {@link TypesController} wire representations. Factored out of {@link
- * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.store.core.api.WhoAmIResult)},
+ * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.app.admin.WhoAmIResult)},
  * because both {@link TypeSummaryResponse} and {@link TypeDetailResponse} need the same
  * superTypes-to-short-names rendering.
  *
@@ -51,7 +51,7 @@ final class TypeResponseMapper {
 
     /**
      * Operator tokens as the REST filter grammar spells them (see {@code
-     * DefaultBusinessObjectService.parseOperatorToken}), keyed by {@link Operator}. Three operators
+     * DefaultObjectQueryService.parseOperatorToken}), keyed by {@link Operator}. Three operators
      * do not lowercase their enum name verbatim ({@code STARTS_WITH} -&gt; {@code startswith},
      * {@code IS_NULL} -&gt; {@code isnull}, {@code NOT_NULL} -&gt; {@code notnull}); the rest do
      * (e.g. {@code EQ} -&gt; {@code eq}).

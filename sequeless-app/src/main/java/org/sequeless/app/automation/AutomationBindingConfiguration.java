@@ -1,5 +1,6 @@
 package org.sequeless.app.automation;
 
+import org.sequeless.app.query.ObjectQueryService;
 import org.sequeless.automation.api.ObjectReadPort;
 import org.sequeless.automation.api.StoreCommandPort;
 import org.sequeless.ontology.behaviour.spi.BehaviourSource;
@@ -25,12 +26,14 @@ import org.springframework.context.annotation.Lazy;
 public class AutomationBindingConfiguration {
 
     /**
-     * @param businessObjectService the Command use case that serves automation reads and resolves types
+     * @param businessObjectService the Command use case that resolves types
+     * @param objectQueryService the query use case that serves automation reads
      * @return the host's {@link ObjectReadPort}
      */
     @Bean
-    public ObjectReadPort objectReadPort(BusinessObjectService businessObjectService) {
-        return new BusinessObjectReadPort(new ObjectTypes(businessObjectService), businessObjectService);
+    public ObjectReadPort objectReadPort(
+            BusinessObjectService businessObjectService, ObjectQueryService objectQueryService) {
+        return new BusinessObjectReadPort(new ObjectTypes(businessObjectService), objectQueryService);
     }
 
     /**
@@ -44,12 +47,14 @@ public class AutomationBindingConfiguration {
     @Bean
     public StoreCommandPort storeCommandPort(
             BusinessObjectService businessObjectService,
+            ObjectQueryService objectQueryService,
             TransitionService transitionService,
             @Lazy BehaviourSource behaviourSource,
             @Lazy SchemaSource schemaSource) {
         return new BusinessObjectStoreCommandPort(
                 new ObjectTypes(businessObjectService),
                 businessObjectService,
+                objectQueryService,
                 transitionService,
                 behaviourSource,
                 new ShapeCoercion(schemaSource));

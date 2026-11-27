@@ -3,6 +3,7 @@ package org.sequeless.app.automation;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.sequeless.app.query.ObjectQueryService;
 import org.sequeless.automation.api.CreateObjectCommand;
 import org.sequeless.automation.api.FireTransitionCommand;
 import org.sequeless.automation.api.SetPropertyCommand;
@@ -53,13 +54,15 @@ final class BusinessObjectStoreCommandPort implements StoreCommandPort {
 
     private final ObjectTypes types;
     private final BusinessObjectService objects;
+    private final ObjectQueryService queries;
     private final TransitionService transitions;
     private final BehaviourSource behaviours;
     private final ShapeCoercion shape;
 
     /**
      * @param types the id-to-type lookup; must not be {@code null}
-     * @param objects the Command use case for reads, writes and creates; must not be {@code null}
+     * @param objects the Command use case for writes and creates; must not be {@code null}
+     * @param queries the query use case for the reads; must not be {@code null}
      * @param transitions the Command use case that fires automated transitions; must not be {@code null}
      * @param behaviours the behaviour the derived properties are read from; must not be {@code null}
      * @param shape shapes each raw value to its declared cardinality before the write; must not be {@code null}
@@ -67,11 +70,13 @@ final class BusinessObjectStoreCommandPort implements StoreCommandPort {
     BusinessObjectStoreCommandPort(
             ObjectTypes types,
             BusinessObjectService objects,
+            ObjectQueryService queries,
             TransitionService transitions,
             BehaviourSource behaviours,
             ShapeCoercion shape) {
         this.types = Objects.requireNonNull(types, "types must not be null");
         this.objects = Objects.requireNonNull(objects, "objects must not be null");
+        this.queries = Objects.requireNonNull(queries, "queries must not be null");
         this.transitions = Objects.requireNonNull(transitions, "transitions must not be null");
         this.behaviours = Objects.requireNonNull(behaviours, "behaviours must not be null");
         this.shape = Objects.requireNonNull(shape, "shape must not be null");
@@ -143,7 +148,7 @@ final class BusinessObjectStoreCommandPort implements StoreCommandPort {
 
     private ObjectView read(Scope scope, String type, ObjectId id) {
         try {
-            return objects.read(scope, type, id);
+            return queries.read(scope, type, id);
         } catch (AuthorizationException | ObjectNotFoundException | TypeNotFoundException e) {
             throw rejected("setProperty", e);
         }
