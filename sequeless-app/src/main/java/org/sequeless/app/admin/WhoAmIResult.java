@@ -1,4 +1,4 @@
-package org.sequeless.store.core.api;
+package org.sequeless.app.admin;
 
 import java.util.Objects;
 import org.sequeless.kernel.identity.Principal;

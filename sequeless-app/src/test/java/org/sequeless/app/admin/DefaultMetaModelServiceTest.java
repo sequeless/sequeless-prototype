@@ -1,4 +1,4 @@
-package org.sequeless.store.core.usecase;
+package org.sequeless.app.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;

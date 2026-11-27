@@ -1,4 +1,4 @@
-package org.sequeless.store.core.api;
+package org.sequeless.app.admin;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.api.ImportMode;
@@ -16,7 +16,7 @@ import org.sequeless.store.spi.AuthorizationPort;
  * ordinary content lifecycle {@link BusinessObjectService} covers, which is why both authorize
  * {@link Operation#ADMIN} rather than {@link Operation#READ} or {@link Operation#EDIT}.
  *
- * @see org.sequeless.store.core.usecase.DefaultOntologyAdministration
+ * @see org.sequeless.app.admin.DefaultOntologyAdministration
  */
 public interface OntologyAdministration {
 

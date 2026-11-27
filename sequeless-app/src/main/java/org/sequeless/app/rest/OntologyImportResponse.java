@@ -6,7 +6,7 @@ import org.sequeless.ontology.api.ImportReport;
 /**
  * JSON response body rendered from an {@link ImportReport} — the body of {@code POST /ontology} on
  * its accepted path. An inconsistent import never reaches this type: {@link
- * org.sequeless.store.core.api.OntologyAdministration#importTurtle} throws {@code OntologyException}
+ * org.sequeless.app.admin.OntologyAdministration#importTurtle} throws {@code OntologyException}
  * first, which the existing {@link ApiExceptionAdvice#handleOntologyException} renders as a 422
  * {@link OntologyReportResponse} instead — see plan.md §8.
  *

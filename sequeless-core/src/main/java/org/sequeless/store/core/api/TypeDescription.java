@@ -18,10 +18,9 @@ import org.sequeless.ontology.schema.api.TypeDefinition;
  * @param stateMachine the state machine governing the type, or empty if it has none
  * @param derivations the derived properties of {@code type}, inherited ones included, keyed by
  *     property IRI; iterates in the order of {@code type.properties()}; unmodifiable
- * @param schema the schema read by the same {@link MetaModelService#describeType} call that
+ * @param schema the schema read by the same {@code MetaModelService#describeType} call that
  *     resolved {@code type}, so {@code type}, {@code derivations} and {@code schema} all come from
  *     one activation; the rollup filters of {@code derivations} resolve against it
- * @see MetaModelService#describeType
  */
 public record TypeDescription(
         TypeDefinition type,

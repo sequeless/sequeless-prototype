@@ -40,7 +40,7 @@ import org.sequeless.store.spi.Operator;
  * Maps the {@code org.sequeless.ontology.schema.api} and {@code org.sequeless.ontology.behaviour.api}
  * types, and core's {@link
  * TypeDescription}, onto their {@link TypesController} wire representations. Factored out of {@link
- * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.store.core.api.WhoAmIResult)},
+ * TypesController} itself, mirroring {@link WhoAmIResponse#from(org.sequeless.app.admin.WhoAmIResult)},
  * because both {@link TypeSummaryResponse} and {@link TypeDetailResponse} need the same
  * superTypes-to-short-names rendering.
  *

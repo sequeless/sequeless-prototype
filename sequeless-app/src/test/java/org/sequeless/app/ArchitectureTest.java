@@ -66,6 +66,7 @@ class ArchitectureTest {
     private static final String ONTOLOGY_SPI_PACKAGE = "org.sequeless.ontology.spi..";
     private static final String ONTOLOGY_SCHEMA_PACKAGE = "org.sequeless.ontology.schema..";
     private static final String HOST_CONFIG_PACKAGE = "org.sequeless.app.config..";
+    private static final String HOST_ADMIN_PACKAGE = "org.sequeless.app.admin..";
     private static final String TESTKIT_QUERY_PACKAGE = "org.sequeless.testkit.query..";
     private static final String PREPARE = "prepare";
     private static final String INGEST = "ingest";
@@ -210,7 +211,7 @@ class ArchitectureTest {
             .that()
             .resideInAPackage(APP_PACKAGE)
             .and()
-            .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..")
+            .resideOutsideOfPackages("org.sequeless.app.rest..", "org.sequeless.app.config..", HOST_ADMIN_PACKAGE)
             .and()
             .doNotHaveFullyQualifiedName(AUTOMATION_BINDING_CONFIGURATION)
             .and()
@@ -222,10 +223,12 @@ class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAPackage(CORE_PACKAGE)
-            .because("Within sequeless-app, only the REST inbound adapter, the wiring/configuration packages and "
-                    + "the four automation bindings (spec 17 P3: the host's ObjectReadPort and StoreCommandPort call "
-                    + "the Command use cases) may reach into core use cases; other app packages, such as the port "
-                    + "registry, must stay ignorant of the domain core.");
+            .because(
+                    "Within sequeless-app, only the REST inbound adapter, the wiring/configuration packages, the admin "
+                            + "use cases (spec 18 O12: MetaModelService, OntologyAdministration and WhoAmI, whose implementations "
+                            + "call core helpers by design) and the four automation bindings (spec 17 P3: the host's ObjectReadPort "
+                            + "and StoreCommandPort call the Command use cases) may reach into core use cases; other app packages, "
+                            + "such as the port registry, must stay ignorant of the domain core.");
 
     @ArchTest
     static final ArchRule noAdapterDependsOnCore = noClasses()
@@ -374,8 +377,8 @@ class ArchitectureTest {
     static void suiteActuallyAnalyzesEveryModule(JavaClasses classes) {
         assertThat(classes.get("org.sequeless.kernel.identity.Scope").getFullName())
                 .isEqualTo("org.sequeless.kernel.identity.Scope");
-        assertThat(classes.get("org.sequeless.store.core.usecase.DefaultWhoAmI").getFullName())
-                .isEqualTo("org.sequeless.store.core.usecase.DefaultWhoAmI");
+        assertThat(classes.get("org.sequeless.app.admin.DefaultWhoAmI").getFullName())
+                .isEqualTo("org.sequeless.app.admin.DefaultWhoAmI");
         assertThat(classes.get("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort")
                         .getFullName())
                 .isEqualTo("org.sequeless.adapter.authz.permitall.PermitAllAuthorizationPort");

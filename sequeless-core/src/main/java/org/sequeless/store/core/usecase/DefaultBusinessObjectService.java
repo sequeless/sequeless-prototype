@@ -74,7 +74,7 @@ import org.sequeless.store.spi.Violation;
 /**
  * Reference implementation of {@link BusinessObjectService}.
  *
- * <p>Every method resolves {@code type} against the current schema first — the same order {@link
+ * <p>Every method resolves {@code type} against the current schema first — the same order {@code
  * DefaultMetaModelService#describeType} uses — because authorization happens against the resolved
  * canonical type IRI, which is only known once resolution succeeds. Consulting the injected {@link
  * AuthorizationPort} is never optional, never cached, and never short-circuited.

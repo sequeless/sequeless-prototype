@@ -19,13 +19,13 @@ import org.sequeless.store.spi.ObjectStorePort;
 /**
  * The BREAD (browse/read/edit/add/delete) use case over ontology-typed business objects. Every
  * method authorizes its own {@link Operation} against the resolved type's IRI before touching the
- * {@link ObjectStorePort} — the same never-cached, never-short-circuited idiom {@link
- * org.sequeless.store.core.usecase.DefaultWhoAmI} and {@link MetaModelService} establish — and every
+ * {@link ObjectStorePort} — the same never-cached, never-short-circuited idiom {@code
+ * org.sequeless.app.admin.DefaultWhoAmI} and {@code MetaModelService} establish — and every
  * write funnels its structural checks ({@code ValueCoercer}, {@code StructuralValidator}) through
  * before the shape-based {@code ValidationPort} SHACL check runs.
  *
  * <p>{@code type} parameters accept either a type's short name or its full IRI, resolved against
- * the current {@link org.sequeless.ontology.schema.api.Schema} the same way {@link
+ * the current {@link org.sequeless.ontology.schema.api.Schema} the same way {@code
  * MetaModelService#describeType} resolves its own {@code nameOrIri} argument.
  *
  * @see org.sequeless.store.core.usecase.DefaultBusinessObjectService

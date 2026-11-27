@@ -1,10 +1,11 @@
-package org.sequeless.store.core.api;
+package org.sequeless.app.admin;
 
 import org.sequeless.kernel.identity.Scope;
 import org.sequeless.ontology.api.OntologyReport;
 import org.sequeless.ontology.behaviour.api.Behaviour;
 import org.sequeless.ontology.schema.api.Schema;
 import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.TypeDescription;
 import org.sequeless.store.spi.AuthorizationPort;
 
 /**
@@ -12,9 +13,9 @@ import org.sequeless.store.spi.AuthorizationPort;
  * behaviour, a single type resolved by short name or full IRI, and the ability to force a reload
  * from the backing source. Every implementation must consult the injected {@link
  * AuthorizationPort} for each call, never answer from cached or hardcoded state — the same idiom
- * {@link org.sequeless.store.core.usecase.DefaultWhoAmI} establishes for {@link WhoAmI}.
+ * {@link org.sequeless.app.admin.DefaultWhoAmI} establishes for {@link WhoAmI}.
  *
- * @see org.sequeless.store.core.usecase.DefaultMetaModelService
+ * @see org.sequeless.app.admin.DefaultMetaModelService
  */
 public interface MetaModelService {
 
