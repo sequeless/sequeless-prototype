@@ -21,7 +21,7 @@ import org.sequeless.store.spi.AuthorizationPort;
  * every port double here is a plain lambda — no mocking framework is needed, and each test's
  * stub makes its own behaviour obvious at the call site.
  *
- * <p>{@code sequeless-spi-testkit}'s {@code AuthorizationContract} is deliberately not used here:
+ * <p>{@code store-testkit}'s {@code AuthorizationContract} is deliberately not used here:
  * it never asserts {@code allowed()} either way, so it cannot prove the "denial throws" behaviour
  * these tests exist to cover. Core also must not depend on the testkit module at all.
  */

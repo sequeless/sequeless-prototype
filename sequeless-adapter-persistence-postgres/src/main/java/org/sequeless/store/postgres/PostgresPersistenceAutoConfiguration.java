@@ -41,7 +41,7 @@ import org.springframework.transaction.PlatformTransactionManager;
  * default location, it must never become entangled with this module's own migrations. Those are two
  * sets: {@code classpath:db/migration/sequeless/postgres} (the Command set, default history table)
  * and {@code classpath:db/migration/sequeless/postgres-query} (the Query set, its own history table).
- * Instead, {@link PostgresMigrations#migrate} runs this adapter's own {@code Flyway.configure()}
+ * Instead, {@link ComposedMigrations#migrate} runs this adapter's own {@code Flyway.configure()}
  * calls, scoped to those location strings, lazily against {@link #sequelessPersistenceDataSource}'s
  * first real connection (see {@link PostgresMigratingDataSource}) rather than eagerly when either
  * bean method here runs.

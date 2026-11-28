@@ -29,6 +29,11 @@
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Spec 18 U11: the store's ports (ValidationPort, DerivationPlugin, ObjectStorePort) and BusinessObject come from store-core. -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>store-core</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>ontology-jena-adapter</artifactId>
@@ -50,13 +55,12 @@
 
     <!--
       The test-scope ontology-testfixtures artifact supplies OntologyContract and the reference-domain
-      Turtle fixtures. sequeless-spi-testkit brings (transitively, at compile scope there by design)
-      JUnit Jupiter and AssertJ.
+      Turtle fixtures. store-testkit (spec 18 U11, replacing sequeless-spi-testkit) supplies the store's
+      ValidationContract, and brings JUnit Jupiter and AssertJ.
     -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi-testkit</artifactId>
-      <version>${project.version}</version>
+      <artifactId>store-testkit</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

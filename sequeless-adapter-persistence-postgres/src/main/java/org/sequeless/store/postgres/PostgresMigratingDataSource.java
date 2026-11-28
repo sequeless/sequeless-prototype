@@ -7,7 +7,7 @@ import javax.sql.DataSource;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 
 /**
- * Wraps a {@link DataSource} so {@link PostgresMigrations#migrate(DataSource)} runs exactly once,
+ * Wraps a {@link DataSource} so {@link ComposedMigrations#migrate(DataSource)} runs exactly once,
  * lazily, the first time a connection is actually requested — not when this wrapper (or the {@link
  * org.sequeless.store.spi.ObjectStorePort} bean built on top of it) is constructed.
  *
@@ -39,7 +39,7 @@ final class PostgresMigratingDataSource extends DelegatingDataSource {
 
     private void migrateIfNeeded() {
         if (migrated.compareAndSet(false, true)) {
-            PostgresMigrations.migrate(getTargetDataSource());
+            ComposedMigrations.migrate(getTargetDataSource());
         }
     }
 }

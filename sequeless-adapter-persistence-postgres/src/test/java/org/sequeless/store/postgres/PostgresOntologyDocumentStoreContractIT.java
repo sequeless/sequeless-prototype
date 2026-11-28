@@ -20,7 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  *
  * <p>{@link #freshDocuments()} returns a store over the container's {@link DataSource} on every call.
  * The table is truncated after each test, because the contract requires a brand-new, empty store.
- * Like {@link PostgresObjectStoreContractIT}, the migration runs once per container in {@link
+ * Like the store's PostgresObjectStoreContractIT, the migration runs once per container in {@link
  * #migrate()}.
  */
 @Testcontainers
@@ -35,7 +35,7 @@ class PostgresOntologyDocumentStoreContractIT extends OntologyDocumentStoreContr
     static void migrate() {
         dataSource = new SimpleDriverDataSource(
                 new org.postgresql.Driver(), POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-        PostgresMigrations.migrate(dataSource);
+        ComposedMigrations.migrate(dataSource);
     }
 
     @AfterEach

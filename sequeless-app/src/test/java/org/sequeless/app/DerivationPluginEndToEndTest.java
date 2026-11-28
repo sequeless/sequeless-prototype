@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * one thing T5's Jena-adapter-level tests could not prove (see finding F31): they exercise {@code
  * DerivationPluginRegistry.fromServiceLoader()} directly, never inside a booted application.
  *
- * <p>{@code sequeless-spi-testkit} (a test-scope dependency of this module, per its {@code pom.xml})
+ * <p>{@code store-testkit} (a test-scope dependency of this module, per its {@code pom.xml})
  * already puts both {@code ontology/reference-plugin.ttl} and {@code WorkloadDerivationPlugin}'s
  * {@code META-INF/services/org.sequeless.store.spi.DerivationPlugin} registration on this
  * module's test classpath for every test in the module — that classpath wiring is inert but present

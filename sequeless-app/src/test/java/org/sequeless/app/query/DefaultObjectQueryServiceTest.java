@@ -930,9 +930,8 @@ class DefaultObjectQueryServiceTest {
     /**
      * Hand-written {@link ObjectStorePort} double backed by an in-memory map, with a captured list
      * of committed {@link ChangeSet}s so tests can assert exactly what was committed. Deliberately
-     * not {@code sequeless-spi-testkit}'s {@code InMemoryObjectStorePort}: that lives in that
-     * module's test sources and is not on {@code sequeless-core}'s test classpath, and core must
-     * not gain a test dependency on testkit just to reuse it.
+     * not {@code store-testkit}'s {@code InMemoryObjectStorePort}: the Command use cases live in
+     * {@code store-core}, and that core must not gain a test dependency on the testkit just to reuse it.
      */
     private static final class FakeObjectStorePort implements ObjectStorePort {
 

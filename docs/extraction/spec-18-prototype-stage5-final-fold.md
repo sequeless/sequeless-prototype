@@ -53,7 +53,7 @@ The decisions below are the Navigator's and the parent's, as recorded in the pla
 | G2 | `store-core` builds against the BOM's `ontology-core` 0.1.0. U8 and U10 each carry a compile check. Fallback: 0.2.0, if the check fails. |
 | G3 | The store's ArchUnit rules move to `store-core`'s test (U8). |
 | G4 | **Amended in U5 (PR-B):** all seven settling cases stay in the host for U5, because each one calls `assertQueryHistory` or `queryFlyway`, and the parent's ruling keeps those in the host. The store-side split is deferred to U8, after G1. The case map (open item O9) is closed by that ruling. The bare-database cases (default write works, command-only write fails, default history matches the released Query migrate) are added to the same host IT. |
-| O2 | A JSONB-to-`Value` sync test lives in U10's `StoreBomContractTest`. Fallback: a recorded gap. |
+| O2 | A JSONB-to-`Value` sync test lives in U10's `StoreBomContractTest`. **Fallback taken at U10 (#72):** the sync test is not in `StoreBomContractTest`. It is a recorded gap in that class's javadoc. The follow-up is sequeless-build#71 (store-testkit contracts without a public in-memory double). |
 | O8 | Option B: `ontology-jena-adapter` stays at 0.1.2 in the BOM. BOM 0.5.0 adds the ontology-postgres-adapter entries only (U13b). |
 
 The amended unit list (section 10) and the scope of each unit are the parent's rulings. Everything else in the table is the Navigator's, recorded in the planning cycles 14 to 17.
@@ -164,8 +164,8 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 | U7 | Scaffold `sequeless-store` from `sequeless-template`; CI calls `maven-ci` and `maven-release`; CODEOWNERS; GitHub Packages write; release-please for three modules; placeholder build green. | Planned |
 | U8 | Move `store-core`, `store-testkit` and `store-postgres-jsonb-adapter` from the import SHA (pure copy); V1 and V3 to V12 byte-identical; `PostgresMigrationFrozenSetsTest` with the four command sets (Q15 as amended by Q-B: `post-p2`, `post-p3`, `post-p4` and `post-p7`); store ITs with copied DDL (G1); the store ArchUnit rules (G3); the no-op hook between V6 and V7 (Q-E); `docs/adr/0001` in the store. | Planned |
 | U9 | Release 0.1.0 of the three store modules. The release PR merges before any dependant runs. | Planned |
-| U10 | BOM 0.4.0 with the store artifacts via `feat(bom)`; explicit test-scope pins in `bom-contracts` (F1); `StoreBomContractTest` with the O2 sync test; `store-core` compile check against `ontology-core` 0.1.0 (G2). Import stays 0.1.6. | Planned |
-| U11 | Prototype cut-over commit naming `sequeless-store` and the import SHA: delete the moved code, pin BOM 0.4.0, host composed migrate (command then query), G1 host IT and G4 host cases in the same commit. | Planned |
+| U10 | BOM 0.4.0 with the store artifacts via `feat(bom)`; explicit test-scope pins in `bom-contracts` (F1); `StoreBomContractTest` with the O2 sync test; `store-core` compile check against `ontology-core` 0.1.0 (G2). Import stays 0.1.6. | Done: #72 (`26973b7`), release PR #73 (`c63b1fe`), BOM 0.4.0. O2 fallback taken: a recorded gap, follow-up sequeless-build#71. |
+| U11 | Prototype cut-over commit naming `sequeless-store` and the import SHA (`429b2de`): delete the moved code, pin BOM 0.4.0, host composed migrate (command then query), G1 host IT and G4 host cases in the same commit. Section 12 records the U11 deviations. | This PR (one commit, one PR). |
 | U12a | Persistence wiring folds into `sequeless-app` (Q8, Q9). | Planned |
 | U12b | Jena wiring folds in. | Planned |
 | U12c | Permit-all wiring folds in. | Planned |
@@ -181,6 +181,7 @@ The amended list's U12 is split into U12a to U12d. The Q10 numbering (U11 for th
 - [ ] The new repository's CI is green (`sequeless-store`, U7 to U9).
 - [ ] The prototype's CI is green against released artifacts, never a SNAPSHOT on `main` (U11, U14).
 - [ ] The BOM's CI, which runs every testkit contract, is green (U10, U13b).
+  - Note (U11): the store contract run in the BOM is deferred until sequeless-build#71 closes. The U10 `StoreBomContractTest` is a compile and link check only, with the O2 gap recorded (section 2). This checkbox stays open until #71 closes.
 - [ ] The release and the BOM re-release are done (U9, U10, U13b).
 - [ ] For cut-over specs: the prototype deleted the moved code in a commit that names the target repository and the import commit's SHA (U11, U14).
 
@@ -195,12 +196,19 @@ The Refs on the PRs are `#46`, never a closing keyword, until every item above h
 - The store-testkit test-scope dependency in `store-postgres` (unverified until U8).
 - The ontology adapter's test-scope use of the command-only runner (unverified until U13).
 - The `store-core` compile against `ontology-core` 0.1.0 (unverified until U8 and U10; fallback 0.2.0, G2).
-- The `query` migrate method name and history table, and the persistence pom scope (unverified until U11).
+- The `query` migrate method name and history table: verified at U11. `org.sequeless.query.postgres.PostgresMigrations.migrate(DataSource)` on `db/migration/sequeless/postgres-query` and history `flyway_schema_history_query`, in query-postgres-jsonb-adapter 0.2.1. The persistence pom now takes that jar at compile scope.
 - The `dependency:analyze` claim (unverified; no unit settles it yet).
 - O1: the V6 harness choice, decided at U8. O5: the `ObjectState` fields, sized at U4. O9: the settling case map, settled at U5.
 - O7: `sequeless-automation` #4 (the upstream failure port) is additive later; the recorder SPI is frozen at 0.1.0 (Q11).
 - O12, closed as Option A (host placement), by the parent's cycle 21 ruling: `MetaModelService`, `OntologyAdministration` and `WhoAmI`, with their `Default*` use cases, stay in the host (section 3, Q3). U4 renames them to `org.sequeless.store.core`, and U5 or U6 moves them to the host.
-- Deviation (U6 PR-1): `sequeless-core` declares `ontology-core` at test scope. Its main code imports nothing from `org.sequeless.ontology.api` or `.spi`, and the build parent's `dependency:analyze` (failOnWarning) rejects an unused compile-scope dependency. Section 7's wording (`ontology-core` 0.1.0 as a dependency of `store-core`) therefore holds for the tests only. Re-check at U8 and U10, and align section 7 then.
+- Deviation (U6 PR-1; moot after U11, which deletes `sequeless-core`): `sequeless-core` declares `ontology-core` at test scope. Its main code imports nothing from `org.sequeless.ontology.api` or `.spi`, and the build parent's `dependency:analyze` (failOnWarning) rejects an unused compile-scope dependency. Section 7's wording (`ontology-core` 0.1.0 as a dependency of `store-core`) therefore holds for the tests only. Re-check at U8 and U10, and align section 7 then.
+- Deviation (U11): the host's settling IT (`PostgresMigrationsSettlingIT`) loses its three frozen-pair cases, after the frozen post-P7, post-P2 and post-P3 Command sets, with the Query set. Their frozen directories are deleted in U11, as the brief requires. The store keeps those pairs command-only. The parent accepted this as a recorded gap. The host keeps the frozen 3328993 and fbb82c5 cases, the Query history, and the bare-database cases.
+- Deviation (U11): `BrowseQuery` and `InvalidQueryException` are not copied into the host. store-core 0.1.0 carries byte-identical copies at the same FQN (`org.sequeless.store.core.api`), and a host copy would duplicate the class. The host imports them from store-core. The parent accepted this.
+- Deviation (U11): the `spi.query` types (`BrowsePort`, `ReadPort`, `ObjectView` and the rest) are not in store-core. They move from `sequeless-spi` to `sequeless-app` under `org.sequeless.spi.query`, with the same FQNs (Q18, the host placement).
+- Deviation (U11): `sequeless-spi-testkit`'s Java sources and resources are deleted, because no consumer remains (its consumers take `store-testkit` at the same FQNs). The module and its pom stay as a dependency-free shell until U12d, which is the section 10 text and the parent's ruling.
+- Hazard (U11): `PostgresOntologyDocumentStore` is in the prototype (kept until U14, Q13) and in store-postgres-jsonb-adapter 0.1.0. The two files are byte-identical at the same FQN. U14 deletes the prototype copy. The package-info of `org.sequeless.store.postgres` is in both as well; the jar's copy has no annotations, so it is harmless, and the prototype's copy goes with the wiring in U12a.
+- Deviation (U11): G1's drift IT (`PostgresQueryDriftIT`) runs the host's composed migrate, so the real Query set runs at the hook between Command V6 and V7, and Command V7 onward follows. It does not run the Query set first. The Query set's V2 indexes `sq_object`, which Command V1 creates, so the Query set cannot run first on an empty database.
+- Deviation (U11): Q22 gives the `sequeless-spi` trim to U10. The trim (to `AdapterDescriptor`, `AdapterDescriptorProvider` and `SpiVersion`) lands in U11, as the U11 brief directs. The Command packages leave `sequeless-spi` in the same commit, because their FQNs are now in the released store.
 - Divergence: the prototype's behaviour and the new repositories' behaviour must match at each cut-over. Spec 17's integration tests carry the prototype side.
 - `sequeless-ui` is untouched. `FatJarServesUiAndApiIT` must stay green on every U12 unit.
 
