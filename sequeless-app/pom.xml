@@ -105,18 +105,6 @@
       <artifactId>ontology-jena-adapter</artifactId>
     </dependency>
 
-    <!--
-      Spec 18 U12a: the Postgres wiring (autoconfiguration, properties, adapter descriptor, migrating DataSource and the
-      composed migration) lives in this module now. The persistence module is kept only while it still holds
-      PostgresOntologyDocumentStore, until spec 18 U14: this dependency is dropped then, or earlier once no reference to that
-      class is left in this module (OntologyPersistenceAcrossRestartIT names it in a javadoc line).
-    -->
-    <dependency>
-      <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-persistence-postgres</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>expression-spring-boot-autoconfig</artifactId>
@@ -215,9 +203,7 @@
     </dependency>
 
     <!--
-      Not transitive from sequeless-adapter-persistence-postgres: that module declares both of
-      these <scope>test</scope>, so they never leave its own jar. This module's own tests need a
-      real Testcontainers Postgres now that sequeless.persistence.adapter=postgres is baked into
+      This module's own tests need a real Testcontainers Postgres now that sequeless.persistence.adapter=postgres is baked into
       application.yaml (see PostgresTestcontainersSupport). No version here: inherited from the
       Spring Boot BOM, per the root pom's comment on junit-jupiter/assertj/mockito/testcontainers.
     -->
