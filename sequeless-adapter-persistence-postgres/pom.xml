@@ -12,9 +12,9 @@
   <artifactId>sequeless-adapter-persistence-postgres</artifactId>
 
   <name>sequeless-adapter-persistence-postgres</name>
-  <description>Shell module for the default ObjectStorePort and QueryPort adapter: PostgreSQL 18 JSONB storage,
-    Flyway migrations, the transactional outbox table, and hint-driven indexes. JDBC/Flyway
-    dependencies arrive in Phase 2; for now this module only proves the reactor wiring and toolchain.</description>
+  <description>Holds PostgresOntologyDocumentStore, the prototype's ontology document store over sq_ontology_document, and its
+    contract test. The rest of the Postgres wiring moved to sequeless-app in spec 18 U12a, and the store adapter is the
+    released sequeless-store. This module is deleted in U14, when sequeless-ontology owns the document store.</description>
 
   <dependencies>
     <dependency>
@@ -23,66 +23,31 @@
     </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sequeless</groupId>
       <artifactId>ontology-core</artifactId>
     </dependency>
 
     <!--
-      Spec 18 U11: the Command side is the released sequeless-store. The host's wiring (autoconfiguration, properties,
-      the adapter descriptor, the migrating DataSource) builds and migrates the store's Postgres adapter, so both
-      store modules are compile dependencies here. No version: the BOM manages them.
+      Spec 18 U11: the Command side is the released sequeless-store. The Command adapter's classes (PostgresMigrations and
+      the SQL included) come from store-postgres-jsonb-adapter. No version: the BOM manages it.
     -->
-    <dependency>
-      <groupId>org.sequeless</groupId>
-      <artifactId>store-core</artifactId>
-    </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>store-postgres-jsonb-adapter</artifactId>
     </dependency>
 
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-autoconfigure</artifactId>
-      <optional>true</optional>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-jdbc</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-tx</artifactId>
     </dependency>
 
     <!--
-      Optional: the wiring and this module's PostgresOntologyDocumentStore depend on JdbcClient and
-      TransactionTemplate, but a caller that only wants the plain store classes against a hand-built
-      DataSource must not be forced to pull Spring Boot's autoconfigure machinery.
-    -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-jdbc</artifactId>
-      <optional>true</optional>
-    </dependency>
-
-    <!-- Spec 18 U11: the migrations run through the store's and the query adapter's own Flyway; the host's tests drive Flyway directly. -->
-    <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <!-- The Query port's lambda in the autoconfiguration takes the released Schema type, so the module names it at compile scope. -->
-    <dependency>
-      <groupId>org.sequeless</groupId>
-      <artifactId>schema-contract</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-database-postgresql</artifactId>
-      <scope>runtime</scope>
-    </dependency>
-
-    <!--
-      Kept as a normal (non-optional) runtime dependency: the migrations run over this module's DataSource, so the
-      driver must be on the classpath whoever assembles the app, and spring-boot-starter-jdbc does not pull a driver.
+      Kept as a normal (non-optional) runtime dependency: the contract test runs the store's migrations over the
+      container's DataSource, so the driver must be on the runtime classpath. Flyway comes transitively from the store.
     -->
     <dependency>
       <groupId>org.postgresql</groupId>
@@ -90,26 +55,20 @@
       <scope>runtime</scope>
     </dependency>
 
-    <dependency>
-      <groupId>org.sequeless</groupId>
-      <artifactId>ontology-testfixtures</artifactId>
-      <scope>test</scope>
-    </dependency>
     <!--
-      Spec 18 U11: the host's composed migrate (command, then the Query set, then command V7 onward) runs the Query set
-      through the released query-postgres-jsonb-adapter's own migrate, on flyway_schema_history_query. So the jar is a
-      compile dependency here, and the host's migration tests run the real Query set.
+      Spec 18 U11: the composed migrate (command, then the Query set, then command V7 onward) runs the Query set through the
+      released query-postgres-jsonb-adapter's own migrate. The contract test passes that migrate as the hook, so the jar is a
+      test dependency here.
     -->
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>query-postgres-jsonb-adapter</artifactId>
+      <scope>test</scope>
     </dependency>
 
-    <!-- Test runtime from the Spring Boot test starter. -->
-
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-testfixtures</artifactId>
       <scope>test</scope>
     </dependency>
 
@@ -123,31 +82,6 @@
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers-junit-jupiter</artifactId>
       <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-context</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-jdbc</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>com.zaxxer</groupId>
-      <artifactId>HikariCP</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-tx</artifactId>
     </dependency>
 
     <dependency>
