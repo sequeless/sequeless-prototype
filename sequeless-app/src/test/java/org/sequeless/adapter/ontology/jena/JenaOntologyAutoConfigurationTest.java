@@ -18,7 +18,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * names a real, correctly annotated auto-configuration class — via reflection on the annotations
  * only, without starting a Spring context. Pulling in {@code spring-boot-test} to run an actual
  * {@code ApplicationContextRunner} check here would be disproportionate for a module this
- * deliberately minimal (mirroring {@code sequeless-adapter-authz-permitall}'s {@code
+ * deliberately minimal (mirroring the permit-all wiring's {@code
  * PermitAllAuthorizationAutoConfigurationTest}); that end-to-end proof belongs to the application
  * module that assembles adapters together.
  *

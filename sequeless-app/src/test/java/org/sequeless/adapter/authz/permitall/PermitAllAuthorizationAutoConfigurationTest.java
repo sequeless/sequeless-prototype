@@ -15,23 +15,27 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 /**
  * Proves {@code META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports}
  * names a real, correctly annotated auto-configuration class — via reflection on the annotation
- * only, without starting a Spring context. Pulling in {@code spring-boot-test} to run an actual
- * {@code ApplicationContextRunner} check here would be disproportionate for a module this
- * deliberately minimal; that end-to-end proof belongs to the application module that assembles
- * adapters together (see the step plan's T9/T11).
+ * only, without starting a Spring context.
+ *
+ * <p>Since spec 18 U12c the imports file is shared with the Postgres and Jena wiring, so this test filters to the
+ * {@code org.sequeless.adapter.authz.permitall} package and asserts exactly the one permit-all entry, checked by name.
+ * A missing or duplicated permit-all entry still fails. The end-to-end proof is {@code PortRegistryContextRunnerTest}.
  */
 class PermitAllAuthorizationAutoConfigurationTest {
 
     private static final String IMPORTS_RESOURCE =
             "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
-    @Test
-    void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException, ClassNotFoundException {
-        List<String> classNames = readNonBlankLines(IMPORTS_RESOURCE);
-        assertThat(classNames).hasSize(1);
+    private static final String PERMIT_ALL_PACKAGE_PREFIX = "org.sequeless.adapter.authz.permitall.";
 
-        Class<?> autoConfigurationClass = Class.forName(classNames.get(0));
-        assertThat(autoConfigurationClass).isEqualTo(PermitAllAuthorizationAutoConfiguration.class);
+    @Test
+    void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException {
+        List<String> classNames = readNonBlankLines(IMPORTS_RESOURCE).stream()
+                .filter(name -> name.startsWith(PERMIT_ALL_PACKAGE_PREFIX))
+                .toList();
+        assertThat(classNames).containsExactly(PermitAllAuthorizationAutoConfiguration.class.getName());
+
+        Class<?> autoConfigurationClass = PermitAllAuthorizationAutoConfiguration.class;
 
         ConditionalOnProperty condition = autoConfigurationClass.getAnnotation(ConditionalOnProperty.class);
         assertThat(condition).isNotNull();

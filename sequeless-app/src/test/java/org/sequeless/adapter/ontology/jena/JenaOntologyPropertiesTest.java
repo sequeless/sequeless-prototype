@@ -10,7 +10,7 @@ import org.sequeless.ontology.jena.ReasonerSetting;
  * commits to (see {@link JenaOntologyProperties}'s F47 note — {@code owl} is the only reasoner
  * setting that detects the project's inconsistency fixture), and that every property round-trips
  * through its getter/setter pair the way Spring's relaxed binder requires. This module has no
- * {@code spring-boot-test} dependency (see {@code sequeless-adapter-authz-permitall}'s precedent),
+ * {@code spring-boot-test} dependency (see the permit-all wiring's precedent),
  * so this is a plain unit test rather than an actual {@code @ConfigurationProperties} binding test;
  * {@link JenaOntologyAutoConfigurationTest} separately proves this class is registered via {@code
  * @EnableConfigurationProperties}.

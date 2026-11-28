@@ -19,8 +19,8 @@ import org.springframework.context.annotation.Bean;
 
 /**
  * Wires {@link JenaOntologyPort} into the Spring context when {@code sequeless.ontology.adapter} is
- * set to {@code jena}, mirroring {@code sequeless-adapter-authz-permitall}'s {@code
- * PermitAllAuthorizationAutoConfiguration} exactly.
+ * set to {@code jena}, mirroring the permit-all wiring's {@code PermitAllAuthorizationAutoConfiguration}
+ * exactly.
  *
  * <p>Deliberately has no {@code matchIfMissing}: when the property is unset, the condition must
  * evaluate to {@code false} and no {@link JenaOntologyPort} bean must exist here at all, so the

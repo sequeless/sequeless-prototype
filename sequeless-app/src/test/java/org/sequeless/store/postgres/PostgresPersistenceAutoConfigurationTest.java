@@ -16,8 +16,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 /**
  * Exercises {@link PostgresPersistenceAutoConfiguration} against a real Spring context via {@link
  * ApplicationContextRunner}, rather than the reflection-only approach of the Jena wiring's {@code
- * JenaOntologyAutoConfigurationTest} and {@code
- * sequeless-adapter-authz-permitall}'s {@code PermitAllAuthorizationAutoConfigurationTest} use — see
+ * JenaOntologyAutoConfigurationTest} and the permit-all wiring's {@code
+ * PermitAllAuthorizationAutoConfigurationTest} use — see
  * the step plan's T6 task, which deliberately asks for this deviation here.
  *
  * <p>None of these tests need Docker or a real PostgreSQL instance: {@link
