@@ -28,13 +28,14 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * End-to-end acceptance coverage (T12) for Phase 6's three automated trigger kinds, all against the
+ * End-to-end acceptance coverage (T12) for Phase 6's two automated trigger kinds, both against the
  * real {@code ex:ProjectLifecycle} state machine in {@code reference.ttl}: {@code autoClose}
- * (OnChange, watching {@code ex:belongsToProject}), {@code expireHold} (Timer, {@code PT72H}), and
- * {@code reopen} (ExternalSignal). Boots the real application on a random port against a real
+ * (OnChange, watching {@code ex:belongsToProject}) and {@code expireHold} (Timer, {@code PT72H}).
+ * Boots the real application on a random port against a real
  * Postgres Testcontainer with the in-process automation adapter draining the outbox, mirroring
  * {@link TransitionsEndToEndTest}'s idiom exactly (same {@code RestTestClient}, same hand-rolled
- * deadline-loop polling style).
+ * deadline-loop polling style). It also covers the {@code reopen} external signal, which applies its
+ * transition in the request, with no relay and no poll ({@code reopenSignalMovesAClosedProjectBackToActive}).
  *
  * <p><b>Fake clock seam.</b> A real {@code PT72H} timer cannot be waited out in a test, so this
  * class registers its own {@code @Primary} {@link Clock} bean — a small mutable fake — overriding
@@ -43,18 +44,15 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * class). The production {@code timer-tick-ms} default (100ms) is left untouched: {@link
  * InProcessTimerScheduler#sweep()} is a pure in-memory scan with no DB access, so it already
  * notices an advanced clock quickly; the one thing that genuinely needs synchronizing is waiting
- * for the {@code TimerScheduled}/{@code TimerCancelled} outbox rows themselves to reach the
- * scheduler before advancing the clock at all — see {@link #awaitOutboxProcessed} and the timer
- * tests' own javadoc for why the naive "fire, then immediately advance" ordering races the relay.
+ * for the {@code TransitionFired} row that starts the timer (the {@code hold} transition) to reach
+ * the in-process adapter before advancing the clock at all — see {@link #awaitOutboxProcessed} and
+ * the timer tests' own javadoc for why the naive "fire, then immediately advance" ordering races
+ * the relay.
  *
- * <p>The {@code properties} array below is deliberately not byte-identical to any other {@code
- * @SpringBootTest} class in this module (see {@code TransitionsEndToEndTest}'s own javadoc on this
- * point, and {@code automation.md} §8) — {@code sequeless.automation.recompute.mode=retry-only} is
- * the one extra key that both guarantees this class gets its own Spring test context (rather than
- * reusing another class's already-stopped Testcontainers Postgres container) and gives the
- * on-change test the tighter same-dispatch recompute-then-onChange ordering documented on {@code
- * InProcessRecomputeProperties.Mode#RETRY_ONLY} (the production default, {@code COALESCE}, still
- * converges, just possibly one extra outbox hop later).
+ * <p>The relay recomputes each object-lifecycle row before it dispatches that row, so the on-change
+ * test gets the same-dispatch recompute-then-onChange ordering the {@code autoClose} guard needs.
+ * This class keeps its own Spring test context because of its nested {@link ClockTestConfiguration},
+ * which is part of the context key (see {@code automation.md} §8).
  */
 @SpringBootTest(
         webEnvironment = RANDOM_PORT,
@@ -62,8 +60,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
             "sequeless.persistence.adapter=postgres",
             "sequeless.automation.adapter=inprocess",
             "sequeless.expression.adapter=jexl",
-            "sequeless.automation.relay.poll-interval-ms=100",
-            "sequeless.automation.recompute.mode=retry-only"
+            "sequeless.automation.relay.poll-interval-ms=100"
         })
 class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 
@@ -126,9 +123,11 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         }
     }
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
-    @Autowired private DataSource sequelessPersistenceDataSource;
+    @Autowired
+    private DataSource sequelessPersistenceDataSource;
 
     private RestTestClient restTestClient() {
         return RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
@@ -149,26 +148,28 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         // it counts) -- autoClose's guard ("self.openTaskCount == 0") cannot pass yet. Marking the
         // Task "done" via a full PUT (replacing every property, per UpdateObjectRequest's shape) is
         // the ObjectUpdated event that recomputes openTaskCount back to 0 and re-evaluates onChange.
-        BusinessObjectResponse doneTask =
-                client.put()
-                        .uri("/api/objects/Task/" + task.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(
-                                Map.of(
-                                        "version",
-                                        1,
-                                        "properties",
-                                        Map.of(
-                                                "title", List.of("Only task"),
-                                                "belongsToProject", project.id().toString(),
-                                                "status", "done",
-                                                "estimatedHours", 1)))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse doneTask = client.put()
+                .uri("/api/objects/Task/" + task.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of(
+                                "title",
+                                List.of("Only task"),
+                                "belongsToProject",
+                                project.id().toString(),
+                                "status",
+                                "done",
+                                "estimatedHours",
+                                1)))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(doneTask).isNotNull();
 
         awaitState(client, project.id(), "Closed", Duration.ofSeconds(6));
@@ -191,11 +192,12 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
 
         // InProcessTimerScheduler.schedule() computes its due instant as *its own clock's current
         // value* plus the transition's `after` duration, at the moment the relay actually drains
-        // this TimerScheduled outbox row -- not at the moment "hold" wrote it. Advancing the fake
-        // clock before that dispatch has happened would make schedule() compute a due instant
-        // relative to the already-advanced "now", pushing it another 72h out and making the timer
-        // never fire within this test. Wait for the row to be durably dispatched first.
-        awaitOutboxProcessed(project.id(), "TimerScheduled");
+        // the "hold" TransitionFired row that starts the timer -- not at the moment "hold" wrote
+        // it. Advancing the fake clock before that dispatch has happened would make schedule()
+        // compute a due instant relative to the already-advanced "now", pushing it another 72h out
+        // and making the timer never fire within this test. Wait for the row to be durably
+        // dispatched first.
+        awaitOutboxProcessed(project.id(), "hold");
 
         ClockTestConfiguration.CLOCK.advance(Duration.ofHours(73));
 
@@ -203,32 +205,35 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     /**
-     * Polls {@code sq_outbox} until a row of the given {@code kind} for {@code objectId} has been
-     * claimed by {@link org.sequeless.app.automation.OutboxRelay} (its {@code processed_at} is set)
-     * -- the only way an e2e test can know a durably-recorded, async-relayed side effect (like
-     * {@link InProcessTimerScheduler}'s bookkeeping for a {@code TimerScheduled} row) has actually
-     * reached the in-process adapter before racing it with the next step.
+     * Polls {@code sq_outbox} until the {@code TransitionFired} row for {@code transitionName} on
+     * {@code objectId} has been claimed by {@link org.sequeless.app.automation.OutboxRelay} (its
+     * {@code processed_at} is set) -- the only way an e2e test can know a durably-recorded,
+     * async-relayed side effect (like the timer that the in-process adapter starts from that row)
+     * has actually reached the adapter before racing it with the next step. The match is on
+     * {@code payload->>'transitionName'}, not on the kind alone: {@code setOwnerAndActivate} writes
+     * an {@code activate} row first, so a kind-only wait could return before the row this test
+     * waits for has been dispatched.
      */
-    private void awaitOutboxProcessed(UUID objectId, String kind) {
+    private void awaitOutboxProcessed(UUID objectId, String transitionName) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         while (Instant.now().isBefore(deadline)) {
-            long processedCount =
-                    jdbcClient
-                            .sql(
-                                    "SELECT count(*) FROM sq_outbox WHERE object_id = :objectId AND"
-                                            + " kind = :kind AND processed_at IS NOT NULL")
-                            .param("objectId", objectId)
-                            .param("kind", kind)
-                            .query(Long.class)
-                            .single();
+            long processedCount = jdbcClient
+                    .sql("SELECT count(*) FROM sq_outbox WHERE object_id = :objectId AND"
+                            + " kind = :kind AND payload ->> 'transitionName' = :transitionName AND"
+                            + " processed_at IS NOT NULL")
+                    .param("objectId", objectId)
+                    .param("kind", "TransitionFired")
+                    .param("transitionName", transitionName)
+                    .query(Long.class)
+                    .single();
             if (processedCount > 0) {
                 return;
             }
             sleep(Duration.ofMillis(50));
         }
-        throw new AssertionError(
-                "outbox row of kind '" + kind + "' for object " + objectId + " was never processed");
+        throw new AssertionError("TransitionFired outbox row for transition '" + transitionName + "' on object "
+                + objectId + " was never processed");
     }
 
     @Test
@@ -242,14 +247,14 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         fireTransition(client, project.id(), "hold", activated.version());
         fireTransition(client, project.id(), "resume", activated.version() + 1);
 
-        // Both the TimerScheduled (from "hold") and the TimerCancelled (from "resume") must have
-        // reached InProcessTimerScheduler before advancing the clock -- see the sibling positive
-        // test's javadoc for why scheduling relative to an already-advanced clock would otherwise
-        // race. Here the race would be benign for the schedule half (it would just push the timer
-        // further out), but waiting for the cancel too makes the assertion below meaningful rather
-        // than incidentally true.
-        awaitOutboxProcessed(project.id(), "TimerScheduled");
-        awaitOutboxProcessed(project.id(), "TimerCancelled");
+        // Both the "hold" and the "resume" TransitionFired rows must have been dispatched before
+        // advancing the clock. "hold" starts the timer, so its row must reach the adapter before
+        // the due instant is computed (see the sibling positive test). "resume" cancels nothing:
+        // leaving the state commits no cancel, so the timer still fires after the advance, and the
+        // staleness check at fire time is what keeps the project at Active. Waiting for "resume"
+        // too makes the assertion below check that guard against the state after both transitions.
+        awaitOutboxProcessed(project.id(), "hold");
+        awaitOutboxProcessed(project.id(), "resume");
 
         ClockTestConfiguration.CLOCK.advance(Duration.ofHours(73));
 
@@ -276,25 +281,22 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .expectBody()
                 .isEmpty();
 
-        awaitState(client, project.id(), "Active", Duration.ofSeconds(6));
+        // The signal applies its transition in the request, so the state is Active at once: no poll.
+        assertThat(currentState(client, project.id())).isEqualTo("Active");
     }
 
     private BusinessObjectResponse setOwnerAndActivate(
-            RestTestClient client,
-            BusinessObjectResponse project,
-            String title,
-            BusinessObjectResponse owner) {
+            RestTestClient client, BusinessObjectResponse project, String title, BusinessObjectResponse owner) {
         client.put()
                 .uri("/api/objects/Project/" + project.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
                         Map.of(
-                                "version",
-                                1,
-                                "properties",
-                                Map.of(
-                                        "title", List.of(title),
-                                        "owner", owner.id().toString())))
+                                "title", List.of(title),
+                                "owner", owner.id().toString())))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -347,22 +349,25 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
         return client.post()
                 .uri("/api/objects/Task")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "properties",
                         Map.of(
-                                "properties",
-                                Map.of(
-                                        "title", List.of(title),
-                                        "belongsToProject", belongsToProjectId,
-                                        "status", status,
-                                        // Every Task in this ontology feeds ex:totalEstimatedHours
-                                        // too (a sq:sum Rollup over ex:estimatedHours). Postgres's
-                                        // SUM() of an all-NULL group returns SQL NULL, and
-                                        // DecimalValue's constructor rejects a null value -- so a
-                                        // Task with no estimatedHours crashes the Project's own
-                                        // GET (a pre-existing latent bug, not something T12 owns).
-                                        // Every other passing test in this module always sets this
-                                        // property for exactly this reason; do the same here.
-                                        "estimatedHours", 1)))
+                                "title",
+                                List.of(title),
+                                "belongsToProject",
+                                belongsToProjectId,
+                                "status",
+                                status,
+                                // Every Task in this ontology feeds ex:totalEstimatedHours
+                                // too (a sq:sum Rollup over ex:estimatedHours). Postgres's
+                                // SUM() of an all-NULL group returns SQL NULL, and
+                                // DecimalValue's constructor rejects a null value -- so a
+                                // Task with no estimatedHours crashes the Project's own
+                                // GET (a pre-existing latent bug, not something T12 owns).
+                                // Every other passing test in this module always sets this
+                                // property for exactly this reason; do the same here.
+                                "estimatedHours",
+                                1)))
                 .exchange()
                 .expectStatus()
                 .isCreated()
@@ -371,8 +376,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .getResponseBody();
     }
 
-    private void awaitState(
-            RestTestClient client, UUID objectId, String expectedState, Duration timeout) {
+    private void awaitState(RestTestClient client, UUID objectId, String expectedState, Duration timeout) {
         Instant deadline = Instant.now().plus(timeout);
         String lastSeen = null;
         while (Instant.now().isBefore(deadline)) {
@@ -387,8 +391,7 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
                 .isEqualTo(expectedState);
     }
 
-    private void assertStaysAtState(
-            RestTestClient client, UUID objectId, String expectedState, Duration window) {
+    private void assertStaysAtState(RestTestClient client, UUID objectId, String expectedState, Duration window) {
         Instant deadline = Instant.now().plus(window);
         while (Instant.now().isBefore(deadline)) {
             String actual = currentState(client, objectId);
@@ -400,36 +403,31 @@ class AutomationEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private String currentState(RestTestClient client, UUID objectId) {
-        BusinessObjectResponse response =
-                client.get()
-                        .uri("/api/objects/Project/" + objectId)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse response = client.get()
+                .uri("/api/objects/Project/" + objectId)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(response).isNotNull();
         return response.state();
     }
 
     private void assertTransitionFiredRow(UUID objectId, String transitionName) {
         JdbcClient jdbcClient = JdbcClient.create(sequelessPersistenceDataSource);
-        long count =
-                jdbcClient
-                        .sql(
-                                "SELECT count(*) FROM sq_outbox WHERE kind = :kind AND object_id ="
-                                        + " :objectId AND payload ->> 'transitionName' ="
-                                        + " :transitionName")
-                        .param("kind", "TransitionFired")
-                        .param("objectId", objectId)
-                        .param("transitionName", transitionName)
-                        .query(Long.class)
-                        .single();
+        long count = jdbcClient
+                .sql("SELECT count(*) FROM sq_outbox WHERE kind = :kind AND object_id ="
+                        + " :objectId AND payload ->> 'transitionName' ="
+                        + " :transitionName")
+                .param("kind", "TransitionFired")
+                .param("objectId", objectId)
+                .param("transitionName", transitionName)
+                .query(Long.class)
+                .single();
         assertThat(count)
-                .as(
-                        "a TransitionFired outbox row exists for object %s and transition '%s'",
-                        objectId, transitionName)
+                .as("a TransitionFired outbox row exists for object %s and transition '%s'", objectId, transitionName)
                 .isGreaterThanOrEqualTo(1L);
     }
 

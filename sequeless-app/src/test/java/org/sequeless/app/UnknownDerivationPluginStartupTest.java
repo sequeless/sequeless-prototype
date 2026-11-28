@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
-import org.sequeless.spi.ontology.OntologyException;
+import org.sequeless.ontology.api.OntologyException;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 
@@ -15,10 +15,10 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * startup, naming the unresolved plug-in, rather than booting into a state where the failure would
  * only surface the first time a derived value needed computing.
  *
- * <p>{@code unknown-plugin.ttl} (from {@code sequeless-spi-testkit}, a test-scope dependency of
+ * <p>{@code unknown-plugin.ttl} (from {@code store-testkit}, a test-scope dependency of
  * this module) is {@code reference.ttl} plus one extra derived property, {@code ex:workload} on
  * {@code ex:Person}, whose {@code sq:pluginName} is {@code "does-not-exist"} — a name no {@code
- * META-INF/services/org.sequeless.spi.derivation.DerivationPlugin} entry on this classpath
+ * META-INF/services/org.sequeless.store.spi.DerivationPlugin} entry on this classpath
  * provides. {@code JenaOntologyPort.buildStateFrom}'s {@code ServiceLoader}-backed plug-in name
  * check (T4) is what makes this observable at all: it runs on every activation path, including
  * this one, the application's own eager startup load.
@@ -49,24 +49,21 @@ class UnknownDerivationPluginStartupTest extends PostgresTestcontainersSupport {
 
     @Test
     void unknownPluginNameFailsStartupNamingIt() {
-        assertThatThrownBy(
-                        () ->
-                                new SpringApplicationBuilder(SequelessApplication.class)
-                                        .web(WebApplicationType.NONE)
-                                        .run(
-                                                "--sequeless.ontology.source=classpath:ontology/unknown-plugin.ttl",
-                                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
-                                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
-                                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
-                .satisfies(
-                        thrown -> {
-                            OntologyException cause = findCause(thrown, OntologyException.class);
-                            assertThat(cause).isNotNull();
-                            assertThat(cause.getMessage())
-                                    .contains("does-not-exist")
-                                    .contains("has no registered DerivationPlugin on the classpath");
-                            assertThat(cause.report().consistent()).isFalse();
-                        });
+        assertThatThrownBy(() -> new SpringApplicationBuilder(SequelessApplication.class)
+                        .web(WebApplicationType.NONE)
+                        .run(
+                                "--sequeless.ontology.source=classpath:ontology/unknown-plugin.ttl",
+                                "--sequeless.persistence.url=" + POSTGRES.getJdbcUrl(),
+                                "--sequeless.persistence.username=" + POSTGRES.getUsername(),
+                                "--sequeless.persistence.password=" + POSTGRES.getPassword()))
+                .satisfies(thrown -> {
+                    OntologyException cause = findCause(thrown, OntologyException.class);
+                    assertThat(cause).isNotNull();
+                    assertThat(cause.getMessage())
+                            .contains("does-not-exist")
+                            .contains("has no registered DerivationPlugin on the classpath");
+                    assertThat(cause.report().consistent()).isFalse();
+                });
     }
 
     private static <T extends Throwable> T findCause(Throwable root, Class<T> type) {

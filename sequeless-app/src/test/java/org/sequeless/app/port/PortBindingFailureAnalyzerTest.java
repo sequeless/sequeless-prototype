@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.sequeless.spi.AdapterDescriptor;
-import org.sequeless.spi.authz.AuthorizationPort;
+import org.sequeless.store.spi.AuthorizationPort;
 import org.springframework.boot.diagnostics.FailureAnalysis;
 
 /**
@@ -18,8 +18,8 @@ class PortBindingFailureAnalyzerTest {
     @Test
     void analyzeCopiesMessageAndActionFromException() {
         PortDefinition definition = new PortDefinition("sequeless.authz.adapter", AuthorizationPort.class);
-        List<AdapterDescriptor> available =
-            List.of(new AdapterDescriptor("permit-all", AuthorizationPort.class, "sequeless.authz.adapter", ">=0.1.0"));
+        List<AdapterDescriptor> available = List.of(
+                new AdapterDescriptor("permit-all", AuthorizationPort.class, "sequeless.authz.adapter", ">=0.1.0"));
         PortBindingException exception = PortBindingException.unknownAdapter("missing", definition, available);
 
         FailureAnalysis analysis = new PortBindingFailureAnalyzer().analyze(exception);

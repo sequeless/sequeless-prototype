@@ -8,7 +8,7 @@ import java.util.Objects;
  *
  * <p>{@link PortRegistry} is constructed with a {@code List<PortDefinition>} — one per port the
  * application exposes for adapter selection. Phase 0 declares exactly one, for {@code
- * sequeless.authz.adapter} / {@link org.sequeless.spi.authz.AuthorizationPort}, in {@code
+ * sequeless.authz.adapter} / {@link org.sequeless.store.spi.AuthorizationPort}, in {@code
  * org.sequeless.app.config.PortRegistryConfiguration}; later phases add more without changing
  * {@link PortRegistry} itself.
  *

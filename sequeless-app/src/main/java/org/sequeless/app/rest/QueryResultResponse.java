@@ -2,7 +2,7 @@ package org.sequeless.app.rest;
 
 import java.util.List;
 import java.util.Map;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.query.QueryResult;
 
 /**
@@ -11,7 +11,7 @@ import org.sequeless.spi.query.QueryResult;
  * <p>{@code page} — not {@code number} — is the field name, a deliberate wire-vs-SPI divergence:
  * {@code org.sequeless.spi.object.Page} uses {@code number}, but plan.md §8's wire shape
  * explicitly spells this field {@code page}, and this record keeps that same convention from
- * {@link PageResultResponse}, the plain-paging shape this record replaces now that {@code GET
+ * {@code PageResultResponse}, the plain-paging shape this record replaces now that {@code GET
  * /objects/{type}} also filters, sorts, free-text searches, and facets.
  *
  * @param items the objects on this page
@@ -43,10 +43,9 @@ public record QueryResultResponse(
      * @return the {@link QueryResultResponse} rendering of {@code result}
      */
     static QueryResultResponse from(QueryResult result, TypeDefinition requestType, int page, int size) {
-        List<BusinessObjectResponse> items =
-                result.items().stream()
-                        .map(object -> ObjectPropertyMapper.toResponse(object, requestType))
-                        .toList();
+        List<BusinessObjectResponse> items = result.items().stream()
+                .map(object -> ObjectPropertyMapper.toResponse(object, requestType))
+                .toList();
         long totalItems = result.total();
         int totalPages = size <= 0 ? 0 : (int) Math.ceil((double) totalItems / size);
         Map<String, List<FacetBucketResponse>> facetsByShortName =

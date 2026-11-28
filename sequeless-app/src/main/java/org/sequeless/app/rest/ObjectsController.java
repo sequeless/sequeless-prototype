@@ -18,23 +18,26 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.sequeless.core.api.BrowseQuery;
-import org.sequeless.core.api.BusinessObjectService;
-import org.sequeless.core.api.MetaModelService;
-import org.sequeless.core.api.TransitionService;
-import org.sequeless.core.statemachine.StateMachineInterpreter;
-import org.sequeless.spi.Principal;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.TenantId;
-import org.sequeless.spi.expression.ExpressionPort;
-import org.sequeless.spi.meta.MetaModelSnapshot;
-import org.sequeless.spi.meta.StateMachineDefinition;
-import org.sequeless.spi.meta.TriggerKind;
-import org.sequeless.spi.meta.TypeDefinition;
+import org.sequeless.app.admin.MetaModelService;
+import org.sequeless.app.query.ObjectQueryService;
+import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.kernel.identity.Principal;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.identity.TenantId;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.ontology.behaviour.api.Behaviour;
+import org.sequeless.ontology.behaviour.api.StateMachineDefinition;
+import org.sequeless.ontology.behaviour.api.TriggerKind;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.ObjectId;
 import org.sequeless.spi.object.Page;
+import org.sequeless.spi.query.ObjectView;
 import org.sequeless.spi.query.QueryResult;
+import org.sequeless.store.api.ObjectState;
+import org.sequeless.store.core.api.BrowseQuery;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.core.api.TransitionService;
+import org.sequeless.store.core.statemachine.StateMachineInterpreter;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.MultiValueMap;
@@ -50,7 +53,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Exposes {@link BusinessObjectService} over HTTP: browse/read/add/edit/delete against {@code
+ * Exposes {@link BusinessObjectService} and {@link ObjectQueryService} over HTTP: browse/read/add/edit/delete against {@code
  * /objects/{type}} and {@code /objects/{type}/{id}}, per plan.md §8. Also exposes {@link
  * TransitionService} over HTTP: {@code GET .../transitions} ({@link #transitions}) and {@code POST
  * .../transitions/{name}} ({@link #fireTransition}), per plan.md §8's state-machine addendum —
@@ -87,13 +90,16 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class ObjectsController {
 
     private final BusinessObjectService businessObjectService;
+    private final ObjectQueryService objectQueryService;
     private final MetaModelService metaModelService;
     private final TransitionService transitionService;
     private final ExpressionPort expressionPort;
 
     /**
-     * @param businessObjectService the use case this controller delegates every BREAD operation
-     *     to; must not be {@code null}
+     * @param businessObjectService the command use case this controller delegates add, edit and delete to; must not be
+     *     {@code null}
+     * @param objectQueryService the query use case this controller delegates browse and read to; must not be {@code
+     *     null}
      * @param metaModelService the use case consulted for the current request's resolved {@link
      *     TypeDefinition}, used only to render the response's property names; must not be {@code
      *     null}
@@ -101,23 +107,22 @@ public class ObjectsController {
      *     {@code null}
      * @param expressionPort the port {@link #transitions} evaluates transition guards through, via
      *     a fresh {@link StateMachineInterpreter} built per request, exactly as {@link
-     *     org.sequeless.core.usecase.DefaultTransitionService} does internally on the write path;
+     *     org.sequeless.store.core.usecase.DefaultTransitionService} does internally on the write path;
      *     must not be {@code null}
      * @throws NullPointerException if any argument is {@code null}
      */
     public ObjectsController(
             BusinessObjectService businessObjectService,
+            ObjectQueryService objectQueryService,
             MetaModelService metaModelService,
             TransitionService transitionService,
             ExpressionPort expressionPort) {
         this.businessObjectService =
                 Objects.requireNonNull(businessObjectService, "businessObjectService must not be null");
-        this.metaModelService =
-                Objects.requireNonNull(metaModelService, "metaModelService must not be null");
-        this.transitionService =
-                Objects.requireNonNull(transitionService, "transitionService must not be null");
-        this.expressionPort =
-                Objects.requireNonNull(expressionPort, "expressionPort must not be null");
+        this.objectQueryService = Objects.requireNonNull(objectQueryService, "objectQueryService must not be null");
+        this.metaModelService = Objects.requireNonNull(metaModelService, "metaModelService must not be null");
+        this.transitionService = Objects.requireNonNull(transitionService, "transitionService must not be null");
+        this.expressionPort = Objects.requireNonNull(expressionPort, "expressionPort must not be null");
     }
 
     /**
@@ -153,22 +158,20 @@ public class ObjectsController {
                     @RequestParam(name = "q", required = false)
                     String q,
             @Parameter(
-                            description =
-                                    "Comma-separated sort keys; a leading '-' means descending, e.g."
-                                            + " sort=-priority,dueDate")
+                            description = "Comma-separated sort keys; a leading '-' means descending, e.g."
+                                    + " sort=-priority,dueDate")
                     @RequestParam(name = "sort", required = false)
                     String sort,
             @Parameter(description = "Comma-separated property short names to compute facet counts for")
                     @RequestParam(name = "facets", required = false)
                     String facets,
             @Parameter(
-                            description =
-                                    "Filter clauses as filter[<property>][<op>]=<value>, repeatable; <op> is"
-                                        + " one of eq, ne, in, lt, lte, gt, gte, contains, startswith, isnull,"
-                                        + " notnull (case-insensitive); multiple filters AND together, including"
-                                        + " multiple filters on the same property (e.g."
-                                        + " dueDate[gte]=...&dueDate[lte]=... for a range); 'in' takes a"
-                                        + " comma-separated value; 'isnull'/'notnull' ignore any value")
+                            description = "Filter clauses as filter[<property>][<op>]=<value>, repeatable; <op> is"
+                                    + " one of eq, ne, in, lt, lte, gt, gte, contains, startswith, isnull,"
+                                    + " notnull (case-insensitive); multiple filters AND together, including"
+                                    + " multiple filters on the same property (e.g."
+                                    + " dueDate[gte]=...&dueDate[lte]=... for a range); 'in' takes a"
+                                    + " comma-separated value; 'isnull'/'notnull' ignore any value")
                     @RequestParam
                     MultiValueMap<String, String> allParams) {
         Scope scope = currentScope();
@@ -176,15 +179,14 @@ public class ObjectsController {
         List<BrowseQuery.Filter> filters = parseFilters(allParams);
         List<BrowseQuery.SortKey> sortKeys = parseSort(sort);
         List<String> facetNames = parseCommaList(facets);
-        BrowseQuery browseQuery =
-                new BrowseQuery(
-                        filters,
-                        Optional.ofNullable(q).filter(s -> !s.isBlank()),
-                        sortKeys,
-                        new Page(page, effectiveSize),
-                        facetNames);
-        QueryResult result = businessObjectService.browse(scope, type, browseQuery);
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        BrowseQuery browseQuery = new BrowseQuery(
+                filters,
+                Optional.ofNullable(q).filter(s -> !s.isBlank()),
+                sortKeys,
+                new Page(page, effectiveSize),
+                facetNames);
+        QueryResult result = objectQueryService.browse(scope, type, browseQuery);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return QueryResultResponse.from(result, requestType, page, effectiveSize);
     }
 
@@ -250,7 +252,10 @@ public class ObjectsController {
         if (value == null || value.isBlank()) {
             return List.of();
         }
-        return Arrays.stream(value.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     /**
@@ -265,11 +270,10 @@ public class ObjectsController {
             description = "No such type, or no such object",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping("/objects/{type}/{id}")
-    public ResponseEntity<BusinessObjectResponse> read(
-            @PathVariable("type") String type, @PathVariable("id") UUID id) {
+    public ResponseEntity<BusinessObjectResponse> read(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
-        BusinessObject found = businessObjectService.read(scope, type, new ObjectId(id));
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        ObjectView found = objectQueryService.read(scope, type, new ObjectId(id));
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(found.version()))
                 .body(ObjectPropertyMapper.toResponse(found, requestType));
@@ -296,14 +300,12 @@ public class ObjectsController {
             @PathVariable("type") String type, @RequestBody CreateObjectRequest request) {
         Scope scope = currentScope();
         BusinessObject created = businessObjectService.add(scope, type, request.properties());
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
-        URI location =
-                URI.create(
-                        ServletUriComponentsBuilder.fromCurrentRequestUri()
-                                .path("/" + created.id().value())
-                                .build()
-                                .toUri()
-                                .getPath());
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
+        URI location = URI.create(ServletUriComponentsBuilder.fromCurrentRequestUri()
+                .path("/" + created.id().value())
+                .build()
+                .toUri()
+                .getPath());
         return ResponseEntity.created(location)
                 .eTag(Long.toString(created.version()))
                 .body(ObjectPropertyMapper.toResponse(created, requestType));
@@ -346,9 +348,8 @@ public class ObjectsController {
         Scope scope = currentScope();
         long expectedVersion = resolveExpectedVersion(request.version(), ifMatch);
         BusinessObject updated =
-                businessObjectService.edit(
-                        scope, type, new ObjectId(id), expectedVersion, request.properties());
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+                businessObjectService.edit(scope, type, new ObjectId(id), expectedVersion, request.properties());
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
                 .body(ObjectPropertyMapper.toResponse(updated, requestType));
@@ -378,8 +379,7 @@ public class ObjectsController {
             @Parameter(description = "The version the caller expects the object to currently be at")
                     @RequestHeader(value = "If-Match", required = false)
                     String ifMatch) {
-        OptionalLong expectedVersion =
-                ifMatch == null ? OptionalLong.empty() : OptionalLong.of(parseVersion(ifMatch));
+        OptionalLong expectedVersion = ifMatch == null ? OptionalLong.empty() : OptionalLong.of(parseVersion(ifMatch));
         businessObjectService.delete(currentScope(), type, new ObjectId(id), expectedVersion);
         return ResponseEntity.noContent().build();
     }
@@ -392,8 +392,10 @@ public class ObjectsController {
      *     {@link TransitionService#fire} itself decides whether a requested transition may fire —
      *     transitions triggered by {@code ON_CHANGE}/{@code TIMER}/{@code EXTERNAL_SIGNAL} are
      *     omitted, since {@link TransitionService#fire} would reject a {@code POST} against any of
-     *     them (409, not user-fireable); only {@link TransitionService#fireAutomated} can fire those,
-     *     and it is never invoked from a client request. Filtered here, not inside {@link
+     *     them (409, not user-fireable). {@code ON_CHANGE} and {@code TIMER} transitions are fired
+     *     only by {@link TransitionService#fireAutomated}, which no client request calls; an {@code
+     *     EXTERNAL_SIGNAL} transition is fired by the signal request, through {@link
+     *     TransitionService#signal}. Filtered here, not inside {@link
      *     StateMachineInterpreter#availableTransitions}, which stays a pure per-object-state
      *     computation shared by every trigger kind.
      */
@@ -404,36 +406,43 @@ public class ObjectsController {
             description = "No such type, or no such object",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping("/objects/{type}/{id}/transitions")
-    public List<TransitionResponse> transitions(
-            @PathVariable("type") String type, @PathVariable("id") UUID id) {
+    public List<TransitionResponse> transitions(@PathVariable("type") String type, @PathVariable("id") UUID id) {
         Scope scope = currentScope();
-        BusinessObject object = businessObjectService.read(scope, type, new ObjectId(id));
-        MetaModelSnapshot snapshot = metaModelService.snapshot(scope);
+        ObjectView object = objectQueryService.read(scope, type, new ObjectId(id));
+        Behaviour behaviour = metaModelService.behaviour(scope);
         StateMachineInterpreter interpreter = new StateMachineInterpreter(expressionPort);
-        Set<String> userActionTransitionNames = userActionTransitionNames(snapshot, object);
-        return interpreter.availableTransitions(scope, snapshot, object).stream()
+        Set<String> userActionTransitionNames = userActionTransitionNames(behaviour, object);
+        return interpreter.availableTransitions(scope, behaviour, toObjectState(object)).stream()
                 .filter(availability -> userActionTransitionNames.contains(availability.name()))
                 .map(TransitionResponse::from)
                 .toList();
     }
 
     /**
-     * @param snapshot the snapshot {@code object}'s type is resolved against; must not be {@code
-     *     null}
-     * @param object the object whose type's state machine is consulted; must not be {@code null}
-     * @return the names of every transition on {@code object}'s type's state machine whose {@link
-     *     org.sequeless.spi.meta.Transition#trigger()} is {@link TriggerKind#USER_ACTION}; empty if
-     *     the type has no state machine
+     * @param view the object view to take the transition inputs from; must not be {@code null}
+     * @return the state a transition is evaluated against: the view's type, state and properties
      */
-    private static Set<String> userActionTransitionNames(MetaModelSnapshot snapshot, BusinessObject object) {
+    private static ObjectState toObjectState(ObjectView view) {
+        return new ObjectState(view.type().iri(), view.state(), view.properties());
+    }
+
+    /**
+     * @param behaviour the behaviour {@code object}'s type's state machine is read from; must not be
+     *     {@code null}
+     * @param object the object view whose type's state machine is consulted; must not be {@code null}
+     * @return the names of every transition on {@code object}'s type's state machine whose {@link
+     *     org.sequeless.ontology.behaviour.api.Transition#trigger()} is {@link TriggerKind#USER_ACTION};
+     *     empty if the type has no state machine
+     */
+    private static Set<String> userActionTransitionNames(Behaviour behaviour, ObjectView object) {
         Optional<StateMachineDefinition> machine =
-                snapshot.type(object.type().iri()).flatMap(TypeDefinition::stateMachine);
+                behaviour.stateMachine(object.type().iri());
         if (machine.isEmpty()) {
             return Set.of();
         }
         return machine.get().transitions().stream()
                 .filter(transition -> transition.trigger().kind() == TriggerKind.USER_ACTION)
-                .map(org.sequeless.spi.meta.Transition::name)
+                .map(org.sequeless.ontology.behaviour.api.Transition::name)
                 .collect(Collectors.toSet());
     }
 
@@ -456,10 +465,9 @@ public class ObjectsController {
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "409",
-            description =
-                    "The stored object is not at the expected version, or the named transition is"
-                            + " not available (no such transition, wrong current state, or its guard"
-                            + " failed)",
+            description = "The stored object is not at the expected version, or the named transition is"
+                    + " not available (no such transition, wrong current state, or its guard"
+                    + " failed)",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "428",
@@ -477,9 +485,8 @@ public class ObjectsController {
         Scope scope = currentScope();
         Long bodyVersion = request == null ? null : request.expectedVersion();
         long expectedVersion = resolveExpectedVersion(bodyVersion, ifMatch);
-        BusinessObject updated =
-                transitionService.fire(scope, type, new ObjectId(id), name, expectedVersion);
-        TypeDefinition requestType = metaModelService.describeType(scope, type);
+        BusinessObject updated = transitionService.fire(scope, type, new ObjectId(id), name, expectedVersion);
+        TypeDefinition requestType = metaModelService.describeType(scope, type).type();
         return ResponseEntity.ok()
                 .eTag(Long.toString(updated.version()))
                 .body(ObjectPropertyMapper.toResponse(updated, requestType));
@@ -488,24 +495,28 @@ public class ObjectsController {
     /**
      * @param type the type's short name or full IRI
      * @param id the id of the object the signal targets
-     * @param name the signal name ({@link org.sequeless.spi.meta.ExternalSignalTrigger#signalName()})
-     * @param body an arbitrary JSON object recorded alongside the signal for audit, or {@code null}
-     *     if the request has no body at all — {@link TransitionService#signal} requires a non-null
-     *     {@code Map}, so a missing body is treated as {@code Map.of()}
-     * @return 202 with no body: the signal is durably recorded as a {@code SignalReceived} outbox
-     *     entry and this method returns immediately, before any transition it might eventually cause
-     *     actually fires — see {@link TransitionService#signal}'s javadoc for why firing is the
-     *     automation adapter's job, not this endpoint's
+     * @param name the signal name ({@link org.sequeless.ontology.behaviour.api.ExternalSignalTrigger#signalName()})
+     * @param body an arbitrary JSON object, or {@code null} if the request has no body at all; the
+     *     body is accepted but not recorded or used, and a missing body is treated as {@code Map.of()}
+     *     because {@link TransitionService#signal} requires a non-null {@code Map}
+     * @return 202 with no body, returned once the transition the signal names has been applied: the
+     *     object's update and its {@code TransitionFired} row commit together before this method
+     *     returns, see {@link TransitionService#signal}
      */
-    @Operation(
-            summary =
-                    "Record an external signal for an object; does not itself fire any transition")
+    @Operation(summary = "Fire the transition a named signal triggers on an object, in the request")
     @ApiResponse(
             responseCode = "202",
-            description = "The signal was durably recorded; any resulting transition fires asynchronously")
+            description = "The transition was applied before this reply; its actions run afterwards")
     @ApiResponse(
             responseCode = "400",
             description = "No transition on this type declares a signal named {name}",
+            content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "No transition departing the object's current state has this signal name, or"
+                    + " its guard does not pass; the reason is in the body. A concurrent write to the"
+                    + " object, so that the stored object is not at the expected version, gives 409"
+                    + " stale-object",
             content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(
             responseCode = "404",
@@ -518,8 +529,7 @@ public class ObjectsController {
             @PathVariable("name") String name,
             @RequestBody(required = false) Map<String, Object> body) {
         Scope scope = currentScope();
-        transitionService.signal(
-                scope, type, new ObjectId(id), name, body == null ? Map.of() : body);
+        transitionService.signal(scope, type, new ObjectId(id), name, body == null ? Map.of() : body);
         return ResponseEntity.accepted().build();
     }
 

@@ -1,7 +1,7 @@
 package org.sequeless.app.rest;
 
 import java.util.Set;
-import org.sequeless.core.api.WhoAmIResult;
+import org.sequeless.app.admin.WhoAmIResult;
 
 /**
  * JSON response body for {@code GET /whoami}.
@@ -13,7 +13,7 @@ import org.sequeless.core.api.WhoAmIResult;
  *
  * @param tenant the tenant identifier the request was scoped to
  * @param principal the caller's identifier
- * @param displayName the caller's human-readable name
+ * @param displayName the caller's display name; until a display-name source exists, the principal id
  * @param roles the caller's roles
  * @param decision the authorization decision that authorized this read
  */
@@ -38,7 +38,7 @@ public record WhoAmIResponse(
         return new WhoAmIResponse(
                 result.tenantId().value(),
                 result.principal().id(),
-                result.principal().displayName(),
+                result.principal().id(),
                 result.principal().roles(),
                 new Decision(result.decision().allowed(), result.decision().reason()));
     }

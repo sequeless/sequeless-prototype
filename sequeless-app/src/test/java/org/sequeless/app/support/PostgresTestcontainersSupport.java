@@ -12,7 +12,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * <p>{@code sequeless.persistence.adapter=postgres} is baked into {@code application.yaml}, so
  * every context this module boots — including tests that have nothing to do with objects or
  * validation — now constructs a real {@code DataSource} via {@code
- * PostgresPersistenceAutoConfiguration}, and the Jena {@code OntologyPort} adapter (when a store is
+ * PostgresPersistenceAutoConfiguration}, and the Jena ontology adapter (when a store is
  * present) eagerly loads its active document from that store during bean construction (see T7/T11's
  * investigation notes). There is no way to opt a context out of this while keeping the
  * application's real, shipped configuration under test — so every {@code @SpringBootTest} class in

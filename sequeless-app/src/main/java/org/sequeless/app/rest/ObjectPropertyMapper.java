@@ -2,19 +2,20 @@ package org.sequeless.app.rest;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.sequeless.spi.meta.PropertyDefinition;
-import org.sequeless.spi.meta.TypeDefinition;
-import org.sequeless.spi.object.BoolValue;
+import org.sequeless.kernel.values.BoolValue;
+import org.sequeless.kernel.values.DateTimeValue;
+import org.sequeless.kernel.values.DateValue;
+import org.sequeless.kernel.values.DecimalValue;
+import org.sequeless.kernel.values.IntegerValue;
+import org.sequeless.kernel.values.ListValue;
+import org.sequeless.kernel.values.ReferenceValue;
+import org.sequeless.kernel.values.TextValue;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.schema.api.PropertyDefinition;
+import org.sequeless.ontology.schema.api.TypeDefinition;
 import org.sequeless.spi.object.BusinessObject;
-import org.sequeless.spi.object.DateTimeValue;
-import org.sequeless.spi.object.DateValue;
-import org.sequeless.spi.object.DecimalValue;
-import org.sequeless.spi.object.IntegerValue;
-import org.sequeless.spi.object.ListValue;
 import org.sequeless.spi.object.PropertyRef;
-import org.sequeless.spi.object.ReferenceValue;
-import org.sequeless.spi.object.TextValue;
-import org.sequeless.spi.object.Value;
+import org.sequeless.spi.query.ObjectView;
 
 /**
  * Maps sequeless-core's {@code org.sequeless.spi.object} types onto {@link ObjectsController}'s
@@ -36,18 +37,39 @@ final class ObjectPropertyMapper {
      * @return the {@link BusinessObjectResponse} rendering of {@code object}
      */
     static BusinessObjectResponse toResponse(BusinessObject object, TypeDefinition requestType) {
+        return toResponse(
+                new ObjectView(
+                        object.id(),
+                        object.type(),
+                        object.tenant(),
+                        object.version(),
+                        object.state(),
+                        object.properties(),
+                        object.audit(),
+                        object.deleted()),
+                requestType);
+    }
+
+    /**
+     * @param view the Query side's view of the object to render; must not be {@code null}
+     * @param requestType the resolved {@link TypeDefinition} for the current request's {@code
+     *     type} path variable, used to resolve the object's property IRIs to short names; must not
+     *     be {@code null}
+     * @return the {@link BusinessObjectResponse} rendering of {@code view}
+     */
+    static BusinessObjectResponse toResponse(ObjectView view, TypeDefinition requestType) {
         return new BusinessObjectResponse(
-                object.id().value(),
-                shortName(object.type().iri()),
-                object.type().iri(),
-                object.version(),
-                object.state().map(ObjectPropertyMapper::shortName).orElse(null),
-                toProperties(requestType, object.properties()),
+                view.id().value(),
+                shortName(view.type().iri()),
+                view.type().iri(),
+                view.version(),
+                view.state().map(ObjectPropertyMapper::shortName).orElse(null),
+                toProperties(requestType, view.properties()),
                 new BusinessObjectResponse.AuditResponse(
-                        object.audit().createdAt(),
-                        object.audit().createdBy(),
-                        object.audit().updatedAt(),
-                        object.audit().updatedBy()));
+                        view.audit().createdAt(),
+                        view.audit().createdBy(),
+                        view.audit().updatedAt(),
+                        view.audit().updatedBy()));
     }
 
     /**
@@ -60,8 +82,7 @@ final class ObjectPropertyMapper {
      *     own local name (per {@link #shortName}) otherwise, e.g. for a subtype-only property
      *     encountered while browsing one of its abstract supertypes
      */
-    static Map<String, Object> toProperties(
-            TypeDefinition requestType, Map<PropertyRef, Value> properties) {
+    static Map<String, Object> toProperties(TypeDefinition requestType, Map<PropertyRef, Value> properties) {
         Map<String, String> namesByIri = new HashMap<>();
         for (PropertyDefinition property : requestType.properties()) {
             namesByIri.put(property.iri(), shortName(property.iri()));
@@ -79,7 +100,7 @@ final class ObjectPropertyMapper {
      * Maps one {@link Value} onto its plain, JSON-serializable wire representation. The {@code
      * switch} is exhaustive over the sealed {@link Value} hierarchy with no {@code default}
      * branch, mirroring {@link TypeResponseMapper#toProperty}'s rationale for {@link
-     * org.sequeless.spi.meta.PropertyDefinition}.
+     * org.sequeless.ontology.schema.api.PropertyDefinition}.
      */
     private static Object toWireValue(Value value) {
         return switch (value) {
@@ -90,14 +111,15 @@ final class ObjectPropertyMapper {
             case DateTimeValue dateTime -> dateTime.value();
             case DateValue date -> date.value();
             case ReferenceValue reference -> reference.target().value();
-            case ListValue list -> list.values().stream().map(ObjectPropertyMapper::toWireValue).toList();
+            case ListValue list ->
+                list.values().stream().map(ObjectPropertyMapper::toWireValue).toList();
         };
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * Duplicates {@code Schema}'s own short-name rule, for the same reason {@link
      * TypeResponseMapper#shortName} does: this maps a single, already-resolved IRI, not a whole
-     * snapshot.
+     * schema.
      *
      * @param iri the IRI to derive a short name from; must not be {@code null}
      * @return the local name after the IRI's last {@code #}, or after its last {@code /} if there

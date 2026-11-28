@@ -5,7 +5,7 @@
  * implicit scan reaches every sibling package this module defines: {@link org.sequeless.app.rest}
  * (the inbound REST adapter), {@link org.sequeless.app.config} (bean wiring for sequeless-core's
  * use cases), and {@link org.sequeless.app.port} (the fail-fast adapter registry). This is the only
- * module in the reactor allowed to depend on Spring MVC and on {@code org.sequeless.core}; an
+ * module in the reactor allowed to depend on Spring MVC and on {@code org.sequeless.store.core}; an
  * ArchUnit suite in this module's test sources enforces both boundaries structurally.
  */
 package org.sequeless.app;

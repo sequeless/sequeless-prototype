@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <groupId>org.sequeless</groupId>
-    <artifactId>sequeless-parent</artifactId>
+    <artifactId>sequeless-prototype</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -14,66 +12,151 @@
   <artifactId>sequeless-app</artifactId>
 
   <name>sequeless-app</name>
-  <description>
-    Spring Boot application: REST inbound adapter, wiring, Actuator, OpenAPI, ArchUnit tests,
+  <description>Spring Boot application: REST inbound adapter, wiring, Actuator, OpenAPI, ArchUnit tests,
     end-to-end tests with Testcontainers. Depends on every other module so its ArchUnit suite
     (added in T10) sees every adapter as a reactor jar. No spring-boot-maven-plugin binding yet:
-    no main class exists until T8 and binding repackage now would break verify.
-  </description>
+    no main class exists until T8 and binding repackage now would break verify.</description>
+
+  <properties>
+    <!--
+      The host depends on its adapters only so their auto-configuration runs. No app code names
+      them, so bytecode analysis cannot see the use, and declaring the transitive Spring, Tomcat
+      and Jackson artifacts would only defeat that. Boundaries stay guarded by ArchitectureTest
+      (spec 3 section 3.2a, rule 6).
+    -->
+    <sequeless.dependency-analyze.skip>true</sequeless.dependency-analyze.skip>
+  </properties>
 
   <dependencies>
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi</artifactId>
-      <version>${project.version}</version>
+      <artifactId>kernel-identity</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>kernel-values</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>behaviour-contract</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-contract</artifactId>
+    </dependency>
+
+    <!--
+      Spec 18 U11: the Command side is the released sequeless-store. store-core holds the Command use cases and the
+      store.spi and store.api ports (including the inbound port the automation StoreCommandPort calls).
+      store-postgres-jsonb-adapter is the Postgres command adapter the persistence wiring builds. No version here:
+      the BOM manages them.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>store-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>store-postgres-jsonb-adapter</artifactId>
+    </dependency>
+
+    <!--
+      Spec 17 P2a: the Query side is the released QueryService. The host's ReleasedBrowsePortAdapter,
+      ReleasedReadPortAdapter and ReleasedIndexPreparationPortAdapter (org.sequeless.app.query) call it, and
+      the released autoconfigs (query-spring-boot-autoconfig) build it over the released Postgres ports. No
+      version here: the BOM manages them.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-field</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-schema-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-postgres-jsonb-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>query-spring-boot-autoconfig</artifactId>
+    </dependency>
+
+    <!--
+      Spec 18 U12b: the Jena wiring (JenaOntologyAutoConfiguration, ShaclValidationAutoConfiguration, their descriptors and
+      ValidationSchemaAdapter) lives in this module now, under org.sequeless.adapter.ontology.jena. The released
+      ontology-jena-adapter is the only Jena-backed dependency it needs. No version here: the BOM manages it.
+    -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>ontology-jena-adapter</artifactId>
     </dependency>
 
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-core</artifactId>
-      <version>${project.version}</version>
+      <artifactId>expression-spring-boot-autoconfig</artifactId>
     </dependency>
-
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-authz-permitall</artifactId>
-      <version>${project.version}</version>
+      <artifactId>expression-api</artifactId>
     </dependency>
 
+    <!--
+      Spec 17 P3: the released automation runtime. automation-spring-boot-autoconfig registers the released
+      ActionExecutor and TriggerEvaluator (automation-core) and, selected by sequeless.automation.adapter, one of
+      the two AutomationPort adapters. Its adapter classes are optional there, so both adapters are declared here.
+      The host's ObjectReadPort and StoreCommandPort bindings (org.sequeless.app.automation) implement the API.
+      No version here: the BOM manages every one of these.
+    -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-ontology-jena</artifactId>
-      <version>${project.version}</version>
+      <artifactId>automation-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-inprocess-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-temporal-adapter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>automation-spring-boot-autoconfig</artifactId>
     </dependency>
 
+    <!-- Spec 18 U11: the store's test doubles and contracts (org.sequeless.testkit), taken from store-testkit. -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-persistence-postgres</artifactId>
-      <version>${project.version}</version>
+      <artifactId>store-testkit</artifactId>
+      <scope>test</scope>
     </dependency>
-
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-expression-jexl</artifactId>
-      <version>${project.version}</version>
+      <artifactId>ontology-testfixtures</artifactId>
+      <scope>test</scope>
     </dependency>
-
+    <!-- Released query contracts and doubles (org.sequeless.query.testkit). Version from sequeless-bom. -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-automation-temporal</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-automation-inprocess</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi-testkit</artifactId>
-      <version>${project.version}</version>
+      <artifactId>query-testkit</artifactId>
       <scope>test</scope>
     </dependency>
 
@@ -88,11 +171,9 @@
     </dependency>
 
     <!--
-      Not transitive from sequeless-adapter-persistence-postgres: that module declares this
-      dependency <optional>true</optional>, so the application assembling the adapter must bring
-      its own copy for PostgresPersistenceAutoConfiguration's JdbcClient/DataSourceTransactionManager
-      and the HikariCP connection pool bits it transitively pulls in. No version here: inherited
-      from the Spring Boot BOM.
+      Spec 18 U12a: PostgresPersistenceAutoConfiguration now lives in this module and builds its JdbcClient,
+      DataSourceTransactionManager and HikariCP pool, so this module declares the starter itself. No version here:
+      inherited from the Spring Boot BOM.
     -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -122,9 +203,7 @@
     </dependency>
 
     <!--
-      Not transitive from sequeless-adapter-persistence-postgres: that module declares both of
-      these <scope>test</scope>, so they never leave its own jar. This module's own tests need a
-      real Testcontainers Postgres now that sequeless.persistence.adapter=postgres is baked into
+      This module's own tests need a real Testcontainers Postgres now that sequeless.persistence.adapter=postgres is baked into
       application.yaml (see PostgresTestcontainersSupport). No version here: inherited from the
       Spring Boot BOM, per the root pom's comment on junit-jupiter/assertj/mockito/testcontainers.
     -->
@@ -140,11 +219,6 @@
       <scope>test</scope>
     </dependency>
 
-    <dependency>
-      <groupId>org.projectlombok</groupId>
-      <artifactId>lombok</artifactId>
-      <optional>true</optional>
-    </dependency>
   </dependencies>
 
   <build>
@@ -155,7 +229,9 @@
         <version>${spring-boot.version}</version>
         <executions>
           <execution>
-            <goals><goal>repackage</goal></goals>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
             <configuration>
               <!--
                 Without a classifier, repackage replaces this module's main artifact (the plain

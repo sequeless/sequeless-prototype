@@ -1,8 +1,9 @@
 /**
  * Contract [OBJ-SIGNALS] (lib/signals/object-signals.ts, `SqObjectSignals`): offers one button per
  * EXTERNAL_SIGNAL transition that applies from the object's current state. Firing posts the signal
- * with no body and only ever reports it as dispatched: the server handles signals asynchronously,
- * so the panel never claims the transition happened.
+ * with no body and reports it as dispatched. The server applies the transition in the request and
+ * answers 202 only once it is applied, and the panel refetches the object after a delay
+ * (OBJECTS_SIGNAL_REFETCH_DELAY_MS). The panel never claims more than the dispatch.
  */
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -113,7 +114,7 @@ describe('SqObjectSignals', () => {
     await click(ctx, 'approved');
 
     const text = ctx.host.textContent ?? '';
-    expect(text).toContain('dispatched');
+    expect(text).toContain('dispatched — the transition is applied when the request is accepted.');
     expect(text).not.toMatch(/completed|transitioned|now closed/i);
   });
 

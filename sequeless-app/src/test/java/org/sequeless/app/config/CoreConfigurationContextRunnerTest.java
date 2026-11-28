@@ -10,40 +10,40 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import org.junit.jupiter.api.Test;
 import org.sequeless.app.automation.OutboxRelay;
-import org.sequeless.core.api.TransitionService;
-import org.sequeless.core.automation.DefaultActionExecutor;
-import org.sequeless.core.usecase.DefaultTransitionService;
-import org.sequeless.spi.Scope;
-import org.sequeless.spi.automation.ActionExecutor;
-import org.sequeless.spi.automation.AutomationPort;
-import org.sequeless.spi.authz.AccessDecision;
-import org.sequeless.spi.authz.AuthorizationPort;
-import org.sequeless.spi.expression.ExpressionContext;
-import org.sequeless.spi.expression.ExpressionPort;
-import org.sequeless.spi.meta.MetaModelSnapshot;
+import org.sequeless.automation.api.ActionExecutor;
+import org.sequeless.automation.api.AutomationPort;
+import org.sequeless.expression.api.ExpressionContext;
+import org.sequeless.expression.api.ExpressionPort;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.kernel.values.ObjectId;
+import org.sequeless.kernel.values.Value;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyAdministration;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.ontology.api.OntologyReport;
+import org.sequeless.ontology.automation.spi.AutomationSource;
+import org.sequeless.ontology.behaviour.spi.BehaviourSource;
+import org.sequeless.ontology.schema.api.Schema;
+import org.sequeless.ontology.schema.spi.SchemaSource;
+import org.sequeless.ontology.spi.OntologyDocumentStore;
 import org.sequeless.spi.object.BusinessObject;
 import org.sequeless.spi.object.ChangeSet;
 import org.sequeless.spi.object.CommitResult;
-import org.sequeless.spi.object.ObjectId;
-import org.sequeless.spi.object.ObjectStorePort;
-import org.sequeless.spi.object.OntologyDocumentStore;
-import org.sequeless.spi.object.OutboxEntry;
-import org.sequeless.spi.object.OutboxPort;
-import org.sequeless.spi.object.Page;
-import org.sequeless.spi.object.PageResult;
 import org.sequeless.spi.object.TypeRef;
-import org.sequeless.spi.object.Value;
-import org.sequeless.spi.ontology.ImportMode;
-import org.sequeless.spi.ontology.ImportReport;
-import org.sequeless.spi.ontology.OntologyDocument;
-import org.sequeless.spi.ontology.OntologyFormat;
-import org.sequeless.spi.ontology.OntologyPort;
-import org.sequeless.spi.query.AggregateRequest;
-import org.sequeless.spi.query.AggregateResult;
-import org.sequeless.spi.query.Query;
-import org.sequeless.spi.query.QueryPort;
-import org.sequeless.spi.query.QueryResult;
-import org.sequeless.spi.validation.ValidationPort;
+import org.sequeless.spi.outbox.OutboxEntry;
+import org.sequeless.store.api.AccessDecision;
+import org.sequeless.store.core.api.TransitionService;
+import org.sequeless.store.core.usecase.DefaultTransitionService;
+import org.sequeless.store.spi.AggregateRequest;
+import org.sequeless.store.spi.AggregateResult;
+import org.sequeless.store.spi.AuthorizationPort;
+import org.sequeless.store.spi.AutomationFailureRecorder;
+import org.sequeless.store.spi.ObjectStorePort;
+import org.sequeless.store.spi.OutboxPort;
+import org.sequeless.store.spi.QueryPort;
+import org.sequeless.store.spi.ValidationPort;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -51,8 +51,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * Exercises {@link CoreConfiguration}'s two newest beans — {@link ActionExecutor} and {@link
- * TransitionService} — end to end against real {@link ApplicationContextRunner} contexts, mirroring
+ * Exercises {@link CoreConfiguration}'s use-case beans, {@link TransitionService} among them, end to end against real
+ * {@link ApplicationContextRunner} contexts, mirroring
  * {@code PortRegistryContextRunnerTest}'s style. Also verifies, via reflection, that {@link
  * OutboxRelay#pollOnce()} carries the expected {@code @Scheduled} configuration, and that {@link
  * SchedulingConfiguration} actually registers Spring's scheduling infrastructure — without ever
@@ -67,37 +67,31 @@ class CoreConfigurationContextRunnerTest {
      * property.
      */
     @Test
-    void actionExecutorAndTransitionServiceRegisterWithoutAnyPortBeans() {
+    void transitionServiceRegistersWithoutAnyPortBeans() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CoreConfiguration.class)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ActionExecutor.class);
-                assertThat(context).hasSingleBean(TransitionService.class);
-                assertThat(context.getBean(ActionExecutor.class)).isInstanceOf(DefaultActionExecutor.class);
-                assertThat(context.getBean(TransitionService.class))
-                    .isInstanceOf(DefaultTransitionService.class);
-            });
+                .withUserConfiguration(CoreConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(TransitionService.class);
+                    assertThat(context.getBean(TransitionService.class)).isInstanceOf(DefaultTransitionService.class);
+                    // The released automation-core autoconfiguration, not CoreConfiguration, supplies ActionExecutor.
+                    assertThat(context).doesNotHaveBean(ActionExecutor.class);
+                });
     }
 
     /**
      * The closer-to-deployment case: every port slot {@link CoreConfiguration} depends on
-     * (transitively, across its five bean methods) has exactly one bean present, all inert stubs
-     * that are never actually invoked by this test. This is what "the two new beans are what
-     * {@code InProcessAutomationAutoConfiguration}'s and {@code TemporalAutomationAutoConfiguration}'s
-     * own {@code automationPort(ActionExecutor actionExecutor, ...)} bean methods have been depending
-     * on" (see {@link CoreConfiguration#actionExecutor}'s javadoc) looks like once those adapters'
-     * own {@code @Bean} methods resolve {@code ActionExecutor} eagerly.
+     * (transitively, across its bean methods) has exactly one bean present, all inert stubs that are
+     * never actually invoked by this test.
      */
     @Test
-    void actionExecutorAndTransitionServiceRegisterWithStubPortBeans() {
+    void transitionServiceRegistersWithStubPortBeans() {
         new ApplicationContextRunner()
-            .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context).hasSingleBean(ActionExecutor.class);
-                assertThat(context).hasSingleBean(TransitionService.class);
-            });
+                .withUserConfiguration(CoreConfiguration.class, StubPortsConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(TransitionService.class);
+                });
     }
 
     /**
@@ -112,8 +106,7 @@ class CoreConfigurationContextRunnerTest {
         Scheduled scheduled = pollOnce.getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
-        assertThat(scheduled.fixedDelayString())
-            .isEqualTo("${sequeless.automation.relay.poll-interval-ms:1000}");
+        assertThat(scheduled.fixedDelayString()).isEqualTo("${sequeless.automation.relay.poll-interval-ms:1000}");
     }
 
     /**
@@ -127,25 +120,22 @@ class CoreConfigurationContextRunnerTest {
     void schedulingConfigurationRegistersScheduledAnnotationProcessor() {
         // OutboxPort#claimNext is itself generic, so a lambda cannot implement it (javac cannot
         // infer a per-call T for a lambda body); an anonymous class is required.
-        OutboxPort neverClaimsOutboxPort =
-            new OutboxPort() {
-                @Override
-                public <T> Optional<T> claimNext(
-                    Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
-                    return Optional.empty();
-                }
-            };
+        OutboxPort neverClaimsOutboxPort = new OutboxPort() {
+            @Override
+            public <T> Optional<T> claimNext(Set<String> kinds, BiFunction<String, OutboxEntry, T> handler) {
+                return Optional.empty();
+            }
+        };
 
         new ApplicationContextRunner()
-            .withUserConfiguration(SchedulingConfiguration.class, OutboxRelayConfiguration.class)
-            .withBean(OutboxPort.class, () -> neverClaimsOutboxPort)
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(
-                    context.containsBean(
-                        "org.springframework.scheduling.config.internalScheduledAnnotationProcessor"))
-                    .isTrue();
-            });
+                .withUserConfiguration(SchedulingConfiguration.class, OutboxRelayConfiguration.class)
+                .withBean(OutboxPort.class, () -> neverClaimsOutboxPort)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.containsBean(
+                                    "org.springframework.scheduling.config.internalScheduledAnnotationProcessor"))
+                            .isTrue();
+                });
     }
 
     /**
@@ -161,19 +151,28 @@ class CoreConfigurationContextRunnerTest {
         @Bean
         OutboxRelay outboxRelay(OutboxPort outboxPort) {
             return new OutboxRelay(
-                outboxPort,
-                new ObjectProvider<>() {
-                    @Override
-                    public AutomationPort getIfAvailable() {
-                        return null;
-                    }
-                });
+                    outboxPort,
+                    new ObjectProvider<>() {
+                        @Override
+                        public AutomationPort getIfAvailable() {
+                            return null;
+                        }
+                    },
+                    (scope, changeEvent) -> {
+                        throw new UnsupportedOperationException("not needed by this test");
+                    },
+                    new ObjectProvider<>() {
+                        @Override
+                        public AutomationFailureRecorder getIfAvailable() {
+                            return null;
+                        }
+                    });
         }
     }
 
     /**
      * One inert stub bean per port slot {@link CoreConfiguration} depends on across all five of its
-     * bean methods, so {@link #actionExecutorAndTransitionServiceRegisterWithStubPortBeans()} can
+     * bean methods, so {@link #transitionServiceRegistersWithStubPortBeans()} can
      * assert the happy-path wiring without a real adapter. None of these stubs' methods are ever
      * actually invoked by that test — every method throws, mirroring {@code
      * PortRegistryContextRunnerTest}'s existing convention of only implementing what a given test
@@ -183,15 +182,31 @@ class CoreConfigurationContextRunnerTest {
     static class StubPortsConfiguration {
 
         @Bean
-        OntologyPort ontologyPort() {
-            return new OntologyPort() {
-                @Override
-                public MetaModelSnapshot snapshot(Scope scope) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
+        SchemaSource schemaSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
 
+        @Bean
+        BehaviourSource behaviourSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
+
+        @Bean
+        AutomationSource automationSource() {
+            return tenant -> {
+                throw new UnsupportedOperationException("not needed by this test");
+            };
+        }
+
+        @Bean
+        OntologyAdministration ontologyAdministrationPort() {
+            return new OntologyAdministration() {
                 @Override
-                public MetaModelSnapshot reload(Scope scope) {
+                public OntologyReport reload(Scope scope) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
@@ -212,11 +227,6 @@ class CoreConfigurationContextRunnerTest {
             return new ObjectStorePort() {
                 @Override
                 public Optional<BusinessObject> find(Scope scope, ObjectId id) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public PageResult<BusinessObject> browse(Scope scope, Set<TypeRef> types, Page page) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
 
@@ -246,18 +256,7 @@ class CoreConfigurationContextRunnerTest {
         QueryPort queryPort() {
             return new QueryPort() {
                 @Override
-                public QueryResult query(Scope scope, MetaModelSnapshot snapshot, Query query) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public void ensureIndexes(Scope scope, MetaModelSnapshot snapshot) {
-                    throw new UnsupportedOperationException("not needed by this test");
-                }
-
-                @Override
-                public AggregateResult aggregate(
-                    Scope scope, MetaModelSnapshot snapshot, AggregateRequest request) {
+                public AggregateResult aggregate(Scope scope, Schema schema, AggregateRequest request) {
                     throw new UnsupportedOperationException("not needed by this test");
                 }
             };
@@ -265,7 +264,7 @@ class CoreConfigurationContextRunnerTest {
 
         @Bean
         ValidationPort validationPort() {
-            return (scope, snapshot, object) -> List.of();
+            return (scope, schema, object) -> List.of();
         }
 
         @Bean

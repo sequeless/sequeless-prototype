@@ -5,6 +5,10 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -15,8 +19,17 @@ import org.junit.jupiter.api.Test;
 import org.sequeless.app.rest.BusinessObjectResponse;
 import org.sequeless.app.rest.TransitionResponse;
 import org.sequeless.app.support.PostgresTestcontainersSupport;
+import org.sequeless.automation.api.ActionExecutor;
+import org.sequeless.automation.api.ResolvedWebhookRequest;
+import org.sequeless.automation.api.StoreEventRow;
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.automation.api.Action;
+import org.sequeless.ontology.automation.api.WebhookAction;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -42,11 +55,13 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * pre-existing core/reference-ontology behaviour from earlier phase-5 tasks, not something this
  * task's REST-layer scope changes; this test asserts the actual rendered literal.
  *
- * <p>Deliberately does not assert anything about the transition's {@code sq:Webhook} action: it
- * targets a hardcoded external URL ({@code https://example.org/hooks/project-activated}) with no
- * local interception mechanism today. In this sandbox that URL fails DNS resolution in
- * milliseconds, so it does not meaningfully slow down the relay, but a later task that wants to
- * assert webhook delivery/retry behaviour will need a locally-reachable stand-in (e.g. WireMock).
+ * <p>The transition's {@code sq:Webhook} action targets a hardcoded external URL ({@code
+ * https://example.org/hooks/project-activated}) that this sandbox cannot resolve. The activate
+ * row's actions commit together, so that failure would roll back the kickoff Task too. The webhook
+ * is therefore redirected to a local stand-in at the {@link ActionExecutor} seam:
+ * {@link WebhookStandInConfiguration} wraps the released {@code actionExecutor} bean, which delegates to the
+ * real executor and rewrites only the resolved webhook URL to a localhost {@code HttpServer}. The
+ * production URL and the reference ontology are unchanged. This test asserts the kickoff {@code Task}.
  *
  * <p>{@code sequeless.automation.relay.poll-interval-ms=50} keeps the bounded-retry wait for the
  * async kickoff-Task side effect fast; the whole {@code properties} set differs from every other
@@ -64,17 +79,90 @@ import org.springframework.test.web.servlet.client.RestTestClient;
         })
 class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
 
-    private static final String GUARD_MESSAGE =
-            "Project must have an owner before it can be activated";
+    private static final String GUARD_MESSAGE = "Project must have an owner before it can be activated";
 
-    @LocalServerPort private int port;
+    /**
+     * Wraps the released {@code actionExecutor} bean in the webhook stand-in, with a bean post-processor. The released
+     * autoconfiguration registers that bean only while no other {@code ActionExecutor} bean exists, so a second bean of
+     * the same type would suppress it. The wrapper redirects the activate webhook's URL to the stand-in and delegates
+     * every other call.
+     */
+    @TestConfiguration
+    static class WebhookStandInConfiguration {
+
+        @Bean
+        static BeanPostProcessor webhookStandInPostProcessor() {
+            return new BeanPostProcessor() {
+                @Override
+                public Object postProcessAfterInitialization(Object bean, String beanName) {
+                    if (bean instanceof ActionExecutor delegate && !(bean instanceof WebhookStandInActionExecutor)) {
+                        try {
+                            return new WebhookStandInActionExecutor(delegate);
+                        } catch (IOException e) {
+                            throw new IllegalStateException("the webhook stand-in did not start", e);
+                        }
+                    }
+                    return bean;
+                }
+            };
+        }
+    }
+
+    /**
+     * Delegates every {@link ActionExecutor} call to the real executor, except that {@link
+     * #resolveWebhookAction} returns the same method and body with the URL replaced by this class's
+     * localhost stand-in, which answers 204 to any request. The stand-in is started when the bean is
+     * created and stopped when the context closes.
+     */
+    static final class WebhookStandInActionExecutor implements ActionExecutor, AutoCloseable {
+
+        private final ActionExecutor delegate;
+        private final HttpServer standIn;
+
+        WebhookStandInActionExecutor(ActionExecutor delegate) throws IOException {
+            this.delegate = delegate;
+            this.standIn = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            standIn.createContext("/hook", WebhookStandInActionExecutor::acknowledge);
+            standIn.start();
+        }
+
+        private static void acknowledge(HttpExchange exchange) throws IOException {
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        }
+
+        @Override
+        public void close() {
+            standIn.stop(0);
+        }
+
+        @Override
+        public void applyAction(Scope scope, StoreEventRow transitionFired, Action action, int actionIndex) {
+            delegate.applyAction(scope, transitionFired, action, actionIndex);
+        }
+
+        @Override
+        public ResolvedWebhookRequest resolveWebhookAction(
+                Scope scope, StoreEventRow transitionFired, WebhookAction action, int actionIndex) {
+            ResolvedWebhookRequest resolved =
+                    delegate.resolveWebhookAction(scope, transitionFired, action, actionIndex);
+            String standInUrl = "http://localhost:" + standIn.getAddress().getPort() + "/hook";
+            return new ResolvedWebhookRequest(standInUrl, resolved.method(), resolved.body());
+        }
+    }
+
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
@@ -150,25 +238,23 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
         BusinessObjectResponse project = createProject(projectTitle);
         BusinessObjectResponse owner = createPerson("Ada Lovelace");
 
-        BusinessObjectResponse withOwner =
-                restTestClient
-                        .put()
-                        .uri("/api/objects/Project/" + project.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(
-                                Map.of(
-                                        "version",
-                                        1,
-                                        "properties",
-                                        Map.of(
-                                                "title", List.of(projectTitle),
-                                                "owner", owner.id().toString())))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse withOwner = restTestClient
+                .put()
+                .uri("/api/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of(
+                                "title", List.of(projectTitle),
+                                "owner", owner.id().toString())))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
         assertThat(withOwner).isNotNull();
         assertThat(withOwner.version()).isEqualTo(2L);
 
@@ -177,41 +263,38 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
         assertThat(transitions.get(0).available()).as("activate now available").isTrue();
         assertThat(transitions.get(0).reason()).isNull();
 
-        BusinessObjectResponse activated =
-                restTestClient
-                        .post()
-                        .uri("/api/objects/Project/" + project.id() + "/transitions/activate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("expectedVersion", 2))
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .valueEquals("ETag", "\"3\"")
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse activated = restTestClient
+                .post()
+                .uri("/api/objects/Project/" + project.id() + "/transitions/activate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("expectedVersion", 2))
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("ETag", "\"3\"")
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(activated).isNotNull();
         assertThat(activated.state()).isEqualTo("Active");
         assertThat(activated.version()).isEqualTo(3L);
 
-        // The kickoff Task is created asynchronously by OutboxRelay draining the ActionRequest
-        // outbox row this transition wrote, not synchronously by the POST above — see this class's
-        // javadoc for why the title is "Kickoff: [Launch rocket]", brackets included.
+        // The kickoff Task is one action of the activate TransitionFired row, applied by the
+        // in-process automation adapter after the POST above returns. See this class's javadoc for
+        // why the title is "Kickoff: [Launch rocket]", brackets included.
         awaitKickoffTask("Kickoff: [" + projectTitle + "]");
     }
 
     /**
-     * REST-level proof that {@code POST /api/objects/{type}/{id}/signals/{name}} durably records a
-     * structurally valid signal and returns 202, per plan.md §6 ("core writes a {@code
-     * SignalReceived} entry and returns"). Whether the {@code reopen} signal actually moves the
-     * Closed Project back to Active is T12's end-to-end job (it needs the automation adapter to
-     * dispatch the resulting {@code SignalReceived} outbox row to {@code TriggerEvaluator.onSignal})
-     * — this test only proves the REST layer's own contract: 202, no body, and the signal is
-     * accepted for a type-wide-valid signal name regardless of the object's current state (per
-     * {@code TransitionService.signal}'s javadoc, signal validity is checked type-wide, not against
-     * the object's current state).
+     * REST-level proof that {@code POST /api/objects/{type}/{id}/signals/{name}} fires the transition
+     * the signal names in the request: the reply is 202 with no body, and the Project is already
+     * {@code Active} when the reply arrives, because the reopen commits before the reply is sent.
+     * The automation adapter applies the transition's actions afterwards from its {@code
+     * TransitionFired} row; this class does not test those, and {@link AutomationEndToEndTest} covers
+     * the automation path. The 409 for a signal that no transition departing the current state
+     * carries is {@link #reopenSignalOnActiveProjectIs409}.
      */
     @Test
     void reopenSignalOnClosedProjectIsAccepted() {
@@ -223,14 +306,13 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
                 .put()
                 .uri("/api/objects/Project/" + project.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
                         Map.of(
-                                "version",
-                                1,
-                                "properties",
-                                Map.of(
-                                        "title", List.of(projectTitle),
-                                        "owner", owner.id().toString())))
+                                "title", List.of(projectTitle),
+                                "owner", owner.id().toString())))
                 .exchange()
                 .expectStatus()
                 .isOk();
@@ -248,6 +330,63 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
                 .isEqualTo(HttpStatus.ACCEPTED)
                 .expectBody()
                 .isEmpty();
+
+        BusinessObjectResponse reopened = restTestClient
+                .get()
+                .uri("/api/objects/Project/" + project.id())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(reopened).isNotNull();
+        assertThat(reopened.state()).isEqualTo("Active");
+    }
+
+    /**
+     * A signal whose name the type declares, but that no transition departing the object's current
+     * state carries, is a 409 {@code transition-not-available}, with {@code transitionName} set to the
+     * signal name. The Project here is {@code Active}, and {@code reopen} departs only {@code Closed}.
+     */
+    @Test
+    void reopenSignalOnActiveProjectIs409() {
+        String projectTitle = "Reopen on an active project";
+        BusinessObjectResponse project = createProject(projectTitle);
+        BusinessObjectResponse owner = createPerson("Katherine Johnson");
+
+        restTestClient
+                .put()
+                .uri("/api/objects/Project/" + project.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "version",
+                        1,
+                        "properties",
+                        Map.of(
+                                "title", List.of(projectTitle),
+                                "owner", owner.id().toString())))
+                .exchange()
+                .expectStatus()
+                .isOk();
+
+        fireTransition(project.id(), "activate", 2);
+
+        restTestClient
+                .post()
+                .uri("/api/objects/Project/" + project.id() + "/signals/reopen")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of())
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.CONFLICT)
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.type")
+                .value(type -> assertThat(type.toString()).endsWith("transition-not-available"))
+                .jsonPath("$.transitionName")
+                .isEqualTo("reopen");
     }
 
     /**
@@ -304,7 +443,9 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
                 sleep(Duration.ofMillis(100));
             }
         }
-        assertThat(found).as("kickoff Task with title '%s' eventually appears", expectedTitle).isTrue();
+        assertThat(found)
+                .as("kickoff Task with title '%s' eventually appears", expectedTitle)
+                .isTrue();
     }
 
     private static boolean titleMatches(JsonNode title, String expectedTitle) {
@@ -369,16 +510,15 @@ class TransitionsEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private JsonNode fetchAsJson(String uri) {
-        byte[] responseBody =
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {

@@ -6,8 +6,8 @@ import java.util.UUID;
 
 /**
  * JSON response body for a single business object, rendered by {@code GET /objects/{type}/{id}},
- * {@code POST /objects/{type}}, {@code PUT /objects/{type}/{id}}, and as each element of {@link
- * PageResultResponse#items()}.
+ * {@code POST /objects/{type}}, {@code PUT /objects/{type}/{id}}, and as each element of
+ * {@code PageResultResponse#items()}.
  *
  * <p>{@code properties} is keyed by property short name, not full IRI — {@link
  * ObjectPropertyMapper} does that translation, mirroring {@link TypeResponseMapper}'s

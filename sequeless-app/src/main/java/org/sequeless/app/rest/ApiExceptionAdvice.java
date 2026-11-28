@@ -1,16 +1,16 @@
 package org.sequeless.app.rest;
 
 import java.net.URI;
-import org.sequeless.core.AuthorizationException;
-import org.sequeless.core.api.InvalidQueryException;
-import org.sequeless.core.api.TransitionNotAvailableException;
-import org.sequeless.core.api.TypeNotFoundException;
-import org.sequeless.core.api.UnknownSignalException;
-import org.sequeless.core.validation.ValidationException;
-import org.sequeless.spi.object.ObjectNotFoundException;
+import org.sequeless.kernel.values.ObjectNotFoundException;
+import org.sequeless.ontology.api.OntologyException;
 import org.sequeless.spi.object.StaleObjectException;
-import org.sequeless.spi.ontology.OntologyException;
-import org.sequeless.spi.validation.Violation;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.InvalidQueryException;
+import org.sequeless.store.core.api.TransitionNotAvailableException;
+import org.sequeless.store.core.api.TypeNotFoundException;
+import org.sequeless.store.core.api.UnknownSignalException;
+import org.sequeless.store.core.validation.ValidationException;
+import org.sequeless.store.spi.Violation;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * TypesController}; that is an intentional behaviour change, not scope creep.
  *
  * <p>Maps exactly three exception types, each escaping from {@link
- * org.sequeless.core.api.MetaModelService} (or, for {@link AuthorizationException}, from any use
+ * org.sequeless.app.admin.MetaModelService} (or, for {@link AuthorizationException}, from any use
  * case):
  *
  * <ul>
@@ -99,50 +99,73 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the validation failure escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService#add}/{@link
-     *     org.sequeless.core.api.BusinessObjectService#edit}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService#add}/{@link
+     *     org.sequeless.store.core.api.BusinessObjectService#edit}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying {@code source} ({@code "structural"} or
      *     {@code "shacl"}) and a {@code violations} array
      */
     @ExceptionHandler(ValidationException.class)
     public ProblemDetail handleValidation(ValidationException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/validation"));
         detail.setTitle("Validation failed");
         detail.setProperty(
-                "source",
-                exception.source() == ValidationException.Source.STRUCTURAL ? "structural" : "shacl");
+                "source", exception.source() == ValidationException.Source.STRUCTURAL ? "structural" : "shacl");
         detail.setProperty(
-                "violations", exception.violations().stream().map(ApiExceptionAdvice::toViolationBody).toList());
+                "violations",
+                exception.violations().stream()
+                        .map(ApiExceptionAdvice::toViolationBody)
+                        .toList());
         return detail;
     }
 
     /**
      * @param exception the invalid filter/sort/facet property or operator escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService#browse}; must not be {@code null}
+     *     org.sequeless.app.query.ObjectQueryService#browse}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying a {@code violations} array
      */
     @ExceptionHandler(InvalidQueryException.class)
     public ProblemDetail handleInvalidQuery(InvalidQueryException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/invalid-query"));
         detail.setTitle("Invalid query");
         detail.setProperty(
-                "violations", exception.violations().stream().map(ApiExceptionAdvice::toViolationBody).toList());
+                "violations",
+                exception.violations().stream()
+                        .map(ApiExceptionAdvice::toViolationBody)
+                        .toList());
+        return detail;
+    }
+
+    /**
+     * The released query service's rejection of a browse (spec 17 P2a): a filter, sort or facet its scope does not
+     * accept. Its problems are messages, not properties, so each renders as a violation with no property. The same
+     * 400 as {@link #handleInvalidQuery}.
+     *
+     * @param exception the released invalid-query exception; must not be {@code null}
+     * @return 400 with a {@link ProblemDetail} carrying a {@code violations} array
+     */
+    @ExceptionHandler(org.sequeless.query.api.InvalidQueryException.class)
+    public ProblemDetail handleReleasedInvalidQuery(org.sequeless.query.api.InvalidQueryException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setType(URI.create("https://sequeless.dev/problems/invalid-query"));
+        detail.setTitle("Invalid query");
+        detail.setProperty(
+                "violations",
+                exception.problems().stream()
+                        .map(problem -> new ViolationResponse(null, null, problem))
+                        .toList());
         return detail;
     }
 
     /**
      * @param exception the missing/deleted/mismatched-type object escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService}; must not be {@code null}
      * @return 404 with a {@link ProblemDetail} carrying the exception's own pre-formatted message
      */
     @ExceptionHandler(ObjectNotFoundException.class)
     public ProblemDetail handleObjectNotFound(ObjectNotFoundException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/object-not-found"));
         detail.setTitle("Object not found");
         return detail;
@@ -150,14 +173,13 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the optimistic-locking failure escaping from {@link
-     *     org.sequeless.core.api.BusinessObjectService#edit}/{@link
-     *     org.sequeless.core.api.BusinessObjectService#delete}; must not be {@code null}
+     *     org.sequeless.store.core.api.BusinessObjectService#edit}/{@link
+     *     org.sequeless.store.core.api.BusinessObjectService#delete}; must not be {@code null}
      * @return 409 with a {@link ProblemDetail} carrying {@link StaleObjectException#expectedVersion()}
      */
     @ExceptionHandler(StaleObjectException.class)
     public ProblemDetail handleStaleObject(StaleObjectException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/stale-object"));
         detail.setTitle("Stale object version");
         detail.setProperty("expectedVersion", exception.expectedVersion());
@@ -172,8 +194,7 @@ public class ApiExceptionAdvice {
     @ExceptionHandler(PreconditionRequiredException.class)
     public ProblemDetail handlePreconditionRequired(PreconditionRequiredException exception) {
         ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(
-                        HttpStatus.PRECONDITION_REQUIRED, exception.getMessage());
+                ProblemDetail.forStatusAndDetail(HttpStatus.PRECONDITION_REQUIRED, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/precondition-required"));
         detail.setTitle("Precondition required");
         return detail;
@@ -186,8 +207,7 @@ public class ApiExceptionAdvice {
      */
     @ExceptionHandler(PreconditionMismatchException.class)
     public ProblemDetail handlePreconditionMismatch(PreconditionMismatchException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/bad-request"));
         detail.setTitle("Conflicting version");
         return detail;
@@ -195,7 +215,7 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the unavailable-transition failure escaping from {@link
-     *     org.sequeless.core.api.TransitionService#fire}; must not be {@code null}
+     *     org.sequeless.store.core.api.TransitionService#fire}; must not be {@code null}
      * @return 409 with a {@link ProblemDetail} carrying {@link
      *     TransitionNotAvailableException#transitionName()}, detail text taken from {@link
      *     TransitionNotAvailableException#reason()} (not {@code getMessage()}, even though the two
@@ -204,8 +224,7 @@ public class ApiExceptionAdvice {
      */
     @ExceptionHandler(TransitionNotAvailableException.class)
     public ProblemDetail handleTransitionNotAvailable(TransitionNotAvailableException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.reason());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.reason());
         detail.setType(URI.create("https://sequeless.dev/problems/transition-not-available"));
         detail.setTitle("Transition not available");
         detail.setProperty("transitionName", exception.transitionName());
@@ -214,14 +233,13 @@ public class ApiExceptionAdvice {
 
     /**
      * @param exception the unrecognised signal name escaping from {@link
-     *     org.sequeless.core.api.TransitionService#signal}; must not be {@code null}
+     *     org.sequeless.store.core.api.TransitionService#signal}; must not be {@code null}
      * @return 400 with a {@link ProblemDetail} carrying {@link UnknownSignalException#typeIri()} and
      *     {@link UnknownSignalException#signalName()}
      */
     @ExceptionHandler(UnknownSignalException.class)
     public ProblemDetail handleUnknownSignal(UnknownSignalException exception) {
-        ProblemDetail detail =
-                ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
         detail.setType(URI.create("https://sequeless.dev/problems/unknown-signal"));
         detail.setTitle("Unknown signal");
         detail.setProperty("typeIri", exception.typeIri());
@@ -243,7 +261,7 @@ public class ApiExceptionAdvice {
     }
 
     /**
-     * Duplicates {@code MetaModelSnapshot}'s own short-name rule, for the same reason {@link
+     * Duplicates {@code Schema}'s own short-name rule, for the same reason {@link
      * TypeResponseMapper#shortName} and {@link ObjectPropertyMapper#shortName} do.
      */
     private static String shortName(String iri) {

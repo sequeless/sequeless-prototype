@@ -1,0 +1,59 @@
+package org.sequeless.app.admin;
+
+import org.sequeless.kernel.identity.Scope;
+import org.sequeless.ontology.api.ImportMode;
+import org.sequeless.ontology.api.ImportReport;
+import org.sequeless.ontology.api.OntologyDocument;
+import org.sequeless.ontology.api.OntologyException;
+import org.sequeless.ontology.api.OntologyFormat;
+import org.sequeless.store.api.Operation;
+import org.sequeless.store.core.AuthorizationException;
+import org.sequeless.store.core.api.BusinessObjectService;
+import org.sequeless.store.spi.AuthorizationPort;
+
+/**
+ * Administrative export/import of the ontology as a whole, distinct from the read-only, per-type
+ * access {@link MetaModelService} offers. Both operations here are administrative, not part of the
+ * ordinary content lifecycle {@link BusinessObjectService} covers, which is why both authorize
+ * {@link Operation#ADMIN} rather than {@link Operation#READ} or {@link Operation#EDIT}.
+ *
+ * @see org.sequeless.app.admin.DefaultOntologyAdministration
+ */
+public interface OntologyAdministration {
+
+    /**
+     * Serialises the ontology currently loaded for {@code scope} as Turtle.
+     *
+     * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING} before
+     * delegating to {@link org.sequeless.ontology.api.OntologyAdministration#export(Scope,
+     * OntologyFormat)} with {@link OntologyFormat#TURTLE}.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
+     *     null}
+     * @return a non-null document containing the serialised ontology
+     * @throws NullPointerException if {@code scope} is {@code null}
+     * @throws AuthorizationException if the authorization port denies the operation
+     * @throws OntologyException if the currently loaded ontology is inconsistent
+     */
+    OntologyDocument export(Scope scope);
+
+    /**
+     * Replaces the ontology currently loaded for {@code scope} with the Turtle document {@code
+     * content}.
+     *
+     * <p>Authorizes {@link Operation#ADMIN} against {@link AuthorizationPort#EVERYTHING}, wraps
+     * {@code content} in an {@link OntologyDocument} tagged {@link OntologyFormat#TURTLE}, and
+     * delegates to {@link org.sequeless.ontology.api.OntologyAdministration#importDocument(Scope,
+     * OntologyDocument, ImportMode)} with {@link ImportMode#REPLACE}. Preparing indexes for the
+     * resulting type system is the host's job, not this use case's.
+     *
+     * @param scope the tenant and principal the request is made on behalf of; must not be {@code
+     *     null}
+     * @param content the Turtle-serialised ontology document to import; must not be {@code null}
+     * @return a non-null report describing the outcome of the import
+     * @throws NullPointerException if either argument is {@code null}
+     * @throws AuthorizationException if the authorization port denies the operation
+     * @throws OntologyException if the resulting ontology is inconsistent
+     */
+    ImportReport importTurtle(Scope scope, String content);
+}

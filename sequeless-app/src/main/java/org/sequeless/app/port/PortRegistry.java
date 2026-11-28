@@ -28,7 +28,7 @@ import org.springframework.core.env.Environment;
  * SmartInitializingSingleton#afterSingletonsInstantiated()} runs in a dedicated second pass, after
  * every singleton (including the {@code @Lazy} proxy in {@code CoreConfiguration.whoAmI}) is
  * already constructed, which is exactly when counting real {@link
- * org.sequeless.spi.authz.AuthorizationPort} beans becomes meaningful.
+ * org.sequeless.store.spi.AuthorizationPort} beans becomes meaningful.
  *
  * <p>Bean counting uses {@link ListableBeanFactory#getBeanNamesForType(Class, boolean, boolean)}
  * with {@code allowEagerInit = false}, so counting itself can never instantiate a bean — this
@@ -55,7 +55,7 @@ public class PortRegistry implements SmartInitializingSingleton, BeanFactoryAwar
     public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
         if (!(beanFactory instanceof ListableBeanFactory listableBeanFactory)) {
             throw new IllegalStateException(
-                "PortRegistry requires a ListableBeanFactory, but got " + beanFactory.getClass());
+                    "PortRegistry requires a ListableBeanFactory, but got " + beanFactory.getClass());
         }
         this.beanFactory = listableBeanFactory;
     }
@@ -73,12 +73,10 @@ public class PortRegistry implements SmartInitializingSingleton, BeanFactoryAwar
             throw PortBindingException.propertyNotSet(definition, available);
         }
 
-        AdapterDescriptor descriptor =
-            available.stream()
+        AdapterDescriptor descriptor = available.stream()
                 .filter(candidate -> candidate.name().equals(configuredValue))
                 .findFirst()
-                .orElseThrow(
-                    () -> PortBindingException.unknownAdapter(configuredValue, definition, available));
+                .orElseThrow(() -> PortBindingException.unknownAdapter(configuredValue, definition, available));
 
         if (!SpiVersion.isCompatibleWith(descriptor.spiVersionRange())) {
             throw PortBindingException.incompatibleVersion(descriptor, definition);
@@ -95,9 +93,9 @@ public class PortRegistry implements SmartInitializingSingleton, BeanFactoryAwar
 
     private static List<AdapterDescriptor> discoverDescriptors(Class<?> portType) {
         return ServiceLoader.load(AdapterDescriptorProvider.class).stream()
-            .map(ServiceLoader.Provider::get)
-            .map(AdapterDescriptorProvider::descriptor)
-            .filter(descriptor -> descriptor.port().equals(portType))
-            .toList();
+                .map(ServiceLoader.Provider::get)
+                .map(AdapterDescriptorProvider::descriptor)
+                .filter(descriptor -> descriptor.port().equals(portType))
+                .toList();
     }
 }

@@ -44,19 +44,20 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * WhoAmIEndToEndTest} and {@code ReasonerSwitchEndToEndTest} already avoid this the same way, each
  * with their own distinguishing {@code properties} value.
  */
-@SpringBootTest(
-        webEnvironment = RANDOM_PORT,
-        properties = "sequeless.persistence.adapter=postgres")
+@SpringBootTest(webEnvironment = RANDOM_PORT, properties = "sequeless.persistence.adapter=postgres")
 class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
 
-    @LocalServerPort private int port;
+    @LocalServerPort
+    private int port;
 
     private RestTestClient restTestClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        restTestClient = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        restTestClient = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build();
     }
 
     @Test
@@ -68,18 +69,17 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
         assertThat(created.properties()).containsEntry("title", List.of("Write plan"));
         assertThat(created.audit().createdBy()).isEqualTo("anonymous");
 
-        BusinessObjectResponse read =
-                restTestClient
-                        .get()
-                        .uri("/api/objects/Task/" + created.id())
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .valueEquals("ETag", "\"1\"")
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse read = restTestClient
+                .get()
+                .uri("/api/objects/Task/" + created.id())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("ETag", "\"1\"")
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(read).isEqualTo(created);
 
@@ -119,30 +119,26 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
     @Test
     void createReturnsApiPrefixedRelativeLocationAndETag() {
         Map<String, Object> body = Map.of("properties", Map.of("title", List.of("Ship it")));
-        var response =
-                restTestClient
-                        .post()
-                        .uri("/api/objects/Task")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(body)
-                        .exchange()
-                        .expectStatus()
-                        .isCreated();
+        var response = restTestClient
+                .post()
+                .uri("/api/objects/Task")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .exchange()
+                .expectStatus()
+                .isCreated();
 
         BusinessObjectResponse created =
                 response.expectBody(BusinessObjectResponse.class).returnResult().getResponseBody();
         assertThat(created).isNotNull();
 
-        response
-                .expectHeader()
-                .value(
-                        "Location",
-                        location -> {
-                            assertThat(location).isEqualTo("/api/objects/Task/" + created.id());
-                            URI locationUri = URI.create(location);
-                            assertThat(locationUri.getScheme()).as("Location scheme").isNull();
-                            assertThat(locationUri.getHost()).as("Location host").isNull();
-                        })
+        response.expectHeader()
+                .value("Location", location -> {
+                    assertThat(location).isEqualTo("/api/objects/Task/" + created.id());
+                    URI locationUri = URI.create(location);
+                    assertThat(locationUri.getScheme()).as("Location scheme").isNull();
+                    assertThat(locationUri.getHost()).as("Location host").isNull();
+                })
                 .expectHeader()
                 .valueEquals("ETag", "\"1\"");
     }
@@ -151,23 +147,21 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
     void updateWithCorrectVersionSucceeds() {
         BusinessObjectResponse created = createTask(Map.of("title", List.of("Original title")));
 
-        Map<String, Object> updateBody =
-                Map.of("version", 1, "properties", Map.of("title", List.of("Updated title")));
+        Map<String, Object> updateBody = Map.of("version", 1, "properties", Map.of("title", List.of("Updated title")));
 
-        BusinessObjectResponse updated =
-                restTestClient
-                        .put()
-                        .uri("/api/objects/Task/" + created.id())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(updateBody)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectHeader()
-                        .valueEquals("ETag", "\"2\"")
-                        .expectBody(BusinessObjectResponse.class)
-                        .returnResult()
-                        .getResponseBody();
+        BusinessObjectResponse updated = restTestClient
+                .put()
+                .uri("/api/objects/Task/" + created.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(updateBody)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("ETag", "\"2\"")
+                .expectBody(BusinessObjectResponse.class)
+                .returnResult()
+                .getResponseBody();
 
         assertThat(updated).isNotNull();
         assertThat(updated.version()).isEqualTo(2L);
@@ -178,8 +172,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
     void updateWithWrongVersionIs409() {
         BusinessObjectResponse created = createTask(Map.of("title", List.of("Stale me")));
 
-        Map<String, Object> updateBody =
-                Map.of("version", 99, "properties", Map.of("title", List.of("Will not land")));
+        Map<String, Object> updateBody = Map.of("version", 99, "properties", Map.of("title", List.of("Will not land")));
 
         restTestClient
                 .put()
@@ -200,8 +193,7 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
     void updateWithNeitherVersionNorIfMatchIs428() {
         BusinessObjectResponse created = createTask(Map.of("title", List.of("No version supplied")));
 
-        Map<String, Object> updateBody =
-                Map.of("properties", Map.of("title", List.of("Attempted update")));
+        Map<String, Object> updateBody = Map.of("properties", Map.of("title", List.of("Attempted update")));
 
         restTestClient
                 .put()
@@ -294,16 +286,15 @@ class ObjectsEndToEndTest extends PostgresTestcontainersSupport {
     }
 
     private JsonNode fetchAsJson(String uri) {
-        byte[] responseBody =
-                restTestClient
-                        .get()
-                        .uri(uri)
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody()
-                        .returnResult()
-                        .getResponseBody();
+        byte[] responseBody = restTestClient
+                .get()
+                .uri(uri)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
         try {
             return objectMapper.readTree(responseBody);
         } catch (Exception exception) {

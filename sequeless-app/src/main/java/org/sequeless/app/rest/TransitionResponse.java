@@ -1,6 +1,6 @@
 package org.sequeless.app.rest;
 
-import org.sequeless.core.statemachine.TransitionAvailability;
+import org.sequeless.store.core.statemachine.TransitionAvailability;
 
 /**
  * JSON response body for one element of {@code GET /objects/{type}/{id}/transitions}: whether a
@@ -20,6 +20,8 @@ public record TransitionResponse(String name, boolean available, String reason) 
      */
     static TransitionResponse from(TransitionAvailability availability) {
         return new TransitionResponse(
-                availability.name(), availability.available(), availability.reason().orElse(null));
+                availability.name(),
+                availability.available(),
+                availability.reason().orElse(null));
     }
 }
