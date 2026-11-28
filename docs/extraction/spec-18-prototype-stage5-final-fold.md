@@ -172,7 +172,7 @@ Order: U2 > U3 > U4 > U5 > U6 > U7 > U8 > U9 > (U10 parallel with U13) > U11 > U
 | U12d | `AdapterDescriptor`, `AdapterDescriptorProvider` and `SpiVersion` move to `sequeless-app`; delete `sequeless-spi` and `sequeless-spi-testkit` after a grep for consumers (Q22). | Done: #237, be96027. |
 | U13 | `ontology-postgres-adapter` module in `sequeless-ontology`, test-scope dependency on `store-postgres-jsonb-adapter` 0.1.0 (Q-F), no migration; release-please package and manifest entry at 0.1.0. Runs in parallel with U10 after U9. | Done: sequeless-ontology #27, `d545aae`; release PR #28, `d78e306`; tag `ontology-postgres-adapter-v0.1.0` |
 | U13b | BOM 0.5.0 via `feat(bom)`; ontology-postgres-adapter entries only; `ontology-core` 0.2.0 pin in `bom-contracts` (F2); no-version resolution check (F1). Needs U10 and U13 releases. | Done: sequeless-build #74 f0408e7, #76 99f1dd9; release #75 f1b9fa5; BOM 0.5.0 2026-11-28 |
-| U14 | The prototype deletes `PostgresOntologyDocumentStore`, in a commit naming `sequeless-ontology` and the import SHA; BOM pin moves to 0.5.0. Needs U12d, U13 and U13b released. | Done in this PR (`Refs #46`); PR number and squash SHA are recorded in the follow-up after merge. |
+| U14 | The prototype deletes `PostgresOntologyDocumentStore`, in a commit naming `sequeless-ontology` and the import SHA; BOM pin moves to 0.5.0. Needs U12d, U13 and U13b released. | Done: #238, 6a94524. |
 
 The amended list's U12 is split into U12a to U12d. The Q10 numbering (U11 for the fold, U12 for ontology) is superseded.
 
@@ -180,12 +180,14 @@ The amended list's U12 is split into U12a to U12d. The Q10 numbering (U11 for th
 
 - [x] The new repository's CI is green (`sequeless-store`, U7 to U9).
   - Note (U14): ticked on this evidence. `sequeless-store` main at `b0b5378` has CI, Release and CodeQL all green, and no PR is open there.
-- [ ] The prototype's CI is green against released artifacts, never a SNAPSHOT on `main` (U11, U14).
+- [x] The prototype's CI is green against released artifacts, never a SNAPSHOT on `main` (U11, U14).
+  - Note (U14): ticked on the post-merge CI of the squash commit `6a94524` (CI and CodeQL, both success). Every dependency resolves from `sequeless-bom` 0.5.0. The only SNAPSHOT in the tree is the project's own `sequeless-app` 0.1.0-SNAPSHOT, not a dependency.
 - [x] The BOM's CI, which runs every testkit contract, is green (U10, U13b).
   - Note (U11): the store contract run in the BOM was deferred until sequeless-build#71 closed. The U10 `StoreBomContractTest` is a compile and link check only, with the O2 gap recorded (section 2). sequeless-build#71 closed on 2026-11-28 (with #77); see the U12c note.
   - Note (U12c): ticked on this evidence. sequeless-build #71 and #77 are closed. PR #79 (`5dd3244`) and PR #80 (`ede0dd2`) are merged, and the BOM CI runs the store contracts on PostgreSQL 18. U13b has landed too: sequeless-build #74 (`f0408e7`) and #76 (`99f1dd9`) are merged, release #75 (`f1b9fa5`) is out, and BOM 0.5.0 was published on 2026-11-28 with the ontology-postgres-adapter entries (#74). This tick covers the store contracts and U13b.
 - [x] The release and the BOM re-release are done (U9, U10, U13b).
-- [ ] For cut-over specs: the prototype deleted the moved code in a commit that names the target repository and the import commit's SHA (U11, U14).
+- [x] For cut-over specs: the prototype deleted the moved code in a commit that names the target repository and the import commit's SHA (U11, U14).
+  - Note (U14): ticked on the deletion commit, squash `6a94524` (PR #238, from `2079c82`). Its message names `sequeless-ontology` with import commit `d545aae` (release `d78e306`, PR #28), and `sequeless-build` tag `sequeless-bom-v0.5.0` at `f1b9fa5`.
 
 The Refs on the PRs are `#46`, never a closing keyword, until every item above holds.
 
