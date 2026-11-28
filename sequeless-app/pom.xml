@@ -38,11 +38,6 @@
     </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sequeless</groupId>
       <artifactId>ontology-core</artifactId>
     </dependency>
     <dependency>
@@ -159,7 +154,7 @@
       <artifactId>automation-spring-boot-autoconfig</artifactId>
     </dependency>
 
-    <!-- Spec 18 U11: the store's test doubles and contracts (org.sequeless.testkit), replacing sequeless-spi-testkit. -->
+    <!-- Spec 18 U11: the store's test doubles and contracts (org.sequeless.testkit), taken from store-testkit. -->
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>store-testkit</artifactId>
