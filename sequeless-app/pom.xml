@@ -106,10 +106,14 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!--
+      Spec 18 U12b: the Jena wiring (JenaOntologyAutoConfiguration, ShaclValidationAutoConfiguration, their descriptors and
+      ValidationSchemaAdapter) lives in this module now, under org.sequeless.adapter.ontology.jena. The released
+      ontology-jena-adapter is the only Jena-backed dependency it needs. No version here: the BOM manages it.
+    -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-adapter-ontology-jena</artifactId>
-      <version>${project.version}</version>
+      <artifactId>ontology-jena-adapter</artifactId>
     </dependency>
 
     <!--

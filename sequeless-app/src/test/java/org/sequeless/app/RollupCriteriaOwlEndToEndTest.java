@@ -29,7 +29,8 @@ import org.sequeless.store.spi.Operator;
  * integer 3.
  *
  * <p>It lives in {@code sequeless-app} because that is the only module that sees core, the released
- * loader and the Jena wiring together. {@code sequeless-adapter-ontology-jena} may not depend on core.
+ * loader and the Jena wiring together. The Jena wiring ({@code org.sequeless.adapter.ontology.jena})
+ * may not depend on core.
  */
 class RollupCriteriaOwlEndToEndTest {
 

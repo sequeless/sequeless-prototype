@@ -22,19 +22,24 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * PermitAllAuthorizationAutoConfigurationTest}); that end-to-end proof belongs to the application
  * module that assembles adapters together.
  *
- * <p>Since T8, this file names two auto-configurations ({@link JenaOntologyAutoConfiguration} and
- * {@link ShaclValidationAutoConfiguration}); this test asserts against exactly two entries and
- * checks both by name (order-independent) rather than {@code get(0)}, so a future third entry
- * fails loudly here instead of silently going unchecked.
+ * <p>Since T8, the Jena wiring names two auto-configurations ({@link JenaOntologyAutoConfiguration} and
+ * {@link ShaclValidationAutoConfiguration}). Since spec 18 U12b the imports file is shared with the
+ * Postgres wiring, so this test filters to the {@code org.sequeless.adapter.ontology.jena} package and
+ * asserts exactly those two entries, checked by name (order-independent) rather than {@code get(0)}.
+ * A future third Jena entry still fails loudly here.
  */
 class JenaOntologyAutoConfigurationTest {
 
     private static final String IMPORTS_RESOURCE =
             "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
+    private static final String JENA_PACKAGE_PREFIX = "org.sequeless.adapter.ontology.jena.";
+
     @Test
     void importsFileNamesACorrectlyAnnotatedAutoConfiguration() throws IOException {
-        List<String> classNames = readNonBlankLines(IMPORTS_RESOURCE);
+        List<String> classNames = readNonBlankLines(IMPORTS_RESOURCE).stream()
+                .filter(name -> name.startsWith(JENA_PACKAGE_PREFIX))
+                .toList();
         assertThat(classNames)
                 .containsExactlyInAnyOrder(
                         JenaOntologyAutoConfiguration.class.getName(),
