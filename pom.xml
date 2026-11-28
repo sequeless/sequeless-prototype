@@ -15,14 +15,11 @@
   <packaging>pom</packaging>
 
   <name>sequeless-prototype</name>
-  <description>Root reactor POM for Sequeless. Its parent is sequeless-build-parent, which has no Spring in it,
-    so sequeless-spi still inherits no Spring Boot build conventions (Lombok and
-    Spring must stay out of the SPI and core modules). This root imports the Spring Boot dependencies
-    BOM for the adapters and the host.</description>
+  <description>Root reactor POM for Sequeless. Its parent is sequeless-build-parent, which has no Spring in it.
+    Lombok and Spring must stay out of the SPI and core code; ArchUnit in sequeless-app enforces this. This root
+    imports the Spring Boot dependencies BOM for the adapters and the host.</description>
 
   <modules>
-    <module>sequeless-spi</module>
-    <module>sequeless-spi-testkit</module>
     <module>sequeless-adapter-persistence-postgres</module>
     <module>sequeless-app</module>
   </modules>
@@ -204,11 +201,11 @@
       <plugins>
         <!--
           Full japicmp configuration lives here so a bare <plugin> declaration in a module's own
-          <build><plugins> (e.g. sequeless-spi) inherits both this configuration and the
-          japicmp-verify execution bound to the verify phase. No sequeless-spi artifact has ever
-          been published, so oldVersion RELEASE fails to resolve; ignoreMissingOldVersion makes
-          that a skipped no-op today. This becomes a real compatibility gate once an SPI GA is
-          published. The parent has no japicmp, so this stays here.
+          <build><plugins> inherits both this configuration and the japicmp-verify execution bound
+          to the verify phase. No module declares japicmp at present. oldVersion RELEASE fails to
+          resolve when a module has no published artifact, so ignoreMissingOldVersion makes that a
+          skipped no-op. This becomes a real compatibility gate once an SPI GA is published. The
+          parent has no japicmp, so this stays here.
         -->
         <plugin>
           <groupId>com.github.siom79.japicmp</groupId>

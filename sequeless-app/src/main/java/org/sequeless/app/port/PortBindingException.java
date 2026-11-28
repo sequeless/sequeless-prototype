@@ -70,7 +70,7 @@ public final class PortBindingException extends RuntimeException {
     public static PortBindingException incompatibleVersion(AdapterDescriptor descriptor, PortDefinition definition) {
         String message = "Adapter '%s' for property '%s' requires SPI '%s', but this application runs SPI %s"
                 .formatted(descriptor.name(), definition.property(), descriptor.spiVersionRange(), SpiVersion.VERSION);
-        String action = "Upgrade sequeless-spi or use a build of '%s' compatible with SPI %s"
+        String action = "Upgrade sequeless-app or use a build of '%s' compatible with SPI %s"
                 .formatted(descriptor.name(), SpiVersion.VERSION);
         return new PortBindingException(message, action);
     }
