@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  * Postgres — even when that second context's {@code sequeless.ontology.source} points at a file
  * that does not exist, which would fail startup if the new context ever fell back to reading it.
  * This proves the new type is served from {@code sq_ontology_document}, not from any file on disk
- * (F43: {@code POST /api/ontology} persists via {@code PostgresOntologyDocumentStore.activate} before
+ * (F43: {@code POST /api/ontology} persists via the {@code OntologyDocumentStore} port's {@code activate} before
  * ever swapping the in-memory model, and {@code JenaOntologyPort#fromStore} only reads {@code
  * sequeless.ontology.source} when the store has no active document yet for the tenant).
  *
