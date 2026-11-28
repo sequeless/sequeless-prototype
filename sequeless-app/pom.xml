@@ -112,6 +112,12 @@
       <version>${project.version}</version>
     </dependency>
 
+    <!--
+      Spec 18 U12a: the Postgres wiring (autoconfiguration, properties, adapter descriptor, migrating DataSource and the
+      composed migration) lives in this module now. The persistence module is kept only while it still holds
+      PostgresOntologyDocumentStore, until spec 18 U14: this dependency is dropped then, or earlier once no reference to that
+      class is left in this module (OntologyPersistenceAcrossRestartIT names it in a javadoc line).
+    -->
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>sequeless-adapter-persistence-postgres</artifactId>
@@ -184,11 +190,9 @@
     </dependency>
 
     <!--
-      Not transitive from sequeless-adapter-persistence-postgres: that module declares this
-      dependency <optional>true</optional>, so the application assembling the adapter must bring
-      its own copy for PostgresPersistenceAutoConfiguration's JdbcClient/DataSourceTransactionManager
-      and the HikariCP connection pool bits it transitively pulls in. No version here: inherited
-      from the Spring Boot BOM.
+      Spec 18 U12a: PostgresPersistenceAutoConfiguration now lives in this module and builds its JdbcClient,
+      DataSourceTransactionManager and HikariCP pool, so this module declares the starter itself. No version here:
+      inherited from the Spring Boot BOM.
     -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

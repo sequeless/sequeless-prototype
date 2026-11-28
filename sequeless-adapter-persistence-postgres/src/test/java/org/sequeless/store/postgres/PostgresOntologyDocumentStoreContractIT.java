@@ -35,7 +35,7 @@ class PostgresOntologyDocumentStoreContractIT extends OntologyDocumentStoreContr
     static void migrate() {
         dataSource = new SimpleDriverDataSource(
                 new org.postgresql.Driver(), POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-        ComposedMigrations.migrate(dataSource);
+        PostgresMigrations.migrate(dataSource, org.sequeless.query.postgres.PostgresMigrations::migrate);
     }
 
     @AfterEach
