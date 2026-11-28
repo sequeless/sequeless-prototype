@@ -16,6 +16,10 @@ import org.sequeless.store.spi.AuthorizationPort;
  * exactly as the application does, rather than constructing {@link
  * PermitAllAdapterDescriptorProvider} directly. Instantiating it directly would prove nothing
  * about whether the service file actually wires the provider up for discovery.
+ *
+ * <p>The services file is shared with the Postgres and Jena providers (spec 18 U12c), so the loaded providers are
+ * filtered to {@link PermitAllAdapterDescriptorProvider} before the count. {@link ServiceLoader} ignores a repeated
+ * provider name, so a duplicate line cannot be seen here; a missing entry fails.
  */
 class PermitAllAdapterDescriptorProviderTest {
 
@@ -23,6 +27,7 @@ class PermitAllAdapterDescriptorProviderTest {
     void isDiscoverableViaServiceLoaderAndDescribesItselfCorrectly() {
         List<AdapterDescriptorProvider> providers = ServiceLoader.load(AdapterDescriptorProvider.class).stream()
                 .map(ServiceLoader.Provider::get)
+                .filter(PermitAllAdapterDescriptorProvider.class::isInstance)
                 .toList();
 
         assertThat(providers).hasSize(1);

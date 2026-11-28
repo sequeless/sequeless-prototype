@@ -33,8 +33,8 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Exercises {@link PortRegistry}'s fail-fast checks end to end against real Spring contexts, built
- * with {@link ApplicationContextRunner} rather than a booted web server. {@code
- * sequeless-adapter-authz-permitall} is a real compile dependency of {@code sequeless-app}, so its
+ * with {@link ApplicationContextRunner} rather than a booted web server. The permit-all adapter is
+ * part of {@code sequeless-app} (package {@code org.sequeless.adapter.authz.permitall}), so its
  * {@code META-INF/services} entry is genuinely discovered by {@link
  * java.util.ServiceLoader} — none of these tests need to mock adapter discovery.
  */

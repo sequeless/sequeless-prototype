@@ -17,8 +17,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 /**
  * Wires {@link PostgresObjectStore} into the Spring context when {@code
  * sequeless.persistence.adapter} is set to {@code postgres}, mirroring the Jena wiring's {@code
- * JenaOntologyAutoConfiguration} and {@code
- * sequeless-adapter-authz-permitall}'s {@code PermitAllAuthorizationAutoConfiguration} exactly.
+ * JenaOntologyAutoConfiguration} and the permit-all wiring's {@code PermitAllAuthorizationAutoConfiguration}
+ * exactly.
  *
  * <p>Deliberately has no {@code matchIfMissing}: when the property is unset, the condition must
  * evaluate to {@code false} and no {@link ObjectStorePort} bean must exist here at all, so the
