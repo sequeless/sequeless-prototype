@@ -1,30 +1,10 @@
 /**
- * Outbound port interfaces and immutable value types for Sequeless.
+ * Adapter registration for Sequeless: {@link org.sequeless.spi.SpiVersion}, {@link org.sequeless.spi.AdapterDescriptor} and
+ * {@link org.sequeless.spi.AdapterDescriptorProvider}, which support runtime adapter discovery and compatibility checking.
  *
- * <p>This package, and every package beneath {@code org.sequeless.spi}, imports nothing outside the
- * JDK ({@code java.*}) and the released sequeless-kernel ({@code org.sequeless.kernel.*}). That
- * constraint is enforced twice: once mechanically at build time by a {@code
- * maven-enforcer-plugin} {@code bannedDependencies} rule, and once structurally by an ArchUnit rule
- * in {@code sequeless-app} that asserts no class under {@code org.sequeless.spi..} or {@code
- * org.sequeless.store.spi..} depends on anything outside {@code java..}, {@code
- * org.sequeless.kernel..}, the released ontology contracts and their own packages. Adapters and the
- * application depend on this module; this module depends on the kernel and on nothing else of
- * Sequeless's own. The outbound ports renamed into {@code org.sequeless.store.spi} by spec 18 are
- * documented in that package.
- *
- * <p>{@link org.sequeless.kernel.identity.TenantId}, {@link org.sequeless.kernel.identity.Principal}, and {@link
- * org.sequeless.kernel.identity.Scope} carry request context across every port boundary. {@link
- * org.sequeless.spi.SpiVersion}, {@link org.sequeless.spi.AdapterDescriptor}, and {@link
- * org.sequeless.spi.AdapterDescriptorProvider} support runtime adapter discovery and
- * compatibility checking. Per-port contracts (the first being authorization) live in subpackages
- * such as {@link org.sequeless.store.api}, the three halves of the ontology in {@link
- * org.sequeless.ontology.schema.api}, {@code org.sequeless.ontology.behaviour.api} and {@code
- * org.sequeless.ontology.automation.api}, {@link org.sequeless.spi.object}, {@link
- * org.sequeless.ontology.api}, {@link org.sequeless.spi.query}, the Store's outbound ports in
- * {@link org.sequeless.store.spi} (validation, derivation — the {@code sq:Plugin} vocabulary for
- * derived properties computed by named, {@code ServiceLoader}-discovered code rather than
- * declaratively — and the rest), and {@code org.sequeless.expression.api} — the {@code
- * ExpressionPort} that evaluates JEXL-family expressions authored in the ontology, such as {@code
- * sq:guard}.
+ * <p>This module imports nothing outside the JDK. A maven-enforcer {@code bannedDependencies} rule enforces that at build time,
+ * and an ArchUnit rule in {@code sequeless-app} enforces it structurally. The Command ports and their types ({@code
+ * org.sequeless.store.spi}, {@code org.sequeless.store.api}, {@code org.sequeless.spi.object}) come from the released
+ * sequeless-store (spec 18, U11). The Query ports ({@code org.sequeless.spi.query}) live in {@code sequeless-app}.
  */
 package org.sequeless.spi;

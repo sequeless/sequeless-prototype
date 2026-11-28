@@ -1,17 +1,10 @@
 /**
- * The default {@code ObjectStorePort} adapter, backed by PostgreSQL 18 JSONB storage: {@link
- * org.sequeless.store.postgres.PostgresObjectStore} for {@code sq_object} and
- * {@code sq_outbox}, {@link org.sequeless.store.postgres.PostgresOntologyDocumentStore}
- * for {@code sq_ontology_document}, and a tagged-JSON {@link
- * org.sequeless.store.postgres.ValueJsonCodec} for property values. The schema is
- * owned by this module's own two Flyway migration sets, run independently of Spring Boot's Flyway
- * autoconfiguration: the Command set under {@code classpath:db/migration/sequeless/postgres}, and the
- * Query set (index registries and the GIN index) under {@code
- * classpath:db/migration/sequeless/postgres-query}.
+ * The host's Postgres wiring (spec 18, U11): the Spring autoconfiguration, its properties, the adapter descriptor, the
+ * migrating {@code DataSource} and the composed migration. They run the released sequeless-store Postgres adapter, whose
+ * Command classes are in package {@code org.sequeless.store.postgres} in {@code store-postgres-jsonb-adapter}.
  *
- * <p>Spring auto-configuration wiring ({@code PostgresPersistenceAutoConfiguration}) lands in a
- * later task; this package can already be used standalone by constructing {@link
- * org.sequeless.store.postgres.PostgresObjectStore} directly from a hand-built
- * {@code JdbcClient} and {@code PlatformTransactionManager}.
+ * <p>{@link org.sequeless.store.postgres.ComposedMigrations} runs the Command set and the Query set in the order the search
+ * trigger needs. {@code PostgresPersistenceAutoConfiguration} wires the store's adapter into the Spring context. The ontology
+ * document store ({@code PostgresOntologyDocumentStore}) stays in this module until spec 18 unit U14.
  */
 package org.sequeless.store.postgres;

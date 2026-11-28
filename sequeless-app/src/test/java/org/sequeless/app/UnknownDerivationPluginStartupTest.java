@@ -15,7 +15,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
  * startup, naming the unresolved plug-in, rather than booting into a state where the failure would
  * only surface the first time a derived value needed computing.
  *
- * <p>{@code unknown-plugin.ttl} (from {@code sequeless-spi-testkit}, a test-scope dependency of
+ * <p>{@code unknown-plugin.ttl} (from {@code store-testkit}, a test-scope dependency of
  * this module) is {@code reference.ttl} plus one extra derived property, {@code ex:workload} on
  * {@code ex:Person}, whose {@code sq:pluginName} is {@code "does-not-exist"} — a name no {@code
  * META-INF/services/org.sequeless.store.spi.DerivationPlugin} entry on this classpath

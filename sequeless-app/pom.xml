@@ -58,10 +58,19 @@
       <artifactId>automation-contract</artifactId>
     </dependency>
 
+    <!--
+      Spec 18 U11: the Command side is the released sequeless-store. store-core holds the Command use cases and the
+      store.spi and store.api ports (including the inbound port the automation StoreCommandPort calls).
+      store-postgres-jsonb-adapter is the Postgres command adapter the persistence wiring builds. No version here:
+      the BOM manages them.
+    -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-core</artifactId>
-      <version>${project.version}</version>
+      <artifactId>store-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>store-postgres-jsonb-adapter</artifactId>
     </dependency>
 
     <!--
@@ -146,10 +155,10 @@
       <artifactId>automation-spring-boot-autoconfig</artifactId>
     </dependency>
 
+    <!-- Spec 18 U11: the store's test doubles and contracts (org.sequeless.testkit), replacing sequeless-spi-testkit. -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi-testkit</artifactId>
-      <version>${project.version}</version>
+      <artifactId>store-testkit</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

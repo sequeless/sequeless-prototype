@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -21,19 +20,16 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Settles the Command/Query migration split of spec 13, P7 (spec 13 lines 121 and 128), against a
- * real PostgreSQL 18 started by Testcontainers. Each test empties the {@code public} schema first, so
- * it starts with no migration history.
+ * The host's settling cases for the composed migration (spec 13, P7; spec 18, U11 and G4), run by {@link ComposedMigrations}
+ * against a real PostgreSQL 18 started by Testcontainers. Each test empties the {@code public} schema first, so it starts with
+ * no migration history.
  *
- * <p>The three starting states are: a fresh database; a database that ran the cut-over (the frozen
- * Command V1 to V4 set, with V2 recorded, copied from commit {@code 3328993}); and a database that ran
- * P2a's set (the frozen Command V1 to V5 set, copied from commit {@code fbb82c5}). The two frozen cases
- * migrate to the live set as it now stands. The frozen post-P7 set is the set as it stood at P7; later
- * migrations, starting with V7, may follow it, so the live set can be ahead of the frozen post-P7 set.
- * The pair from after P7 to after P2 (case f) starts at the frozen post-P7 set, migrates to the frozen
- * post-P2 set, and then to the live set. The pair from after P2 to after P3 (case g) starts at the frozen
- * post-P2 set, migrates to the frozen post-P3 set, and then to the live set. The pair from after P3 to after
- * P4 (case h) starts at the frozen post-P3 set, migrates to the frozen post-P4 set, and then to the live set.
+ * <p>The host keeps the cases that need the Query set: the two frozen layouts that the cut-over produced (the frozen Command
+ * V1 to V4 set, copied from commit {@code 3328993}, and P2a's set, copied from commit {@code fbb82c5}), the Query history, and the
+ * bare-database cases (a default write works, a command-only write fails, and the default Query history matches the released
+ * Query migrate). The command-only pairs (after P7, P2 and P3) are the store's, in the store repository, because their frozen
+ * inputs were removed from this repository in the cut-over. The pair cases that started from the frozen post-P7, post-P2 and
+ * post-P3 Command sets are therefore not run here.
  */
 @Testcontainers
 class PostgresMigrationsSettlingIT {
@@ -43,10 +39,6 @@ class PostgresMigrationsSettlingIT {
 
     private static final String FROZEN_3328993 = "classpath:frozen-migrations/3328993";
     private static final String FROZEN_FBB82C5 = "classpath:frozen-migrations/fbb82c5";
-    private static final String FROZEN_POST_P7 = "classpath:frozen-migrations/post-p7/command";
-    private static final String FROZEN_POST_P2 = "classpath:frozen-migrations/post-p2/command";
-    private static final String FROZEN_POST_P3 = "classpath:frozen-migrations/post-p3/command";
-    private static final String FROZEN_POST_P4 = "classpath:frozen-migrations/post-p4/command";
     private static final String TENANT = "acme";
     private static final String TITLE_IRI = "https://sequeless.test/settling#title";
 
@@ -78,110 +70,10 @@ class PostgresMigrationsSettlingIT {
         JdbcClient.create(dataSource).sql("CREATE SCHEMA public").update();
     }
 
-    /**
-     * Settling case (f): the pair from after P7 to after P2. A database at the frozen post-P7 set (V1 and V3
-     * to V6, no V2) migrates to the frozen post-P2 set (V1 and V3 to V8), and then to the live set.
-     */
-    @Test
-    void frozenPostP7LayoutMigratesThroughThePostP2Set() {
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations(FROZEN_POST_P7)
-                .load()
-                .migrate();
-        // A database at the post-P7 set has also run the Query set, which creates sq_searchable_property;
-        // V6's trigger reads that table on every object write.
-        queryFlyway(dataSource).migrate();
-        insertObject(UUID.randomUUID(), "first");
-        insertObject(UUID.randomUUID(), "second");
-        insertSearchableRegistration();
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations(FROZEN_POST_P2)
-                .load()
-                .migrate();
-
-        PostgresMigrations.migrate(dataSource);
-
-        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
-                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
-        assertSearchSchemaPresent();
-        assertQueryHistory();
-        assertRowCounts(2, 1);
-    }
-
-    /**
-     * Settling case (g): the pair from after P2 to after P3. A database at the frozen post-P2 set (V1 and V3
-     * to V8, no V2) and the Query set migrates to the frozen post-P3 set (V1 and V3 to V9), and then to the
-     * live set.
-     */
-    @Test
-    void frozenPostP2LayoutMigratesThroughThePostP3Set() {
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations(FROZEN_POST_P2)
-                .load()
-                .migrate();
-        // The post-P2 set has the search trigger, which reads sq_searchable_property on every object write.
-        queryFlyway(dataSource).migrate();
-        insertObject(UUID.randomUUID(), "first");
-        insertObject(UUID.randomUUID(), "second");
-        insertSearchableRegistration();
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations(FROZEN_POST_P3)
-                .load()
-                .migrate();
-
-        PostgresMigrations.migrate(dataSource);
-
-        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
-                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
-        assertSearchSchemaPresent();
-        assertQueryHistory();
-        assertRowCounts(2, 1);
-    }
-
-    /**
-     * Settling case (h): the pair from after P3 to after P4. A database at the frozen post-P3 set (V1 and V3
-     * to V9, no V10 or V11) and the Query set migrates to the frozen post-P4 set (V1 and V3 to V11), and then
-     * to the live set.
-     */
-    @Test
-    void frozenPostP3LayoutMigratesThroughThePostP4Set() {
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations(FROZEN_POST_P3)
-                .load()
-                .migrate();
-        // The post-P3 set has the search trigger, which reads sq_searchable_property on every object write.
-        queryFlyway(dataSource).migrate();
-        insertObject(UUID.randomUUID(), "first");
-        insertObject(UUID.randomUUID(), "second");
-        insertSearchableRegistration();
-        // The post-P4 set ends with V10, CREATE INDEX CONCURRENTLY. With the transactional lock on, Flyway holds
-        // a transaction open for the whole run and V10 waits on it forever, so the lock is off here, as in
-        // PostgresMigrations.
-        Flyway.configure()
-                .dataSource(dataSource)
-                .locations(FROZEN_POST_P4)
-                .configuration(Map.of("flyway.postgresql.transactional.lock", "false"))
-                .load()
-                .migrate();
-
-        PostgresMigrations.migrate(dataSource);
-
-        assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
-                .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
-        assertSearchSchemaPresent();
-        assertQueryHistory();
-        assertRowCounts(2, 1);
-    }
-
-    /** Settling case (a): a fresh database migrates to the final set. */
+    /** A fresh database migrates to the final set, and the Query history is the baseline and its two migrations. */
     @Test
     void freshDatabaseMigratesToTheFinalSet() {
-        PostgresMigrations.migrate(dataSource);
+        ComposedMigrations.migrate(dataSource);
 
         assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
                 .containsExactlyElementsOf(FINAL_COMMAND_HISTORY);
@@ -194,7 +86,7 @@ class PostgresMigrationsSettlingIT {
         assertRowCounts(2, 1);
     }
 
-    /** Settling case (b): a database that ran the cut-over, V1 to V4 with V2 recorded. */
+    /** A database that ran the cut-over (V1 to V4, with V2 recorded) migrates to the live set. */
     @Test
     void frozen3328993LayoutMigratesToTheLiveSet() {
         // target("4") on a set that ends at V4 applies nothing extra. It is harmless, and it stays.
@@ -208,7 +100,7 @@ class PostgresMigrationsSettlingIT {
         insertObject(UUID.randomUUID(), "second");
         insertSearchableRegistration();
 
-        PostgresMigrations.migrate(dataSource);
+        ComposedMigrations.migrate(dataSource);
 
         assertOnlyVersionTwoIsMissing();
         assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
@@ -230,7 +122,7 @@ class PostgresMigrationsSettlingIT {
         assertRowCounts(2, 1);
     }
 
-    /** Settling case (c): a database that ran P2a's set, V1 to V5. */
+    /** A database that ran P2a's set (V1 to V5) migrates to the live set. */
     @Test
     void frozenFbb82c5LayoutMigratesToTheLiveSet() {
         Flyway.configure()
@@ -242,7 +134,7 @@ class PostgresMigrationsSettlingIT {
         insertObject(UUID.randomUUID(), "second");
         insertSearchableRegistration();
 
-        PostgresMigrations.migrate(dataSource);
+        ComposedMigrations.migrate(dataSource);
 
         assertOnlyVersionTwoIsMissing();
         assertThat(versionsAndStates(PostgresMigrations.commandFlyway(dataSource)))
@@ -264,14 +156,14 @@ class PostgresMigrationsSettlingIT {
         assertRowCounts(2, 1);
     }
 
-    /** Settling case (e): migrating an up-to-date database again changes neither history. */
+    /** Migrating an up-to-date database again changes neither history. */
     @Test
     void migratingAnUpToDateDatabaseAgainChangesNeitherHistory() {
-        PostgresMigrations.migrate(dataSource);
+        ComposedMigrations.migrate(dataSource);
         List<String> commandBefore = describedHistory(PostgresMigrations.commandFlyway(dataSource));
         List<String> queryBefore = describedHistory(queryFlyway(dataSource));
 
-        PostgresMigrations.migrate(dataSource);
+        ComposedMigrations.migrate(dataSource);
 
         assertThat(describedHistory(PostgresMigrations.commandFlyway(dataSource)))
                 .isEqualTo(commandBefore);
@@ -279,12 +171,12 @@ class PostgresMigrationsSettlingIT {
     }
 
     /**
-     * Bare database, default migrate: the Query set is applied before any Command write, so a row write right
-     * after migrate succeeds and the search trigger fires.
+     * Bare database, composed migrate: the Query set is applied before any Command write, so a row write right after
+     * migrate succeeds and the search trigger fires.
      */
     @Test
-    void defaultMigrateWritesAnObjectOnABareDatabase() {
-        PostgresMigrations.migrate(dataSource);
+    void composedMigrateWritesAnObjectOnABareDatabase() {
+        ComposedMigrations.migrate(dataSource);
 
         insertObject(UUID.randomUUID(), "bare");
 
@@ -294,8 +186,8 @@ class PostgresMigrationsSettlingIT {
     }
 
     /**
-     * Bare database, command-only migrate (a no-op hook): the Query set is not applied, so the search trigger
-     * reads a table that does not exist and an object write fails. This is the negative check for the default.
+     * Bare database, command-only migrate (a no-op hook): the Query set is not applied, so the search trigger reads a
+     * table that does not exist and an object write fails. This is the negative check for the composed migrate.
      */
     @Test
     void commandOnlyMigrateFailsAnObjectWriteBecauseNoQuerySetExists() {
@@ -307,22 +199,19 @@ class PostgresMigrationsSettlingIT {
     }
 
     /**
-     * The default's Query history matches the released query-postgres-jsonb-adapter's migrate: the same versions,
-     * descriptions, states and checksums. The released adapter is a runtime dependency only, so it is reached by
-     * reflection and this test does not compile against it.
+     * The composed migrate's Query history is the store's default migrate's Query history: the same versions, descriptions,
+     * states and checksums. The composed migrate runs the released query-postgres-jsonb-adapter's migrate. The store's default
+     * carries its own copy of that configuration (location, history table and baseline), so this checks the two copies agree.
      */
     @Test
-    void defaultQuerySetMatchesTheReleasedQueryMigrate() throws ReflectiveOperationException {
-        PostgresMigrations.migrate(dataSource);
-        List<String> store = queryHistoryFingerprint();
+    void composedQuerySetHistoryMatchesTheStoreDefaultMigrate() {
+        ComposedMigrations.migrate(dataSource);
+        List<String> composed = queryHistoryFingerprint();
 
         emptyDatabase();
-        PostgresMigrations.migrate(dataSource, ignored -> {});
-        Class.forName("org.sequeless.query.postgres.PostgresMigrations")
-                .getMethod("migrate", DataSource.class)
-                .invoke(null, dataSource);
+        PostgresMigrations.migrate(dataSource);
 
-        assertThat(queryHistoryFingerprint()).isEqualTo(store);
+        assertThat(queryHistoryFingerprint()).isEqualTo(composed);
     }
 
     private static List<String> queryHistoryFingerprint() {
@@ -332,14 +221,14 @@ class PostgresMigrationsSettlingIT {
                 .toList();
     }
 
-    /** Settling case (d): the Query history is the baseline and its two migrations, and nothing else. */
+    /** The Query history is the baseline and its two migrations, and nothing else. */
     private static void assertQueryHistory() {
         assertThat(versionsAndStates(queryFlyway(dataSource))).containsExactly("0 BASELINE", "1 SUCCESS", "2 SUCCESS");
     }
 
     /**
-     * The Query instance for history assertions, configured as the store's migrate configures it. The
-     * accessor was removed from PostgresMigrations (spec 18 Q23), so the test builds its own copy.
+     * The Query instance for history assertions, configured as the released adapter configures it. The test builds its
+     * own copy, so it can read the history without the migration's own accessor.
      */
     private static Flyway queryFlyway(DataSource dataSource) {
         return Flyway.configure()
@@ -351,7 +240,7 @@ class PostgresMigrationsSettlingIT {
                 .load();
     }
 
-    /** Settling cases (b) and (c): the only missing Command entry is V2, recorded as MISSING_SUCCESS. */
+    /** The only missing Command entry is V2, recorded as MISSING_SUCCESS. */
     private static void assertOnlyVersionTwoIsMissing() {
         List<String> missing = Arrays.stream(
                         PostgresMigrations.commandFlyway(dataSource).info().all())

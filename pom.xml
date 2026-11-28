@@ -16,14 +16,13 @@
 
   <name>sequeless-prototype</name>
   <description>Root reactor POM for Sequeless. Its parent is sequeless-build-parent, which has no Spring in it,
-    so sequeless-spi and sequeless-core still inherit no Spring Boot build conventions (Lombok and
+    so sequeless-spi still inherits no Spring Boot build conventions (Lombok and
     Spring must stay out of the SPI and core modules). This root imports the Spring Boot dependencies
     BOM for the adapters and the host.</description>
 
   <modules>
     <module>sequeless-spi</module>
     <module>sequeless-spi-testkit</module>
-    <module>sequeless-core</module>
     <module>sequeless-adapter-authz-permitall</module>
     <module>sequeless-adapter-ontology-jena</module>
     <module>sequeless-adapter-persistence-postgres</module>
@@ -59,7 +58,7 @@
       <dependency>
         <groupId>org.sequeless</groupId>
         <artifactId>sequeless-bom</artifactId>
-        <version>0.3.2</version>
+        <version>0.4.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

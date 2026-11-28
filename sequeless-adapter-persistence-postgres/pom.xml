@@ -23,10 +23,6 @@
     </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>kernel-values</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.sequeless</groupId>
       <artifactId>sequeless-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -34,13 +30,19 @@
       <groupId>org.sequeless</groupId>
       <artifactId>ontology-core</artifactId>
     </dependency>
+
+    <!--
+      Spec 18 U11: the Command side is the released sequeless-store. The host's wiring (autoconfiguration, properties,
+      the adapter descriptor, the migrating DataSource) builds and migrates the store's Postgres adapter, so both
+      store modules are compile dependencies here. No version: the BOM manages them.
+    -->
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>schema-contract</artifactId>
+      <artifactId>store-core</artifactId>
     </dependency>
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>automation-contract</artifactId>
+      <artifactId>store-postgres-jsonb-adapter</artifactId>
     </dependency>
 
     <dependency>
@@ -50,9 +52,9 @@
     </dependency>
 
     <!--
-      Optional: this module's own PostgresObjectStore/PostgresOntologyDocumentStore classes depend
-      on JdbcClient/TransactionTemplate, but a caller that only wants those plain classes against a
-      hand-built DataSource must not be forced to pull Spring Boot's autoconfigure machinery.
+      Optional: the wiring and this module's PostgresOntologyDocumentStore depend on JdbcClient and
+      TransactionTemplate, but a caller that only wants the plain store classes against a hand-built
+      DataSource must not be forced to pull Spring Boot's autoconfigure machinery.
     -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -60,9 +62,16 @@
       <optional>true</optional>
     </dependency>
 
+    <!-- Spec 18 U11: the migrations run through the store's and the query adapter's own Flyway; the host's tests drive Flyway directly. -->
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The Query port's lambda in the autoconfiguration takes the released Schema type, so the module names it at compile scope. -->
+    <dependency>
+      <groupId>org.sequeless</groupId>
+      <artifactId>schema-contract</artifactId>
     </dependency>
 
     <dependency>
@@ -72,20 +81,8 @@
     </dependency>
 
     <!--
-      This is a Jackson-3 codebase (tools.jackson, not com.fasterxml.jackson): Boot 4.1.1's own
-      spring-boot-starter-web pulls tools.jackson.core:jackson-databind 3.x. This module does not
-      depend on spring-boot-starter-web, so it declares jackson-databind directly; ValueJsonCodec
-      must only ever import tools.jackson.databind.*, never com.fasterxml.jackson.databind.*.
-    -->
-    <dependency>
-      <groupId>tools.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-    </dependency>
-
-    <!--
-      Kept as a normal (non-optional) compile dependency: this adapter's own Flyway.configure()
-      call needs the driver on its classpath at runtime regardless of who assembles the app, and
-      spring-boot-starter-jdbc does not itself pull a driver.
+      Kept as a normal (non-optional) runtime dependency: the migrations run over this module's DataSource, so the
+      driver must be on the classpath whoever assembles the app, and spring-boot-starter-jdbc does not pull a driver.
     -->
     <dependency>
       <groupId>org.postgresql</groupId>
@@ -95,33 +92,21 @@
 
     <dependency>
       <groupId>org.sequeless</groupId>
-      <artifactId>sequeless-spi-testkit</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.sequeless</groupId>
       <artifactId>ontology-testfixtures</artifactId>
       <scope>test</scope>
     </dependency>
     <!--
-      Spec 17 P2a: the Query migration set (postgres-query) now ships in the released jar, not in this module.
-      PostgresMigrations and PostgresObjectStore read that set from this jar's classpath resources at run time, so
-      the jar is a runtime dependency. The jar's files are identical to the frozen copies that PostgresMigrationFrozenSetsTest
-      pins.
+      Spec 18 U11: the host's composed migrate (command, then the Query set, then command V7 onward) runs the Query set
+      through the released query-postgres-jsonb-adapter's own migrate, on flyway_schema_history_query. So the jar is a
+      compile dependency here, and the host's migration tests run the real Query set.
     -->
     <dependency>
       <groupId>org.sequeless</groupId>
       <artifactId>query-postgres-jsonb-adapter</artifactId>
-      <scope>runtime</scope>
     </dependency>
 
-    <!--
-      Unlike sequeless-adapter-ontology-jena/sequeless-adapter-authz-permitall's reflection-only
-      auto-configuration tests, PostgresPersistenceAutoConfigurationTest exercises a real Spring
-      context via ApplicationContextRunner (see plan.md/steps-phase-2.md T6), so this module needs
-      spring-boot-test on its test classpath.
-    -->
+    <!-- Test runtime from the Spring Boot test starter. -->
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -177,11 +162,6 @@
       <scope>test</scope>
     </dependency>
 
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-test</artifactId>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>
@@ -194,13 +174,11 @@
             <id>analyze-only</id>
             <configuration>
               <!--
-                query-postgres-jsonb-adapter is used at run time only through its classpath resources (the
-                postgres-query Flyway set), so no class of it is named in code. The Spring Boot starter entry
-                is the parent's own ignore, repeated because a child list replaces the parent's list.
+                The Spring Boot starter entry is the parent's own ignore, repeated because a child list replaces
+                the parent's list.
               -->
               <ignoredUnusedDeclaredDependencies>
                 <ignoredUnusedDeclaredDependency>org.springframework.boot:spring-boot-starter*</ignoredUnusedDeclaredDependency>
-                <ignoredUnusedDeclaredDependency>org.sequeless:query-postgres-jsonb-adapter</ignoredUnusedDeclaredDependency>
               </ignoredUnusedDeclaredDependencies>
             </configuration>
           </execution>
