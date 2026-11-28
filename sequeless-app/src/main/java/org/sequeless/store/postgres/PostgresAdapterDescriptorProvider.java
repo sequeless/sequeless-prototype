@@ -8,7 +8,7 @@ import org.sequeless.store.spi.ObjectStorePort;
  * Publishes this module's {@link AdapterDescriptor} for discovery via {@link
  * java.util.ServiceLoader}, registered under {@code
  * META-INF/services/org.sequeless.spi.AdapterDescriptorProvider}. Has zero Spring imports, like
- * {@code sequeless-adapter-ontology-jena}'s {@code JenaOntologyAdapterDescriptorProvider}: the
+ * the Jena wiring's {@code JenaOntologyAdapterDescriptorProvider}: the
  * descriptor must be discoverable before any Spring context exists, since the application uses it
  * to validate an adapter before deciding whether to even start wiring Spring beans for it.
  *

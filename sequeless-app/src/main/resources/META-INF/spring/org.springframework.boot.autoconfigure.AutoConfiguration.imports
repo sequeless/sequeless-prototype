@@ -1,1 +1,3 @@
 org.sequeless.store.postgres.PostgresPersistenceAutoConfiguration
+org.sequeless.adapter.ontology.jena.JenaOntologyAutoConfiguration
+org.sequeless.adapter.ontology.jena.ShaclValidationAutoConfiguration
